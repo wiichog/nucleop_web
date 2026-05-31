@@ -1,5 +1,7 @@
-import { useMemberships } from "../api/hooks";
+import { useState } from "react";
+import { useMembershipDetail, useMemberships } from "../api/hooks";
 import { useAuth } from "../lib/auth";
+import { downloadCsv } from "../lib/csv";
 
 const STATUS_BADGE: Record<string, string> = {
   active: "badge--ok",
@@ -12,12 +14,36 @@ export function AthletesPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
   const { data, isLoading } = useMemberships(gymId);
+  const [selectedMembershipId, setSelectedMembershipId] = useState("");
+  const detail = useMembershipDetail(gymId, selectedMembershipId);
 
   if (!gymId) return <p>No tienes un gimnasio asignado.</p>;
 
   return (
     <div>
-      <h1>Atletas del gimnasio</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+        <h1>Atletas del gimnasio</h1>
+        <button
+          className="nucleo-btn"
+          style={{ alignSelf: "center" }}
+          onClick={() =>
+            downloadCsv(
+              "atletas-nucleo.csv",
+              ["atleta", "estado", "plan", "cuota", "pago", "puntos_comunidad"],
+              (data ?? []).map((membership) => [
+                membership.athlete_name,
+                membership.status,
+                membership.plan,
+                membership.effective_fee,
+                membership.payment_status,
+                membership.community_points,
+              ]),
+            )
+          }
+        >
+          Exportar CSV
+        </button>
+      </div>
       <p style={{ color: "var(--nucleo-muted)", marginTop: -8 }}>
         Solo se muestra la relación con ESTE gym (visibilidad por relación).
       </p>
@@ -34,6 +60,7 @@ export function AthletesPage() {
                 <th>Cuota efectiva</th>
                 <th>Estado de pago</th>
                 <th>Puntos comunidad</th>
+                <th>Ficha</th>
               </tr>
             </thead>
             <tbody>
@@ -49,12 +76,71 @@ export function AthletesPage() {
                   <td>Q{m.effective_fee ?? "—"}</td>
                   <td>{m.payment_status}</td>
                   <td>{m.community_points}</td>
+                  <td>
+                    <button
+                      className="nucleo-btn nucleo-btn--secondary"
+                      onClick={() => setSelectedMembershipId(m.id)}
+                    >
+                      Ver detalle
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+      {detail.data && (
+        <section className="nucleo-card" style={{ marginTop: 16 }}>
+          <h2 style={{ marginTop: 0 }}>Ficha relacional: {detail.data.athlete_name}</h2>
+          <p style={{ color: "var(--nucleo-muted)" }}>
+            {detail.data.athlete_profile.sport_level || "Nivel sin registrar"} ·{" "}
+            {detail.data.athlete_profile.goals || "Objetivos sin registrar"}
+          </p>
+          <p>
+            <strong>Notas internas:</strong> {detail.data.internal_notes || "Sin notas"}
+          </p>
+          <h3>Pagos en este gimnasio</h3>
+          {detail.data.payments.length === 0 ? (
+            <p>Sin pagos registrados.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr><th>Fecha</th><th>Método</th><th>Monto</th><th>Estado</th></tr>
+              </thead>
+              <tbody>
+                {detail.data.payments.map((payment) => (
+                  <tr key={payment.id}>
+                    <td>{new Date(payment.created_at).toLocaleDateString("es-GT")}</td>
+                    <td>{payment.method}</td>
+                    <td>Q{payment.amount}</td>
+                    <td>{payment.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <h3>Asistencia en este gimnasio</h3>
+          {detail.data.checkins.length === 0 ? (
+            <p>Sin check-ins registrados.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr><th>Clase</th><th>Fecha</th><th>Método</th></tr>
+              </thead>
+              <tbody>
+                {detail.data.checkins.map((checkin) => (
+                  <tr key={checkin.id}>
+                    <td>{checkin.class_type}</td>
+                    <td>{new Date(checkin.starts_at).toLocaleString("es-GT")}</td>
+                    <td>{checkin.method}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
     </div>
   );
 }

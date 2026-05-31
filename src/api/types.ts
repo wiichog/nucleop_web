@@ -1,10 +1,14 @@
 import type { components } from "./schema";
 
 export type Membership = components["schemas"]["MembershipAdmin"];
+export type MembershipDetail = components["schemas"]["MembershipDetailAdmin"];
 export type Payment = components["schemas"]["Payment"];
 export type Plan = components["schemas"]["Plan"];
 export type JoinRequest = components["schemas"]["JoinRequest"];
 export type GymClass = components["schemas"]["GymClass"];
+export type GymCheckin = components["schemas"]["GymCheckin"];
+export type AuditLog = components["schemas"]["AuditLog"];
+export type GymAdmin = components["schemas"]["GymAdmin"];
 
 export interface Paginated<T> {
   results: T[];

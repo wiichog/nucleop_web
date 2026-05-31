@@ -8,6 +8,9 @@ import { PaymentsPage } from "./pages/PaymentsPage";
 import { PlansPage } from "./pages/PlansPage";
 import { RequestsPage } from "./pages/RequestsPage";
 import { ClassesPage } from "./pages/ClassesPage";
+import { AuditPage } from "./pages/AuditPage";
+import { PasswordResetConfirmPage } from "./pages/PasswordResetConfirmPage";
+import { PlatformGymsPage } from "./pages/PlatformGymsPage";
 
 function Protected({ children }: { children: JSX.Element }) {
   const { authenticated, loading } = useAuth();
@@ -20,6 +23,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/password-reset" element={<PasswordResetConfirmPage />} />
       <Route
         element={
           <Protected>
@@ -33,6 +37,8 @@ export default function App() {
         <Route path="/planes" element={<PlansPage />} />
         <Route path="/solicitudes" element={<RequestsPage />} />
         <Route path="/clases" element={<ClassesPage />} />
+        <Route path="/auditoria" element={<AuditPage />} />
+        <Route path="/plataforma/gyms" element={<PlatformGymsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

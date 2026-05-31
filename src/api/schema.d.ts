@@ -40,6 +40,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Solicita recuperación sin permitir enumeración de cuentas. */
+        post: operations["auth_password_reset_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Confirma recuperación mediante token firmado de un solo uso práctico. */
+        post: operations["auth_password_reset_confirm_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/refresh": {
         parameters: {
             query?: never;
@@ -175,6 +209,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Bitácora del gimnasio actual; nunca mezcla eventos de otro ámbito. */
+        get: operations["gym_audit_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/audit/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Exporta la bitácora visible y registra el evento de exportación. */
+        get: operations["gym_audit_export_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/classes": {
         parameters: {
             query?: never;
@@ -187,6 +255,24 @@ export interface paths {
         put?: never;
         /** @description Crear/listar clases del gym (A10). */
         post: operations["gym_classes_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/classes/{id}/checkins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Asistencia de una clase y check-in manual desde recepción. */
+        get: operations["gym_classes_checkins_list"];
+        put?: never;
+        /** @description Asistencia de una clase y check-in manual desde recepción. */
+        post: operations["gym_classes_checkins_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -269,6 +355,23 @@ export interface paths {
             cookie?: never;
         };
         get: operations["gym_memberships_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/memberships/{mid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Ficha del atleta limitada a su relación con ESTE gimnasio. */
+        get: operations["gym_memberships_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -620,9 +723,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** @description Listado y alta de gyms reservados al superadmin de plataforma. */
+        get: operations["platform_gyms_list"];
         put?: never;
-        /** @description Alta de gym reservada al superadmin de plataforma. */
+        /** @description Listado y alta de gyms reservados al superadmin de plataforma. */
         post: operations["platform_gyms_create"];
         delete?: never;
         options?: never;
@@ -706,6 +810,11 @@ export interface components {
             email?: string | null;
             email_verified?: boolean;
             account_origin?: components["schemas"]["AccountOriginEnum"];
+            /**
+             * Estado de superusuario
+             * @description Indica que este usuario tiene todos los permisos sin asignárselos explícitamente.
+             */
+            readonly is_superuser: boolean;
             readonly roles: components["schemas"]["StaffRole"][];
             athlete?: components["schemas"]["Athlete"] | null;
         };
@@ -724,6 +833,20 @@ export interface components {
             /** Format: date-time */
             readonly created_at: string;
         };
+        AuditLog: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            actor_id?: string | null;
+            actor_role?: string;
+            action: string;
+            entity: string;
+            entity_id?: string;
+            before?: unknown;
+            after?: unknown;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
         Checkin: {
             /** Format: uuid */
             readonly id: string;
@@ -733,7 +856,7 @@ export interface components {
             readonly athlete: string;
             /** Format: uuid */
             readonly membership: string | null;
-            readonly method: components["schemas"]["CheckinMethodEnum"];
+            readonly method: components["schemas"]["Method173Enum"];
             /** Format: date-time */
             readonly checked_in_at: string;
         };
@@ -748,14 +871,6 @@ export interface components {
          * @enum {string}
          */
         CheckinActionMethodEnum: "athlete_qr" | "class_qr" | "manual" | "reception";
-        /**
-         * @description * `athlete_qr` - QR del atleta
-         *     * `class_qr` - QR de la clase
-         *     * `manual` - Validación manual del coach
-         *     * `reception` - Recepción
-         * @enum {string}
-         */
-        CheckinMethodEnum: "athlete_qr" | "class_qr" | "manual" | "reception";
         /** @description Reclamo de cuenta creada por un gym. Vincula el atleta existente; nunca duplica. */
         Claim: {
             phone: string;
@@ -888,6 +1003,20 @@ export interface components {
             fixed_fee?: string | null;
             fiscal_data?: unknown;
             payout_config?: unknown;
+        };
+        GymCheckin: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym_class: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            /** Format: uuid */
+            readonly membership: string | null;
+            readonly method: components["schemas"]["Method173Enum"];
+            /** Format: date-time */
+            readonly checked_in_at: string;
+            readonly athlete_name: string;
         };
         GymClass: {
             /** Format: uuid */
@@ -1043,6 +1172,40 @@ export interface components {
             /** Format: int64 */
             community_points?: number;
         };
+        /** @description Ficha relacional segura del atleta para el panel del gimnasio. */
+        MembershipDetailAdmin: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            athlete: string;
+            readonly athlete_name: string;
+            status?: components["schemas"]["Status0a1Enum"];
+            /** Format: uuid */
+            plan?: string | null;
+            /**
+             * Format: decimal
+             * @description Cuota personalizada que sobreescribe el precio del plan SOLO en esta relación.
+             */
+            custom_fee?: string | null;
+            /** Format: decimal */
+            readonly effective_fee: string;
+            /** Format: date */
+            start_date?: string | null;
+            /** Format: date */
+            renewal_date?: string | null;
+            auto_renew?: boolean;
+            payment_method_pref?: components["schemas"]["PaymentMethodPrefEnum"];
+            payment_status?: components["schemas"]["PaymentStatusEnum"];
+            /** Format: decimal */
+            discount?: string | null;
+            internal_notes?: string;
+            /** Format: int64 */
+            community_points?: number;
+            athlete_profile: components["schemas"]["RelationshipAthlete"];
+            payments: components["schemas"]["RelationshipPayment"][];
+            checkins: components["schemas"]["RelationshipCheckin"][];
+            status_history: components["schemas"]["MembershipStatusHistory"][];
+        };
         /** @description Vista del propio atleta de su relación con un gym (§7.2). */
         MembershipSelf: {
             /** Format: uuid */
@@ -1072,6 +1235,14 @@ export interface components {
             readonly changed_at: string;
         };
         /**
+         * @description * `athlete_qr` - QR del atleta
+         *     * `class_qr` - QR de la clase
+         *     * `manual` - Validación manual del coach
+         *     * `reception` - Recepción
+         * @enum {string}
+         */
+        Method173Enum: "athlete_qr" | "class_qr" | "manual" | "reception";
+        /**
          * @description * `card` - Tarjeta
          *     * `cash` - Efectivo
          *     * `bank_transfer` - Transferencia
@@ -1095,6 +1266,19 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["AthletePR"][];
         };
+        PaginatedAuditLogList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["AuditLog"][];
+        };
         PaginatedDropinProductList: {
             /**
              * Format: uri
@@ -1107,6 +1291,19 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["DropinProduct"][];
+        };
+        PaginatedGymAdminList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["GymAdmin"][];
         };
         PaginatedGymClassList: {
             /**
@@ -1202,10 +1399,34 @@ export interface components {
         /** @description Pasaporte completo (§7.2). Solo lo ve el propio atleta. */
         Passport: {
             athlete: components["schemas"]["Athlete"];
-            memberships: unknown[];
+            memberships: components["schemas"]["MembershipSelf"][];
             prs: components["schemas"]["AthletePR"][];
             clubs?: unknown[];
-            dropins: unknown[];
+            dropins: components["schemas"]["PassportDropin"][];
+        };
+        PassportDropin: {
+            /** Format: uuid */
+            id: string;
+            gym: string;
+            /** Format: uuid */
+            qr_token: string;
+            /** Format: date-time */
+            valid_from: string;
+            /** Format: date-time */
+            valid_to: string;
+            /** Format: date-time */
+            used_at: string | null;
+            payment_status: string | null;
+        };
+        /** @description Valida el token firmado y establece una contraseña nueva. */
+        PasswordResetConfirm: {
+            uid: string;
+            token: string;
+            password: string;
+        };
+        /** @description Acepta teléfono o correo sin revelar si la cuenta existe. */
+        PasswordResetRequest: {
+            identifier: string;
         };
         PatchedAthlete: {
             /** Format: uuid */
@@ -1329,6 +1550,10 @@ export interface components {
             benefits?: unknown;
             is_active?: boolean;
         };
+        ReceptionCheckinAction: {
+            /** Format: uuid */
+            membership_id: string;
+        };
         /** @description Auto-registro: teléfono + contraseña. Crea el atleta (decisión 1). */
         Register: {
             phone: string;
@@ -1337,6 +1562,48 @@ export interface components {
             email?: string;
             first_name: string;
             last_name: string;
+        };
+        /** @description Datos globales no sensibles visibles dentro de la relación con el gym. */
+        RelationshipAthlete: {
+            /** Format: uuid */
+            id: string;
+            first_name: string;
+            last_name: string;
+            /** Format: uri */
+            photo_url: string;
+            sport_level: string;
+            goals: string;
+        };
+        /** @description Asistencia del atleta dentro de esta membresía. */
+        RelationshipCheckin: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            gym_class: string;
+            class_type: string;
+            /** Format: date-time */
+            starts_at: string;
+            method: string;
+            /** Format: date-time */
+            checked_in_at: string;
+        };
+        /** @description Pago limitado a la membresía consultada; nunca mezcla otros gimnasios. */
+        RelationshipPayment: {
+            /** Format: uuid */
+            id: string;
+            concept: string;
+            /** Format: decimal */
+            amount: string;
+            currency: string;
+            method: string;
+            status: string;
+            /** Format: uri */
+            proof_url: string;
+            fel_status: string;
+            /** Format: date-time */
+            paid_at: string | null;
+            /** Format: date-time */
+            created_at: string;
         };
         Reservation: {
             /** Format: uuid */
@@ -1473,6 +1740,54 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TokenObtainPair"];
                 };
+            };
+        };
+    };
+    auth_password_reset_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PasswordResetRequest"];
+                "multipart/form-data": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_password_reset_confirm_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirm"];
+                "application/x-www-form-urlencoded": components["schemas"]["PasswordResetConfirm"];
+                "multipart/form-data": components["schemas"]["PasswordResetConfirm"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -1673,6 +1988,57 @@ export interface operations {
             };
         };
     };
+    gym_audit_list: {
+        parameters: {
+            query?: {
+                action?: string;
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                entity?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAuditLogList"];
+                };
+            };
+        };
+    };
+    gym_audit_export_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
     gym_classes_list: {
         parameters: {
             query?: {
@@ -1724,6 +2090,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GymClass"];
+                };
+            };
+        };
+    };
+    gym_classes_checkins_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymCheckin"][];
+                };
+            };
+        };
+    };
+    gym_classes_checkins_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceptionCheckinAction"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReceptionCheckinAction"];
+                "multipart/form-data": components["schemas"]["ReceptionCheckinAction"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymCheckin"];
                 };
             };
         };
@@ -1893,6 +2309,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedMembershipAdminList"];
+                };
+            };
+        };
+    };
+    gym_memberships_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipDetailAdmin"];
                 };
             };
         };
@@ -2596,6 +3034,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AthletePR"];
+                };
+            };
+        };
+    };
+    platform_gyms_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedGymAdminList"];
                 };
             };
         };

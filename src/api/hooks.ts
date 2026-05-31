@@ -1,11 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, tokenStore } from "./client";
 import {
+  AuditLog,
   Dashboard,
   GymClass,
+  GymCheckin,
+  GymAdmin,
   InvitationInput,
   JoinRequest,
   Membership,
+  MembershipDetail,
   Paginated,
   Payment,
   Plan,
@@ -19,6 +23,7 @@ export interface Role {
 }
 
 interface Me {
+  is_superuser: boolean;
   roles: Role[];
 }
 
@@ -117,6 +122,29 @@ export function useRegisterManualPayment(gymId: string) {
   });
 }
 
+export function usePasswordResetRequest() {
+  return useMutation({
+    mutationFn: async (identifier: string) =>
+      (await api.post("/auth/password-reset", { identifier })).data,
+  });
+}
+
+export function usePasswordResetConfirm() {
+  return useMutation({
+    mutationFn: async (body: { uid: string; token: string; password: string }) =>
+      (await api.post("/auth/password-reset/confirm", body)).data,
+  });
+}
+
+export function useMembershipDetail(gymId: string, membershipId: string) {
+  return useQuery({
+    queryKey: ["membership-detail", gymId, membershipId],
+    queryFn: async () =>
+      (await api.get<MembershipDetail>(`/gym/${gymId}/memberships/${membershipId}`)).data,
+    enabled: !!gymId && !!membershipId,
+  });
+}
+
 export function useJoinRequests(gymId: string) {
   return useQuery({
     queryKey: ["join-requests", gymId],
@@ -211,5 +239,71 @@ export function useCreateClass(gymId: string) {
       capacity: number;
     }) => (await api.post<GymClass>(`/gym/${gymId}/classes`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-classes", gymId] }),
+  });
+}
+
+export function useClassCheckins(gymId: string, classId: string) {
+  return useQuery({
+    queryKey: ["class-checkins", gymId, classId],
+    queryFn: async () =>
+      (await api.get<GymCheckin[]>(`/gym/${gymId}/classes/${classId}/checkins`)).data,
+    enabled: !!gymId && !!classId,
+  });
+}
+
+export function useReceptionCheckin(gymId: string, classId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (membershipId: string) =>
+      (
+        await api.post<GymCheckin>(`/gym/${gymId}/classes/${classId}/checkins`, {
+          membership_id: membershipId,
+        })
+      ).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["class-checkins", gymId, classId] });
+      qc.invalidateQueries({ queryKey: ["membership-detail", gymId] });
+    },
+  });
+}
+
+export function useAuditLogs(gymId: string) {
+  return useQuery({
+    queryKey: ["audit", gymId],
+    queryFn: () => getList<AuditLog>(`/gym/${gymId}/audit`),
+    enabled: !!gymId,
+  });
+}
+
+export function useExportAudit(gymId: string) {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.get(`/gym/${gymId}/audit/export`, {
+        responseType: "blob",
+      });
+      const href = URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = "auditoria-nucleo.csv";
+      link.click();
+      URL.revokeObjectURL(href);
+    },
+  });
+}
+
+export function usePlatformGyms(enabled: boolean) {
+  return useQuery({
+    queryKey: ["platform-gyms"],
+    queryFn: () => getList<GymAdmin>("/platform/gyms"),
+    enabled,
+  });
+}
+
+export function useCreatePlatformGym() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { name: string; location_text: string }) =>
+      (await api.post<GymAdmin>("/platform/gyms", body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-gyms"] }),
   });
 }

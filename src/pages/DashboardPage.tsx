@@ -1,6 +1,7 @@
 import { useAtRisk, useDashboard, useOverdue } from "../api/hooks";
 import { useAuth } from "../lib/auth";
 import { Membership } from "../api/types";
+import { downloadCsv } from "../lib/csv";
 
 function Kpi({ label, value, tone }: { label: string; value: string | number; tone?: string }) {
   return (
@@ -23,7 +24,31 @@ export function DashboardPage() {
 
   return (
     <div>
-      <h1>Retención y morosidad</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+        <h1>Retención y morosidad</h1>
+        <button
+          className="nucleo-btn"
+          style={{ alignSelf: "center" }}
+          onClick={() =>
+            downloadCsv(
+              "retencion-nucleo.csv",
+              ["segmento", "atleta", "estado", "cuota", "pago"],
+              [
+                ...(atRisk.data ?? []).map((membership) => ["en_riesgo", membership] as const),
+                ...(overdue.data ?? []).map((membership) => ["moroso", membership] as const),
+              ].map(([segment, membership]) => [
+                segment,
+                membership.athlete_name,
+                membership.status,
+                membership.effective_fee,
+                membership.payment_status,
+              ]),
+            )
+          }
+        >
+          Exportar CSV
+        </button>
+      </div>
       <p style={{ color: "var(--nucleo-muted)", marginTop: -8 }}>
         El gancho de Nucleo: deja de perder alumnos.
       </p>

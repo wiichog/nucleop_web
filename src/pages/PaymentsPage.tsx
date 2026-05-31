@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { useGymPayments, useMemberships, useRegisterManualPayment } from "../api/hooks";
 import { useAuth } from "../lib/auth";
+import { downloadCsv } from "../lib/csv";
 
 export function PaymentsPage() {
   const { primaryGymId } = useAuth();
@@ -90,7 +91,29 @@ export function PaymentsPage() {
         </form>
 
         <section className="nucleo-card" style={{ flex: 1, minWidth: 360 }}>
-          <h2 style={{ marginTop: 0 }}>Historial</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+            <h2 style={{ marginTop: 0 }}>Historial</h2>
+            <button
+              className="nucleo-btn nucleo-btn--secondary"
+              style={{ alignSelf: "center" }}
+              onClick={() =>
+                downloadCsv(
+                  "pagos-nucleo.csv",
+                  ["fecha", "monto", "metodo", "estado", "fel", "comision"],
+                  (payments.data ?? []).map((payment) => [
+                    payment.created_at,
+                    payment.amount,
+                    payment.method,
+                    payment.status,
+                    payment.fel_status,
+                    payment.platform_commission,
+                  ]),
+                )
+              }
+            >
+              Exportar CSV
+            </button>
+          </div>
           <table>
             <thead>
               <tr>

@@ -1,16 +1,53 @@
 import { FormEvent, useState } from "react";
-import { useLogin } from "../api/hooks";
+import { useLogin, usePasswordResetRequest } from "../api/hooks";
 
 export function LoginPage() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [resetMode, setResetMode] = useState(false);
+  const [identifier, setIdentifier] = useState("");
   const login = useLogin();
+  const reset = usePasswordResetRequest();
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     await login.mutateAsync({ phone, password });
     window.location.assign("/");
   };
+
+  if (resetMode) {
+    return (
+      <div className="auth-shell">
+        <form
+          className="nucleo-card"
+          style={{ width: 360 }}
+          onSubmit={async (event) => {
+            event.preventDefault();
+            await reset.mutateAsync(identifier);
+          }}
+        >
+          <h1>Recuperar contraseña</h1>
+          <p style={{ color: "var(--nucleo-muted)" }}>
+            Ingresa tu teléfono o correo. Si la cuenta tiene correo, enviaremos instrucciones.
+          </p>
+          <input
+            className="nucleo-input"
+            value={identifier}
+            onChange={(event) => setIdentifier(event.target.value)}
+            style={{ marginBottom: 16 }}
+            required
+          />
+          {reset.isSuccess && <p>Solicitud recibida. Revisa tu correo.</p>}
+          <button className="nucleo-btn" style={{ width: "100%" }} disabled={reset.isPending}>
+            Enviar instrucciones
+          </button>
+          <button className="link-btn" type="button" onClick={() => setResetMode(false)}>
+            Volver al login
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -58,6 +95,9 @@ export function LoginPage() {
         )}
         <button className="nucleo-btn" style={{ width: "100%" }} disabled={login.isPending}>
           {login.isPending ? "Entrando…" : "Entrar"}
+        </button>
+        <button className="link-btn" type="button" onClick={() => setResetMode(true)}>
+          Olvidé mi contraseña
         </button>
       </form>
     </div>

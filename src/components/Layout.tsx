@@ -1,17 +1,21 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 
-const nav = [
+const gymNav = [
   { to: "/", label: "Retención y morosidad" },
   { to: "/atletas", label: "Atletas" },
   { to: "/pagos", label: "Pagos" },
   { to: "/planes", label: "Planes" },
   { to: "/solicitudes", label: "Solicitudes e invitaciones" },
   { to: "/clases", label: "Clases" },
+  { to: "/auditoria", label: "Auditoría" },
 ];
 
 export function Layout() {
-  const { gymIds, logout, primaryGymId, roles, setPrimaryGymId } = useAuth();
+  const { gymIds, isSuperuser, logout, primaryGymId, roles, setPrimaryGymId } = useAuth();
+  const nav = isSuperuser
+    ? [...gymNav, { to: "/plataforma/gyms", label: "Plataforma: gimnasios" }]
+    : gymNav;
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <aside

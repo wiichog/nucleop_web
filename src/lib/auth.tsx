@@ -6,6 +6,7 @@ interface AuthValue {
   loading: boolean;
   authenticated: boolean;
   roles: Role[];
+  isSuperuser: boolean;
   primaryGymId: string | null;
   gymIds: string[];
   setPrimaryGymId: (gymId: string) => void;
@@ -16,6 +17,7 @@ const AuthContext = createContext<AuthValue>({
   loading: true,
   authenticated: false,
   roles: [],
+  isSuperuser: false,
   primaryGymId: null,
   gymIds: [],
   setPrimaryGymId: () => {},
@@ -38,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading: isLoading && !!tokenStore.access,
     authenticated: !!tokenStore.access,
     roles,
+    isSuperuser: data?.is_superuser ?? false,
     primaryGymId,
     gymIds,
     setPrimaryGymId,
