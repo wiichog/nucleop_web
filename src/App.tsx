@@ -6,6 +6,8 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { AthletesPage } from "./pages/AthletesPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { PlansPage } from "./pages/PlansPage";
+import { RequestsPage } from "./pages/RequestsPage";
+import { ClassesPage } from "./pages/ClassesPage";
 
 function Protected({ children }: { children: JSX.Element }) {
   const { authenticated, loading } = useAuth();
@@ -29,6 +31,8 @@ export default function App() {
         <Route path="/atletas" element={<AthletesPage />} />
         <Route path="/pagos" element={<PaymentsPage />} />
         <Route path="/planes" element={<PlansPage />} />
+        <Route path="/solicitudes" element={<RequestsPage />} />
+        <Route path="/clases" element={<ClassesPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

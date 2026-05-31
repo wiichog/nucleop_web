@@ -1,17 +1,15 @@
 import { FormEvent, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useLogin } from "../api/hooks";
 
 export function LoginPage() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const login = useLogin();
-  const navigate = useNavigate();
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     await login.mutateAsync({ phone, password });
-    navigate("/");
+    window.location.assign("/");
   };
 
   return (

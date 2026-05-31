@@ -12,11 +12,18 @@ export function PaymentsPage() {
   const [membershipId, setMembershipId] = useState("");
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"cash" | "bank_transfer">("cash");
+  const [proofFile, setProofFile] = useState<File>();
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    await registerManual.mutateAsync({ membership_id: membershipId, amount, method });
+    await registerManual.mutateAsync({
+      membership_id: membershipId,
+      amount,
+      method,
+      proof_file: proofFile,
+    });
     setAmount("");
+    setProofFile(undefined);
   };
 
   if (!gymId) return <p>No tienes un gimnasio asignado.</p>;
@@ -38,12 +45,24 @@ export function PaymentsPage() {
             style={{ marginBottom: 12 }}
           >
             <option value="">Selecciona…</option>
-            {(memberships.data ?? []).map((m: any) => (
+            {(memberships.data ?? []).map((m) => (
               <option key={m.id} value={m.id}>
                 {m.athlete_name} ({m.status})
               </option>
             ))}
           </select>
+          {method === "bank_transfer" && (
+            <>
+              <label>Comprobante</label>
+              <input
+                className="nucleo-input"
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(event) => setProofFile(event.target.files?.[0])}
+                style={{ marginBottom: 16 }}
+              />
+            </>
+          )}
           <label>Monto (Q)</label>
           <input
             className="nucleo-input"
@@ -83,7 +102,7 @@ export function PaymentsPage() {
               </tr>
             </thead>
             <tbody>
-              {(payments.data ?? []).map((p: any) => (
+              {(payments.data ?? []).map((p) => (
                 <tr key={p.id}>
                   <td>Q{p.amount}</td>
                   <td>{p.method}</td>

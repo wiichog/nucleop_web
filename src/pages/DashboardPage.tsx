@@ -1,5 +1,6 @@
 import { useAtRisk, useDashboard, useOverdue } from "../api/hooks";
 import { useAuth } from "../lib/auth";
+import { Membership } from "../api/types";
 
 function Kpi({ label, value, tone }: { label: string; value: string | number; tone?: string }) {
   return (
@@ -18,7 +19,7 @@ export function DashboardPage() {
   const overdue = useOverdue(gymId);
 
   if (!gymId) return <p>No tienes un gimnasio asignado.</p>;
-  const d = dashboard.data ?? {};
+  const d = dashboard.data;
 
   return (
     <div>
@@ -28,15 +29,15 @@ export function DashboardPage() {
       </p>
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
-        <Kpi label="Atletas activos" value={d.atletas_activos ?? "—"} />
-        <Kpi label="Morosos" value={d.morosos ?? "—"} tone="var(--nucleo-danger)" />
+        <Kpi label="Atletas activos" value={d?.atletas_activos ?? "—"} />
+        <Kpi label="Morosos" value={d?.morosos ?? "—"} tone="var(--nucleo-danger)" />
         <Kpi
           label="Por vencer"
-          value={d.proximos_vencimientos ?? "—"}
+          value={d?.proximos_vencimientos ?? "—"}
           tone="var(--nucleo-warning)"
         />
-        <Kpi label="Ingresos tarjeta (mes)" value={`Q${d.ingresos_mes_tarjeta ?? 0}`} />
-        <Kpi label="Ingresos manuales (mes)" value={`Q${d.ingresos_mes_manual ?? 0}`} />
+        <Kpi label="Ingresos tarjeta (mes)" value={`Q${d?.ingresos_mes_tarjeta ?? 0}`} />
+        <Kpi label="Ingresos manuales (mes)" value={`Q${d?.ingresos_mes_manual ?? 0}`} />
       </div>
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
@@ -53,7 +54,7 @@ export function DashboardPage() {
   );
 }
 
-function RelationTable({ rows, empty }: { rows: any[]; empty: string }) {
+function RelationTable({ rows, empty }: { rows: Membership[]; empty: string }) {
   if (!rows.length) return <p style={{ color: "var(--nucleo-muted)" }}>{empty}</p>;
   return (
     <table>

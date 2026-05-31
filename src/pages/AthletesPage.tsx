@@ -37,11 +37,11 @@ export function AthletesPage() {
               </tr>
             </thead>
             <tbody>
-              {(data ?? []).map((m: any) => (
+              {(data ?? []).map((m) => (
                 <tr key={m.id}>
                   <td>{m.athlete_name}</td>
                   <td>
-                    <span className={`badge ${STATUS_BADGE[m.status] ?? "badge--warn"}`}>
+                    <span className={`badge ${STATUS_BADGE[m.status ?? ""] ?? "badge--warn"}`}>
                       {m.status}
                     </span>
                   </td>

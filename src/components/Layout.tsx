@@ -6,10 +6,12 @@ const nav = [
   { to: "/atletas", label: "Atletas" },
   { to: "/pagos", label: "Pagos" },
   { to: "/planes", label: "Planes" },
+  { to: "/solicitudes", label: "Solicitudes e invitaciones" },
+  { to: "/clases", label: "Clases" },
 ];
 
 export function Layout() {
-  const { logout, roles } = useAuth();
+  const { gymIds, logout, primaryGymId, roles, setPrimaryGymId } = useAuth();
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <aside
@@ -51,6 +53,20 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
+        {gymIds.length > 1 && (
+          <select
+            className="nucleo-input"
+            style={{ marginTop: 20 }}
+            value={primaryGymId ?? ""}
+            onChange={(event) => setPrimaryGymId(event.target.value)}
+          >
+            {gymIds.map((gymId) => (
+              <option key={gymId} value={gymId}>
+                Gym {gymId.slice(0, 8)}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           className="nucleo-btn"
           style={{ marginTop: 28, background: "transparent", color: "var(--nucleo-muted)" }}

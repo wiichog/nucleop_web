@@ -35,10 +35,18 @@ No inventar formas de datos: derivarlas del contrato.
 
 - `src/api/` — cliente HTTP centralizado + hooks de React Query.
 - `src/lib/` — auth (contexto + roles/ámbito), tokens de marca (`theme.css`).
-- `src/pages/` — Login, Dashboard (retención/morosidad), Atletas, Pagos, Planes.
+- `src/pages/` — Login, Dashboard, Atletas, Pagos, Planes, Solicitudes/Invitaciones y Clases.
 - `src/components/` — layout y componentes compartidos.
 
 ## Aislamiento por gimnasio (CRÍTICO)
 
 La UI solo solicita y muestra datos del/los gym(s) del rol. La autoridad de
 permisos y visibilidad por relación la impone la API; ocultar un botón no es seguridad.
+
+## Flujos Operativos Incluidos
+
+- Bandeja para aprobar, rechazar y ofrecer prueba en solicitudes de unión.
+- Invitación de atletas por teléfono con vinculación de identidad existente.
+- Asignación de plan y cuota personalizada por relación atleta-gym.
+- Registro de transferencia con comprobante adjunto.
+- Selector de gimnasio para usuarios con más de un ámbito y calendario básico de clases.
