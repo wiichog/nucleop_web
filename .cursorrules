@@ -1,0 +1,39 @@
+# Reglas de Cursor — nucleo-web-admin (Web administrativa React)
+
+## Contexto del proyecto
+Panel administrativo de Nucleo (red deportiva). Lo usan roles INTERNOS:
+gym_admin, coach, trainer, club_admin y superadmin de plataforma. Aquí se gestionan
+atletas, solicitudes de unión, planes/cuotas, pagos (tarjeta + manuales), conciliación,
+morosidad, clases, retención y reportes. Consume nucleo-api. Es de ESCRITORIO.
+Idioma: español (GT) con vocabulario deportivo en inglés.
+
+## Stack
+- React (SPA). TypeScript obligatorio. Cliente HTTP centralizado con JWT (access+refresh)
+  e interceptores de error. Tipos generados del contrato OpenAPI (no inventar formas de datos).
+- Estado de servidor con React Query. Deploy: AWS Amplify. URL de API por variable de entorno.
+
+## Reglas funcionales clave
+- Aprobar solicitud de unión = acción crítica: confirmar, registrar motivo, asignar plan/cuota.
+- Registrar pago manual (efectivo/transferencia) con comprobante adjunto; deja claro que NO
+  genera comisión pero SÍ activa la membresía.
+- Cuota personalizada por atleta sobreescribe el precio del plan SOLO en esa relación.
+- Dashboard de retención y morosidad es la pantalla principal (gancho del producto).
+- Constructor de reportes exportables (Excel/PDF). Vista de auditoría.
+
+## Aislamiento por gimnasio (CRÍTICO)
+- La UI de un gym_admin/coach SOLO muestra datos de su(s) gym(s). Nunca datos de otros gyms
+  ni el historial global del atleta en otros gimnasios. La autorización REAL la impone la API;
+  la UI no debe ni solicitar datos fuera de su ámbito.
+
+## Seguridad
+- 2FA para acceso. Tokens en almacenamiento seguro; refresh rotatorio.
+- La UI respeta permisos por rol+ámbito, pero la autoridad es la API. Ocultar un botón no es seguridad.
+- Mínimo privilegio: no mostrar más datos de los que el rol+ámbito permite.
+
+## Estilo / UX
+- Componentes funcionales + hooks. Accesibilidad AA, español claro.
+- Branding Nucleo (ver §9): premium/tech, símbolo de núcleo, confirmar manual de marca y tokens.
+
+## Qué NO hacer
+- No duplicar lógica de negocio del backend. No llamar a la base de datos directo.
+- No hardcodear URLs ni secretos. No mostrar datos de relaciones de otros gimnasios.
