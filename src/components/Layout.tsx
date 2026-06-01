@@ -8,6 +8,7 @@ const gymNav = [
   { to: "/planes", label: "Planes" },
   { to: "/solicitudes", label: "Solicitudes e invitaciones" },
   { to: "/clases", label: "Clases" },
+  { to: "/comunidad", label: "Comunidad" },
   { to: "/auditoria", label: "Auditoría" },
 ];
 

@@ -11,6 +11,7 @@ import { ClassesPage } from "./pages/ClassesPage";
 import { AuditPage } from "./pages/AuditPage";
 import { PasswordResetConfirmPage } from "./pages/PasswordResetConfirmPage";
 import { PlatformGymsPage } from "./pages/PlatformGymsPage";
+import { CommunityPage } from "./pages/CommunityPage";
 
 function Protected({ children }: { children: JSX.Element }) {
   const { authenticated, loading } = useAuth();
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/planes" element={<PlansPage />} />
         <Route path="/solicitudes" element={<RequestsPage />} />
         <Route path="/clases" element={<ClassesPage />} />
+        <Route path="/comunidad" element={<CommunityPage />} />
         <Route path="/auditoria" element={<AuditPage />} />
         <Route path="/plataforma/gyms" element={<PlatformGymsPage />} />
       </Route>

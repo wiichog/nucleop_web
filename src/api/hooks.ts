@@ -13,6 +13,8 @@ import {
   Paginated,
   Payment,
   Plan,
+  FeedItem,
+  AthleteOfMonth,
   unwrapList,
 } from "./types";
 
@@ -340,6 +342,49 @@ export function useUpdatePlatformGym() {
       };
     }) => (await api.patch<GymAdmin>(`/gym/${gymId}`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-gyms"] }),
+  });
+}
+
+export function useGymFeed(gymId: string) {
+  return useQuery({
+    queryKey: ["gym-feed", gymId],
+    queryFn: () => getList<FeedItem>(`/gym/${gymId}/feed`),
+    enabled: !!gymId,
+  });
+}
+
+export function useAthleteOfMonth(gymId: string) {
+  return useQuery({
+    queryKey: ["athlete-of-month", gymId],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get<AthleteOfMonth>(`/gym/${gymId}/athlete-of-month`);
+        return data;
+      } catch (error: unknown) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "response" in error &&
+          (error as { response?: { status?: number } }).response?.status === 204
+        ) {
+          return null;
+        }
+        throw error;
+      }
+    },
+    enabled: !!gymId,
+  });
+}
+
+export function useComputeAthleteOfMonth(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      (await api.post<AthleteOfMonth>(`/gym/${gymId}/athlete-of-month/compute`, {})).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["athlete-of-month", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-feed", gymId] });
+    },
   });
 }
 

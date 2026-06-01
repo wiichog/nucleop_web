@@ -20,6 +20,26 @@ export function unwrapList<T>(data: T[] | Paginated<T>): T[] {
   return Array.isArray(data) ? data : data.results;
 }
 
+export interface FeedItem {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  gym_name: string | null;
+  club_name: string | null;
+  actor_name: string;
+  created_at: string;
+}
+
+export interface AthleteOfMonth {
+  id: string;
+  athlete: string;
+  athlete_name: string;
+  period: string;
+  score: string;
+  awarded_at: string;
+}
+
 export interface Dashboard {
   atletas_activos: number;
   morosos: number;
