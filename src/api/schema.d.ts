@@ -751,6 +751,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/platform/gyms/{gym_id}/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Consulta y guarda configuración local de la suscripción SaaS del gym. */
+        get: operations["platform_gyms_subscription_retrieve"];
+        /** @description Consulta y guarda configuración local de la suscripción SaaS del gym. */
+        put: operations["platform_gyms_subscription_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sync/batch": {
         parameters: {
             query?: never;
@@ -1068,6 +1086,7 @@ export interface components {
             fixed_fee?: string | null;
             fiscal_data?: unknown;
             payout_config?: unknown;
+            readonly subscription: components["schemas"]["Subscription"];
         };
         GymCheckin: {
             /** Format: uuid */
@@ -1542,6 +1561,7 @@ export interface components {
             fixed_fee?: string | null;
             fiscal_data?: unknown;
             payout_config?: unknown;
+            readonly subscription?: components["schemas"]["Subscription"];
         };
         Payment: {
             /** Format: uuid */
@@ -1731,6 +1751,18 @@ export interface components {
             gym_id: string | null;
             /** Format: uuid */
             club_id: string | null;
+        };
+        Subscription: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            saas_plan: string;
+            /** Format: decimal */
+            monthly_price: string;
+            status?: string;
+            /** Format: date */
+            next_billing_date?: string | null;
         };
         SyncActionInput: {
             client_id: string;
@@ -3219,6 +3251,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GymAdmin"];
+                };
+            };
+        };
+    };
+    platform_gyms_subscription_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+        };
+    };
+    platform_gyms_subscription_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Subscription"];
+                "application/x-www-form-urlencoded": components["schemas"]["Subscription"];
+                "multipart/form-data": components["schemas"]["Subscription"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
                 };
             };
         };

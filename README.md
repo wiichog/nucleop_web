@@ -55,4 +55,4 @@ permisos y visibilidad por relación la impone la API; ocultar un botón no es s
 - Ficha relacional segura con pagos y asistencia del gym actual.
 - Calendario, check-in desde recepción y bitácora exportable en CSV.
 - Exportación CSV de atletas, pagos y retención/morosidad.
-- Panel local de plataforma para que el superadmin liste, cree y configure plan SaaS/comisión de gimnasios.
+- Panel local de plataforma para que el superadmin liste, cree y configure plan SaaS, comisión y suscripción mensual de gimnasios.

@@ -1,5 +1,10 @@
 import { FormEvent, useState } from "react";
-import { useCreatePlatformGym, usePlatformGyms, useUpdatePlatformGym } from "../api/hooks";
+import {
+  useCreatePlatformGym,
+  usePlatformGyms,
+  useUpdatePlatformGym,
+  useUpsertPlatformSubscription,
+} from "../api/hooks";
 import type { GymAdmin } from "../api/types";
 import { useAuth } from "../lib/auth";
 
@@ -8,6 +13,7 @@ export function PlatformGymsPage() {
   const gyms = usePlatformGyms(isSuperuser);
   const createGym = useCreatePlatformGym();
   const updateGym = useUpdatePlatformGym();
+  const upsertSubscription = useUpsertPlatformSubscription();
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [editingId, setEditingId] = useState("");
@@ -15,6 +21,9 @@ export function PlatformGymsPage() {
   const [commission, setCommission] = useState("0.0300");
   const [fixedFee, setFixedFee] = useState("");
   const [isPublic, setIsPublic] = useState(true);
+  const [monthlyPrice, setMonthlyPrice] = useState("");
+  const [subscriptionStatus, setSubscriptionStatus] = useState("active");
+  const [nextBillingDate, setNextBillingDate] = useState("");
 
   if (!isSuperuser) return <p>Se requiere rol de superadmin.</p>;
 
@@ -31,6 +40,9 @@ export function PlatformGymsPage() {
     setCommission(gym.platform_commission_pct ?? "0.0300");
     setFixedFee(gym.fixed_fee ?? "");
     setIsPublic(gym.is_public ?? true);
+    setMonthlyPrice(gym.subscription?.monthly_price ?? "");
+    setSubscriptionStatus(gym.subscription?.status ?? "active");
+    setNextBillingDate(gym.subscription?.next_billing_date ?? "");
   };
 
   const save = async (event: FormEvent) => {
@@ -44,6 +56,17 @@ export function PlatformGymsPage() {
         is_public: isPublic,
       },
     });
+    if (monthlyPrice) {
+      await upsertSubscription.mutateAsync({
+        gymId: editingId,
+        body: {
+          saas_plan: saasPlan,
+          monthly_price: monthlyPrice,
+          status: subscriptionStatus,
+          next_billing_date: nextBillingDate || null,
+        },
+      });
+    }
     setEditingId("");
   };
 
@@ -102,6 +125,27 @@ export function PlatformGymsPage() {
             value={fixedFee}
             onChange={(event) => setFixedFee(event.target.value)}
           />
+          <input
+            className="nucleo-input"
+            placeholder="Suscripción mensual"
+            value={monthlyPrice}
+            onChange={(event) => setMonthlyPrice(event.target.value)}
+          />
+          <select
+            className="nucleo-input"
+            value={subscriptionStatus}
+            onChange={(event) => setSubscriptionStatus(event.target.value)}
+          >
+            <option value="active">Activa</option>
+            <option value="paused">Pausada</option>
+            <option value="cancelled">Cancelada</option>
+          </select>
+          <input
+            className="nucleo-input"
+            type="date"
+            value={nextBillingDate}
+            onChange={(event) => setNextBillingDate(event.target.value)}
+          />
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <input
               type="checkbox"
@@ -110,20 +154,28 @@ export function PlatformGymsPage() {
             />
             Público
           </label>
-          <button className="nucleo-btn" disabled={!commission || updateGym.isPending}>
+          <button
+            className="nucleo-btn"
+            disabled={!commission || updateGym.isPending || upsertSubscription.isPending}
+          >
             Guardar
           </button>
         </form>
       )}
       <section className="nucleo-card">
         <table>
-          <thead><tr><th>Gimnasio</th><th>Ubicación</th><th>SaaS</th><th>Comisión</th><th>Fee fijo</th><th>Público</th><th></th></tr></thead>
+          <thead><tr><th>Gimnasio</th><th>Ubicación</th><th>SaaS</th><th>Suscripción</th><th>Comisión</th><th>Fee fijo</th><th>Público</th><th></th></tr></thead>
           <tbody>
             {(gyms.data ?? []).map((gym) => (
               <tr key={gym.id}>
                 <td>{gym.name}</td>
                 <td>{gym.location_text || "—"}</td>
                 <td>{gym.saas_plan}</td>
+                <td>
+                  {gym.subscription
+                    ? `Q${gym.subscription.monthly_price} (${gym.subscription.status})`
+                    : "—"}
+                </td>
                 <td>{gym.platform_commission_pct}</td>
                 <td>{gym.fixed_fee ?? "—"}</td>
                 <td>{gym.is_public ? "sí" : "no"}</td>

@@ -338,3 +338,22 @@ export function useUpdatePlatformGym() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-gyms"] }),
   });
 }
+
+export function useUpsertPlatformSubscription() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      gymId,
+      body,
+    }: {
+      gymId: string;
+      body: {
+        saas_plan: string;
+        monthly_price: string;
+        status: string;
+        next_billing_date: string | null;
+      };
+    }) => (await api.put(`/platform/gyms/${gymId}/subscription`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-gyms"] }),
+  });
+}
