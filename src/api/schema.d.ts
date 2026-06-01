@@ -481,6 +481,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/prs/{id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Valida un PR únicamente dentro de la relación atleta-gimnasio visible. */
+        post: operations["gym_prs_validate_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/prs/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description PRs pendientes visibles para coaches del gimnasio actual. */
+        get: operations["gym_prs_pending_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/retention/at-risk": {
         parameters: {
             query?: never;
@@ -1092,6 +1126,24 @@ export interface components {
             payout_config?: unknown;
             readonly subscription: components["schemas"]["Subscription"];
         };
+        GymAthletePR: {
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            /** Format: uuid */
+            readonly id: string;
+            readonly pr_type: string;
+            readonly value: string;
+            /** Format: date-time */
+            readonly achieved_at: string;
+            /** Format: uuid */
+            readonly validated_by_coach: string | null;
+            /** Format: uuid */
+            readonly validated_at_gym: string | null;
+            readonly is_public: boolean;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
         GymCheckin: {
             /** Format: uuid */
             readonly id: string;
@@ -1395,6 +1447,19 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["GymAdmin"][];
+        };
+        PaginatedGymAthletePRList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["GymAthletePR"][];
         };
         PaginatedGymClassList: {
             /**
@@ -2693,6 +2758,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Plan"];
+                };
+            };
+        };
+    };
+    gym_prs_validate_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymAthletePR"];
+                };
+            };
+        };
+    };
+    gym_prs_pending_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedGymAthletePRList"];
                 };
             };
         };
