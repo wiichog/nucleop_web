@@ -778,7 +778,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Procesa reintentos móviles de reserva/cancelación con idempotencia durable. */
+        /** @description Procesa reintentos móviles con idempotencia durable. */
         post: operations["sync_batch_create"];
         delete?: never;
         options?: never;
@@ -849,9 +849,12 @@ export interface components {
         /**
          * @description * `reserve_class` - reserve_class
          *     * `cancel_reservation` - cancel_reservation
+         *     * `create_pr` - create_pr
+         *     * `join_gym` - join_gym
+         *     * `update_consents` - update_consents
          * @enum {string}
          */
-        ActionEnum: "reserve_class" | "cancel_reservation";
+        ActionEnum: "reserve_class" | "cancel_reservation" | "create_pr" | "join_gym" | "update_consents";
         AssignPlan: {
             /** Format: uuid */
             plan_id?: string;
@@ -1768,7 +1771,8 @@ export interface components {
             client_id: string;
             action: components["schemas"]["ActionEnum"];
             /** Format: uuid */
-            class_id: string;
+            class_id?: string;
+            data?: unknown;
         };
         SyncActionResult: {
             client_id: string;
@@ -1797,6 +1801,9 @@ export interface components {
             server_time: string;
             classes: components["schemas"]["GymClass"][];
             reservations: components["schemas"]["Reservation"][];
+            prs: components["schemas"]["AthletePR"][];
+            join_requests: components["schemas"]["JoinRequest"][];
+            consents: components["schemas"]["Consent"][];
         };
         TokenObtainPair: {
             phone: string;
