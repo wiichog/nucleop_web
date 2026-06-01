@@ -6,6 +6,8 @@ import {
   useMemberships,
   useReceptionCheckin,
 } from "../api/hooks";
+import { EmptyState } from "../components/EmptyState";
+import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { useAuth } from "../lib/auth";
 
 export function ClassesPage() {
@@ -22,7 +24,8 @@ export function ClassesPage() {
   const checkins = useClassCheckins(gymId, selectedClassId);
   const reception = useReceptionCheckin(gymId, selectedClassId);
 
-  if (!gymId) return <p>No tienes un gimnasio asignado.</p>;
+  if (!gymId) return <NoGymAssigned />;
+  if (classes.isError) return <PageError onRetry={() => classes.refetch()} />;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -45,6 +48,11 @@ export function ClassesPage() {
         <button className="nucleo-btn" disabled={!startsAt || createClass.isPending}>Crear</button>
       </form>
       <section className="nucleo-card">
+        {classes.isLoading ? (
+          <PageLoading />
+        ) : !(classes.data ?? []).length ? (
+          <EmptyState title="Sin clases" description="Crea la primera clase del calendario." />
+        ) : (
         <table>
           <thead><tr><th>Clase</th><th>Fecha</th><th>Cupo</th><th>Estado</th><th>Recepción</th></tr></thead>
           <tbody>
@@ -66,6 +74,7 @@ export function ClassesPage() {
             ))}
           </tbody>
         </table>
+        )}
       </section>
       {!!selectedClassId && (
         <section className="nucleo-card" style={{ marginTop: 16 }}>

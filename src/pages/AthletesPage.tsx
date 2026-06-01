@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useMembershipDetail, useMemberships } from "../api/hooks";
+import { EmptyState } from "../components/EmptyState";
+import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
 
@@ -13,11 +15,12 @@ const STATUS_BADGE: Record<string, string> = {
 export function AthletesPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
-  const { data, isLoading } = useMemberships(gymId);
+  const { data, isLoading, isError, refetch } = useMemberships(gymId);
   const [selectedMembershipId, setSelectedMembershipId] = useState("");
   const detail = useMembershipDetail(gymId, selectedMembershipId);
 
-  if (!gymId) return <p>No tienes un gimnasio asignado.</p>;
+  if (!gymId) return <NoGymAssigned />;
+  if (isError) return <PageError onRetry={() => refetch()} />;
 
   return (
     <div>
@@ -49,7 +52,9 @@ export function AthletesPage() {
       </p>
       <div className="nucleo-card">
         {isLoading ? (
-          <p>Cargando…</p>
+          <PageLoading />
+        ) : !(data ?? []).length ? (
+          <EmptyState title="Sin atletas" description="Aprueba solicitudes o invita atletas al gym." />
         ) : (
           <table>
             <thead>

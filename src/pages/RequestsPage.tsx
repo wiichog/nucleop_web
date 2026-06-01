@@ -7,6 +7,8 @@ import {
   usePlans,
 } from "../api/hooks";
 import { JoinRequest } from "../api/types";
+import { EmptyState } from "../components/EmptyState";
+import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { useAuth } from "../lib/auth";
 
 function RequestActions({ request, gymId }: { request: JoinRequest; gymId: string }) {
@@ -80,7 +82,8 @@ export function RequestsPage() {
   const invite = useInviteAthlete(gymId);
   const [form, setForm] = useState({ phone: "", email: "", first_name: "", last_name: "" });
 
-  if (!gymId) return <p>No tienes un gimnasio asignado.</p>;
+  if (!gymId) return <NoGymAssigned />;
+  if (requests.isError) return <PageError onRetry={() => requests.refetch()} />;
 
   const onInvite = async (event: FormEvent) => {
     event.preventDefault();
@@ -104,11 +107,21 @@ export function RequestsPage() {
             />
           ))}
         </div>
+        {invite.isError && (
+          <p style={{ color: "var(--nucleo-danger)", fontSize: 13 }}>
+            No se pudo enviar la invitación. Verifica el teléfono.
+          </p>
+        )}
         <button className="nucleo-btn" style={{ marginTop: 12 }} disabled={!form.phone || !form.first_name || !form.last_name || invite.isPending}>
-          Enviar invitación
+          {invite.isPending ? "Enviando…" : "Enviar invitación"}
         </button>
       </form>
       <section className="nucleo-card">
+        {requests.isLoading ? (
+          <PageLoading />
+        ) : !(requests.data ?? []).length ? (
+          <EmptyState title="Sin solicitudes" description="Las nuevas solicitudes de unión aparecerán aquí." />
+        ) : (
         <table>
           <thead><tr><th>Atleta</th><th>Estado</th><th>Objetivo</th><th>Acciones</th></tr></thead>
           <tbody>
@@ -122,6 +135,7 @@ export function RequestsPage() {
             ))}
           </tbody>
         </table>
+        )}
       </section>
     </div>
   );
