@@ -1,13 +1,20 @@
 import { FormEvent, useState } from "react";
-import { useCreatePlatformGym, usePlatformGyms } from "../api/hooks";
+import { useCreatePlatformGym, usePlatformGyms, useUpdatePlatformGym } from "../api/hooks";
+import type { GymAdmin } from "../api/types";
 import { useAuth } from "../lib/auth";
 
 export function PlatformGymsPage() {
   const { isSuperuser } = useAuth();
   const gyms = usePlatformGyms(isSuperuser);
   const createGym = useCreatePlatformGym();
+  const updateGym = useUpdatePlatformGym();
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
+  const [editingId, setEditingId] = useState("");
+  const [saasPlan, setSaasPlan] = useState("starter");
+  const [commission, setCommission] = useState("0.0300");
+  const [fixedFee, setFixedFee] = useState("");
+  const [isPublic, setIsPublic] = useState(true);
 
   if (!isSuperuser) return <p>Se requiere rol de superadmin.</p>;
 
@@ -16,6 +23,28 @@ export function PlatformGymsPage() {
     await createGym.mutateAsync({ name, location_text: location });
     setName("");
     setLocation("");
+  };
+
+  const edit = (gym: GymAdmin) => {
+    setEditingId(gym.id);
+    setSaasPlan(gym.saas_plan ?? "starter");
+    setCommission(gym.platform_commission_pct ?? "0.0300");
+    setFixedFee(gym.fixed_fee ?? "");
+    setIsPublic(gym.is_public ?? true);
+  };
+
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    await updateGym.mutateAsync({
+      gymId: editingId,
+      body: {
+        saas_plan: saasPlan,
+        platform_commission_pct: commission,
+        fixed_fee: fixedFee || null,
+        is_public: isPublic,
+      },
+    });
+    setEditingId("");
   };
 
   return (
@@ -45,9 +74,50 @@ export function PlatformGymsPage() {
           Crear gym
         </button>
       </form>
+      {editingId && (
+        <form
+          className="nucleo-card"
+          style={{ display: "flex", gap: 12, marginBottom: 16 }}
+          onSubmit={save}
+        >
+          <select
+            className="nucleo-input"
+            value={saasPlan}
+            onChange={(event) => setSaasPlan(event.target.value)}
+          >
+            <option value="starter">Starter</option>
+            <option value="growth">Growth</option>
+            <option value="pro">Pro</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+          <input
+            className="nucleo-input"
+            placeholder="Comisión (ej. 0.0300)"
+            value={commission}
+            onChange={(event) => setCommission(event.target.value)}
+          />
+          <input
+            className="nucleo-input"
+            placeholder="Fee fijo"
+            value={fixedFee}
+            onChange={(event) => setFixedFee(event.target.value)}
+          />
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={isPublic}
+              onChange={(event) => setIsPublic(event.target.checked)}
+            />
+            Público
+          </label>
+          <button className="nucleo-btn" disabled={!commission || updateGym.isPending}>
+            Guardar
+          </button>
+        </form>
+      )}
       <section className="nucleo-card">
         <table>
-          <thead><tr><th>Gimnasio</th><th>Ubicación</th><th>SaaS</th><th>Comisión</th><th>Público</th></tr></thead>
+          <thead><tr><th>Gimnasio</th><th>Ubicación</th><th>SaaS</th><th>Comisión</th><th>Fee fijo</th><th>Público</th><th></th></tr></thead>
           <tbody>
             {(gyms.data ?? []).map((gym) => (
               <tr key={gym.id}>
@@ -55,7 +125,9 @@ export function PlatformGymsPage() {
                 <td>{gym.location_text || "—"}</td>
                 <td>{gym.saas_plan}</td>
                 <td>{gym.platform_commission_pct}</td>
+                <td>{gym.fixed_fee ?? "—"}</td>
                 <td>{gym.is_public ? "sí" : "no"}</td>
+                <td><button className="link-btn" onClick={() => edit(gym)}>Editar</button></td>
               </tr>
             ))}
           </tbody>

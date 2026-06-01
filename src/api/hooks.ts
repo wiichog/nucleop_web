@@ -307,3 +307,22 @@ export function useCreatePlatformGym() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-gyms"] }),
   });
 }
+
+export function useUpdatePlatformGym() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      gymId,
+      body,
+    }: {
+      gymId: string;
+      body: {
+        saas_plan: string;
+        platform_commission_pct: string;
+        fixed_fee: string | null;
+        is_public: boolean;
+      };
+    }) => (await api.patch<GymAdmin>(`/gym/${gymId}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-gyms"] }),
+  });
+}

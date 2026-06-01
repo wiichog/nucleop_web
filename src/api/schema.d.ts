@@ -734,6 +734,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sync/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Procesa reintentos móviles de reserva/cancelación con idempotencia durable. */
+        post: operations["sync_batch_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/since": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Devuelve cambios recientes visibles por el atleta para refrescar caché local. */
+        get: operations["sync_since_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/fel": {
         parameters: {
             query?: never;
@@ -777,6 +811,12 @@ export interface components {
          * @enum {string}
          */
         AccountOriginEnum: "self_signup" | "gym_invited";
+        /**
+         * @description * `reserve_class` - reserve_class
+         *     * `cancel_reservation` - cancel_reservation
+         * @enum {string}
+         */
+        ActionEnum: "reserve_class" | "cancel_reservation";
         AssignPlan: {
             /** Format: uuid */
             plan_id?: string;
@@ -1040,6 +1080,8 @@ export interface components {
             included_in_plan?: boolean;
             cancellation_policy?: unknown;
             status?: string;
+            /** Format: date-time */
+            readonly updated_at: string;
         };
         GymDashboard: {
             atletas_activos: number;
@@ -1617,6 +1659,8 @@ export interface components {
             client_id?: string;
             /** Format: date-time */
             readonly created_at: string;
+            /** Format: date-time */
+            readonly updated_at: string;
         };
         ReservationAction: {
             client_id?: string;
@@ -1660,6 +1704,40 @@ export interface components {
          * @enum {string}
          */
         Status0a1Enum: "requested" | "invited" | "pending_approval" | "approved_no_plan" | "active" | "trial" | "paused" | "expired" | "rejected" | "former_member" | "blocked" | "drop_in";
+        SyncActionInput: {
+            client_id: string;
+            action: components["schemas"]["ActionEnum"];
+            /** Format: uuid */
+            class_id: string;
+        };
+        SyncActionResult: {
+            client_id: string;
+            action: string;
+            status: components["schemas"]["SyncActionResultStatusEnum"];
+            data?: unknown;
+            code?: string;
+            detail?: string;
+        };
+        /**
+         * @description * `succeeded` - succeeded
+         *     * `failed` - failed
+         * @enum {string}
+         */
+        SyncActionResultStatusEnum: "succeeded" | "failed";
+        SyncBatch: {
+            actions: components["schemas"]["SyncActionInput"][];
+        };
+        SyncBatchResponse: {
+            /** Format: date-time */
+            server_time: string;
+            results: components["schemas"]["SyncActionResult"][];
+        };
+        SyncSinceResponse: {
+            /** Format: date-time */
+            server_time: string;
+            classes: components["schemas"]["GymClass"][];
+            reservations: components["schemas"]["Reservation"][];
+        };
         TokenObtainPair: {
             phone: string;
             password: string;
@@ -3085,6 +3163,53 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GymAdmin"];
+                };
+            };
+        };
+    };
+    sync_batch_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncBatch"];
+                "application/x-www-form-urlencoded": components["schemas"]["SyncBatch"];
+                "multipart/form-data": components["schemas"]["SyncBatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncBatchResponse"];
+                };
+            };
+        };
+    };
+    sync_since_retrieve: {
+        parameters: {
+            query?: {
+                /** @description Cursor ISO-8601; si se omite se devuelven cambios desde epoch. */
+                since?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncSinceResponse"];
                 };
             };
         };
