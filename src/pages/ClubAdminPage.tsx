@@ -2,8 +2,11 @@ import { FormEvent, useState } from "react";
 import { useAuth } from "../lib/auth";
 import {
   useClubAdminActivities,
+  useClubAdminChallengeLeaderboard,
+  useClubAdminChallenges,
   useClubAdminConfirm,
   useClubAdminCreateActivity,
+  useClubAdminCreateChallenge,
   useClubAdminRsvps,
 } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
@@ -18,9 +21,18 @@ export function ClubAdminPage() {
   const rsvps = useClubAdminRsvps(clubId, expandedActivity ?? "");
   const confirm = useClubAdminConfirm(clubId, expandedActivity ?? "");
 
+  const challenges = useClubAdminChallenges(clubId);
+  const createChallenge = useClubAdminCreateChallenge(clubId);
+  const [expandedChallenge, setExpandedChallenge] = useState<string | null>(null);
+  const challengeBoard = useClubAdminChallengeLeaderboard(clubId, expandedChallenge ?? "");
+
   const [name, setName] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [location, setLocation] = useState("");
+
+  const [challengeName, setChallengeName] = useState("");
+  const [challengeTarget, setChallengeTarget] = useState("50");
+  const [challengeEnds, setChallengeEnds] = useState("");
 
   if (!clubId) {
     return (
@@ -42,6 +54,24 @@ export function ClubAdminPage() {
     setName("");
     setStartsAt("");
     setLocation("");
+  };
+
+  const onCreateChallenge = async (e: FormEvent) => {
+    e.preventDefault();
+    const ends = challengeEnds ? new Date(challengeEnds) : new Date();
+    if (!challengeEnds) ends.setDate(ends.getDate() + 30);
+    await createChallenge.mutateAsync({
+      name: challengeName,
+      description: "",
+      metric: "distance_km",
+      target_value: challengeTarget,
+      starts_at: new Date().toISOString(),
+      ends_at: ends.toISOString(),
+      points_reward: 30,
+    });
+    setChallengeName("");
+    setChallengeTarget("50");
+    setChallengeEnds("");
   };
 
   if (activities.isError) return <PageError onRetry={() => activities.refetch()} />;
@@ -136,6 +166,75 @@ export function ClubAdminPage() {
                       </ul>
                     )}
                   </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="nucleo-card" style={{ marginTop: 16 }}>
+        <h2 style={{ marginTop: 0 }}>Retos</h2>
+        <form onSubmit={onCreateChallenge} style={{ display: "grid", gap: 10, maxWidth: 420, marginBottom: 16 }}>
+          <input
+            className="nucleo-input"
+            placeholder="Nombre del reto"
+            value={challengeName}
+            onChange={(e) => setChallengeName(e.target.value)}
+            required
+          />
+          <input
+            className="nucleo-input"
+            placeholder="Meta (km o cantidad)"
+            value={challengeTarget}
+            onChange={(e) => setChallengeTarget(e.target.value)}
+            required
+          />
+          <input
+            className="nucleo-input"
+            type="datetime-local"
+            value={challengeEnds}
+            onChange={(e) => setChallengeEnds(e.target.value)}
+          />
+          <button className="nucleo-btn" type="submit" disabled={createChallenge.isPending}>
+            {createChallenge.isPending ? "Creando…" : "Crear reto"}
+          </button>
+        </form>
+        {challenges.isLoading ? (
+          <PageLoading />
+        ) : !(challenges.data ?? []).length ? (
+          <EmptyState title="Sin retos" description="Crea el primer reto del club." />
+        ) : (
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {(challenges.data ?? []).map((challenge) => (
+              <li
+                key={challenge.id}
+                style={{ borderBottom: "1px solid var(--nucleo-surface-2)", padding: "12px 0" }}
+              >
+                <strong>{challenge.name}</strong>
+                <p style={{ margin: "4px 0", color: "var(--nucleo-muted)" }}>
+                  Meta {challenge.target_value} ({challenge.metric}) · {challenge.participant_count ?? 0}{" "}
+                  participantes
+                </p>
+                <button
+                  type="button"
+                  className="nucleo-btn"
+                  onClick={() =>
+                    setExpandedChallenge(
+                      expandedChallenge === challenge.id ? null : challenge.id,
+                    )
+                  }
+                >
+                  {expandedChallenge === challenge.id ? "Ocultar ranking" : "Ver ranking"}
+                </button>
+                {expandedChallenge === challenge.id && (
+                  <ul style={{ listStyle: "none", padding: 0, marginTop: 10 }}>
+                    {(challengeBoard.data ?? []).map((row) => (
+                      <li key={row.id} style={{ marginBottom: 6, color: "var(--nucleo-muted)" }}>
+                        #{row.rank} {row.athlete_name} · {row.progress} · {row.status}
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </li>
             ))}

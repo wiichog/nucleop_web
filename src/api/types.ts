@@ -45,6 +45,27 @@ export interface ClubActivityAdmin {
   my_rsvp?: boolean;
 }
 
+export interface ClubChallenge {
+  id: string;
+  name: string;
+  description: string;
+  metric: string;
+  target_value: string;
+  starts_at: string;
+  ends_at: string;
+  points_reward: number;
+  participant_count?: number;
+}
+
+export interface ClubChallengeLeaderboardRow {
+  id: string;
+  athlete: string;
+  athlete_name: string;
+  progress: string;
+  status: string;
+  rank: number;
+}
+
 export interface ClubActivityRsvpRow {
   id: string;
   athlete: string;

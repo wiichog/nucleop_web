@@ -388,6 +388,43 @@ export function useComputeAthleteOfMonth(gymId: string) {
   });
 }
 
+export function useClubAdminChallenges(clubId: string) {
+  return useQuery({
+    queryKey: ["club-admin-challenges", clubId],
+    queryFn: () => getList<import("./types").ClubChallenge>(`/club/${clubId}/challenges`),
+    enabled: !!clubId,
+  });
+}
+
+export function useClubAdminCreateChallenge(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      name: string;
+      description?: string;
+      metric: string;
+      target_value: string;
+      starts_at: string;
+      ends_at: string;
+      points_reward?: number;
+    }) => (await api.post(`/club/${clubId}/challenges`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["club-admin-challenges", clubId] }),
+  });
+}
+
+export function useClubAdminChallengeLeaderboard(clubId: string, challengeId: string) {
+  return useQuery({
+    queryKey: ["club-admin-challenge-board", clubId, challengeId],
+    queryFn: async () => {
+      const { data } = await api.get<import("./types").ClubChallengeLeaderboardRow[]>(
+        `/club/${clubId}/challenges/${challengeId}/leaderboard`,
+      );
+      return data;
+    },
+    enabled: !!clubId && !!challengeId,
+  });
+}
+
 export function useClubAdminActivities(clubId: string) {
   return useQuery({
     queryKey: ["club-admin-activities", clubId],

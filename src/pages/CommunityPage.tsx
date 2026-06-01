@@ -8,6 +8,7 @@ const KIND_LABEL: Record<string, string> = {
   badge: "Badge",
   points: "Puntos",
   athlete_of_month: "Atleta del mes",
+  challenge: "Reto",
 };
 
 export function CommunityPage() {
