@@ -12,11 +12,17 @@ const gymNav = [
   { to: "/auditoria", label: "Auditoría" },
 ];
 
+const clubNav = [{ to: "/club", label: "Administrar club" }];
+
 export function Layout() {
-  const { gymIds, isSuperuser, logout, primaryGymId, roles, setPrimaryGymId } = useAuth();
-  const nav = isSuperuser
-    ? [...gymNav, { to: "/plataforma/gyms", label: "Plataforma: gimnasios" }]
-    : gymNav;
+  const { gymIds, clubIds, isSuperuser, logout, primaryGymId, roles, setPrimaryGymId } =
+    useAuth();
+  const nav = [
+    ...(clubIds.length ? clubNav : []),
+    ...(isSuperuser
+      ? [...gymNav, { to: "/plataforma/gyms", label: "Plataforma: gimnasios" }]
+      : gymNav),
+  ];
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <aside

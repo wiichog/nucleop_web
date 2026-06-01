@@ -34,6 +34,25 @@ export interface FeedItem {
   reacted_by_me: boolean;
 }
 
+export interface ClubActivityAdmin {
+  id: string;
+  name: string;
+  starts_at: string;
+  location: string;
+  is_free: boolean;
+  capacity?: number | null;
+  rsvp_count?: number;
+  my_rsvp?: boolean;
+}
+
+export interface ClubActivityRsvpRow {
+  id: string;
+  athlete: string;
+  athlete_name: string;
+  status: string;
+  confirmed_at: string | null;
+}
+
 export interface AthleteOfMonth {
   id: string;
   athlete: string;

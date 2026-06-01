@@ -9,6 +9,8 @@ interface AuthValue {
   isSuperuser: boolean;
   primaryGymId: string | null;
   gymIds: string[];
+  clubIds: string[];
+  primaryClubId: string | null;
   setPrimaryGymId: (gymId: string) => void;
   logout: () => void;
 }
@@ -20,6 +22,8 @@ const AuthContext = createContext<AuthValue>({
   isSuperuser: false,
   primaryGymId: null,
   gymIds: [],
+  clubIds: [],
+  primaryClubId: null,
   setPrimaryGymId: () => {},
   logout: () => {},
 });
@@ -28,13 +32,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { data, isLoading } = useMe();
   const roles: Role[] = data?.roles ?? [];
   const gymIds = [...new Set(roles.flatMap((role) => (role.gym_id ? [role.gym_id] : [])))];
+  const clubIds = [...new Set(roles.flatMap((role) => (role.club_id ? [role.club_id] : [])))];
   const [primaryGymId, setPrimaryGymId] = useState<string | null>(null);
+  const [primaryClubId, setPrimaryClubId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!primaryGymId || !gymIds.includes(primaryGymId)) {
       setPrimaryGymId(gymIds[0] ?? null);
     }
   }, [gymIds, primaryGymId]);
+
+  useEffect(() => {
+    if (!primaryClubId || !clubIds.includes(primaryClubId)) {
+      setPrimaryClubId(clubIds[0] ?? null);
+    }
+  }, [clubIds, primaryClubId]);
 
   const value: AuthValue = {
     loading: isLoading && !!tokenStore.access,
@@ -43,6 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isSuperuser: data?.is_superuser ?? false,
     primaryGymId,
     gymIds,
+    clubIds,
+    primaryClubId,
     setPrimaryGymId,
     logout: () => {
       tokenStore.clear();

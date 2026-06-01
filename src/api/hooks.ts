@@ -388,6 +388,51 @@ export function useComputeAthleteOfMonth(gymId: string) {
   });
 }
 
+export function useClubAdminActivities(clubId: string) {
+  return useQuery({
+    queryKey: ["club-admin-activities", clubId],
+    queryFn: () => getList<import("./types").ClubActivityAdmin>(`/club/${clubId}/activities`),
+    enabled: !!clubId,
+  });
+}
+
+export function useClubAdminCreateActivity(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      name: string;
+      starts_at: string;
+      location?: string;
+      is_free?: boolean;
+      capacity?: number;
+    }) => (await api.post(`/club/${clubId}/activities`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["club-admin-activities", clubId] }),
+  });
+}
+
+export function useClubAdminRsvps(clubId: string, activityId: string) {
+  return useQuery({
+    queryKey: ["club-admin-rsvps", clubId, activityId],
+    queryFn: () =>
+      getList<import("./types").ClubActivityRsvpRow>(
+        `/club/${clubId}/activities/${activityId}/rsvps`,
+      ),
+    enabled: !!clubId && !!activityId,
+  });
+}
+
+export function useClubAdminConfirm(clubId: string, activityId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (athleteId: string) =>
+      api.post(`/club/${clubId}/activities/${activityId}/confirm`, { athlete_id: athleteId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["club-admin-rsvps", clubId, activityId] });
+      qc.invalidateQueries({ queryKey: ["club-admin-activities", clubId] });
+    },
+  });
+}
+
 export function useUpsertPlatformSubscription() {
   const qc = useQueryClient();
   return useMutation({
