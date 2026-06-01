@@ -767,6 +767,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments/card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Cobra una membresía propia con Pagalo sin persistir datos de tarjeta. */
+        post: operations["payments_card_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/platform/gyms": {
         parameters: {
             query?: never;
@@ -959,6 +976,30 @@ export interface components {
             after?: unknown;
             /** Format: date-time */
             readonly created_at: string;
+        };
+        /** @description Datos efímeros para cobrar una membresía con Pagalo. Nunca se persiste la tarjeta. */
+        CardPayment: {
+            /** Format: uuid */
+            membership_id: string;
+            billing_nit?: string;
+            billing_name?: string;
+            /** Format: email */
+            billing_email?: string;
+            /** @default GT */
+            country: string;
+            /** @default Guatemala */
+            city: string;
+            /** @default Guatemala */
+            state: string;
+            /** @default 01001 */
+            postal_code: string;
+            location?: string;
+            device_finger?: string;
+            card_name: string;
+            expiration_month: string;
+            expiration_year: string;
+            card_number: string;
+            cvv: string;
         };
         Checkin: {
             /** Format: uuid */
@@ -1266,6 +1307,10 @@ export interface components {
             proof_file?: string;
             /** @default membership */
             concept: components["schemas"]["ManualPaymentConceptEnum"];
+            billing_nit?: string;
+            billing_name?: string;
+            /** Format: email */
+            billing_email?: string;
         };
         /**
          * @description * `membership` - membership
@@ -1660,6 +1705,8 @@ export interface components {
             fel_reference?: string;
             /** Format: uri */
             fel_document_url?: string;
+            fel_serie?: string;
+            fel_number?: string;
             /** Format: date-time */
             paid_at?: string | null;
             /** Format: uuid */
@@ -3324,6 +3371,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AthletePR"];
+                };
+            };
+        };
+    };
+    payments_card_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardPayment"];
+                "application/x-www-form-urlencoded": components["schemas"]["CardPayment"];
+                "multipart/form-data": components["schemas"]["CardPayment"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
                 };
             };
         };
