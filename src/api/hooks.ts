@@ -412,6 +412,46 @@ export function useClubAdminCreateChallenge(clubId: string) {
   });
 }
 
+export function useClubAdminPendingSubmissions(clubId: string, challengeId?: string) {
+  const q = challengeId ? `?challenge_id=${challengeId}` : "";
+  return useQuery({
+    queryKey: ["club-admin-submissions", clubId, challengeId ?? ""],
+    queryFn: async () => {
+      const { data } = await api.get<import("./types").ClubChallengeSubmission[]>(
+        `/club/${clubId}/challenge-submissions${q}`,
+      );
+      return data;
+    },
+    enabled: !!clubId,
+  });
+}
+
+export function useClubAdminReviewSubmission(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      submissionId,
+      action,
+      note,
+    }: {
+      submissionId: string;
+      action: "approve" | "reject";
+      note?: string;
+    }) =>
+      (
+        await api.post(`/club/${clubId}/challenge-submissions/${submissionId}/review`, {
+          action,
+          note,
+        })
+      ).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["club-admin-submissions", clubId] });
+      qc.invalidateQueries({ queryKey: ["club-admin-challenges", clubId] });
+      qc.invalidateQueries({ queryKey: ["club-admin-challenge-board"] });
+    },
+  });
+}
+
 export function useClubAdminChallengeLeaderboard(clubId: string, challengeId: string) {
   return useQuery({
     queryKey: ["club-admin-challenge-board", clubId, challengeId],

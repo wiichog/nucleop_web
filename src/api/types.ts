@@ -57,6 +57,17 @@ export interface ClubChallenge {
   participant_count?: number;
 }
 
+export interface ClubChallengeSubmission {
+  id: string;
+  challenge: string;
+  athlete: string;
+  athlete_name: string;
+  delta: string;
+  source: string;
+  status: string;
+  created_at: string;
+}
+
 export interface ClubChallengeLeaderboardRow {
   id: string;
   athlete: string;

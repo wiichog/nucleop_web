@@ -4,6 +4,8 @@ import {
   useClubAdminActivities,
   useClubAdminChallengeLeaderboard,
   useClubAdminChallenges,
+  useClubAdminPendingSubmissions,
+  useClubAdminReviewSubmission,
   useClubAdminConfirm,
   useClubAdminCreateActivity,
   useClubAdminCreateChallenge,
@@ -25,6 +27,8 @@ export function ClubAdminPage() {
   const createChallenge = useClubAdminCreateChallenge(clubId);
   const [expandedChallenge, setExpandedChallenge] = useState<string | null>(null);
   const challengeBoard = useClubAdminChallengeLeaderboard(clubId, expandedChallenge ?? "");
+  const pendingSubmissions = useClubAdminPendingSubmissions(clubId, expandedChallenge ?? undefined);
+  const reviewSubmission = useClubAdminReviewSubmission(clubId);
 
   const [name, setName] = useState("");
   const [startsAt, setStartsAt] = useState("");
@@ -167,6 +171,48 @@ export function ClubAdminPage() {
                     )}
                   </div>
                 )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="nucleo-card" style={{ marginTop: 16 }}>
+        <h2 style={{ marginTop: 0 }}>Revisiones pendientes</h2>
+        {pendingSubmissions.isLoading ? (
+          <PageLoading />
+        ) : !(pendingSubmissions.data ?? []).length ? (
+          <p style={{ color: "var(--nucleo-muted)" }}>No hay avances por revisar.</p>
+        ) : (
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {(pendingSubmissions.data ?? []).map((sub) => (
+              <li
+                key={sub.id}
+                style={{ borderBottom: "1px solid var(--nucleo-surface-2)", padding: "10px 0" }}
+              >
+                <strong>{sub.athlete_name}</strong> · +{sub.delta} ({sub.source})
+                <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="nucleo-btn"
+                    disabled={reviewSubmission.isPending}
+                    onClick={() =>
+                      reviewSubmission.mutate({ submissionId: sub.id, action: "approve" })
+                    }
+                  >
+                    Aprobar
+                  </button>
+                  <button
+                    type="button"
+                    className="nucleo-btn"
+                    disabled={reviewSubmission.isPending}
+                    onClick={() =>
+                      reviewSubmission.mutate({ submissionId: sub.id, action: "reject" })
+                    }
+                  >
+                    Rechazar
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
