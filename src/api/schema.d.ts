@@ -431,6 +431,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/payments/{id}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Registra conciliación de reembolso append-only; no invoca la pasarela externa. */
+        post: operations["gym_payments_refund_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/payments/manual": {
         parameters: {
             query?: never;
@@ -896,7 +913,7 @@ export interface components {
             readonly athlete: string;
             /** Format: uuid */
             readonly membership: string | null;
-            readonly method: components["schemas"]["Method173Enum"];
+            readonly method: components["schemas"]["CheckinMethod"];
             /** Format: date-time */
             readonly checked_in_at: string;
         };
@@ -911,6 +928,14 @@ export interface components {
          * @enum {string}
          */
         CheckinActionMethodEnum: "athlete_qr" | "class_qr" | "manual" | "reception";
+        /**
+         * @description * `athlete_qr` - QR del atleta
+         *     * `class_qr` - QR de la clase
+         *     * `manual` - Validación manual del coach
+         *     * `reception` - Recepción
+         * @enum {string}
+         */
+        CheckinMethod: "athlete_qr" | "class_qr" | "manual" | "reception";
         /** @description Reclamo de cuenta creada por un gym. Vincula el atleta existente; nunca duplica. */
         Claim: {
             phone: string;
@@ -993,7 +1018,7 @@ export interface components {
         };
         DropinPurchaseRequest: {
             /** @default card */
-            method: components["schemas"]["Method528Enum"];
+            method: components["schemas"]["PaymentMethod"];
         };
         /**
          * @description * `not_required` - No requiere
@@ -1053,7 +1078,7 @@ export interface components {
             readonly athlete: string;
             /** Format: uuid */
             readonly membership: string | null;
-            readonly method: components["schemas"]["Method173Enum"];
+            readonly method: components["schemas"]["CheckinMethod"];
             /** Format: date-time */
             readonly checked_in_at: string;
             readonly athlete_name: string;
@@ -1137,7 +1162,7 @@ export interface components {
             preferred_schedule?: string;
             wants_trial?: boolean;
             comment?: string;
-            status?: components["schemas"]["Status0a1Enum"];
+            status?: components["schemas"]["MembershipStatus"];
             /** Format: date-time */
             readonly created_at: string;
             readonly history: components["schemas"]["MembershipStatusHistory"][];
@@ -1191,7 +1216,7 @@ export interface components {
             /** Format: uuid */
             athlete: string;
             readonly athlete_name: string;
-            status?: components["schemas"]["Status0a1Enum"];
+            status?: components["schemas"]["MembershipStatus"];
             /** Format: uuid */
             plan?: string | null;
             /**
@@ -1206,8 +1231,8 @@ export interface components {
             /** Format: date */
             renewal_date?: string | null;
             auto_renew?: boolean;
-            payment_method_pref?: components["schemas"]["PaymentMethodPrefEnum"];
-            payment_status?: components["schemas"]["PaymentStatusEnum"];
+            payment_method_pref?: components["schemas"]["PaymentMethod"];
+            payment_status?: components["schemas"]["PaymentStatus"];
             /** Format: decimal */
             discount?: string | null;
             internal_notes?: string;
@@ -1221,7 +1246,7 @@ export interface components {
             /** Format: uuid */
             athlete: string;
             readonly athlete_name: string;
-            status?: components["schemas"]["Status0a1Enum"];
+            status?: components["schemas"]["MembershipStatus"];
             /** Format: uuid */
             plan?: string | null;
             /**
@@ -1236,8 +1261,8 @@ export interface components {
             /** Format: date */
             renewal_date?: string | null;
             auto_renew?: boolean;
-            payment_method_pref?: components["schemas"]["PaymentMethodPrefEnum"];
-            payment_status?: components["schemas"]["PaymentStatusEnum"];
+            payment_method_pref?: components["schemas"]["PaymentMethod"];
+            payment_status?: components["schemas"]["PaymentStatus"];
             /** Format: decimal */
             discount?: string | null;
             internal_notes?: string;
@@ -1255,7 +1280,7 @@ export interface components {
             /** Format: uuid */
             gym: string;
             readonly gym_name: string;
-            status?: components["schemas"]["Status0a1Enum"];
+            status?: components["schemas"]["MembershipStatus"];
             /** Format: uuid */
             plan?: string | null;
             readonly plan_name: string;
@@ -1265,10 +1290,26 @@ export interface components {
             start_date?: string | null;
             /** Format: date */
             renewal_date?: string | null;
-            payment_status?: components["schemas"]["PaymentStatusEnum"];
+            payment_status?: components["schemas"]["PaymentStatus"];
             /** Format: int64 */
             community_points?: number;
         };
+        /**
+         * @description * `requested` - Solicitada
+         *     * `invited` - Invitado
+         *     * `pending_approval` - Pendiente de aprobación
+         *     * `approved_no_plan` - Aprobada sin plan
+         *     * `active` - Activa
+         *     * `trial` - En prueba
+         *     * `paused` - Pausada
+         *     * `expired` - Vencida
+         *     * `rejected` - Rechazada
+         *     * `former_member` - Exmiembro
+         *     * `blocked` - Bloqueada
+         *     * `drop_in` - Drop-in
+         * @enum {string}
+         */
+        MembershipStatus: "requested" | "invited" | "pending_approval" | "approved_no_plan" | "active" | "trial" | "paused" | "expired" | "rejected" | "former_member" | "blocked" | "drop_in";
         MembershipStatusHistory: {
             from_status?: string;
             to_status: string;
@@ -1276,21 +1317,6 @@ export interface components {
             /** Format: date-time */
             readonly changed_at: string;
         };
-        /**
-         * @description * `athlete_qr` - QR del atleta
-         *     * `class_qr` - QR de la clase
-         *     * `manual` - Validación manual del coach
-         *     * `reception` - Recepción
-         * @enum {string}
-         */
-        Method173Enum: "athlete_qr" | "class_qr" | "manual" | "reception";
-        /**
-         * @description * `card` - Tarjeta
-         *     * `cash` - Efectivo
-         *     * `bank_transfer` - Transferencia
-         * @enum {string}
-         */
-        Method528Enum: "card" | "cash" | "bank_transfer";
         PagaloWebhook: {
             reference: string;
             status: string;
@@ -1530,8 +1556,8 @@ export interface components {
             /** Format: decimal */
             amount: string;
             currency?: string;
-            method: components["schemas"]["Method528Enum"];
-            status?: components["schemas"]["PaymentStatusEnum"];
+            method: components["schemas"]["PaymentMethod"];
+            status?: components["schemas"]["PaymentTxStatus"];
             gateway: components["schemas"]["GatewayEnum"];
             gateway_reference?: string;
             /** Format: decimal */
@@ -1543,8 +1569,12 @@ export interface components {
             proof_file?: string;
             fel_status?: components["schemas"]["FelStatusEnum"];
             fel_reference?: string;
+            /** Format: uri */
+            fel_document_url?: string;
             /** Format: date-time */
             paid_at?: string | null;
+            /** Format: uuid */
+            refund_of?: string | null;
             /** Format: date-time */
             readonly created_at: string;
         };
@@ -1563,14 +1593,22 @@ export interface components {
          *     * `bank_transfer` - Transferencia
          * @enum {string}
          */
-        PaymentMethodPrefEnum: "card" | "cash" | "bank_transfer";
+        PaymentMethod: "card" | "cash" | "bank_transfer";
         /**
          * @description * `up_to_date` - Al día
          *     * `due_soon` - Por vencer
          *     * `overdue` - Vencido
          * @enum {string}
          */
-        PaymentStatusEnum: "up_to_date" | "due_soon" | "overdue";
+        PaymentStatus: "up_to_date" | "due_soon" | "overdue";
+        /**
+         * @description * `pending` - Pendiente
+         *     * `succeeded` - Exitoso
+         *     * `failed` - Fallido
+         *     * `refunded` - Reembolsado
+         * @enum {string}
+         */
+        PaymentTxStatus: "pending" | "succeeded" | "failed" | "refunded";
         Plan: {
             /** Format: uuid */
             readonly id: string;
@@ -1595,6 +1633,12 @@ export interface components {
         ReceptionCheckinAction: {
             /** Format: uuid */
             membership_id: string;
+        };
+        /** @description Conciliación administrativa append-only de un reembolso ya autorizado. */
+        RefundPayment: {
+            /** Format: decimal */
+            amount: string;
+            reference?: string;
         };
         /** @description Auto-registro: teléfono + contraseña. Crea el atleta (decisión 1). */
         Register: {
@@ -1688,22 +1732,6 @@ export interface components {
             /** Format: uuid */
             club_id: string | null;
         };
-        /**
-         * @description * `requested` - Solicitada
-         *     * `invited` - Invitado
-         *     * `pending_approval` - Pendiente de aprobación
-         *     * `approved_no_plan` - Aprobada sin plan
-         *     * `active` - Activa
-         *     * `trial` - En prueba
-         *     * `paused` - Pausada
-         *     * `expired` - Vencida
-         *     * `rejected` - Rechazada
-         *     * `former_member` - Exmiembro
-         *     * `blocked` - Bloqueada
-         *     * `drop_in` - Drop-in
-         * @enum {string}
-         */
-        Status0a1Enum: "requested" | "invited" | "pending_approval" | "approved_no_plan" | "active" | "trial" | "paused" | "expired" | "rejected" | "former_member" | "blocked" | "drop_in";
         SyncActionInput: {
             client_id: string;
             action: components["schemas"]["ActionEnum"];
@@ -2514,6 +2542,34 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedPaymentList"];
+                };
+            };
+        };
+    };
+    gym_payments_refund_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundPayment"];
+                "application/x-www-form-urlencoded": components["schemas"]["RefundPayment"];
+                "multipart/form-data": components["schemas"]["RefundPayment"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
                 };
             };
         };

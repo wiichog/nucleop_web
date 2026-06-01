@@ -50,6 +50,7 @@ permisos y visibilidad por relación la impone la API; ocultar un botón no es s
 - Invitación de atletas por teléfono con vinculación de identidad existente.
 - Asignación de plan y cuota personalizada por relación atleta-gym.
 - Registro de transferencia con comprobante adjunto.
+- Registro auditado de reembolsos administrativos parciales.
 - Selector de gimnasio para usuarios con más de un ámbito.
 - Ficha relacional segura con pagos y asistencia del gym actual.
 - Calendario, check-in desde recepción y bitácora exportable en CSV.

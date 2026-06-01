@@ -122,6 +122,18 @@ export function useRegisterManualPayment(gymId: string) {
   });
 }
 
+export function useRefundPayment(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ paymentId, amount }: { paymentId: string; amount: string }) =>
+      (await api.post<Payment>(`/gym/${gymId}/payments/${paymentId}/refund`, { amount })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["payments", gymId] });
+      qc.invalidateQueries({ queryKey: ["audit", gymId] });
+    },
+  });
+}
+
 export function usePasswordResetRequest() {
   return useMutation({
     mutationFn: async (identifier: string) =>

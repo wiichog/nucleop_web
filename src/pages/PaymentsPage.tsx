@@ -1,5 +1,11 @@
 import { FormEvent, useState } from "react";
-import { useGymPayments, useMemberships, useRegisterManualPayment } from "../api/hooks";
+import {
+  useGymPayments,
+  useMemberships,
+  useRefundPayment,
+  useRegisterManualPayment,
+} from "../api/hooks";
+import type { Payment } from "../api/types";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
 
@@ -9,6 +15,7 @@ export function PaymentsPage() {
   const payments = useGymPayments(gymId);
   const memberships = useMemberships(gymId);
   const registerManual = useRegisterManualPayment(gymId);
+  const refundPayment = useRefundPayment(gymId);
 
   const [membershipId, setMembershipId] = useState("");
   const [amount, setAmount] = useState("");
@@ -25,6 +32,12 @@ export function PaymentsPage() {
     });
     setAmount("");
     setProofFile(undefined);
+  };
+
+  const onRefund = async (payment: Payment) => {
+    const amount = window.prompt("Monto a reembolsar", payment.amount);
+    if (!amount || !window.confirm(`Registrar reembolso administrativo por Q${amount}?`)) return;
+    await refundPayment.mutateAsync({ paymentId: payment.id, amount });
   };
 
   if (!gymId) return <p>No tienes un gimnasio asignado.</p>;
@@ -122,6 +135,7 @@ export function PaymentsPage() {
                 <th>Estado</th>
                 <th>FEL</th>
                 <th>Comisión</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -132,6 +146,13 @@ export function PaymentsPage() {
                   <td>{p.status}</td>
                   <td>{p.fel_status}</td>
                   <td>Q{p.platform_commission}</td>
+                  <td>
+                    {p.status === "succeeded" && !p.refund_of && (
+                      <button className="link-btn" onClick={() => onRefund(p)}>
+                        Reembolsar
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
