@@ -852,9 +852,10 @@ export interface components {
          *     * `create_pr` - create_pr
          *     * `join_gym` - join_gym
          *     * `update_consents` - update_consents
+         *     * `purchase_dropin` - purchase_dropin
          * @enum {string}
          */
-        ActionEnum: "reserve_class" | "cancel_reservation" | "create_pr" | "join_gym" | "update_consents";
+        ActionEnum: "reserve_class" | "cancel_reservation" | "create_pr" | "join_gym" | "update_consents" | "purchase_dropin";
         AssignPlan: {
             /** Format: uuid */
             plan_id?: string;
@@ -1804,6 +1805,7 @@ export interface components {
             prs: components["schemas"]["AthletePR"][];
             join_requests: components["schemas"]["JoinRequest"][];
             consents: components["schemas"]["Consent"][];
+            dropins: components["schemas"]["PassportDropin"][];
         };
         TokenObtainPair: {
             phone: string;
