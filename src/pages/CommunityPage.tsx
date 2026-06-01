@@ -75,6 +75,7 @@ export function CommunityPage() {
                 <p style={{ margin: "4px 0", color: "var(--nucleo-white)" }}>{item.body}</p>
                 <p style={{ margin: 0, color: "var(--nucleo-muted)", fontSize: 13 }}>
                   {item.actor_name} · {new Date(item.created_at).toLocaleString("es-GT")}
+                  {item.reaction_count > 0 ? ` · ♥ ${item.reaction_count}` : ""}
                 </p>
               </li>
             ))}

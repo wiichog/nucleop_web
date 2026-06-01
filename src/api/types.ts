@@ -25,10 +25,13 @@ export interface FeedItem {
   kind: string;
   title: string;
   body: string;
+  gym_id: string | null;
   gym_name: string | null;
   club_name: string | null;
   actor_name: string;
   created_at: string;
+  reaction_count: number;
+  reacted_by_me: boolean;
 }
 
 export interface AthleteOfMonth {
