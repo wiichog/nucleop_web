@@ -227,8 +227,12 @@ export function useAssignPlan(gymId: string) {
 export function useCreatePlan(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: { name: string; price: string; duration_days: number }) =>
-      (await api.post<Plan>(`/gym/${gymId}/plans`, body)).data,
+    mutationFn: async (body: {
+      name: string;
+      price: string;
+      duration_days: number;
+      noshow_penalty?: Record<string, unknown> | null;
+    }) => (await api.post<Plan>(`/gym/${gymId}/plans`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plans", gymId] }),
   });
 }

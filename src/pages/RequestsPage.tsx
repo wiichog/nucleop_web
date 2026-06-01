@@ -15,23 +15,39 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
   const plans = usePlans(gymId);
   const [planId, setPlanId] = useState("");
   const [customFee, setCustomFee] = useState("");
+  const [comment, setComment] = useState("");
   const status = request.status ?? "";
   const membershipId = request.membership;
   const canDecide = ["requested", "invited", "pending_approval"].includes(status);
 
   return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {canDecide && (
+        <input
+          className="nucleo-input"
+          placeholder="Comentario para el atleta (opcional)"
+          value={comment}
+          onChange={(event) => setComment(event.target.value)}
+        />
+      )}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
       {canDecide && (
         <>
-          <button className="nucleo-btn" onClick={() => decide.mutate({ requestId: request.id, decision: "approve" })}>
+          <button className="nucleo-btn" onClick={() => decide.mutate({ requestId: request.id, decision: "approve", comment })}>
             Aprobar
           </button>
           {status !== "invited" && (
-            <button className="nucleo-btn" onClick={() => decide.mutate({ requestId: request.id, decision: "offer_trial" })}>
+            <button className="nucleo-btn" onClick={() => decide.mutate({ requestId: request.id, decision: "offer_trial", comment })}>
               Ofrecer prueba
             </button>
           )}
-          <button className="nucleo-btn" onClick={() => decide.mutate({ requestId: request.id, decision: "reject" })}>
+          <button
+            className="nucleo-btn"
+            onClick={() => decide.mutate({ requestId: request.id, decision: "request_info", comment })}
+          >
+            Pedir información
+          </button>
+          <button className="nucleo-btn" onClick={() => decide.mutate({ requestId: request.id, decision: "reject", comment })}>
             Rechazar
           </button>
         </>
@@ -52,6 +68,7 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
           </button>
         </>
       )}
+      </div>
     </div>
   );
 }

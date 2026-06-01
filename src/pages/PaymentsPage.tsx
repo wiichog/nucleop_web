@@ -6,6 +6,8 @@ import {
   useRegisterManualPayment,
 } from "../api/hooks";
 import type { Payment } from "../api/types";
+import { EmptyState } from "../components/EmptyState";
+import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
 
@@ -36,11 +38,18 @@ export function PaymentsPage() {
 
   const onRefund = async (payment: Payment) => {
     const amount = window.prompt("Monto a reembolsar", payment.amount);
-    if (!amount || !window.confirm(`Registrar reembolso administrativo por Q${amount}?`)) return;
+    if (!amount) return;
+    const ok = window.confirm(
+      `¿Registrar reembolso administrativo por Q${amount}? Esta acción queda en auditoría.`,
+    );
+    if (!ok) return;
     await refundPayment.mutateAsync({ paymentId: payment.id, amount });
   };
 
-  if (!gymId) return <p>No tienes un gimnasio asignado.</p>;
+  if (!gymId) return <NoGymAssigned />;
+  if (payments.isError) {
+    return <PageError onRetry={() => payments.refetch()} />;
+  }
 
   return (
     <div>
@@ -94,12 +103,17 @@ export function PaymentsPage() {
             <option value="cash">Efectivo</option>
             <option value="bank_transfer">Transferencia</option>
           </select>
+          {registerManual.isError && (
+            <p style={{ color: "var(--nucleo-danger)", fontSize: 13, marginBottom: 12 }}>
+              No se pudo registrar el pago. Verifica los datos.
+            </p>
+          )}
           <button
             className="nucleo-btn"
             style={{ width: "100%" }}
             disabled={!membershipId || !amount || registerManual.isPending}
           >
-            Registrar pago
+            {registerManual.isPending ? "Registrando…" : "Registrar pago"}
           </button>
         </form>
 
@@ -139,6 +153,16 @@ export function PaymentsPage() {
               </tr>
             </thead>
             <tbody>
+              {!payments.data?.length && (
+                <tr>
+                  <td colSpan={6}>
+                    <EmptyState
+                      title="Sin pagos registrados"
+                      description="Los pagos con tarjeta y manuales aparecerán aquí."
+                    />
+                  </td>
+                </tr>
+              )}
               {(payments.data ?? []).map((p) => (
                 <tr key={p.id}>
                   <td>Q{p.amount}</td>

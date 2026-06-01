@@ -1,4 +1,6 @@
 import { useAtRisk, useDashboard, useOverdue } from "../api/hooks";
+import { EmptyState } from "../components/EmptyState";
+import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { useAuth } from "../lib/auth";
 import { Membership } from "../api/types";
 import { downloadCsv } from "../lib/csv";
@@ -19,7 +21,11 @@ export function DashboardPage() {
   const atRisk = useAtRisk(gymId);
   const overdue = useOverdue(gymId);
 
-  if (!gymId) return <p>No tienes un gimnasio asignado.</p>;
+  if (!gymId) return <NoGymAssigned />;
+  if (dashboard.isError) {
+    return <PageError onRetry={() => dashboard.refetch()} />;
+  }
+  if (dashboard.isLoading) return <PageLoading label="Cargando retención…" />;
   const d = dashboard.data;
 
   return (

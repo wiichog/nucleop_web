@@ -1,5 +1,7 @@
 import { FormEvent, useState } from "react";
 import { useCreatePlan, usePlans } from "../api/hooks";
+import { EmptyState } from "../components/EmptyState";
+import { NoGymAssigned, PageLoading } from "../components/PageStatus";
 import { useAuth } from "../lib/auth";
 
 export function PlansPage() {
@@ -9,15 +11,29 @@ export function PlansPage() {
   const createPlan = useCreatePlan(gymId);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
+  const [noshowPoints, setNoshowPoints] = useState("-10");
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    await createPlan.mutateAsync({ name, price, duration_days: 30 });
+    const points = parseInt(noshowPoints, 10);
+    await createPlan.mutateAsync({
+      name,
+      price,
+      duration_days: 30,
+      noshow_penalty:
+        Number.isFinite(points) && points !== 0
+          ? {
+              community_points: points,
+              notify: true,
+              message: "Penalización por no asistir a clase reservada.",
+            }
+          : null,
+    });
     setName("");
     setPrice("");
   };
 
-  if (!gymId) return <p>No tienes un gimnasio asignado.</p>;
+  if (!gymId) return <NoGymAssigned />;
 
   return (
     <div>
@@ -27,6 +43,13 @@ export function PlansPage() {
         <div style={{ display: "flex", gap: 12 }}>
           <input className="nucleo-input" placeholder="Nombre" value={name} onChange={(e) => setName(e.target.value)} />
           <input className="nucleo-input" placeholder="Precio (Q)" value={price} onChange={(e) => setPrice(e.target.value)} />
+          <input
+            className="nucleo-input"
+            placeholder="Penalización no-show (pts comunidad, ej. -10)"
+            value={noshowPoints}
+            onChange={(e) => setNoshowPoints(e.target.value)}
+            title="Puntos de comunidad que se restan si el atleta no asiste a una clase reservada"
+          />
           <button className="nucleo-btn" disabled={!name || !price || createPlan.isPending}>
             Crear
           </button>
@@ -34,7 +57,12 @@ export function PlansPage() {
       </form>
       <div className="nucleo-card">
         {isLoading ? (
-          <p>Cargando…</p>
+          <PageLoading />
+        ) : !(data ?? []).length ? (
+          <EmptyState
+            title="Sin planes"
+            description="Crea el primer plan para asignarlo a tus atletas."
+          />
         ) : (
           <table>
             <thead>
