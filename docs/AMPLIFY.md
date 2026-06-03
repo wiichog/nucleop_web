@@ -15,13 +15,15 @@
 2. Actualiza **`CORS_ALLOWED_ORIGINS`** (lista separada por comas, sin espacios extra):
 
    ```
-   https://app.nucleo.fit
+   https://app.nucleo.fit,https://www.app.nucleo.fit
    ```
+
+   Si el navegador abre `https://www.app.nucleo.fit`, el Origin lleva `www` y la API debe permitirlo (en producción también se añade automáticamente el espejo `www` si ya tienes `https://app.nucleo.fit`).
 
    Si quieres probar antes del dominio final, añade también la URL temporal de Amplify:
 
    ```
-   https://app.nucleo.fit,https://main.xxxxx.amplifyapp.com
+   https://app.nucleo.fit,https://www.app.nucleo.fit,https://main.xxxxx.amplifyapp.com
    ```
 
 3. Opcional pero recomendado — enlace de recuperación de contraseña del panel:
@@ -94,16 +96,18 @@ Si el build anterior no lo tenía, en Amplify → **Hosting** → **Rewrites and
    - TTL: 300 o por defecto
 5. Espera validación SSL (Amplify + ACM), suele tardar **5–30 min** (a veces hasta 1 h).
 6. Cuando esté **Available**, abre `https://app.nucleo.fit`.
+7. (Recomendado) En **Custom domains**, si Amplify creó también `www.app.nucleo.fit`, configura **redirect** de `www` → `app` para un solo origen en el navegador. Si usas ambos, incluye ambos en CORS (ver arriba).
 
 ---
 
 ## Parte E — Probar el panel
 
-1. `https://app.nucleo.fit/login`
+1. `https://app.nucleo.fit/login` (evita `www` si aún no actualizaste CORS en el secreto)
 2. Correo y contraseña de un usuario con rol **`gym_admin`** en un gym.
 3. Debe cargar el dashboard; prueba **Solicitudes** o **Atletas**.
 4. Si falla el login:
    - F12 → **Network** → petición a `api.nucleo.fit` (CORS, 401, 502).
+   - Si el error CORS menciona `www.app.nucleo.fit`, añade ese Origin al secreto o entra sin `www`.
    - Confirma `VITE_API_BASE_URL` en Amplify (redeploy tras cambiarla).
    - Confirma `CORS_ALLOWED_ORIGINS` en el secreto y reinicia `nucleo-api`.
 
@@ -120,7 +124,7 @@ Para forzar redeploy: Amplify → la rama `main` → **Redeploy this version**.
 ## Checklist rápido
 
 - [ ] `VITE_API_BASE_URL=https://api.nucleo.fit/api/v1` en Amplify
-- [ ] `CORS_ALLOWED_ORIGINS` incluye `https://app.nucleo.fit`
+- [ ] `CORS_ALLOWED_ORIGINS` incluye `https://app.nucleo.fit` y `https://www.app.nucleo.fit` (o redirect www→app)
 - [ ] CNAME `app` → Amplify
 - [ ] SSL verde en Amplify
 - [ ] Login con correo en `https://app.nucleo.fit`
