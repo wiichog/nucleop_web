@@ -207,6 +207,13 @@ export function useDecideJoinRequest(gymId: string) {
   });
 }
 
+export function useResetAthletePassword(gymId: string) {
+  return useMutation({
+    mutationFn: async (membershipId: string) =>
+      (await api.post(`/gym/${gymId}/memberships/${membershipId}/reset-password`, {})).data,
+  });
+}
+
 export function useAssignPlan(gymId: string) {
   const qc = useQueryClient();
   return useMutation({

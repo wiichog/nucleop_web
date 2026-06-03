@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMembershipDetail, useMemberships } from "../api/hooks";
+import { useMembershipDetail, useMemberships, useResetAthletePassword } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { useAuth } from "../lib/auth";
@@ -18,6 +18,19 @@ export function AthletesPage() {
   const { data, isLoading, isError, refetch } = useMemberships(gymId);
   const [selectedMembershipId, setSelectedMembershipId] = useState("");
   const detail = useMembershipDetail(gymId, selectedMembershipId);
+  const resetPassword = useResetAthletePassword(gymId);
+  const [resetMsg, setResetMsg] = useState("");
+
+  const onResetPassword = async (membershipId: string, name: string) => {
+    if (!window.confirm(`¿Enviar restablecimiento de contraseña a ${name}? Se le pedirá cambiarla al ingresar.`))
+      return;
+    try {
+      await resetPassword.mutateAsync(membershipId);
+      setResetMsg(`Se envió el restablecimiento a ${name}.`);
+    } catch {
+      setResetMsg("No se pudo enviar el restablecimiento.");
+    }
+  };
 
   if (!gymId) return <NoGymAssigned />;
   if (isError) return <PageError onRetry={() => refetch()} />;
@@ -97,7 +110,17 @@ export function AthletesPage() {
       </div>
       {detail.data && (
         <section className="nucleo-card" style={{ marginTop: 16 }}>
-          <h2 style={{ marginTop: 0 }}>Ficha relacional: {detail.data.athlete_name}</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+            <h2 style={{ marginTop: 0 }}>Ficha relacional: {detail.data.athlete_name}</h2>
+            <button
+              className="nucleo-btn nucleo-btn--secondary"
+              disabled={resetPassword.isPending}
+              onClick={() => onResetPassword(selectedMembershipId, detail.data!.athlete_name)}
+            >
+              Restablecer contraseña
+            </button>
+          </div>
+          {resetMsg && <p style={{ color: "var(--nucleo-accent)" }}>{resetMsg}</p>}
           <p style={{ color: "var(--nucleo-muted)" }}>
             {detail.data.athlete_profile.sport_level || "Nivel sin registrar"} ·{" "}
             {detail.data.athlete_profile.goals || "Objetivos sin registrar"}
