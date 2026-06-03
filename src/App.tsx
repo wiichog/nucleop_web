@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import { Layout } from "./components/Layout";
+import { LandingPage } from "./landing/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { AthletesPage } from "./pages/AthletesPage";
@@ -24,25 +25,27 @@ function Protected({ children }: { children: JSX.Element }) {
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/password-reset" element={<PasswordResetConfirmPage />} />
       <Route
+        path="/panel"
         element={
           <Protected>
             <Layout />
           </Protected>
         }
       >
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/atletas" element={<AthletesPage />} />
-        <Route path="/pagos" element={<PaymentsPage />} />
-        <Route path="/planes" element={<PlansPage />} />
-        <Route path="/solicitudes" element={<RequestsPage />} />
-        <Route path="/clases" element={<ClassesPage />} />
-        <Route path="/comunidad" element={<CommunityPage />} />
-        <Route path="/club" element={<ClubAdminPage />} />
-        <Route path="/auditoria" element={<AuditPage />} />
-        <Route path="/plataforma/gyms" element={<PlatformGymsPage />} />
+        <Route index element={<DashboardPage />} />
+        <Route path="atletas" element={<AthletesPage />} />
+        <Route path="pagos" element={<PaymentsPage />} />
+        <Route path="planes" element={<PlansPage />} />
+        <Route path="solicitudes" element={<RequestsPage />} />
+        <Route path="clases" element={<ClassesPage />} />
+        <Route path="comunidad" element={<CommunityPage />} />
+        <Route path="club" element={<ClubAdminPage />} />
+        <Route path="auditoria" element={<AuditPage />} />
+        <Route path="plataforma/gyms" element={<PlatformGymsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -1,18 +1,19 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { AtomLogo } from "../landing/AtomLogo";
 
 const gymNav = [
-  { to: "/", label: "Retención y morosidad" },
-  { to: "/atletas", label: "Atletas" },
-  { to: "/pagos", label: "Pagos" },
-  { to: "/planes", label: "Planes" },
-  { to: "/solicitudes", label: "Solicitudes e invitaciones" },
-  { to: "/clases", label: "Clases" },
-  { to: "/comunidad", label: "Comunidad" },
-  { to: "/auditoria", label: "Auditoría" },
+  { to: "/panel", label: "Retención y morosidad" },
+  { to: "/panel/atletas", label: "Atletas" },
+  { to: "/panel/pagos", label: "Pagos" },
+  { to: "/panel/planes", label: "Planes" },
+  { to: "/panel/solicitudes", label: "Solicitudes e invitaciones" },
+  { to: "/panel/clases", label: "Clases" },
+  { to: "/panel/comunidad", label: "Comunidad" },
+  { to: "/panel/auditoria", label: "Auditoría" },
 ];
 
-const clubNav = [{ to: "/club", label: "Administrar club" }];
+const clubNav = [{ to: "/panel/club", label: "Administrar club" }];
 
 export function Layout() {
   const { gymIds, clubIds, isSuperuser, logout, primaryGymId, roles, setPrimaryGymId } =
@@ -20,7 +21,7 @@ export function Layout() {
   const nav = [
     ...(clubIds.length ? clubNav : []),
     ...(isSuperuser
-      ? [...gymNav, { to: "/plataforma/gyms", label: "Plataforma: gimnasios" }]
+      ? [...gymNav, { to: "/panel/plataforma/gyms", label: "Plataforma: gimnasios" }]
       : gymNav),
   ];
   return (
@@ -34,15 +35,7 @@ export function Layout() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28 }}>
-          <span
-            style={{
-              width: 16,
-              height: 16,
-              borderRadius: "50%",
-              background: "var(--nucleo-accent)",
-              boxShadow: "0 0 12px var(--nucleo-accent)",
-            }}
-          />
+          <AtomLogo size={22} />
           <strong style={{ fontSize: 20, letterSpacing: 0.5 }}>Nucleo</strong>
         </div>
         <nav style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -50,7 +43,7 @@ export function Layout() {
             <NavLink
               key={n.to}
               to={n.to}
-              end={n.to === "/"}
+              end={n.to === "/panel"}
               style={({ isActive }) => ({
                 padding: "10px 12px",
                 borderRadius: 8,

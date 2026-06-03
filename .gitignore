@@ -7,5 +7,6 @@ dist-ssr/
 !.env.example
 .DS_Store
 .vscode/
+.claude/
 *.log
 *.tsbuildinfo

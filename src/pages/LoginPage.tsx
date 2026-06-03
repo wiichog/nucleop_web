@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { useLogin, usePasswordResetRequest } from "../api/hooks";
+import { AtomLogo } from "../landing/AtomLogo";
 
 export function LoginPage() {
   const [email, setEmail] = useState("");
@@ -12,7 +13,7 @@ export function LoginPage() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     await login.mutateAsync({ email: email.trim().toLowerCase(), password });
-    window.location.assign("/");
+    window.location.assign("/panel");
   };
 
   if (resetMode) {
@@ -60,15 +61,7 @@ export function LoginPage() {
     >
       <form className="nucleo-card" style={{ width: 360 }} onSubmit={onSubmit}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-          <span
-            style={{
-              width: 18,
-              height: 18,
-              borderRadius: "50%",
-              background: "var(--nucleo-accent)",
-              boxShadow: "0 0 14px var(--nucleo-accent)",
-            }}
-          />
+          <AtomLogo size={26} />
           <h1 style={{ margin: 0, fontSize: 24 }}>Nucleo</h1>
         </div>
         <p style={{ color: "var(--nucleo-muted)", marginTop: 0 }}>
