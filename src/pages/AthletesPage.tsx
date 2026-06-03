@@ -4,6 +4,7 @@ import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
+import { MEMBERSHIP_STATUS, PAYMENT_STATUS, label } from "../lib/labels";
 
 const STATUS_BADGE: Record<string, string> = {
   active: "badge--ok",
@@ -48,10 +49,10 @@ export function AthletesPage() {
               ["atleta", "estado", "plan", "cuota", "pago", "puntos_comunidad"],
               (data ?? []).map((membership) => [
                 membership.athlete_name,
-                membership.status,
+                label(MEMBERSHIP_STATUS, membership.status),
                 membership.plan,
                 membership.effective_fee,
-                membership.payment_status,
+                label(PAYMENT_STATUS, membership.payment_status),
                 membership.community_points,
               ]),
             )
@@ -87,12 +88,12 @@ export function AthletesPage() {
                   <td>{m.athlete_name}</td>
                   <td>
                     <span className={`badge ${STATUS_BADGE[m.status ?? ""] ?? "badge--warn"}`}>
-                      {m.status}
+                      {label(MEMBERSHIP_STATUS, m.status)}
                     </span>
                   </td>
                   <td>{m.plan ?? "—"}</td>
                   <td>Q{m.effective_fee ?? "—"}</td>
-                  <td>{m.payment_status}</td>
+                  <td>{label(PAYMENT_STATUS, m.payment_status)}</td>
                   <td>{m.community_points}</td>
                   <td>
                     <button

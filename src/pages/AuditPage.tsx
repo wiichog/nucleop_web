@@ -1,5 +1,29 @@
 import { useAuditLogs, useExportAudit } from "../api/hooks";
 import { useAuth } from "../lib/auth";
+import { AUDIT_ACTION, AUDIT_ENTITY, AUDIT_ROLE, label } from "../lib/labels";
+
+function describe(log: { action: string; entity: string }): string {
+  const accion = AUDIT_ACTION[log.action] ?? log.action;
+  const entidad = AUDIT_ENTITY[log.entity] ?? log.entity;
+  const selfContained = [
+    "membership_transition",
+    "password_change",
+    "password_reset",
+    "club_requested",
+    "club_decided",
+    "branch_create",
+    "classes_recurring_create",
+    "erp.sale",
+    "erp.product_create",
+    "erp.product_update",
+    "erp.expense_create",
+    "manual_payment",
+    "refund",
+    "export",
+  ];
+  if (selfContained.includes(log.action)) return accion;
+  return `${accion} · ${entidad}`;
+}
 
 export function AuditPage() {
   const { primaryGymId } = useAuth();
@@ -13,9 +37,9 @@ export function AuditPage() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
         <div>
-          <h1>Auditoría</h1>
+          <h1>Actividad del gimnasio</h1>
           <p style={{ color: "var(--nucleo-muted)", marginTop: -8 }}>
-            Bitácora de acciones sensibles dentro del gimnasio actual.
+            Quién hizo qué y cuándo, dentro de este gimnasio.
           </p>
         </div>
         <button
@@ -29,22 +53,31 @@ export function AuditPage() {
       </div>
       <section className="nucleo-card">
         {(logs.data ?? []).length === 0 ? (
-          <p>Sin eventos registrados.</p>
+          <p>Sin actividad registrada.</p>
         ) : (
           <table>
             <thead>
-              <tr><th>Fecha</th><th>Acción</th><th>Entidad</th><th>ID</th><th>Rol</th></tr>
+              <tr>
+                <th>Fecha</th>
+                <th>Quién</th>
+                <th>Qué hizo</th>
+              </tr>
             </thead>
             <tbody>
-              {(logs.data ?? []).map((log) => (
-                <tr key={log.id}>
-                  <td>{new Date(log.created_at).toLocaleString("es-GT")}</td>
-                  <td>{log.action}</td>
-                  <td>{log.entity}</td>
-                  <td>{log.entity_id || "—"}</td>
-                  <td>{log.actor_role || "sistema"}</td>
-                </tr>
-              ))}
+              {(logs.data ?? []).map((log) => {
+                const extra = log as unknown as { descripcion?: string; actor_rol?: string };
+                return (
+                  <tr key={log.id}>
+                    <td>{new Date(log.created_at).toLocaleString("es-GT")}</td>
+                    <td>
+                      {extra.actor_rol ?? (log.actor_role
+                        ? label(AUDIT_ROLE, log.actor_role)
+                        : "Sistema/atleta")}
+                    </td>
+                    <td>{extra.descripcion ?? describe(log)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

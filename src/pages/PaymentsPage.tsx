@@ -1,15 +1,16 @@
 import { FormEvent, useState } from "react";
-import {
-  useGymPayments,
-  useMemberships,
-  useRefundPayment,
-  useRegisterManualPayment,
-} from "../api/hooks";
-import type { Payment } from "../api/types";
+import { useGymPayments, useMemberships, useRegisterManualPayment } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
+import {
+  FEL_STATUS,
+  MEMBERSHIP_STATUS,
+  PAYMENT_METHOD,
+  PAYMENT_TX_STATUS,
+  label,
+} from "../lib/labels";
 
 export function PaymentsPage() {
   const { primaryGymId } = useAuth();
@@ -17,7 +18,6 @@ export function PaymentsPage() {
   const payments = useGymPayments(gymId);
   const memberships = useMemberships(gymId);
   const registerManual = useRegisterManualPayment(gymId);
-  const refundPayment = useRefundPayment(gymId);
 
   const [membershipId, setMembershipId] = useState("");
   const [amount, setAmount] = useState("");
@@ -34,16 +34,6 @@ export function PaymentsPage() {
     });
     setAmount("");
     setProofFile(undefined);
-  };
-
-  const onRefund = async (payment: Payment) => {
-    const amount = window.prompt("Monto a reembolsar", payment.amount);
-    if (!amount) return;
-    const ok = window.confirm(
-      `¿Registrar reembolso administrativo por Q${amount}? Esta acción queda en auditoría.`,
-    );
-    if (!ok) return;
-    await refundPayment.mutateAsync({ paymentId: payment.id, amount });
   };
 
   if (!gymId) return <NoGymAssigned />;
@@ -70,7 +60,7 @@ export function PaymentsPage() {
             <option value="">Selecciona…</option>
             {(memberships.data ?? []).map((m) => (
               <option key={m.id} value={m.id}>
-                {m.athlete_name} ({m.status})
+                {m.athlete_name} ({label(MEMBERSHIP_STATUS, m.status)})
               </option>
             ))}
           </select>
@@ -126,14 +116,14 @@ export function PaymentsPage() {
               onClick={() =>
                 downloadCsv(
                   "pagos-nucleo.csv",
-                  ["fecha", "monto", "metodo", "estado", "fel", "comision"],
+                  ["fecha", "concepto", "monto", "método", "estado", "factura"],
                   (payments.data ?? []).map((payment) => [
-                    payment.created_at,
+                    new Date(payment.created_at).toLocaleString("es-GT"),
+                    payment.concept,
                     payment.amount,
-                    payment.method,
-                    payment.status,
-                    payment.fel_status,
-                    payment.platform_commission,
+                    label(PAYMENT_METHOD, payment.method),
+                    label(PAYMENT_TX_STATUS, payment.status),
+                    label(FEL_STATUS, payment.fel_status),
                   ]),
                 )
               }
@@ -144,12 +134,12 @@ export function PaymentsPage() {
           <table>
             <thead>
               <tr>
+                <th>Fecha</th>
+                <th>Concepto</th>
                 <th>Monto</th>
                 <th>Método</th>
                 <th>Estado</th>
-                <th>FEL</th>
-                <th>Comisión</th>
-                <th></th>
+                <th>Factura (FEL)</th>
               </tr>
             </thead>
             <tbody>
@@ -165,18 +155,12 @@ export function PaymentsPage() {
               )}
               {(payments.data ?? []).map((p) => (
                 <tr key={p.id}>
+                  <td>{new Date(p.created_at).toLocaleDateString("es-GT")}</td>
+                  <td>{p.concept}</td>
                   <td>Q{p.amount}</td>
-                  <td>{p.method}</td>
-                  <td>{p.status}</td>
-                  <td>{p.fel_status}</td>
-                  <td>Q{p.platform_commission}</td>
-                  <td>
-                    {p.status === "succeeded" && !p.refund_of && (
-                      <button className="link-btn" onClick={() => onRefund(p)}>
-                        Reembolsar
-                      </button>
-                    )}
-                  </td>
+                  <td>{label(PAYMENT_METHOD, p.method)}</td>
+                  <td>{label(PAYMENT_TX_STATUS, p.status)}</td>
+                  <td>{label(FEL_STATUS, p.fel_status)}</td>
                 </tr>
               ))}
             </tbody>

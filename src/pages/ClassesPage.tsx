@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
 import {
   useClassCheckins,
-  useCreateClass,
+  useCreateRecurringClasses,
   useGymClasses,
   useMemberships,
   useReceptionCheckin,
@@ -9,16 +9,32 @@ import {
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { useAuth } from "../lib/auth";
+import { CLASS_STATUS, label } from "../lib/labels";
+
+const WEEKDAYS = [
+  { value: 0, label: "Lun" },
+  { value: 1, label: "Mar" },
+  { value: 2, label: "Mié" },
+  { value: 3, label: "Jue" },
+  { value: 4, label: "Vie" },
+  { value: 5, label: "Sáb" },
+  { value: 6, label: "Dom" },
+];
 
 export function ClassesPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
   const classes = useGymClasses(gymId);
-  const createClass = useCreateClass(gymId);
+  const createRecurring = useCreateRecurringClasses(gymId);
   const memberships = useMemberships(gymId);
   const [classType, setClassType] = useState("CrossFit");
-  const [startsAt, setStartsAt] = useState("");
+  const [startTime, setStartTime] = useState("06:00");
+  const [duration, setDuration] = useState("60");
   const [capacity, setCapacity] = useState("20");
+  const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
+  const [fromDate, setFromDate] = useState(new Date().toISOString().slice(0, 10));
+  const [toDate, setToDate] = useState(new Date().toISOString().slice(0, 10));
+  const [created, setCreated] = useState<number | null>(null);
   const [selectedClassId, setSelectedClassId] = useState("");
   const [membershipId, setMembershipId] = useState("");
   const checkins = useClassCheckins(gymId, selectedClassId);
@@ -27,25 +43,64 @@ export function ClassesPage() {
   if (!gymId) return <NoGymAssigned />;
   if (classes.isError) return <PageError onRetry={() => classes.refetch()} />;
 
+  const toggleDay = (d: number) =>
+    setWeekdays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await createClass.mutateAsync({
+    const res = await createRecurring.mutateAsync({
       class_type: classType,
-      starts_at: new Date(startsAt).toISOString(),
-      duration_min: 60,
+      start_time: startTime,
+      duration_min: Number(duration),
       capacity: Number(capacity),
+      weekdays,
+      from_date: fromDate,
+      to_date: toDate,
     });
-    setStartsAt("");
+    setCreated((res as { created: number }).created);
   };
 
   return (
     <div>
       <h1>Calendario de clases</h1>
-      <form className="nucleo-card" style={{ display: "flex", gap: 12, marginBottom: 16 }} onSubmit={submit}>
-        <input className="nucleo-input" value={classType} onChange={(event) => setClassType(event.target.value)} />
-        <input className="nucleo-input" type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} />
-        <input className="nucleo-input" type="number" value={capacity} onChange={(event) => setCapacity(event.target.value)} />
-        <button className="nucleo-btn" disabled={!startsAt || createClass.isPending}>Crear</button>
+      <form className="nucleo-card" style={{ marginBottom: 16 }} onSubmit={submit}>
+        <h2 style={{ marginTop: 0 }}>Crear clases (horario fijo)</h2>
+        <p style={{ color: "var(--nucleo-muted)", fontSize: 13, marginTop: -6 }}>
+          Ej.: CrossFit de 6:00 a 7:00, de lunes a viernes, durante un rango de fechas.
+        </p>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <input className="nucleo-input" placeholder="Tipo de clase" value={classType} onChange={(e) => setClassType(e.target.value)} />
+          <label>Hora <input className="nucleo-input" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} /></label>
+          <label>Min <input className="nucleo-input" style={{ width: 80 }} type="number" value={duration} onChange={(e) => setDuration(e.target.value)} /></label>
+          <label>Cupo <input className="nucleo-input" style={{ width: 80 }} type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} /></label>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0" }}>
+          {WEEKDAYS.map((d) => (
+            <button
+              type="button"
+              key={d.value}
+              onClick={() => toggleDay(d.value)}
+              className="nucleo-btn"
+              style={{
+                background: weekdays.includes(d.value) ? "var(--nucleo-accent)" : "var(--nucleo-surface-2)",
+                color: weekdays.includes(d.value) ? "var(--nucleo-carbon)" : "var(--nucleo-white)",
+                padding: "6px 12px",
+              }}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <label>Desde <input className="nucleo-input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></label>
+          <label>Hasta <input className="nucleo-input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} /></label>
+          <button className="nucleo-btn" disabled={!weekdays.length || createRecurring.isPending}>
+            {createRecurring.isPending ? "Creando…" : "Crear clases"}
+          </button>
+          {created !== null && (
+            <span style={{ color: "var(--nucleo-accent)" }}>Se crearon {created} clases.</span>
+          )}
+        </div>
       </form>
       <section className="nucleo-card">
         {classes.isLoading ? (
@@ -61,7 +116,7 @@ export function ClassesPage() {
                 <td>{gymClass.class_type}</td>
                 <td>{new Date(gymClass.starts_at).toLocaleString("es-GT")}</td>
                 <td>{gymClass.reserved_count}/{gymClass.capacity}</td>
-                <td>{gymClass.status}</td>
+                <td>{label(CLASS_STATUS, gymClass.status)}</td>
                 <td>
                   <button
                     className="nucleo-btn nucleo-btn--secondary"

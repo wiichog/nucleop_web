@@ -21,6 +21,7 @@ import {
   ErpExpense,
   ErpPnl,
   ErpBranch,
+  GymClub,
   unwrapList,
 } from "./types";
 
@@ -257,6 +258,39 @@ export function useGymClasses(gymId: string) {
     queryKey: ["gym-classes", gymId],
     queryFn: () => getList<GymClass>(`/gym/${gymId}/classes`),
     enabled: !!gymId,
+  });
+}
+
+export function useCreateRecurringClasses(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      class_type: string;
+      start_time: string;
+      duration_min: number;
+      capacity: number;
+      weekdays: number[];
+      from_date: string;
+      to_date: string;
+    }) => (await api.post(`/gym/${gymId}/classes/recurring`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-classes", gymId] }),
+  });
+}
+
+export function useGymClubs(gymId: string) {
+  return useQuery({
+    queryKey: ["gym-clubs", gymId],
+    queryFn: () => getList<GymClub>(`/gym/${gymId}/clubs`),
+    enabled: !!gymId,
+  });
+}
+
+export function useDecideClub(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ clubId, decision }: { clubId: string; decision: "approve" | "reject" }) =>
+      (await api.post(`/gym/${gymId}/clubs/${clubId}/decide`, { decision })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-clubs", gymId] }),
   });
 }
 

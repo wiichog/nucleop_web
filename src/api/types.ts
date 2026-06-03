@@ -169,6 +169,19 @@ export interface ErpExpense {
   created_at: string;
 }
 
+export interface GymClub {
+  id: string;
+  name: string;
+  club_type: string;
+  gym: string | null;
+  gym_name: string | null;
+  status: string;
+  status_display: string;
+  is_public: boolean;
+  member_count?: number;
+  created_at: string;
+}
+
 export interface ErpBranch {
   id: string;
   name: string;
