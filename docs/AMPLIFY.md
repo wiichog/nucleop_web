@@ -1,50 +1,127 @@
-# Deploy en AWS Amplify (panel web admin)
+# Deploy web admin en AWS Amplify — `app.nucleo.fit`
 
-## Repositorio
+## Requisitos previos
 
-Conectar el repo `nucleo-web-admin`, rama `main`.
+- API en producción: `https://api.nucleo.fit` (health OK).
+- Repo GitHub: `nucleop_web` (carpeta local `nucleo-web-admin`).
+- Acceso DNS de `nucleo.fit` (Route 53 u otro) para crear un CNAME.
+- Usuario `gym_admin` en la API (correo + contraseña).
 
-## Build
+---
 
-Amplify detecta `amplify.yml` en la raíz:
+## Parte A — Preparar la API (EC2 / Secrets Manager)
 
-- `npm ci`
-- `npm run build`
-- Artefactos en `dist/`
+1. Edita el secreto `prod/nucleo` en **AWS Secrets Manager** (o el JSON que uses).
+2. Actualiza **`CORS_ALLOWED_ORIGINS`** (lista separada por comas, sin espacios extra):
 
-## Variables de entorno (obligatorias)
+   ```
+   https://app.nucleo.fit
+   ```
 
-En **Amplify → App settings → Environment variables**:
+   Si quieres probar antes del dominio final, añade también la URL temporal de Amplify:
 
-| Variable | Ejemplo |
-|----------|---------|
-| `VITE_API_BASE_URL` | `https://api.nucleo.fit/api/v1` |
+   ```
+   https://app.nucleo.fit,https://main.xxxxx.amplifyapp.com
+   ```
 
-Sin esta variable, el build usa `localhost` del `.env.example`.
+3. Opcional pero recomendado — enlace de recuperación de contraseña del panel:
 
-## CORS en la API
+   ```
+   PASSWORD_RESET_URL_TEMPLATE=https://app.nucleo.fit/password-reset?uid={uid}&token={token}
+   ```
 
-En Secrets Manager / `CORS_ALLOWED_ORIGINS` incluir el dominio de Amplify, por ejemplo:
+4. En el EC2:
 
-```
-https://admin.nucleo.fit
-https://main.d1234abcd.amplifyapp.com
-```
+   ```bash
+   sudo systemctl restart nucleo-api
+   ```
 
-## Dominio
+5. Comprueba CORS (desde tu PC):
 
-1. Amplify → **Domain management** → asignar `admin.nucleo.fit` (CNAME al hosting de Amplify).
-2. Certificado SSL lo gestiona Amplify.
+   ```bash
+   curl -sI -X OPTIONS https://api.nucleo.fit/api/v1/auth/login \
+     -H "Origin: https://app.nucleo.fit" \
+     -H "Access-Control-Request-Method: POST"
+   ```
 
-## Login
+   Debe aparecer `access-control-allow-origin: https://app.nucleo.fit`.
 
-El panel usa **correo + contraseña** (`POST /api/v1/auth/login` con `{ "email", "password" }`).
+---
 
-Crear un usuario staff en Django admin o con `seed_demo` y asignar rol `gym_admin` al gym.
+## Parte B — Crear la app en Amplify
 
-## Orden de despliegue
+1. Entra a [AWS Amplify Console](https://console.aws.amazon.com/amplify/).
+2. **Create new app** → **Host web app**.
+3. **GitHub** → autoriza AWS → elige el repo **`nucleop_web`** (o el nombre de tu fork).
+4. Rama: **`main`**.
+5. Amplify detecta **Amplify Gen 1** y el archivo `amplify.yml` en la raíz:
+   - `npm ci`
+   - `npm run build`
+   - artefactos en `dist/`
+6. En **Environment variables** (muy importante, se inyectan en el build):
 
-1. API en EC2 con HTTPS (`api.nucleo.fit`).
-2. Migrar API (`python manage.py migrate`) tras cambios de identidad.
-3. Amplify con `VITE_API_BASE_URL` apuntando a la API.
-4. Probar login y una pantalla con datos (atletas / solicitudes).
+   | Clave | Valor |
+   |-------|--------|
+   | `VITE_API_BASE_URL` | `https://api.nucleo.fit/api/v1` |
+
+7. **Save and deploy** y espera el primer build (verde).
+
+---
+
+## Parte C — SPA (React Router)
+
+El repo incluye `public/_redirects` para que rutas como `/login` o `/athletes` no den 404 al refrescar.
+
+Si el build anterior no lo tenía, en Amplify → **Hosting** → **Rewrites and redirects** → **Manage redirects** y añade:
+
+| Source | Target | Type |
+|--------|--------|------|
+| `</^[^.]+$|\.(?!(css\|gif\|ico\|jpg\|js\|png\|txt\|svg\|woff\|woff2\|ttf\|map\|json)$)([^.]+$)/>` | `/index.html` | **200 (Rewrite)** |
+
+(O la regla simple de Amplify: source `/<*>` → `/index.html` → **404-200**.)
+
+---
+
+## Parte D — Dominio `app.nucleo.fit`
+
+1. En la app Amplify → **Hosting** → **Custom domains** → **Add domain**.
+2. Dominio: **`nucleo.fit`** → subdominio **`app`** → resultado **`app.nucleo.fit`**.
+3. Amplify te muestra un **CNAME** (ej. `app.nucleo.fit` → `xxxx.cloudfront.net` o similar).
+4. En tu DNS (Route 53 u otro registrador):
+   - Tipo **CNAME**
+   - Nombre: **`app`**
+   - Valor: el que indica Amplify
+   - TTL: 300 o por defecto
+5. Espera validación SSL (Amplify + ACM), suele tardar **5–30 min** (a veces hasta 1 h).
+6. Cuando esté **Available**, abre `https://app.nucleo.fit`.
+
+---
+
+## Parte E — Probar el panel
+
+1. `https://app.nucleo.fit/login`
+2. Correo y contraseña de un usuario con rol **`gym_admin`** en un gym.
+3. Debe cargar el dashboard; prueba **Solicitudes** o **Atletas**.
+4. Si falla el login:
+   - F12 → **Network** → petición a `api.nucleo.fit` (CORS, 401, 502).
+   - Confirma `VITE_API_BASE_URL` en Amplify (redeploy tras cambiarla).
+   - Confirma `CORS_ALLOWED_ORIGINS` en el secreto y reinicia `nucleo-api`.
+
+---
+
+## Despliegues siguientes
+
+Cada `git push` a `main` dispara un build en Amplify.
+
+Para forzar redeploy: Amplify → la rama `main` → **Redeploy this version**.
+
+---
+
+## Checklist rápido
+
+- [ ] `VITE_API_BASE_URL=https://api.nucleo.fit/api/v1` en Amplify
+- [ ] `CORS_ALLOWED_ORIGINS` incluye `https://app.nucleo.fit`
+- [ ] CNAME `app` → Amplify
+- [ ] SSL verde en Amplify
+- [ ] Login con correo en `https://app.nucleo.fit`
+- [ ] Rewrite SPA ( `_redirects` o regla en consola)
