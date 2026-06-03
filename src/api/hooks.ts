@@ -36,7 +36,7 @@ async function getList<T>(url: string) {
 
 export function useLogin() {
   return useMutation({
-    mutationFn: async (creds: { phone: string; password: string }) => {
+    mutationFn: async (creds: { email: string; password: string }) => {
       const { data } = await api.post("/auth/login", creds);
       tokenStore.set(data.access, data.refresh);
       return data;
@@ -138,8 +138,8 @@ export function useRefundPayment(gymId: string) {
 
 export function usePasswordResetRequest() {
   return useMutation({
-    mutationFn: async (identifier: string) =>
-      (await api.post("/auth/password-reset", { identifier })).data,
+    mutationFn: async (email: string) =>
+      (await api.post("/auth/password-reset", { email: email.trim().toLowerCase() })).data,
   });
 }
 

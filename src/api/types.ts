@@ -103,7 +103,8 @@ export interface Dashboard {
 }
 
 export interface InvitationInput {
-  phone: string;
+  email: string;
+  phone?: string;
   email?: string;
   first_name: string;
   last_name: string;

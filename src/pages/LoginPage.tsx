@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import { useLogin, usePasswordResetRequest } from "../api/hooks";
 
 export function LoginPage() {
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [resetMode, setResetMode] = useState(false);
   const [identifier, setIdentifier] = useState("");
@@ -11,7 +11,7 @@ export function LoginPage() {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    await login.mutateAsync({ phone, password });
+    await login.mutateAsync({ email: email.trim().toLowerCase(), password });
     window.location.assign("/");
   };
 
@@ -28,7 +28,7 @@ export function LoginPage() {
         >
           <h1>Recuperar contraseña</h1>
           <p style={{ color: "var(--nucleo-muted)" }}>
-            Ingresa tu teléfono o correo. Si la cuenta tiene correo, enviaremos instrucciones.
+            Ingresa el correo con el que te registraste. Te enviaremos instrucciones si la cuenta existe.
           </p>
           <input
             className="nucleo-input"
@@ -74,13 +74,16 @@ export function LoginPage() {
         <p style={{ color: "var(--nucleo-muted)", marginTop: 0 }}>
           Panel del gimnasio
         </p>
-        <label>Teléfono</label>
+        <label>Correo electrónico</label>
         <input
           className="nucleo-input"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="+502 ..."
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="admin@tugym.com"
           style={{ marginBottom: 12 }}
+          required
         />
         <label>Contraseña</label>
         <input

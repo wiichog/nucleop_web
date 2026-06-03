@@ -101,7 +101,8 @@ export function RequestsPage() {
             <input
               key={key}
               className="nucleo-input"
-              placeholder={{ phone: "Teléfono", email: "Correo opcional", first_name: "Nombre", last_name: "Apellido" }[key]}
+              type={key === "email" ? "email" : "text"}
+              placeholder={{ email: "Correo electrónico", phone: "Teléfono (opcional)", first_name: "Nombre", last_name: "Apellido" }[key]}
               value={value}
               onChange={(event) => setForm({ ...form, [key]: event.target.value })}
             />
@@ -109,10 +110,10 @@ export function RequestsPage() {
         </div>
         {invite.isError && (
           <p style={{ color: "var(--nucleo-danger)", fontSize: 13 }}>
-            No se pudo enviar la invitación. Verifica el teléfono.
+            No se pudo enviar la invitación. Verifica el correo.
           </p>
         )}
-        <button className="nucleo-btn" style={{ marginTop: 12 }} disabled={!form.phone || !form.first_name || !form.last_name || invite.isPending}>
+        <button className="nucleo-btn" style={{ marginTop: 12 }} disabled={!form.email || !form.first_name || !form.last_name || invite.isPending}>
           {invite.isPending ? "Enviando…" : "Enviar invitación"}
         </button>
       </form>
