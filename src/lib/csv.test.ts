@@ -5,7 +5,7 @@ describe("downloadCsv", () => {
   it("crea un enlace de descarga con BOM UTF-8", () => {
     const click = vi.fn();
     const revoke = vi.fn();
-    const anchor = { click, download: "", href: "" } as HTMLAnchorElement;
+    const anchor = { click, download: "", href: "" } as unknown as HTMLAnchorElement;
     vi.spyOn(document, "createElement").mockReturnValue(anchor);
     vi.stubGlobal(
       "URL",

@@ -1,5 +1,4 @@
 import { useAtRisk, useDashboard, useOverdue } from "../api/hooks";
-import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { useAuth } from "../lib/auth";
 import { Membership } from "../api/types";
