@@ -15,6 +15,11 @@ import {
   Plan,
   FeedItem,
   AthleteOfMonth,
+  ErpProduct,
+  ErpMovement,
+  ErpSale,
+  ErpExpense,
+  ErpPnl,
   unwrapList,
 } from "./types";
 
@@ -507,6 +512,105 @@ export function useClubAdminConfirm(clubId: string, activityId: string) {
       qc.invalidateQueries({ queryKey: ["club-admin-rsvps", clubId, activityId] });
       qc.invalidateQueries({ queryKey: ["club-admin-activities", clubId] });
     },
+  });
+}
+
+// --- ERP (§18) ---
+export function useErpProducts(gymId: string) {
+  return useQuery({
+    queryKey: ["erp-products", gymId],
+    queryFn: () => getList<ErpProduct>(`/gym/${gymId}/erp/products`),
+    enabled: !!gymId,
+  });
+}
+
+export function useCreateErpProduct(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      name: string;
+      category: string;
+      sale_price: string;
+      cost_price: string;
+      reorder_level?: number;
+      sku?: string;
+    }) => (await api.post<ErpProduct>(`/gym/${gymId}/erp/products`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["erp-products", gymId] }),
+  });
+}
+
+export function useCreateErpMovement(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      product_id: string;
+      type: "purchase" | "adjustment" | "loss";
+      qty: number;
+      unit_cost?: string;
+      note?: string;
+    }) => (await api.post<ErpMovement>(`/gym/${gymId}/erp/inventory/movements`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-pnl", gymId] });
+    },
+  });
+}
+
+export function useErpSales(gymId: string) {
+  return useQuery({
+    queryKey: ["erp-sales", gymId],
+    queryFn: () => getList<ErpSale>(`/gym/${gymId}/erp/sales`),
+    enabled: !!gymId,
+  });
+}
+
+export function useCreateErpSale(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      athlete_id?: string | null;
+      method: "cash" | "card" | "bank_transfer";
+      note?: string;
+      lines: { product_id: string; qty: number }[];
+    }) => (await api.post<ErpSale>(`/gym/${gymId}/erp/sales`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["erp-sales", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-pnl", gymId] });
+    },
+  });
+}
+
+export function useErpExpenses(gymId: string) {
+  return useQuery({
+    queryKey: ["erp-expenses", gymId],
+    queryFn: () => getList<ErpExpense>(`/gym/${gymId}/erp/expenses`),
+    enabled: !!gymId,
+  });
+}
+
+export function useCreateErpExpense(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      category: string;
+      amount: string;
+      description?: string;
+      incurred_on: string;
+    }) => (await api.post<ErpExpense>(`/gym/${gymId}/erp/expenses`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["erp-expenses", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-pnl", gymId] });
+    },
+  });
+}
+
+export function useErpPnl(gymId: string, from: string, to: string) {
+  return useQuery({
+    queryKey: ["erp-pnl", gymId, from, to],
+    queryFn: async () =>
+      (await api.get<ErpPnl>(`/gym/${gymId}/erp/reports/pnl?from=${from}&to=${to}`)).data,
+    enabled: !!gymId && !!from && !!to,
   });
 }
 

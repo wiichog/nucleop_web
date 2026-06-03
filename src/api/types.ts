@@ -109,3 +109,75 @@ export interface InvitationInput {
   last_name: string;
   comment?: string;
 }
+
+// --- ERP (§18) ---
+export interface ErpProduct {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  sale_price: string;
+  cost_price: string;
+  stock_qty: number;
+  reorder_level: number;
+  margin_unit: string;
+  needs_reorder: boolean;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ErpMovement {
+  id: string;
+  product: string;
+  product_name: string;
+  type: string;
+  qty: number;
+  unit_cost: string;
+  note: string;
+  created_at: string;
+}
+
+export interface ErpSaleLine {
+  id: string;
+  product: string;
+  product_name: string;
+  qty: number;
+  unit_price: string;
+  unit_cost: string;
+  subtotal: string;
+}
+
+export interface ErpSale {
+  id: string;
+  athlete: string | null;
+  payment: string | null;
+  total: string;
+  cogs: string;
+  margin: string;
+  note: string;
+  lines: ErpSaleLine[];
+  created_at: string;
+}
+
+export interface ErpExpense {
+  id: string;
+  category: string;
+  amount: string;
+  description: string;
+  incurred_on: string;
+  proof_url: string;
+  created_at: string;
+}
+
+export interface ErpPnl {
+  from: string;
+  to: string;
+  retail_revenue: string;
+  membership_revenue: string;
+  gross_revenue: string;
+  cogs: string;
+  gross_margin: string;
+  expenses: string;
+  net_profit: string;
+  top_products: { name: string; units: number }[];
+}

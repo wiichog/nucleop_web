@@ -14,6 +14,10 @@ import { PasswordResetConfirmPage } from "./pages/PasswordResetConfirmPage";
 import { PlatformGymsPage } from "./pages/PlatformGymsPage";
 import { CommunityPage } from "./pages/CommunityPage";
 import { ClubAdminPage } from "./pages/ClubAdminPage";
+import { InventoryPage } from "./pages/InventoryPage";
+import { PosPage } from "./pages/PosPage";
+import { ExpensesPage } from "./pages/ExpensesPage";
+import { BusinessReportPage } from "./pages/BusinessReportPage";
 
 function Protected({ children }: { children: JSX.Element }) {
   const { authenticated, loading } = useAuth();
@@ -43,6 +47,10 @@ export default function App() {
         <Route path="solicitudes" element={<RequestsPage />} />
         <Route path="clases" element={<ClassesPage />} />
         <Route path="comunidad" element={<CommunityPage />} />
+        <Route path="inventario" element={<InventoryPage />} />
+        <Route path="pos" element={<PosPage />} />
+        <Route path="gastos" element={<ExpensesPage />} />
+        <Route path="reportes" element={<BusinessReportPage />} />
         <Route path="club" element={<ClubAdminPage />} />
         <Route path="auditoria" element={<AuditPage />} />
         <Route path="plataforma/gyms" element={<PlatformGymsPage />} />

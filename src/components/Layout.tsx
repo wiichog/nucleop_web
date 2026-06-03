@@ -14,6 +14,14 @@ const gymNav = [
   { to: "/panel/auditoria", label: "Auditoría" },
 ];
 
+// Bloque ERP (negocio): inventario, ventas, costos y reportes (§18).
+const erpNav = [
+  { to: "/panel/inventario", label: "Inventario" },
+  { to: "/panel/pos", label: "Punto de venta" },
+  { to: "/panel/gastos", label: "Gastos" },
+  { to: "/panel/reportes", label: "Reportes de negocio" },
+];
+
 const clubNav = [{ to: "/panel/club", label: "Administrar club" }];
 
 export function Layout() {
@@ -25,6 +33,7 @@ export function Layout() {
       ? [...gymNav, { to: "/panel/plataforma/gyms", label: "Plataforma: gimnasios" }]
       : gymNav),
   ];
+  const showErp = isSuperuser || roles.some((r) => r.role === "gym_admin");
   return (
     <div style={{ display: "flex", minHeight: "100vh", position: "relative" }}>
       <ParticleSnow />
@@ -58,6 +67,37 @@ export function Layout() {
               {n.label}
             </NavLink>
           ))}
+          {showErp && (
+            <>
+              <p
+                style={{
+                  color: "var(--nucleo-muted)",
+                  fontSize: 11,
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                  margin: "18px 12px 4px",
+                }}
+              >
+                Negocio (ERP)
+              </p>
+              {erpNav.map((n) => (
+                <NavLink
+                  key={n.to}
+                  to={n.to}
+                  style={({ isActive }) => ({
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    color: isActive ? "var(--nucleo-carbon)" : "var(--nucleo-white)",
+                    background: isActive ? "var(--nucleo-accent)" : "transparent",
+                    textDecoration: "none",
+                    fontWeight: 600,
+                  })}
+                >
+                  {n.label}
+                </NavLink>
+              ))}
+            </>
+          )}
         </nav>
         {gymIds.length > 1 && (
           <select
