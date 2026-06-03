@@ -5,6 +5,7 @@ import { tokenStore } from "../api/client";
 interface AuthValue {
   loading: boolean;
   authenticated: boolean;
+  email: string;
   roles: Role[];
   isSuperuser: boolean;
   primaryGymId: string | null;
@@ -18,6 +19,7 @@ interface AuthValue {
 const AuthContext = createContext<AuthValue>({
   loading: true,
   authenticated: false,
+  email: "",
   roles: [],
   isSuperuser: false,
   primaryGymId: null,
@@ -51,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthValue = {
     loading: isLoading && !!tokenStore.access,
     authenticated: !!tokenStore.access,
+    email: data?.email ?? "",
     roles,
     isSuperuser: data?.is_superuser ?? false,
     primaryGymId,

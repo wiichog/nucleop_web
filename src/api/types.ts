@@ -95,11 +95,18 @@ export interface AthleteOfMonth {
 }
 
 export interface Dashboard {
+  from: string;
+  to: string;
+  ingresos_tarjeta: string;
+  ingresos_manual: string;
+  ingresos_total: string;
+  pagos: number;
+  nuevos_atletas: number;
+  checkins: number;
   atletas_activos: number;
   morosos: number;
-  ingresos_mes_tarjeta: string;
-  ingresos_mes_manual: string;
   proximos_vencimientos: number;
+  clases_mas_demandadas: { class_type: string; reservas: number }[];
 }
 
 export interface InvitationInput {

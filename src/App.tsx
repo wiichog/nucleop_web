@@ -20,6 +20,8 @@ import { ExpensesPage } from "./pages/ExpensesPage";
 import { BusinessReportPage } from "./pages/BusinessReportPage";
 import { BranchesPage } from "./pages/BranchesPage";
 import { ClubsPage } from "./pages/ClubsPage";
+import { RetentionPage } from "./pages/RetentionPage";
+import { ProfilePage } from "./pages/ProfilePage";
 
 function Protected({ children }: { children: JSX.Element }) {
   const { authenticated, loading } = useAuth();
@@ -43,6 +45,8 @@ export default function App() {
         }
       >
         <Route index element={<DashboardPage />} />
+        <Route path="retencion" element={<RetentionPage />} />
+        <Route path="perfil" element={<ProfilePage />} />
         <Route path="atletas" element={<AthletesPage />} />
         <Route path="pagos" element={<PaymentsPage />} />
         <Route path="planes" element={<PlansPage />} />

@@ -32,7 +32,9 @@ export interface Role {
 }
 
 interface Me {
+  email: string;
   is_superuser: boolean;
+  must_change_password?: boolean;
   roles: Role[];
 }
 
@@ -59,11 +61,19 @@ export function useMe() {
   });
 }
 
-export function useDashboard(gymId: string) {
+export function useDashboard(gymId: string, from?: string, to?: string) {
+  const q = from && to ? `?from=${from}&to=${to}` : "";
   return useQuery({
-    queryKey: ["dashboard", gymId],
-    queryFn: async () => (await api.get<Dashboard>(`/gym/${gymId}/dashboard`)).data,
+    queryKey: ["dashboard", gymId, from ?? "", to ?? ""],
+    queryFn: async () => (await api.get<Dashboard>(`/gym/${gymId}/dashboard${q}`)).data,
     enabled: !!gymId,
+  });
+}
+
+export function usePasswordChange() {
+  return useMutation({
+    mutationFn: async (body: { current_password?: string; new_password: string }) =>
+      (await api.post("/auth/password-change", body)).data,
   });
 }
 
