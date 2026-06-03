@@ -169,15 +169,43 @@ export interface ErpExpense {
   created_at: string;
 }
 
+export interface ErpBranch {
+  id: string;
+  name: string;
+  location_text: string;
+  lat: string | null;
+  lng: string | null;
+  created_at: string;
+}
+
+export interface ErpRevenueLine {
+  line: string;
+  label: string;
+  revenue: string;
+}
+
 export interface ErpPnl {
   from: string;
   to: string;
-  retail_revenue: string;
+  branch: string | null;
   membership_revenue: string;
+  service_revenue: string;
+  retail_revenue: string;
   gross_revenue: string;
   cogs: string;
+  direct_cost: string;
   gross_margin: string;
+  gross_margin_pct: number;
+  losses: string;
   expenses: string;
   net_profit: string;
+  net_margin_pct: number;
+  previous: { gross_revenue: string; net_profit: string };
+  delta_revenue_pct: number | null;
+  delta_net_pct: number | null;
+  revenue_lines: ErpRevenueLine[];
+  active_members: number;
+  new_members: number;
+  inventory_purchases_units: number;
   top_products: { name: string; units: number }[];
 }

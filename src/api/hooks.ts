@@ -20,6 +20,7 @@ import {
   ErpSale,
   ErpExpense,
   ErpPnl,
+  ErpBranch,
   unwrapList,
 } from "./types";
 
@@ -515,6 +516,24 @@ export function useClubAdminConfirm(clubId: string, activityId: string) {
   });
 }
 
+// --- Sucursales (multi-sede) ---
+export function useBranches(gymId: string) {
+  return useQuery({
+    queryKey: ["branches", gymId],
+    queryFn: () => getList<ErpBranch>(`/gym/${gymId}/branches`),
+    enabled: !!gymId,
+  });
+}
+
+export function useCreateBranch(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { name: string; location_text?: string }) =>
+      (await api.post<ErpBranch>(`/gym/${gymId}/branches`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["branches", gymId] }),
+  });
+}
+
 // --- ERP (§18) ---
 export function useErpProducts(gymId: string) {
   return useQuery({
@@ -569,6 +588,7 @@ export function useCreateErpSale(gymId: string) {
   return useMutation({
     mutationFn: async (body: {
       athlete_id?: string | null;
+      branch_id?: string | null;
       method: "cash" | "card" | "bank_transfer";
       note?: string;
       lines: { product_id: string; qty: number }[];
@@ -605,11 +625,12 @@ export function useCreateErpExpense(gymId: string) {
   });
 }
 
-export function useErpPnl(gymId: string, from: string, to: string) {
+export function useErpPnl(gymId: string, from: string, to: string, branch?: string) {
+  const branchQ = branch ? `&branch=${branch}` : "";
   return useQuery({
-    queryKey: ["erp-pnl", gymId, from, to],
+    queryKey: ["erp-pnl", gymId, from, to, branch ?? ""],
     queryFn: async () =>
-      (await api.get<ErpPnl>(`/gym/${gymId}/erp/reports/pnl?from=${from}&to=${to}`)).data,
+      (await api.get<ErpPnl>(`/gym/${gymId}/erp/reports/pnl?from=${from}&to=${to}${branchQ}`)).data,
     enabled: !!gymId && !!from && !!to,
   });
 }

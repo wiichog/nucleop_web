@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useCreateErpSale, useErpProducts, useErpSales } from "../api/hooks";
+import { useBranches, useCreateErpSale, useErpProducts, useErpSales } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageLoading } from "../components/PageStatus";
 import { useAuth } from "../lib/auth";
@@ -16,12 +16,14 @@ export function PosPage() {
   const gymId = primaryGymId ?? "";
   const { data: products, isLoading } = useErpProducts(gymId);
   const { data: sales } = useErpSales(gymId);
+  const { data: branches } = useBranches(gymId);
   const createSale = useCreateErpSale(gymId);
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [productId, setProductId] = useState("");
   const [qty, setQty] = useState("1");
   const [athleteId, setAthleteId] = useState("");
+  const [branchId, setBranchId] = useState("");
   const [method, setMethod] = useState<"cash" | "card" | "bank_transfer">("cash");
   const [error, setError] = useState("");
 
@@ -47,6 +49,7 @@ export function PosPage() {
     try {
       await createSale.mutateAsync({
         athlete_id: athleteId.trim() || null,
+        branch_id: branchId || null,
         method,
         lines: cart.map((l) => ({ product_id: l.product_id, qty: l.qty })),
       });
@@ -129,6 +132,16 @@ export function PosPage() {
             onChange={(e) => setAthleteId(e.target.value)}
             title="Vincula la venta a un atleta para emitir su pago. Déjalo vacío para venta anónima."
           />
+          {(branches ?? []).length > 0 && (
+            <select className="nucleo-input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+              <option value="">Sin sede</option>
+              {(branches ?? []).map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
           <select className="nucleo-input" value={method} onChange={(e) => setMethod(e.target.value as typeof method)}>
             <option value="cash">Efectivo</option>
             <option value="card">Tarjeta</option>

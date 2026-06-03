@@ -19,6 +19,7 @@ const erpNav = [
   { to: "/panel/inventario", label: "Inventario" },
   { to: "/panel/pos", label: "Punto de venta" },
   { to: "/panel/gastos", label: "Gastos" },
+  { to: "/panel/sucursales", label: "Sucursales" },
   { to: "/panel/reportes", label: "Reportes de negocio" },
 ];
 
