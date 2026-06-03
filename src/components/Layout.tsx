@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { AtomLogo } from "../landing/AtomLogo";
+import { ParticleSnow } from "../landing/ParticleSnow";
 
 const gymNav = [
   { to: "/panel", label: "Retención y morosidad" },
@@ -25,7 +26,8 @@ export function Layout() {
       : gymNav),
   ];
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div style={{ display: "flex", minHeight: "100vh", position: "relative" }}>
+      <ParticleSnow />
       <aside
         style={{
           width: 250,
