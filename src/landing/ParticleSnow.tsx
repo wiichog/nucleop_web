@@ -1,15 +1,15 @@
-// Partículas deterministas que caen lento como "nieve" naranja. Muy sutil.
+// Partículas que caen lento como "nieve" naranja. Aleatorias por partícula para
+// que cada una arranque y dure distinto (no todas a la vez). Muy sutil.
+const COLORS = ["#FC4C02", "#FF7A3D", "#FF9F1C"];
 const FLAKES = Array.from({ length: 44 }, (_, i) => {
-  const a = ((i * 9301 + 49297) % 233280) / 233280;
-  const b = ((i * 4096 + 150889) % 714025) / 714025;
-  const colors = ["#FC4C02", "#FF7A3D", "#FF9F1C"];
+  const dur = 9 + Math.random() * 16;
   return {
-    left: `${(a * 100).toFixed(2)}%`,
-    size: 1 + b * 2.2,
-    duration: `${(11 + a * 14).toFixed(1)}s`,
-    delay: `${(-a * 22).toFixed(1)}s`, // negativo: arrancan dispersas
-    opacity: 0.18 + b * 0.32,
-    color: colors[i % colors.length],
+    left: `${(Math.random() * 100).toFixed(2)}%`,
+    size: 1 + Math.random() * 2.2,
+    duration: `${dur.toFixed(1)}s`,
+    delay: `${(-Math.random() * dur).toFixed(1)}s`, // negativo y aleatorio: dispersas
+    opacity: 0.18 + Math.random() * 0.32,
+    color: COLORS[i % COLORS.length],
   };
 });
 
