@@ -863,3 +863,38 @@ export function useGymLeaveDecision(gymId: string) {
     },
   });
 }
+
+// --- Servicios del gym (CRUD admin) ---
+export function useGymServices(gymId: string) {
+  return useQuery({
+    queryKey: ["gym-services", gymId],
+    queryFn: () => getList<import("./types").GymService>(`/gym/${gymId}/services/manage`),
+    enabled: !!gymId,
+  });
+}
+
+export function useCreateService(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: Partial<import("./types").GymService>) =>
+      (await api.post(`/gym/${gymId}/services/manage`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-services", gymId] }),
+  });
+}
+
+export function useUpdateService(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...body }: { id: string } & Partial<import("./types").GymService>) =>
+      (await api.patch(`/gym/${gymId}/services/manage/${id}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-services", gymId] }),
+  });
+}
+
+export function useDeleteService(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.delete(`/gym/${gymId}/services/manage/${id}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-services", gymId] }),
+  });
+}

@@ -304,3 +304,18 @@ export interface AthletePost {
   status_display: string;
   created_at: string;
 }
+
+export interface GymService {
+  id: string;
+  gym: string;
+  name: string;
+  description: string;
+  photo: string | null;
+  access_type: "included" | "extra";
+  charge_type: "recurring" | "one_time";
+  price: string;
+  duration_days: number;
+  class_types: string[];
+  is_active: boolean;
+  created_at: string;
+}
