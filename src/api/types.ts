@@ -6,6 +6,7 @@ export type Membership = components["schemas"]["MembershipAdmin"] & {
   plan_name?: string | null;
   athlete_photo?: string | null;
   days_to_due?: number | null;
+  leave_initiated_by?: string;
 };
 type AthleteProfileExtra = {
   full_name?: string;
@@ -264,4 +265,42 @@ export interface ErpPnl {
   new_members: number;
   inventory_purchases_units: number;
   top_products: { name: string; units: number }[];
+}
+
+// --- Tickets y posts de atletas (campos nuevos; correr gen:api para consolidar) ---
+export interface TicketMessage {
+  id: string;
+  body: string;
+  photo: string | null;
+  author_name: string;
+  is_staff: boolean;
+  created_at: string;
+}
+
+export interface GymTicket {
+  id: string;
+  gym: string;
+  athlete: string;
+  athlete_name: string;
+  category: string;
+  category_display: string;
+  subject: string;
+  body: string;
+  photo: string | null;
+  status: "open" | "in_progress" | "resolved";
+  status_display: string;
+  messages: TicketMessage[];
+  created_at: string;
+}
+
+export interface AthletePost {
+  id: string;
+  gym: string;
+  athlete: string;
+  athlete_name: string;
+  body: string;
+  photo: string | null;
+  status: "pending" | "approved" | "rejected";
+  status_display: string;
+  created_at: string;
 }

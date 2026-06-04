@@ -10,6 +10,7 @@ export const MEMBERSHIP_STATUS: Record<string, string> = {
   paused: "Pausada",
   expired: "Vencida",
   rejected: "Rechazada",
+  pending_leave: "Baja pendiente",
   former_member: "Exmiembro",
   blocked: "Bloqueada",
   drop_in: "Drop-in",

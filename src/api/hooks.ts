@@ -801,3 +801,65 @@ export function useUpsertPlatformSubscription() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-gyms"] }),
   });
 }
+
+// --- Tickets, moderación de posts y handoff de salida ---
+export function useGymTickets(gymId: string, status?: string) {
+  return useQuery({
+    queryKey: ["gym-tickets", gymId, status ?? "all"],
+    queryFn: () =>
+      getList<import("./types").GymTicket>(
+        `/gym/${gymId}/tickets${status ? `?status=${status}` : ""}`,
+      ),
+    enabled: !!gymId,
+  });
+}
+
+export function useTicketReply(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ticketId, body }: { ticketId: string; body: string }) =>
+      (await api.post(`/gym/${gymId}/tickets/${ticketId}/messages`, { body })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-tickets", gymId] }),
+  });
+}
+
+export function useTicketStatus(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ticketId, status }: { ticketId: string; status: string }) =>
+      (await api.patch(`/gym/${gymId}/tickets/${ticketId}`, { status })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-tickets", gymId] }),
+  });
+}
+
+export function useGymPendingPosts(gymId: string) {
+  return useQuery({
+    queryKey: ["gym-posts", gymId],
+    queryFn: () => getList<import("./types").AthletePost>(`/gym/${gymId}/posts?status=pending`),
+    enabled: !!gymId,
+  });
+}
+
+export function useDecidePost(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ postId, action }: { postId: string; action: "approve" | "reject" }) =>
+      (await api.post(`/gym/${gymId}/posts/${postId}/${action}`, {})).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-posts", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-feed", gymId] });
+    },
+  });
+}
+
+export function useGymLeaveDecision(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ membershipId, action }: { membershipId: string; action: "request" | "approve" | "cancel" }) =>
+      (await api.post(`/gym/${gymId}/memberships/${membershipId}/leave/${action}`, {})).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["memberships", gymId] });
+      qc.invalidateQueries({ queryKey: ["membership-detail", gymId] });
+    },
+  });
+}

@@ -17,6 +17,7 @@ import { notifications } from "@mantine/notifications";
 import { Bell, Download, KeyRound } from "lucide-react";
 import {
   useEditAthleteProfile,
+  useGymLeaveDecision,
   useMembershipDetail,
   useMemberships,
   useResetAthletePassword,
@@ -34,6 +35,7 @@ const STATUS_COLOR: Record<string, string> = {
   trial: "teal",
   overdue: "red",
   expired: "yellow",
+  pending_leave: "orange",
 };
 
 function DueBadge({ days, date }: { days?: number | null; date?: string | null }) {
@@ -69,6 +71,7 @@ export function AthletesPage() {
   const resetPassword = useResetAthletePassword(gymId);
   const sendReminder = useSendReminder(gymId);
   const editProfile = useEditAthleteProfile(gymId);
+  const leaveDecision = useGymLeaveDecision(gymId);
 
   const [edit, setEdit] = useState({ first_name: "", last_name: "", birth_date: "", ec_name: "", ec_phone: "", ec_relation: "" });
   useEffect(() => {
@@ -216,6 +219,21 @@ export function AthletesPage() {
                         >
                           Recordatorio
                         </Button>
+                        {(m.status as string) === "pending_leave" &&
+                          (m.leave_initiated_by === "athlete" ? (
+                            <>
+                              <Button size="xs" color="red" loading={leaveDecision.isPending} onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "approve" })}>
+                                Confirmar baja
+                              </Button>
+                              <Button size="xs" variant="default" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
+                                Cancelar
+                              </Button>
+                            </>
+                          ) : (
+                            <Button size="xs" variant="default" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
+                              Cancelar baja propuesta
+                            </Button>
+                          ))}
                       </Group>
                     </Table.Td>
                   </Table.Tr>

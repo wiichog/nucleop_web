@@ -16,8 +16,10 @@ import {
 } from "@mantine/core";
 import {
   useAthletesOfMonth,
+  useDecidePost,
   useGymClasses,
   useGymFeed,
+  useGymPendingPosts,
   useMemberships,
   usePostAnnouncement,
   useSetAthleteOfMonth,
@@ -34,6 +36,7 @@ const KIND_LABEL: Record<string, string> = {
   athlete_of_month: "Atleta del mes",
   challenge: "Reto",
   announcement: "Anuncio",
+  athlete_post: "Post",
 };
 
 export function CommunityPage() {
@@ -45,6 +48,8 @@ export function CommunityPage() {
   const awards = useAthletesOfMonth(gymId);
   const setAom = useSetAthleteOfMonth(gymId);
   const postAnnouncement = usePostAnnouncement(gymId);
+  const pendingPosts = useGymPendingPosts(gymId);
+  const decidePost = useDecidePost(gymId);
 
   const [annTitle, setAnnTitle] = useState("");
   const [annBody, setAnnBody] = useState("");
@@ -162,6 +167,46 @@ export function CommunityPage() {
           </Card>
         </Grid.Col>
       </Grid>
+
+      <Card mt="lg">
+        <Group justify="space-between" mb="sm">
+          <Title order={3}>Posts por aprobar</Title>
+          {(pendingPosts.data ?? []).length > 0 && (
+            <Badge color="yellow" variant="light">
+              {(pendingPosts.data ?? []).length} pendientes
+            </Badge>
+          )}
+        </Group>
+        {pendingPosts.isLoading ? (
+          <PageLoading />
+        ) : !(pendingPosts.data ?? []).length ? (
+          <Text c="dimmed" size="sm">
+            No hay publicaciones de atletas esperando aprobación.
+          </Text>
+        ) : (
+          <Stack gap="sm">
+            {(pendingPosts.data ?? []).map((p) => (
+              <Box key={p.id} p="sm" style={{ border: "1px solid var(--mantine-color-dark-5)", borderRadius: 8 }}>
+                <Text size="xs" c="dimmed" mb={2}>
+                  {p.athlete_name} · {new Date(p.created_at).toLocaleString("es-GT")}
+                </Text>
+                {p.body && <Text size="sm">{p.body}</Text>}
+                {p.photo && (
+                  <img src={p.photo} alt="post" style={{ maxWidth: 280, borderRadius: 8, marginTop: 8 }} />
+                )}
+                <Group gap="xs" mt="sm">
+                  <Button size="xs" loading={decidePost.isPending} onClick={() => decidePost.mutate({ postId: p.id, action: "approve" })}>
+                    Aprobar
+                  </Button>
+                  <Button size="xs" variant="default" color="red" loading={decidePost.isPending} onClick={() => decidePost.mutate({ postId: p.id, action: "reject" })}>
+                    Rechazar
+                  </Button>
+                </Group>
+              </Box>
+            ))}
+          </Stack>
+        )}
+      </Card>
 
       <Card mt="lg">
         <Title order={3} mb="sm">

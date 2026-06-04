@@ -14,6 +14,7 @@ import { AuditPage } from "./pages/AuditPage";
 import { PasswordResetConfirmPage } from "./pages/PasswordResetConfirmPage";
 import { PlatformGymsPage } from "./pages/PlatformGymsPage";
 import { CommunityPage } from "./pages/CommunityPage";
+import { TicketsPage } from "./pages/TicketsPage";
 import { ClubAdminPage } from "./pages/ClubAdminPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { PosPage } from "./pages/PosPage";
@@ -59,6 +60,7 @@ export default function App() {
         <Route path="solicitudes" element={<RequestsPage />} />
         <Route path="clases" element={<ClassesPage />} />
         <Route path="comunidad" element={<CommunityPage />} />
+        <Route path="tickets" element={<TicketsPage />} />
         <Route path="clubes" element={<ClubsPage />} />
         <Route path="inventario" element={<InventoryPage />} />
         <Route path="pos" element={<PosPage />} />
