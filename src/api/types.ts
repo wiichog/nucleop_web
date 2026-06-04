@@ -1,7 +1,26 @@
 import type { components } from "./schema";
 
-export type Membership = components["schemas"]["MembershipAdmin"];
-export type MembershipDetail = components["schemas"]["MembershipDetailAdmin"];
+// Campos nuevos del backend aún no regenerados en schema.d.ts (correr `npm run gen:api`
+// con el backend arriba los incorpora; mientras tanto se intersectan aquí).
+export type Membership = components["schemas"]["MembershipAdmin"] & {
+  plan_name?: string | null;
+  athlete_photo?: string | null;
+  days_to_due?: number | null;
+};
+type AthleteProfileExtra = {
+  full_name?: string;
+  birth_date?: string | null;
+  emergency_contact?: Record<string, unknown> | null;
+  photo?: string | null;
+};
+export type MembershipDetail = Omit<
+  components["schemas"]["MembershipDetailAdmin"],
+  "athlete_profile"
+> &
+  Membership & {
+    athlete_profile: components["schemas"]["MembershipDetailAdmin"]["athlete_profile"] &
+      AthleteProfileExtra;
+  };
 export type Payment = components["schemas"]["Payment"];
 export type Plan = components["schemas"]["Plan"];
 export type JoinRequest = components["schemas"]["JoinRequest"];
@@ -90,6 +109,7 @@ export interface AthleteOfMonth {
   athlete: string;
   athlete_name: string;
   period: string;
+  class_type: string;
   score: string;
   awarded_at: string;
 }
@@ -109,12 +129,28 @@ export interface Dashboard {
   clases_mas_demandadas: { class_type: string; reservas: number }[];
 }
 
+export interface PlanOffer {
+  id: string;
+  gym: string;
+  plan: string | null;
+  plan_name: string | null;
+  name: string;
+  offer_type: "percent" | "free_months";
+  value: string;
+  valid_from: string | null;
+  valid_to: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface InvitationInput {
   email: string;
   phone?: string;
   first_name: string;
   last_name: string;
   comment?: string;
+  trial_start?: string | null;
+  trial_end?: string | null;
 }
 
 // --- ERP (§18) ---

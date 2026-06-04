@@ -1,6 +1,17 @@
 import { FormEvent, useState } from "react";
 import { useLogin, usePasswordResetRequest } from "../api/hooks";
 import { AtomLogo } from "../landing/AtomLogo";
+import { ParticleSnow } from "../landing/ParticleSnow";
+
+function AuthBrand({ subtitle }: { subtitle: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 20 }}>
+      <AtomLogo size={64} />
+      <strong style={{ fontSize: 30, letterSpacing: 0.5 }}>Nucleo</strong>
+      <span style={{ color: "var(--nucleo-accent)", fontSize: 13, fontWeight: 600 }}>{subtitle}</span>
+    </div>
+  );
+}
 
 export function LoginPage() {
   const [email, setEmail] = useState("");
@@ -19,15 +30,17 @@ export function LoginPage() {
   if (resetMode) {
     return (
       <div className="auth-shell">
+        <ParticleSnow />
         <form
-          className="nucleo-card"
-          style={{ width: 360 }}
+          className="nucleo-card nucleo-card--glass"
+          style={{ width: 360, position: "relative" }}
           onSubmit={async (event) => {
             event.preventDefault();
             await reset.mutateAsync(identifier);
           }}
         >
-          <h1>Recuperar contraseña</h1>
+          <AuthBrand subtitle="Recupera tu acceso" />
+          <h1 style={{ fontSize: 22 }}>Recuperar contraseña</h1>
           <p style={{ color: "var(--nucleo-muted)" }}>
             Ingresa el correo con el que te registraste. Te enviaremos instrucciones si la cuenta existe.
           </p>
@@ -51,22 +64,14 @@ export function LoginPage() {
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <form className="nucleo-card" style={{ width: 360 }} onSubmit={onSubmit}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-          <AtomLogo size={26} />
-          <h1 style={{ margin: 0, fontSize: 24 }}>Nucleo</h1>
-        </div>
-        <p style={{ color: "var(--nucleo-muted)", marginTop: 0 }}>
-          Panel del gimnasio
-        </p>
+    <div className="auth-shell">
+      <ParticleSnow />
+      <form
+        className="nucleo-card nucleo-card--glass"
+        style={{ width: 360, position: "relative" }}
+        onSubmit={onSubmit}
+      >
+        <AuthBrand subtitle="Panel del gimnasio" />
         <label>Correo electrónico</label>
         <input
           className="nucleo-input"

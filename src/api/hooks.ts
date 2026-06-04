@@ -13,6 +13,7 @@ import {
   Paginated,
   Payment,
   Plan,
+  PlanOffer,
   FeedItem,
   AthleteOfMonth,
   ErpProduct,
@@ -225,6 +226,33 @@ export function useResetAthletePassword(gymId: string) {
   });
 }
 
+export function useSendReminder(gymId: string) {
+  return useMutation({
+    mutationFn: async ({ membershipId, message }: { membershipId: string; message?: string }) =>
+      (await api.post(`/gym/${gymId}/memberships/${membershipId}/reminder`, { message })).data,
+  });
+}
+
+export function useEditAthleteProfile(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      membershipId,
+      ...body
+    }: {
+      membershipId: string;
+      first_name?: string;
+      last_name?: string;
+      birth_date?: string | null;
+      emergency_contact?: Record<string, unknown> | null;
+    }) => (await api.patch(`/gym/${gymId}/memberships/${membershipId}/athlete`, body)).data,
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["membership-detail", gymId, vars.membershipId] });
+      qc.invalidateQueries({ queryKey: ["memberships", gymId] });
+    },
+  });
+}
+
 export function useAssignPlan(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -232,15 +260,18 @@ export function useAssignPlan(gymId: string) {
       membershipId,
       planId,
       customFee,
+      offerId,
     }: {
       membershipId: string;
       planId: string;
       customFee?: string;
+      offerId?: string;
     }) =>
       (
         await api.post<Membership>(`/gym/${gymId}/memberships/${membershipId}/assign-plan`, {
           plan_id: planId,
           custom_fee: customFee || null,
+          offer_id: offerId || null,
         })
       ).data,
     onSuccess: () => {
@@ -257,9 +288,45 @@ export function useCreatePlan(gymId: string) {
       name: string;
       price: string;
       duration_days: number;
+      class_limit?: number | null;
+      special_classes_access?: boolean;
+      open_gym_access?: boolean;
+      benefits?: Record<string, unknown> | null;
       noshow_penalty?: Record<string, unknown> | null;
     }) => (await api.post<Plan>(`/gym/${gymId}/plans`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plans", gymId] }),
+  });
+}
+
+export function usePlanOffers(gymId: string) {
+  return useQuery({
+    queryKey: ["plan-offers", gymId],
+    queryFn: () => getList<PlanOffer>(`/gym/${gymId}/plans/offers`),
+    enabled: !!gymId,
+  });
+}
+
+export function useCreatePlanOffer(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      name: string;
+      offer_type: "percent" | "free_months";
+      value: string;
+      plan?: string | null;
+      valid_from?: string | null;
+      valid_to?: string | null;
+    }) => (await api.post<PlanOffer>(`/gym/${gymId}/plans/offers`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["plan-offers", gymId] }),
+  });
+}
+
+export function useTogglePlanOffer(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ offerId, is_active }: { offerId: string; is_active: boolean }) =>
+      (await api.patch<PlanOffer>(`/gym/${gymId}/plans/offers/${offerId}`, { is_active })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["plan-offers", gymId] }),
   });
 }
 
@@ -281,7 +348,8 @@ export function useCreateRecurringClasses(gymId: string) {
       capacity: number;
       weekdays: number[];
       from_date: string;
-      to_date: string;
+      to_date?: string;
+      open_ended?: boolean;
     }) => (await api.post(`/gym/${gymId}/classes/recurring`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-classes", gymId] }),
   });
@@ -442,6 +510,35 @@ export function useComputeAthleteOfMonth(gymId: string) {
       qc.invalidateQueries({ queryKey: ["athlete-of-month", gymId] });
       qc.invalidateQueries({ queryKey: ["gym-feed", gymId] });
     },
+  });
+}
+
+export function useAthletesOfMonth(gymId: string) {
+  return useQuery({
+    queryKey: ["athletes-of-month", gymId],
+    queryFn: () => getList<AthleteOfMonth>(`/gym/${gymId}/athletes-of-month`),
+    enabled: !!gymId,
+  });
+}
+
+export function useSetAthleteOfMonth(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { class_type: string; athlete_id: string | null }) =>
+      (await api.post(`/gym/${gymId}/athletes-of-month/set`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["athletes-of-month", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-feed", gymId] });
+    },
+  });
+}
+
+export function usePostAnnouncement(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { title: string; body: string; class_type?: string }) =>
+      (await api.post(`/gym/${gymId}/announcements`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-feed", gymId] }),
   });
 }
 

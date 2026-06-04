@@ -67,13 +67,29 @@ export function PaymentsPage() {
           {method === "bank_transfer" && (
             <>
               <label>Comprobante</label>
-              <input
-                className="nucleo-input"
-                type="file"
-                accept="image/*,.pdf"
-                onChange={(event) => setProofFile(event.target.files?.[0])}
-                style={{ marginBottom: 16 }}
-              />
+              <div className="nucleo-file" style={{ marginBottom: 16 }}>
+                <label className="nucleo-file__btn">
+                  <span>📎</span>
+                  {proofFile ? "Cambiar archivo" : "Adjuntar comprobante"}
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(event) => setProofFile(event.target.files?.[0])}
+                  />
+                </label>
+                {proofFile && (
+                  <>
+                    <span className="nucleo-file__name">{proofFile.name}</span>
+                    <button
+                      type="button"
+                      className="nucleo-file__clear"
+                      onClick={() => setProofFile(undefined)}
+                    >
+                      Quitar
+                    </button>
+                  </>
+                )}
+              </div>
             </>
           )}
           <label>Monto (Q)</label>

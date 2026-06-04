@@ -18,11 +18,19 @@
 body {
   margin: 0;
   font-family: var(--nucleo-font);
-  background: var(--nucleo-carbon);
+  /* Carbón con glow naranja radial sutil (lenguaje de la landing, tono "operador"). */
+  background-color: var(--nucleo-carbon);
+  background-image:
+    radial-gradient(900px 520px at 18% -8%, rgba(252, 76, 2, 0.14), transparent 60%),
+    radial-gradient(760px 480px at 100% 0%, rgba(255, 122, 61, 0.08), transparent 55%),
+    radial-gradient(1100px 700px at 50% 120%, rgba(252, 76, 2, 0.05), transparent 60%);
+  background-attachment: fixed;
   color: var(--nucleo-white);
 }
 
-.auth-shell {
+.auth-shell,
+.app-shell {
+  position: relative;
   display: flex;
   min-height: 100vh;
   align-items: center;
@@ -36,6 +44,18 @@ a { color: var(--nucleo-accent); }
   border: 1px solid var(--nucleo-surface-2);
   border-radius: var(--nucleo-radius);
   padding: 20px;
+}
+
+/* Tarjeta "liquid glass" translúcida para destacados (login, fichas, KPIs). */
+.nucleo-card--glass {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.nucleo-card--glow {
+  border-color: rgba(252, 76, 2, 0.35);
+  box-shadow: 0 0 28px rgba(252, 76, 2, 0.18);
 }
 
 .nucleo-btn {
@@ -67,6 +87,45 @@ a { color: var(--nucleo-accent); }
   border-radius: 8px;
   padding: 10px 12px;
   color: var(--nucleo-white);
+}
+.nucleo-input:focus {
+  outline: none;
+  border-color: var(--nucleo-accent);
+  box-shadow: 0 0 0 3px rgba(252, 76, 2, 0.18);
+}
+
+/* Subir archivo estilizado: el <input type=file> real va oculto dentro del label. */
+.nucleo-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.nucleo-file__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--nucleo-surface-2);
+  border: 1px dashed #3a414d;
+  color: var(--nucleo-white);
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.nucleo-file__btn:hover {
+  border-color: var(--nucleo-accent);
+  background: rgba(252, 76, 2, 0.08);
+}
+.nucleo-file input[type="file"] { display: none; }
+.nucleo-file__name { color: var(--nucleo-muted); font-size: 13px; }
+.nucleo-file__clear {
+  background: transparent;
+  border: none;
+  color: var(--nucleo-danger);
+  cursor: pointer;
+  font-size: 13px;
 }
 
 table { width: 100%; border-collapse: collapse; }

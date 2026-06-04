@@ -34,6 +34,7 @@ export function ClassesPage() {
   const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
   const [fromDate, setFromDate] = useState(new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(new Date().toISOString().slice(0, 10));
+  const [openEnded, setOpenEnded] = useState(false);
   const [created, setCreated] = useState<number | null>(null);
   const [selectedClassId, setSelectedClassId] = useState("");
   const [membershipId, setMembershipId] = useState("");
@@ -55,7 +56,7 @@ export function ClassesPage() {
       capacity: Number(capacity),
       weekdays,
       from_date: fromDate,
-      to_date: toDate,
+      ...(openEnded ? { open_ended: true } : { to_date: toDate }),
     });
     setCreated((res as { created: number }).created);
   };
@@ -93,12 +94,27 @@ export function ClassesPage() {
         </div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <label>Desde <input className="nucleo-input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></label>
-          <label>Hasta <input className="nucleo-input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} /></label>
+          <label style={{ opacity: openEnded ? 0.5 : 1 }}>
+            Hasta{" "}
+            <input
+              className="nucleo-input"
+              type="date"
+              value={toDate}
+              disabled={openEnded}
+              onChange={(e) => setToDate(e.target.value)}
+            />
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+            <input type="checkbox" checked={openEnded} onChange={(e) => setOpenEnded(e.target.checked)} />
+            Sin fecha de fin (se repite siempre)
+          </label>
           <button className="nucleo-btn" disabled={!weekdays.length || createRecurring.isPending}>
             {createRecurring.isPending ? "Creando…" : "Crear clases"}
           </button>
           {created !== null && (
-            <span style={{ color: "var(--nucleo-accent)" }}>Se crearon {created} clases.</span>
+            <span style={{ color: "var(--nucleo-accent)" }}>
+              Se crearon {created} clases{openEnded ? " (próximas 8 semanas; vuelve a generar para extender)" : ""}.
+            </span>
           )}
         </div>
       </form>

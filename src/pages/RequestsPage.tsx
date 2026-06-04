@@ -4,6 +4,7 @@ import {
   useDecideJoinRequest,
   useInviteAthlete,
   useJoinRequests,
+  usePlanOffers,
   usePlans,
 } from "../api/hooks";
 import { JoinRequest } from "../api/types";
@@ -15,8 +16,10 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
   const decide = useDecideJoinRequest(gymId);
   const assign = useAssignPlan(gymId);
   const plans = usePlans(gymId);
+  const offers = usePlanOffers(gymId);
   const [planId, setPlanId] = useState("");
   const [customFee, setCustomFee] = useState("");
+  const [offerId, setOfferId] = useState("");
   const [comment, setComment] = useState("");
   const status = request.status ?? "";
   const membershipId = request.membership;
@@ -61,10 +64,25 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
             {(plans.data ?? []).map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
           </select>
           <input className="nucleo-input" placeholder="Cuota personalizada" value={customFee} onChange={(event) => setCustomFee(event.target.value)} />
+          <select
+            className="nucleo-input"
+            value={offerId}
+            onChange={(event) => setOfferId(event.target.value)}
+            title="Aplica una oferta del catálogo (opcional)"
+          >
+            <option value="">Sin oferta</option>
+            {(offers.data ?? [])
+              .filter((o) => o.is_active && (!o.plan || o.plan === planId))
+              .map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name} ({o.offer_type === "percent" ? `${o.value}%` : `${o.value} meses`})
+                </option>
+              ))}
+          </select>
           <button
             className="nucleo-btn"
             disabled={!planId || assign.isPending}
-            onClick={() => assign.mutate({ membershipId, planId, customFee })}
+            onClick={() => assign.mutate({ membershipId, planId, customFee, offerId })}
           >
             Asignar plan
           </button>
@@ -80,15 +98,23 @@ export function RequestsPage() {
   const gymId = primaryGymId ?? "";
   const requests = useJoinRequests(gymId);
   const invite = useInviteAthlete(gymId);
-  const [form, setForm] = useState({ phone: "", email: "", first_name: "", last_name: "" });
+  const [form, setForm] = useState({ email: "", first_name: "", last_name: "", phone: "" });
+  const [trialStart, setTrialStart] = useState("");
+  const [trialEnd, setTrialEnd] = useState("");
 
   if (!gymId) return <NoGymAssigned />;
   if (requests.isError) return <PageError onRetry={() => requests.refetch()} />;
 
   const onInvite = async (event: FormEvent) => {
     event.preventDefault();
-    await invite.mutateAsync(form);
-    setForm({ phone: "", email: "", first_name: "", last_name: "" });
+    await invite.mutateAsync({
+      ...form,
+      trial_start: trialStart || null,
+      trial_end: trialEnd || null,
+    });
+    setForm({ email: "", first_name: "", last_name: "", phone: "" });
+    setTrialStart("");
+    setTrialEnd("");
   };
 
   return (
@@ -97,16 +123,30 @@ export function RequestsPage() {
       <form className="nucleo-card" style={{ marginBottom: 16 }} onSubmit={onInvite}>
         <h2 style={{ marginTop: 0 }}>Invitar atleta</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-          {Object.entries(form).map(([key, value]) => (
+          {(["email", "first_name", "last_name", "phone"] as const).map((key) => (
             <input
               key={key}
               className="nucleo-input"
               type={key === "email" ? "email" : "text"}
               placeholder={{ email: "Correo electrónico", phone: "Teléfono (opcional)", first_name: "Nombre", last_name: "Apellido" }[key]}
-              value={value}
+              value={form[key]}
               onChange={(event) => setForm({ ...form, [key]: event.target.value })}
             />
           ))}
+        </div>
+        <p style={{ color: "var(--nucleo-muted)", fontSize: 13, margin: "12px 0 4px" }}>
+          Periodo temporal (opcional): al aceptar la invitación, el atleta queda como{" "}
+          <strong>temporal (prueba)</strong> entre estas fechas.
+        </p>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <label>
+            Desde{" "}
+            <input className="nucleo-input" type="date" value={trialStart} onChange={(e) => setTrialStart(e.target.value)} />
+          </label>
+          <label>
+            Hasta{" "}
+            <input className="nucleo-input" type="date" value={trialEnd} onChange={(e) => setTrialEnd(e.target.value)} />
+          </label>
         </div>
         {invite.isError && (
           <p style={{ color: "var(--nucleo-danger)", fontSize: 13 }}>

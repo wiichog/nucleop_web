@@ -66,19 +66,19 @@ export function DashboardPage() {
         <>
           <p style={{ color: "var(--nucleo-muted)", marginTop: 0 }}>Ingresos y actividad del periodo</p>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
-            <Kpi label="Ingresos del periodo" value={`Q${d.ingresos_total}`} tone="var(--nucleo-accent)" />
-            <Kpi label="Ingresos tarjeta" value={`Q${d.ingresos_tarjeta}`} />
-            <Kpi label="Ingresos manuales" value={`Q${d.ingresos_manual}`} />
-            <Kpi label="Pagos" value={d.pagos} />
-            <Kpi label="Nuevos atletas" value={d.nuevos_atletas} />
-            <Kpi label="Check-ins" value={d.checkins} />
+            <Kpi label="Ingresos del periodo" value={`Q${d.ingresos_total ?? 0}`} tone="var(--nucleo-accent)" />
+            <Kpi label="Ingresos tarjeta" value={`Q${d.ingresos_tarjeta ?? 0}`} />
+            <Kpi label="Ingresos manuales" value={`Q${d.ingresos_manual ?? 0}`} />
+            <Kpi label="Pagos" value={d.pagos ?? 0} />
+            <Kpi label="Nuevos atletas" value={d.nuevos_atletas ?? 0} />
+            <Kpi label="Check-ins" value={d.checkins ?? 0} />
           </div>
 
           <p style={{ color: "var(--nucleo-muted)", marginTop: 0 }}>Estado actual del gimnasio</p>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
-            <Kpi label="Atletas activos" value={d.atletas_activos} />
-            <Kpi label="Morosos" value={d.morosos} tone="var(--nucleo-danger)" />
-            <Kpi label="Por vencer" value={d.proximos_vencimientos} tone="var(--nucleo-warning)" />
+            <Kpi label="Atletas activos" value={d.atletas_activos ?? 0} />
+            <Kpi label="Morosos" value={d.morosos ?? 0} tone="var(--nucleo-danger)" />
+            <Kpi label="Por vencer" value={d.proximos_vencimientos ?? 0} tone="var(--nucleo-warning)" />
           </div>
 
           <div className="nucleo-card">
