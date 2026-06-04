@@ -1,5 +1,19 @@
 import { FormEvent, useState } from "react";
 import {
+  Button,
+  Card,
+  Checkbox,
+  Chip,
+  Group,
+  NumberInput,
+  Select,
+  Table,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
+import { DatePickerInput } from "@mantine/dates";
+import {
   useClassCheckins,
   useCreateRecurringClasses,
   useGymClasses,
@@ -8,18 +22,21 @@ import {
 } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { CLASS_STATUS, label } from "../lib/labels";
 
 const WEEKDAYS = [
-  { value: 0, label: "Lun" },
-  { value: 1, label: "Mar" },
-  { value: 2, label: "Mié" },
-  { value: 3, label: "Jue" },
-  { value: 4, label: "Vie" },
-  { value: 5, label: "Sáb" },
-  { value: 6, label: "Dom" },
+  { value: "0", label: "Lun" },
+  { value: "1", label: "Mar" },
+  { value: "2", label: "Mié" },
+  { value: "3", label: "Jue" },
+  { value: "4", label: "Vie" },
+  { value: "5", label: "Sáb" },
+  { value: "6", label: "Dom" },
 ];
+
+const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : "");
 
 export function ClassesPage() {
   const { primaryGymId } = useAuth();
@@ -29,23 +46,20 @@ export function ClassesPage() {
   const memberships = useMemberships(gymId);
   const [classType, setClassType] = useState("CrossFit");
   const [startTime, setStartTime] = useState("06:00");
-  const [duration, setDuration] = useState("60");
-  const [capacity, setCapacity] = useState("20");
-  const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
-  const [fromDate, setFromDate] = useState(new Date().toISOString().slice(0, 10));
-  const [toDate, setToDate] = useState(new Date().toISOString().slice(0, 10));
+  const [duration, setDuration] = useState<number | string>(60);
+  const [capacity, setCapacity] = useState<number | string>(20);
+  const [weekdays, setWeekdays] = useState<string[]>(["0", "1", "2", "3", "4"]);
+  const [fromDate, setFromDate] = useState<Date | null>(new Date());
+  const [toDate, setToDate] = useState<Date | null>(new Date());
   const [openEnded, setOpenEnded] = useState(false);
   const [created, setCreated] = useState<number | null>(null);
   const [selectedClassId, setSelectedClassId] = useState("");
-  const [membershipId, setMembershipId] = useState("");
+  const [membershipId, setMembershipId] = useState<string | null>("");
   const checkins = useClassCheckins(gymId, selectedClassId);
   const reception = useReceptionCheckin(gymId, selectedClassId);
 
   if (!gymId) return <NoGymAssigned />;
   if (classes.isError) return <PageError onRetry={() => classes.refetch()} />;
-
-  const toggleDay = (d: number) =>
-    setWeekdays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -54,147 +68,169 @@ export function ClassesPage() {
       start_time: startTime,
       duration_min: Number(duration),
       capacity: Number(capacity),
-      weekdays,
-      from_date: fromDate,
-      ...(openEnded ? { open_ended: true } : { to_date: toDate }),
+      weekdays: weekdays.map(Number),
+      from_date: iso(fromDate),
+      ...(openEnded ? { open_ended: true } : { to_date: iso(toDate) }),
     });
     setCreated((res as { created: number }).created);
   };
 
   return (
     <div>
-      <h1>Calendario de clases</h1>
-      <form className="nucleo-card" style={{ marginBottom: 16 }} onSubmit={submit}>
-        <h2 style={{ marginTop: 0 }}>Crear clases (horario fijo)</h2>
-        <p style={{ color: "var(--nucleo-muted)", fontSize: 13, marginTop: -6 }}>
+      <PageHeader title="Calendario de clases" subtitle="Programa horarios fijos y registra asistencia." />
+
+      <Card mb="lg" component="form" onSubmit={submit}>
+        <Title order={3} mb={4}>
+          Crear clases (horario fijo)
+        </Title>
+        <Text c="dimmed" size="sm" mb="md">
           Ej.: CrossFit de 6:00 a 7:00, de lunes a viernes, durante un rango de fechas.
-        </p>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <input className="nucleo-input" placeholder="Tipo de clase" value={classType} onChange={(e) => setClassType(e.target.value)} />
-          <label>Hora <input className="nucleo-input" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} /></label>
-          <label>Min <input className="nucleo-input" style={{ width: 80 }} type="number" value={duration} onChange={(e) => setDuration(e.target.value)} /></label>
-          <label>Cupo <input className="nucleo-input" style={{ width: 80 }} type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} /></label>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0" }}>
-          {WEEKDAYS.map((d) => (
-            <button
-              type="button"
-              key={d.value}
-              onClick={() => toggleDay(d.value)}
-              className="nucleo-btn"
-              style={{
-                background: weekdays.includes(d.value) ? "var(--nucleo-accent)" : "var(--nucleo-surface-2)",
-                color: weekdays.includes(d.value) ? "var(--nucleo-carbon)" : "var(--nucleo-white)",
-                padding: "6px 12px",
-              }}
-            >
-              {d.label}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <label>Desde <input className="nucleo-input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></label>
-          <label style={{ opacity: openEnded ? 0.5 : 1 }}>
-            Hasta{" "}
-            <input
-              className="nucleo-input"
-              type="date"
-              value={toDate}
-              disabled={openEnded}
-              onChange={(e) => setToDate(e.target.value)}
-            />
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-            <input type="checkbox" checked={openEnded} onChange={(e) => setOpenEnded(e.target.checked)} />
-            Sin fecha de fin (se repite siempre)
-          </label>
-          <button className="nucleo-btn" disabled={!weekdays.length || createRecurring.isPending}>
-            {createRecurring.isPending ? "Creando…" : "Crear clases"}
-          </button>
-          {created !== null && (
-            <span style={{ color: "var(--nucleo-accent)" }}>
-              Se crearon {created} clases{openEnded ? " (próximas 8 semanas; vuelve a generar para extender)" : ""}.
-            </span>
-          )}
-        </div>
-      </form>
-      <section className="nucleo-card">
+        </Text>
+        <Group align="flex-end" gap="md">
+          <TextInput label="Tipo de clase" value={classType} onChange={(e) => setClassType(e.currentTarget.value)} />
+          <TextInput
+            label="Hora"
+            type="time"
+            value={startTime}
+            onChange={(e) => setStartTime(e.currentTarget.value)}
+            w={120}
+          />
+          <NumberInput label="Minutos" value={duration} onChange={setDuration} w={100} min={15} max={300} />
+          <NumberInput label="Cupo" value={capacity} onChange={setCapacity} w={100} min={1} max={200} />
+        </Group>
+
+        <Chip.Group multiple value={weekdays} onChange={setWeekdays}>
+          <Group gap="xs" my="md">
+            {WEEKDAYS.map((d) => (
+              <Chip key={d.value} value={d.value} color="flame" variant="filled">
+                {d.label}
+              </Chip>
+            ))}
+          </Group>
+        </Chip.Group>
+
+        <Group align="flex-end" gap="md">
+          <DatePickerInput label="Desde" value={fromDate} onChange={setFromDate} valueFormat="YYYY-MM-DD" />
+          <DatePickerInput
+            label="Hasta"
+            value={toDate}
+            onChange={setToDate}
+            valueFormat="YYYY-MM-DD"
+            disabled={openEnded}
+          />
+          <Checkbox
+            label="Sin fecha de fin (se repite siempre)"
+            checked={openEnded}
+            onChange={(e) => setOpenEnded(e.currentTarget.checked)}
+          />
+          <Button type="submit" loading={createRecurring.isPending} disabled={!weekdays.length}>
+            Crear clases
+          </Button>
+        </Group>
+        {created !== null && (
+          <Text c="flame" mt="sm" size="sm">
+            Se crearon {created} clases
+            {openEnded ? " (próximas 8 semanas; vuelve a generar para extender)" : ""}.
+          </Text>
+        )}
+      </Card>
+
+      <Card>
         {classes.isLoading ? (
           <PageLoading />
         ) : !(classes.data ?? []).length ? (
           <EmptyState title="Sin clases" description="Crea la primera clase del calendario." />
         ) : (
-        <table>
-          <thead><tr><th>Clase</th><th>Fecha</th><th>Cupo</th><th>Estado</th><th>Recepción</th></tr></thead>
-          <tbody>
-            {(classes.data ?? []).map((gymClass) => (
-              <tr key={gymClass.id}>
-                <td>{gymClass.class_type}</td>
-                <td>{new Date(gymClass.starts_at).toLocaleString("es-GT")}</td>
-                <td>{gymClass.reserved_count}/{gymClass.capacity}</td>
-                <td>{label(CLASS_STATUS, gymClass.status)}</td>
-                <td>
-                  <button
-                    className="nucleo-btn nucleo-btn--secondary"
-                    onClick={() => setSelectedClassId(gymClass.id)}
-                  >
-                    Asistencia
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          <Table.ScrollContainer minWidth={600}>
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Clase</Table.Th>
+                  <Table.Th>Fecha</Table.Th>
+                  <Table.Th>Cupo</Table.Th>
+                  <Table.Th>Estado</Table.Th>
+                  <Table.Th>Recepción</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {(classes.data ?? []).map((gymClass) => (
+                  <Table.Tr key={gymClass.id}>
+                    <Table.Td>{gymClass.class_type}</Table.Td>
+                    <Table.Td>{new Date(gymClass.starts_at).toLocaleString("es-GT")}</Table.Td>
+                    <Table.Td>
+                      {gymClass.reserved_count}/{gymClass.capacity}
+                    </Table.Td>
+                    <Table.Td>{label(CLASS_STATUS, gymClass.status)}</Table.Td>
+                    <Table.Td>
+                      <Button variant="default" size="xs" onClick={() => setSelectedClassId(gymClass.id)}>
+                        Asistencia
+                      </Button>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </section>
+      </Card>
+
       {!!selectedClassId && (
-        <section className="nucleo-card" style={{ marginTop: 16 }}>
-          <h2 style={{ marginTop: 0 }}>Check-in desde recepción</h2>
-          <form
-            style={{ display: "flex", gap: 12 }}
-            onSubmit={async (event) => {
+        <Card mt="lg">
+          <Title order={3} mb="sm">
+            Check-in desde recepción
+          </Title>
+          <Group
+            align="flex-end"
+            component="form"
+            onSubmit={async (event: FormEvent) => {
               event.preventDefault();
-              await reception.mutateAsync(membershipId);
+              if (membershipId) await reception.mutateAsync(membershipId);
               setMembershipId("");
             }}
           >
-            <select
-              className="nucleo-input"
+            <Select
+              label="Atleta activo"
+              placeholder="Selecciona un atleta"
               value={membershipId}
-              onChange={(event) => setMembershipId(event.target.value)}
-            >
-              <option value="">Selecciona un atleta activo</option>
-              {(memberships.data ?? [])
-                .filter(
-                  (membership) =>
-                    !!membership.status && ["active", "trial"].includes(membership.status),
-                )
-                .map((membership) => (
-                  <option key={membership.id} value={membership.id}>{membership.athlete_name}</option>
-                ))}
-            </select>
-            <button className="nucleo-btn" disabled={!membershipId || reception.isPending}>
+              onChange={setMembershipId}
+              searchable
+              w={320}
+              data={(memberships.data ?? [])
+                .filter((m) => !!m.status && ["active", "trial"].includes(m.status))
+                .map((m) => ({ value: m.id, label: m.athlete_name }))}
+            />
+            <Button type="submit" disabled={!membershipId} loading={reception.isPending}>
               Registrar check-in
-            </button>
-          </form>
-          <h3>Asistencia registrada</h3>
+            </Button>
+          </Group>
+          <Title order={4} mt="md" mb="xs">
+            Asistencia registrada
+          </Title>
           {(checkins.data ?? []).length === 0 ? (
-            <p>Sin check-ins registrados.</p>
+            <Text c="dimmed" size="sm">
+              Sin check-ins registrados.
+            </Text>
           ) : (
-            <table>
-              <thead><tr><th>Atleta</th><th>Hora</th><th>Método</th></tr></thead>
-              <tbody>
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Atleta</Table.Th>
+                  <Table.Th>Hora</Table.Th>
+                  <Table.Th>Método</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
                 {(checkins.data ?? []).map((checkin) => (
-                  <tr key={checkin.id}>
-                    <td>{checkin.athlete_name}</td>
-                    <td>{new Date(checkin.checked_in_at).toLocaleString("es-GT")}</td>
-                    <td>{checkin.method}</td>
-                  </tr>
+                  <Table.Tr key={checkin.id}>
+                    <Table.Td>{checkin.athlete_name}</Table.Td>
+                    <Table.Td>{new Date(checkin.checked_in_at).toLocaleString("es-GT")}</Table.Td>
+                    <Table.Td>{checkin.method}</Table.Td>
+                  </Table.Tr>
                 ))}
-              </tbody>
-            </table>
+              </Table.Tbody>
+            </Table>
           )}
-        </section>
+        </Card>
       )}
     </div>
   );

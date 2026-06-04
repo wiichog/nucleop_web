@@ -1,21 +1,25 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { Card, Group, Select, SimpleGrid, Table, Text, Title } from "@mantine/core";
+import { DatePickerInput } from "@mantine/dates";
 import { useBranches, useErpPnl } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 
 function firstOfMonth() {
   const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return new Date(d.getFullYear(), d.getMonth(), 1);
 }
+const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : "");
 
 function Delta({ value }: { value: number | null }) {
-  if (value === null) return <span style={{ color: "var(--nucleo-muted)" }}>—</span>;
+  if (value === null) return <Text c="dimmed" span size="xs">—</Text>;
   const up = value >= 0;
   return (
-    <span style={{ color: up ? "#16a34a" : "var(--nucleo-danger)", fontSize: 13 }}>
+    <Text span size="xs" c={up ? "teal" : "red"}>
       {up ? "▲" : "▼"} {Math.abs(value)}% vs. periodo anterior
-    </span>
+    </Text>
   );
 }
 
@@ -28,55 +32,50 @@ function Metric({
   label: string;
   value: string;
   accent?: boolean;
-  sub?: React.ReactNode;
+  sub?: ReactNode;
 }) {
   return (
-    <div className="nucleo-card" style={{ flex: "1 1 170px", minWidth: 150 }}>
-      <p style={{ margin: 0, color: "var(--nucleo-muted)", fontSize: 13 }}>{label}</p>
-      <strong style={{ fontSize: 24, color: accent ? "var(--nucleo-accent)" : undefined }}>
+    <Card>
+      <Text c="dimmed" size="sm">
+        {label}
+      </Text>
+      <Text fw={700} fz={24} c={accent ? "flame" : undefined} ff='"Space Grotesk", sans-serif'>
         {value}
-      </strong>
+      </Text>
       {sub && <div style={{ marginTop: 4 }}>{sub}</div>}
-    </div>
+    </Card>
   );
 }
 
 export function BusinessReportPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
-  const [from, setFrom] = useState(firstOfMonth());
-  const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
-  const [branch, setBranch] = useState("");
+  const [from, setFrom] = useState<Date | null>(firstOfMonth());
+  const [to, setTo] = useState<Date | null>(new Date());
+  const [branch, setBranch] = useState<string | null>("");
   const { data: branches } = useBranches(gymId);
-  const { data, isLoading, isError, refetch } = useErpPnl(gymId, from, to, branch || undefined);
+  const { data, isLoading, isError, refetch } = useErpPnl(gymId, iso(from), iso(to), branch || undefined);
 
   if (!gymId) return <NoGymAssigned />;
 
   return (
     <div>
-      <h1>Reportes de negocio</h1>
-      <div
-        className="nucleo-card"
-        style={{ marginBottom: 16, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}
-      >
-        <label>
-          Desde <input className="nucleo-input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </label>
-        <label>
-          Hasta <input className="nucleo-input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </label>
-        <label>
-          Sede{" "}
-          <select className="nucleo-input" value={branch} onChange={(e) => setBranch(e.target.value)}>
-            <option value="">Todas</option>
-            {(branches ?? []).map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <PageHeader title="Reportes de negocio" subtitle="Rentabilidad, márgenes y líneas de ingreso." />
+
+      <Card mb="lg">
+        <Group align="flex-end" gap="md">
+          <DatePickerInput label="Desde" value={from} onChange={setFrom} valueFormat="YYYY-MM-DD" />
+          <DatePickerInput label="Hasta" value={to} onChange={setTo} valueFormat="YYYY-MM-DD" />
+          <Select
+            label="Sede"
+            placeholder="Todas"
+            value={branch}
+            onChange={setBranch}
+            clearable
+            data={(branches ?? []).map((b) => ({ value: b.id, label: b.name }))}
+          />
+        </Group>
+      </Card>
 
       {isLoading ? (
         <PageLoading />
@@ -86,17 +85,13 @@ export function BusinessReportPage() {
         <EmptyState title="Sin datos" description="No hay actividad en el período seleccionado." />
       ) : (
         <>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-            <Metric
-              label="Ingresos totales"
-              value={`Q${data.gross_revenue}`}
-              sub={<Delta value={data.delta_revenue_pct} />}
-            />
+          <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="md" mb="lg">
+            <Metric label="Ingresos totales" value={`Q${data.gross_revenue}`} sub={<Delta value={data.delta_revenue_pct} />} />
             <Metric label="Costo directo (COGS)" value={`Q${data.direct_cost}`} />
             <Metric
               label="Margen bruto"
               value={`Q${data.gross_margin}`}
-              sub={<span style={{ color: "var(--nucleo-muted)", fontSize: 13 }}>{data.gross_margin_pct}%</span>}
+              sub={<Text span size="xs" c="dimmed">{data.gross_margin_pct}%</Text>}
             />
             <Metric label="Pérdidas (mermas)" value={`Q${data.losses}`} />
             <Metric label="Gastos operativos" value={`Q${data.expenses}`} />
@@ -106,70 +101,74 @@ export function BusinessReportPage() {
               accent
               sub={
                 <>
-                  <span style={{ color: "var(--nucleo-muted)", fontSize: 13 }}>{data.net_margin_pct}% </span>
+                  <Text span size="xs" c="dimmed">{data.net_margin_pct}% </Text>
                   <Delta value={data.delta_net_pct} />
                 </>
               }
             />
-          </div>
+          </SimpleGrid>
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mb="lg">
             <Metric label="Socios activos" value={String(data.active_members)} />
             <Metric label="Altas del período" value={String(data.new_members)} />
             <Metric label="Compras a inventario (uds.)" value={String(data.inventory_purchases_units)} />
-          </div>
+          </SimpleGrid>
 
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-            <div className="nucleo-card" style={{ flex: "1 1 320px" }}>
-              <h2 style={{ marginTop: 0 }}>Ingresos por línea de negocio</h2>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Línea</th>
-                    <th>Ingreso</th>
-                    <th>% del total</th>
-                  </tr>
-                </thead>
-                <tbody>
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
+            <Card>
+              <Title order={3} mb="sm">
+                Ingresos por línea de negocio
+              </Title>
+              <Table>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Línea</Table.Th>
+                    <Table.Th>Ingreso</Table.Th>
+                    <Table.Th>% del total</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
                   {data.revenue_lines.map((l) => {
                     const total = Number(data.gross_revenue) || 1;
                     const pct = ((Number(l.revenue) / total) * 100).toFixed(0);
                     return (
-                      <tr key={l.line}>
-                        <td>{l.label}</td>
-                        <td>Q{l.revenue}</td>
-                        <td>{pct}%</td>
-                      </tr>
+                      <Table.Tr key={l.line}>
+                        <Table.Td>{l.label}</Table.Td>
+                        <Table.Td>Q{l.revenue}</Table.Td>
+                        <Table.Td>{pct}%</Table.Td>
+                      </Table.Tr>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </Table.Tbody>
+              </Table>
+            </Card>
 
-            <div className="nucleo-card" style={{ flex: "1 1 320px" }}>
-              <h2 style={{ marginTop: 0 }}>Productos más vendidos</h2>
+            <Card>
+              <Title order={3} mb="sm">
+                Productos más vendidos
+              </Title>
               {!data.top_products.length ? (
                 <EmptyState title="Sin ventas" description="Aún no hay ventas en el período." />
               ) : (
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Producto</th>
-                      <th>Unidades</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Producto</Table.Th>
+                      <Table.Th>Unidades</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
                     {data.top_products.map((p) => (
-                      <tr key={p.name}>
-                        <td>{p.name}</td>
-                        <td>{p.units}</td>
-                      </tr>
+                      <Table.Tr key={p.name}>
+                        <Table.Td>{p.name}</Table.Td>
+                        <Table.Td>{p.units}</Table.Td>
+                      </Table.Tr>
                     ))}
-                  </tbody>
-                </table>
+                  </Table.Tbody>
+                </Table>
               )}
-            </div>
-          </div>
+            </Card>
+          </SimpleGrid>
         </>
       )}
     </div>

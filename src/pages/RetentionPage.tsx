@@ -1,5 +1,8 @@
+import { Button, Card, SimpleGrid, Table, Text } from "@mantine/core";
+import { Download } from "lucide-react";
 import { useAtRisk, useOverdue } from "../api/hooks";
 import { NoGymAssigned } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { Membership } from "../api/types";
 import { downloadCsv } from "../lib/csv";
@@ -15,71 +18,90 @@ export function RetentionPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-        <div>
-          <h1>Retención y morosidad</h1>
-          <p style={{ color: "var(--nucleo-muted)", marginTop: -8 }}>
-            El gancho de Nucleo: deja de perder alumnos.
-          </p>
-        </div>
-        <button
-          className="nucleo-btn"
-          style={{ alignSelf: "center" }}
-          onClick={() =>
-            downloadCsv(
-              "retencion-nucleo.csv",
-              ["segmento", "atleta", "estado", "cuota", "pago"],
-              [
-                ...(atRisk.data ?? []).map((membership) => ["en riesgo", membership] as const),
-                ...(overdue.data ?? []).map((membership) => ["moroso", membership] as const),
-              ].map(([segment, membership]) => [
-                segment,
-                membership.athlete_name,
-                label(MEMBERSHIP_STATUS, membership.status),
-                membership.effective_fee,
-                label(PAYMENT_STATUS, membership.payment_status),
-              ]),
-            )
-          }
-        >
-          Exportar CSV
-        </button>
-      </div>
+      <PageHeader
+        title="Retención y morosidad"
+        subtitle="El gancho de Nucleo: deja de perder alumnos."
+        action={
+          <Button
+            variant="default"
+            leftSection={<Download size={16} />}
+            onClick={() =>
+              downloadCsv(
+                "retencion-nucleo.csv",
+                ["segmento", "atleta", "estado", "cuota", "pago"],
+                [
+                  ...(atRisk.data ?? []).map((membership) => ["en riesgo", membership] as const),
+                  ...(overdue.data ?? []).map((membership) => ["moroso", membership] as const),
+                ].map(([segment, membership]) => [
+                  segment,
+                  membership.athlete_name,
+                  label(MEMBERSHIP_STATUS, membership.status),
+                  membership.effective_fee,
+                  label(PAYMENT_STATUS, membership.payment_status),
+                ]),
+              )
+            }
+          >
+            Exportar CSV
+          </Button>
+        }
+      />
 
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        <section className="nucleo-card" style={{ flex: 1, minWidth: 320 }}>
-          <h2 style={{ marginTop: 0 }}>Atletas en riesgo</h2>
-          <RelationTable rows={atRisk.data ?? []} empty="Nadie en riesgo. 💪" />
-        </section>
-        <section className="nucleo-card" style={{ flex: 1, minWidth: 320 }}>
-          <h2 style={{ marginTop: 0 }}>Morosidad</h2>
-          <RelationTable rows={overdue.data ?? []} empty="Sin morosos." />
-        </section>
-      </div>
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
+        <Card>
+          <Text fw={600} mb="sm">
+            Atletas en riesgo
+          </Text>
+          <RelationTable rows={atRisk.data ?? []} empty="Nadie en riesgo. 💪" tone="orange" />
+        </Card>
+        <Card>
+          <Text fw={600} mb="sm">
+            Morosidad
+          </Text>
+          <RelationTable rows={overdue.data ?? []} empty="Sin morosos." tone="red" />
+        </Card>
+      </SimpleGrid>
     </div>
   );
 }
 
-function RelationTable({ rows, empty }: { rows: Membership[]; empty: string }) {
-  if (!rows.length) return <p style={{ color: "var(--nucleo-muted)" }}>{empty}</p>;
+function RelationTable({
+  rows,
+  empty,
+  tone,
+}: {
+  rows: Membership[];
+  empty: string;
+  tone: "orange" | "red";
+}) {
+  if (!rows.length)
+    return (
+      <Text c="dimmed" size="sm">
+        {empty}
+      </Text>
+    );
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Atleta</th>
-          <th>Estado</th>
-          <th>Cuota</th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table>
+      <Table.Thead>
+        <Table.Tr>
+          <Table.Th>Atleta</Table.Th>
+          <Table.Th>Estado</Table.Th>
+          <Table.Th>Cuota</Table.Th>
+        </Table.Tr>
+      </Table.Thead>
+      <Table.Tbody>
         {rows.map((m) => (
-          <tr key={m.id}>
-            <td>{m.athlete_name}</td>
-            <td>{label(MEMBERSHIP_STATUS, m.status)}</td>
-            <td>Q{m.effective_fee ?? "—"}</td>
-          </tr>
+          <Table.Tr key={m.id}>
+            <Table.Td>{m.athlete_name}</Table.Td>
+            <Table.Td>
+              <Text c={tone === "red" ? "red" : "flame"} size="sm">
+                {label(MEMBERSHIP_STATUS, m.status)}
+              </Text>
+            </Table.Td>
+            <Table.Td>Q{m.effective_fee ?? "—"}</Table.Td>
+          </Table.Tr>
         ))}
-      </tbody>
-    </table>
+      </Table.Tbody>
+    </Table>
   );
 }

@@ -1,41 +1,47 @@
 import { useState } from "react";
+import { Card, Group, SimpleGrid, Table, Text, Title } from "@mantine/core";
+import { DatePickerInput } from "@mantine/dates";
 import { useDashboard } from "../api/hooks";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 
 function firstOfMonth() {
   const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function toIso(d: Date | null) {
+  return d ? d.toLocaleDateString("en-CA") : "";
 }
 
 function Kpi({
   label,
   value,
   tone,
-  hint,
 }: {
   label: string;
   value: string | number;
   tone?: string;
-  hint?: string;
 }) {
   return (
-    <div className="nucleo-card" style={{ flex: "1 1 180px", minWidth: 160 }}>
-      <p style={{ color: "var(--nucleo-muted)", margin: "0 0 6px", fontSize: 13 }}>{label}</p>
-      <strong style={{ fontSize: 28, color: tone ?? "var(--nucleo-white)" }}>{value}</strong>
-      {hint && (
-        <p style={{ color: "var(--nucleo-muted)", margin: "6px 0 0", fontSize: 12 }}>{hint}</p>
-      )}
-    </div>
+    <Card>
+      <Text c="dimmed" size="sm" mb={4}>
+        {label}
+      </Text>
+      <Text fw={700} fz={28} c={tone} ff='"Space Grotesk", sans-serif'>
+        {value}
+      </Text>
+    </Card>
   );
 }
 
 export function DashboardPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
-  const [from, setFrom] = useState(firstOfMonth());
-  const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
-  const dashboard = useDashboard(gymId, from, to);
+  const [from, setFrom] = useState<Date | null>(firstOfMonth());
+  const [to, setTo] = useState<Date | null>(new Date());
+  const dashboard = useDashboard(gymId, toIso(from), toIso(to));
 
   if (!gymId) return <NoGymAssigned />;
   if (dashboard.isError) return <PageError onRetry={() => dashboard.refetch()} />;
@@ -44,66 +50,67 @@ export function DashboardPage() {
 
   return (
     <div>
-      <h1>Dashboard del gimnasio</h1>
-      <div
-        className="nucleo-card"
-        style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}
-      >
-        <strong style={{ marginRight: "auto" }}>Periodo</strong>
-        <label>
-          Desde{" "}
-          <input className="nucleo-input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </label>
-        <label>
-          Hasta{" "}
-          <input className="nucleo-input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </label>
-      </div>
+      <PageHeader title="Dashboard del gimnasio" subtitle="Ingresos y actividad del periodo" />
+
+      <Card mb="lg">
+        <Group>
+          <Text fw={600} style={{ marginRight: "auto" }}>
+            Periodo
+          </Text>
+          <DatePickerInput label="Desde" value={from} onChange={setFrom} valueFormat="YYYY-MM-DD" />
+          <DatePickerInput label="Hasta" value={to} onChange={setTo} valueFormat="YYYY-MM-DD" />
+        </Group>
+      </Card>
 
       {dashboard.isLoading || !d ? (
         <PageLoading label="Cargando KPIs…" />
       ) : (
         <>
-          <p style={{ color: "var(--nucleo-muted)", marginTop: 0 }}>Ingresos y actividad del periodo</p>
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
-            <Kpi label="Ingresos del periodo" value={`Q${d.ingresos_total ?? 0}`} tone="var(--nucleo-accent)" />
+          <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="md" mb="lg">
+            <Kpi label="Ingresos del periodo" value={`Q${d.ingresos_total ?? 0}`} tone="flame" />
             <Kpi label="Ingresos tarjeta" value={`Q${d.ingresos_tarjeta ?? 0}`} />
             <Kpi label="Ingresos manuales" value={`Q${d.ingresos_manual ?? 0}`} />
             <Kpi label="Pagos" value={d.pagos ?? 0} />
             <Kpi label="Nuevos atletas" value={d.nuevos_atletas ?? 0} />
             <Kpi label="Check-ins" value={d.checkins ?? 0} />
-          </div>
+          </SimpleGrid>
 
-          <p style={{ color: "var(--nucleo-muted)", marginTop: 0 }}>Estado actual del gimnasio</p>
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
+          <Text c="dimmed" mb="xs">
+            Estado actual del gimnasio
+          </Text>
+          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mb="lg">
             <Kpi label="Atletas activos" value={d.atletas_activos ?? 0} />
-            <Kpi label="Morosos" value={d.morosos ?? 0} tone="var(--nucleo-danger)" />
-            <Kpi label="Por vencer" value={d.proximos_vencimientos ?? 0} tone="var(--nucleo-warning)" />
-          </div>
+            <Kpi label="Morosos" value={d.morosos ?? 0} tone="red" />
+            <Kpi label="Por vencer" value={d.proximos_vencimientos ?? 0} tone="yellow" />
+          </SimpleGrid>
 
-          <div className="nucleo-card">
-            <h2 style={{ marginTop: 0 }}>Clases más demandadas</h2>
+          <Card>
+            <Title order={3} mb="sm">
+              Clases más demandadas
+            </Title>
             {!d.clases_mas_demandadas.length ? (
-              <p style={{ color: "var(--nucleo-muted)" }}>Sin reservas registradas.</p>
+              <Text c="dimmed" size="sm">
+                Sin reservas registradas.
+              </Text>
             ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Clase</th>
-                    <th>Reservas</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Clase</Table.Th>
+                    <Table.Th>Reservas</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
                   {d.clases_mas_demandadas.map((c) => (
-                    <tr key={c.class_type}>
-                      <td>{c.class_type}</td>
-                      <td>{c.reservas}</td>
-                    </tr>
+                    <Table.Tr key={c.class_type}>
+                      <Table.Td>{c.class_type}</Table.Td>
+                      <Table.Td>{c.reservas}</Table.Td>
+                    </Table.Tr>
                   ))}
-                </tbody>
-              </table>
+                </Table.Tbody>
+              </Table>
             )}
-          </div>
+          </Card>
         </>
       )}
     </div>

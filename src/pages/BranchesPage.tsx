@@ -1,7 +1,9 @@
 import { FormEvent, useState } from "react";
+import { Button, Card, Group, Table, TextInput, Title } from "@mantine/core";
 import { useBranches, useCreateBranch } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageLoading } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 
 export function BranchesPage() {
@@ -23,45 +25,44 @@ export function BranchesPage() {
 
   return (
     <div>
-      <h1>Sucursales</h1>
-      <form className="nucleo-card" style={{ marginBottom: 16 }} onSubmit={onSubmit}>
-        <h2 style={{ marginTop: 0 }}>Nueva sede</h2>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <input className="nucleo-input" placeholder="Nombre (ej. Zona 10)" value={name} onChange={(e) => setName(e.target.value)} />
-          <input className="nucleo-input" placeholder="Ubicación" value={location} onChange={(e) => setLocation(e.target.value)} />
-          <button className="nucleo-btn" disabled={!name || createBranch.isPending}>
+      <PageHeader title="Sucursales" subtitle="Agrega tus sedes para medir rentabilidad por ubicación." />
+      <Card mb="lg" component="form" onSubmit={onSubmit}>
+        <Title order={3} mb="sm">
+          Nueva sede
+        </Title>
+        <Group align="flex-end" gap="md">
+          <TextInput label="Nombre" placeholder="Ej. Zona 10" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+          <TextInput label="Ubicación" value={location} onChange={(e) => setLocation(e.currentTarget.value)} style={{ flex: 1, minWidth: 200 }} />
+          <Button type="submit" disabled={!name} loading={createBranch.isPending}>
             Agregar
-          </button>
-        </div>
-      </form>
+          </Button>
+        </Group>
+      </Card>
 
-      <div className="nucleo-card">
+      <Card>
         {isLoading ? (
           <PageLoading />
         ) : !(data ?? []).length ? (
-          <EmptyState
-            title="Sin sucursales"
-            description="Agrega tus sedes para medir rentabilidad por ubicación."
-          />
+          <EmptyState title="Sin sucursales" description="Agrega tus sedes para medir rentabilidad por ubicación." />
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Sede</th>
-                <th>Ubicación</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Sede</Table.Th>
+                <Table.Th>Ubicación</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {(data ?? []).map((b) => (
-                <tr key={b.id}>
-                  <td>{b.name}</td>
-                  <td>{b.location_text || "—"}</td>
-                </tr>
+                <Table.Tr key={b.id}>
+                  <Table.Td>{b.name}</Table.Td>
+                  <Table.Td>{b.location_text || "—"}</Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
-          </table>
+            </Table.Tbody>
+          </Table>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

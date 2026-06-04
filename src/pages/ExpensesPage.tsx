@@ -1,7 +1,10 @@
 import { FormEvent, useState } from "react";
+import { Button, Card, Group, Select, Table, TextInput, Title } from "@mantine/core";
+import { DateInput } from "@mantine/dates";
 import { useCreateErpExpense, useErpExpenses } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageLoading } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 
 const CATEGORIES = [
@@ -20,14 +23,19 @@ export function ExpensesPage() {
   const { data, isLoading } = useErpExpenses(gymId);
   const createExpense = useCreateErpExpense(gymId);
 
-  const [category, setCategory] = useState("rent");
+  const [category, setCategory] = useState<string | null>("rent");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState<Date | null>(new Date());
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    await createExpense.mutateAsync({ category, amount, description, incurred_on: date });
+    await createExpense.mutateAsync({
+      category: category ?? "other",
+      amount,
+      description,
+      incurred_on: date ? date.toLocaleDateString("en-CA") : "",
+    });
     setAmount("");
     setDescription("");
   };
@@ -36,54 +44,50 @@ export function ExpensesPage() {
 
   return (
     <div>
-      <h1>Gastos</h1>
-      <form className="nucleo-card" style={{ marginBottom: 16 }} onSubmit={onSubmit}>
-        <h2 style={{ marginTop: 0 }}>Registrar gasto</h2>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <select className="nucleo-input" value={category} onChange={(e) => setCategory(e.target.value)}>
-            {CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-          <input className="nucleo-input" placeholder="Monto (Q)" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          <input className="nucleo-input" placeholder="Descripción" value={description} onChange={(e) => setDescription(e.target.value)} />
-          <input className="nucleo-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          <button className="nucleo-btn" disabled={!amount || createExpense.isPending}>
+      <PageHeader title="Gastos" subtitle="Registra los costos del gym para ver tu utilidad real." />
+      <Card mb="lg" component="form" onSubmit={onSubmit}>
+        <Title order={3} mb="sm">
+          Registrar gasto
+        </Title>
+        <Group align="flex-end" gap="md">
+          <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIES} />
+          <TextInput label="Monto (Q)" value={amount} onChange={(e) => setAmount(e.currentTarget.value)} w={120} />
+          <TextInput label="Descripción" value={description} onChange={(e) => setDescription(e.currentTarget.value)} style={{ flex: 1, minWidth: 200 }} />
+          <DateInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" />
+          <Button type="submit" disabled={!amount} loading={createExpense.isPending}>
             Registrar
-          </button>
-        </div>
-      </form>
+          </Button>
+        </Group>
+      </Card>
 
-      <div className="nucleo-card">
+      <Card>
         {isLoading ? (
           <PageLoading />
         ) : !(data ?? []).length ? (
           <EmptyState title="Sin gastos" description="Registra los costos del gym para ver tu utilidad real." />
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Categoría</th>
-                <th>Descripción</th>
-                <th>Monto</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Fecha</Table.Th>
+                <Table.Th>Categoría</Table.Th>
+                <Table.Th>Descripción</Table.Th>
+                <Table.Th>Monto</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {(data ?? []).map((e) => (
-                <tr key={e.id}>
-                  <td>{e.incurred_on}</td>
-                  <td>{e.category}</td>
-                  <td>{e.description || "—"}</td>
-                  <td>Q{e.amount}</td>
-                </tr>
+                <Table.Tr key={e.id}>
+                  <Table.Td>{e.incurred_on}</Table.Td>
+                  <Table.Td>{e.category}</Table.Td>
+                  <Table.Td>{e.description || "—"}</Table.Td>
+                  <Table.Td>Q{e.amount}</Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
-          </table>
+            </Table.Tbody>
+          </Table>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

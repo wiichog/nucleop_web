@@ -1,5 +1,20 @@
 import { FormEvent, useMemo, useState } from "react";
 import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  Grid,
+  Group,
+  Select,
+  Stack,
+  Table,
+  Text,
+  Textarea,
+  TextInput,
+  Title,
+} from "@mantine/core";
+import {
   useAthletesOfMonth,
   useGymClasses,
   useGymFeed,
@@ -9,6 +24,7 @@ import {
 } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 
 const KIND_LABEL: Record<string, string> = {
@@ -32,9 +48,8 @@ export function CommunityPage() {
 
   const [annTitle, setAnnTitle] = useState("");
   const [annBody, setAnnBody] = useState("");
-  const [annClass, setAnnClass] = useState("");
+  const [annClass, setAnnClass] = useState<string | null>("");
 
-  // Tipos de clase distintos del gym, más la opción "todo el gym" (class_type vacío).
   const classTypes = useMemo(() => {
     const set = new Set<string>();
     (classes.data ?? []).forEach((c) => c.class_type && set.add(c.class_type));
@@ -49,9 +64,6 @@ export function CommunityPage() {
   const awardFor = (classType: string) =>
     (awards.data ?? []).find((a) => (a.class_type ?? "") === classType);
 
-  const onSetAom = (classType: string, athleteId: string) =>
-    setAom.mutate({ class_type: classType, athlete_id: athleteId || null });
-
   const onPost = async (event: FormEvent) => {
     event.preventDefault();
     await postAnnouncement.mutateAsync({ title: annTitle, body: annBody, class_type: annClass || undefined });
@@ -63,120 +75,122 @@ export function CommunityPage() {
   if (!gymId) return <NoGymAssigned />;
   if (feed.isError) return <PageError onRetry={() => feed.refetch()} />;
 
-  // Filas de atleta del mes: "Todo el gym" + cada tipo de clase.
   const aomRows = ["", ...classTypes];
 
   return (
     <div>
-      <h1>Comunidad del gym</h1>
-      <p style={{ color: "var(--nucleo-muted)", marginTop: -8 }}>
-        Feed de PRs, badges, puntos, anuncios y destacados de tu comunidad.
-      </p>
+      <PageHeader
+        title="Comunidad del gym"
+        subtitle="Feed de PRs, badges, puntos, anuncios y destacados de tu comunidad."
+      />
 
-      <section className="nucleo-card nucleo-card--glow" style={{ marginBottom: 16 }}>
-        <h2 style={{ marginTop: 0 }}>Atleta del mes por clase</h2>
-        <p style={{ color: "var(--nucleo-muted)", fontSize: 13, marginTop: -6 }}>
-          Selección manual. Elige un atleta por clase (el de pilates no es el de crossfit) o deja “Sin
-          asignar”.
-        </p>
-        {memberships.isLoading || awards.isLoading ? (
-          <PageLoading />
-        ) : (
-          <table>
-            <thead>
-              <tr><th>Clase</th><th>Atleta del mes</th></tr>
-            </thead>
-            <tbody>
-              {aomRows.map((ct) => {
-                const current = awardFor(ct);
-                return (
-                  <tr key={ct || "__all__"}>
-                    <td>{ct || "Todo el gym"}</td>
-                    <td>
-                      <select
-                        className="nucleo-input"
-                        style={{ maxWidth: 320 }}
-                        value={current?.athlete ?? ""}
-                        disabled={setAom.isPending}
-                        onChange={(e) => onSetAom(ct, e.target.value)}
-                      >
-                        <option value="">Sin asignar</option>
-                        {activeAthletes.map((m) => (
-                          <option key={m.athlete} value={m.athlete}>
-                            {m.athlete_name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
+      <Grid gutter="lg">
+        <Grid.Col span={{ base: 12, lg: 6 }}>
+          <Card h="100%">
+            <Title order={3} mb={4}>
+              Atleta del mes por clase
+            </Title>
+            <Text c="dimmed" size="sm" mb="md">
+              Selección manual. Elige un atleta por clase (el de pilates no es el de crossfit) o deja “Sin asignar”.
+            </Text>
+            {memberships.isLoading || awards.isLoading ? (
+              <PageLoading />
+            ) : (
+              <Table>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Clase</Table.Th>
+                    <Table.Th>Atleta del mes</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {aomRows.map((ct) => {
+                    const current = awardFor(ct);
+                    return (
+                      <Table.Tr key={ct || "__all__"}>
+                        <Table.Td>{ct || "Todo el gym"}</Table.Td>
+                        <Table.Td>
+                          <Select
+                            placeholder="Sin asignar"
+                            value={current?.athlete ?? null}
+                            onChange={(v) => setAom.mutate({ class_type: ct, athlete_id: v })}
+                            clearable
+                            searchable
+                            maw={320}
+                            data={activeAthletes.map((m) => ({ value: m.athlete, label: m.athlete_name }))}
+                          />
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            )}
+          </Card>
+        </Grid.Col>
 
-      <section className="nucleo-card" style={{ marginBottom: 16 }}>
-        <h2 style={{ marginTop: 0 }}>Publicar anuncio en el feed</h2>
-        <form onSubmit={onPost}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
-            <input
-              className="nucleo-input"
-              placeholder="Título del anuncio"
-              value={annTitle}
-              onChange={(e) => setAnnTitle(e.target.value)}
-            />
-            <select className="nucleo-input" value={annClass} onChange={(e) => setAnnClass(e.target.value)}>
-              <option value="">Todo el gym</option>
-              {classTypes.map((ct) => (
-                <option key={ct} value={ct}>Solo {ct}</option>
-              ))}
-            </select>
-          </div>
-          <textarea
-            className="nucleo-input"
-            placeholder="Mensaje para tus atletas…"
-            value={annBody}
-            onChange={(e) => setAnnBody(e.target.value)}
-            rows={3}
-            style={{ marginTop: 12, resize: "vertical" }}
-          />
-          <button
-            className="nucleo-btn"
-            style={{ marginTop: 12 }}
-            disabled={!annTitle || !annBody || postAnnouncement.isPending}
-          >
-            {postAnnouncement.isPending ? "Publicando…" : "Publicar anuncio"}
-          </button>
-        </form>
-      </section>
+        <Grid.Col span={{ base: 12, lg: 6 }}>
+          <Card h="100%" component="form" onSubmit={onPost}>
+            <Title order={3} mb="sm">
+              Publicar anuncio en el feed
+            </Title>
+            <Stack gap="sm">
+              <Group grow align="flex-start">
+                <TextInput label="Título" placeholder="Título del anuncio" value={annTitle} onChange={(e) => setAnnTitle(e.currentTarget.value)} />
+                <Select
+                  label="Segmento"
+                  value={annClass}
+                  onChange={setAnnClass}
+                  data={[
+                    { value: "", label: "Todo el gym" },
+                    ...classTypes.map((ct) => ({ value: ct, label: `Solo ${ct}` })),
+                  ]}
+                />
+              </Group>
+              <Textarea
+                label="Mensaje"
+                placeholder="Mensaje para tus atletas…"
+                value={annBody}
+                onChange={(e) => setAnnBody(e.currentTarget.value)}
+                autosize
+                minRows={3}
+              />
+              <Button type="submit" loading={postAnnouncement.isPending} disabled={!annTitle || !annBody}>
+                Publicar anuncio
+              </Button>
+            </Stack>
+          </Card>
+        </Grid.Col>
+      </Grid>
 
-      <section className="nucleo-card">
-        <h2 style={{ marginTop: 0 }}>Feed</h2>
+      <Card mt="lg">
+        <Title order={3} mb="sm">
+          Feed
+        </Title>
         {feed.isLoading ? (
           <PageLoading />
         ) : !(feed.data ?? []).length ? (
           <EmptyState title="Sin actividad" description="La actividad de tus atletas aparecerá aquí." />
         ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <Stack gap={0}>
             {(feed.data ?? []).map((item) => (
-              <li
-                key={item.id}
-                style={{ borderBottom: "1px solid var(--nucleo-surface-2)", padding: "12px 0" }}
-              >
-                <strong style={{ color: "var(--nucleo-accent)" }}>
-                  {KIND_LABEL[item.kind] ?? item.kind} · {item.title}
-                </strong>
-                <p style={{ margin: "4px 0", color: "var(--nucleo-white)" }}>{item.body}</p>
-                <p style={{ margin: 0, color: "var(--nucleo-muted)", fontSize: 13 }}>
+              <Box key={item.id} py="sm" style={{ borderBottom: "1px solid var(--mantine-color-dark-5)" }}>
+                <Group gap="xs" mb={4}>
+                  <Badge variant="light" color="flame" size="sm">
+                    {KIND_LABEL[item.kind] ?? item.kind}
+                  </Badge>
+                  <Text fw={600}>{item.title}</Text>
+                </Group>
+                <Text size="sm">{item.body}</Text>
+                <Text c="dimmed" size="xs" mt={2}>
                   {item.actor_name} · {new Date(item.created_at).toLocaleString("es-GT")}
                   {item.reaction_count > 0 ? ` · ♥ ${item.reaction_count}` : ""}
-                </p>
-              </li>
+                </Text>
+              </Box>
             ))}
-          </ul>
+          </Stack>
         )}
-      </section>
+      </Card>
     </div>
   );
 }

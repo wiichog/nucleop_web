@@ -1,4 +1,8 @@
+import { Button, Card, Table, Text } from "@mantine/core";
+import { Download } from "lucide-react";
 import { useAuditLogs, useExportAudit } from "../api/hooks";
+import { NoGymAssigned } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { AUDIT_ACTION, AUDIT_ENTITY, AUDIT_ROLE, label } from "../lib/labels";
 
@@ -31,57 +35,58 @@ export function AuditPage() {
   const logs = useAuditLogs(gymId);
   const exportAudit = useExportAudit(gymId);
 
-  if (!gymId) return <p>No tienes un gimnasio asignado.</p>;
+  if (!gymId) return <NoGymAssigned />;
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-        <div>
-          <h1>Actividad del gimnasio</h1>
-          <p style={{ color: "var(--nucleo-muted)", marginTop: -8 }}>
-            Quién hizo qué y cuándo, dentro de este gimnasio.
-          </p>
-        </div>
-        <button
-          className="nucleo-btn"
-          style={{ alignSelf: "center" }}
-          disabled={exportAudit.isPending}
-          onClick={() => exportAudit.mutate()}
-        >
-          Exportar CSV
-        </button>
-      </div>
-      <section className="nucleo-card">
+      <PageHeader
+        title="Actividad del gimnasio"
+        subtitle="Quién hizo qué y cuándo, dentro de este gimnasio."
+        action={
+          <Button
+            variant="default"
+            leftSection={<Download size={16} />}
+            loading={exportAudit.isPending}
+            onClick={() => exportAudit.mutate()}
+          >
+            Exportar CSV
+          </Button>
+        }
+      />
+      <Card>
         {(logs.data ?? []).length === 0 ? (
-          <p>Sin actividad registrada.</p>
+          <Text c="dimmed" size="sm">
+            Sin actividad registrada.
+          </Text>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Quién</th>
-                <th>Qué hizo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(logs.data ?? []).map((log) => {
-                const extra = log as unknown as { descripcion?: string; actor_rol?: string };
-                return (
-                  <tr key={log.id}>
-                    <td>{new Date(log.created_at).toLocaleString("es-GT")}</td>
-                    <td>
-                      {extra.actor_rol ?? (log.actor_role
-                        ? label(AUDIT_ROLE, log.actor_role)
-                        : "Sistema/atleta")}
-                    </td>
-                    <td>{extra.descripcion ?? describe(log)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <Table.ScrollContainer minWidth={520}>
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Fecha</Table.Th>
+                  <Table.Th>Quién</Table.Th>
+                  <Table.Th>Qué hizo</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {(logs.data ?? []).map((log) => {
+                  const extra = log as unknown as { descripcion?: string; actor_rol?: string };
+                  return (
+                    <Table.Tr key={log.id}>
+                      <Table.Td>{new Date(log.created_at).toLocaleString("es-GT")}</Table.Td>
+                      <Table.Td>
+                        {extra.actor_rol ??
+                          (log.actor_role ? label(AUDIT_ROLE, log.actor_role) : "Sistema/atleta")}
+                      </Table.Td>
+                      <Table.Td>{extra.descripcion ?? describe(log)}</Table.Td>
+                    </Table.Tr>
+                  );
+                })}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </section>
+      </Card>
     </div>
   );
 }

@@ -1,5 +1,18 @@
 import { FormEvent, useState } from "react";
+import {
+  Button,
+  Card,
+  Group,
+  PasswordInput,
+  SimpleGrid,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
+import { notifications } from "@mantine/notifications";
+import { LogOut } from "lucide-react";
 import { usePasswordChange } from "../api/hooks";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { AUDIT_ROLE, label } from "../lib/labels";
 
@@ -8,12 +21,10 @@ export function ProfilePage() {
   const changePassword = usePasswordChange();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
-  const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setMsg("");
     setErr("");
     if (next.length < 8) {
       setErr("La nueva contraseña debe tener al menos 8 caracteres.");
@@ -21,7 +32,7 @@ export function ProfilePage() {
     }
     try {
       await changePassword.mutateAsync({ current_password: current, new_password: next });
-      setMsg("Contraseña actualizada.");
+      notifications.show({ color: "teal", message: "Contraseña actualizada." });
       setCurrent("");
       setNext("");
     } catch {
@@ -30,61 +41,52 @@ export function ProfilePage() {
   };
 
   const rolesLabel =
-    roles.map((r) => label(AUDIT_ROLE, r.role)).join(", ") ||
-    (isSuperuser ? "Superadmin" : "—");
+    roles.map((r) => label(AUDIT_ROLE, r.role)).join(", ") || (isSuperuser ? "Superadmin" : "—");
 
   return (
     <div>
-      <h1>Mi perfil</h1>
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        <section className="nucleo-card" style={{ flex: 1, minWidth: 280 }}>
-          <h2 style={{ marginTop: 0 }}>Cuenta</h2>
-          <p>
-            <strong>Correo:</strong> {email || "—"}
-          </p>
-          <p>
-            <strong>Rol:</strong> {rolesLabel}
-          </p>
-          <p>
-            <strong>Gimnasio actual:</strong>{" "}
-            {primaryGymId ? `${primaryGymId.slice(0, 8)}…` : "—"}
-          </p>
-          <button
-            className="nucleo-btn nucleo-btn--secondary"
-            style={{ marginTop: 12 }}
-            onClick={logout}
-          >
-            Cerrar sesión
-          </button>
-        </section>
+      <PageHeader title="Mi perfil" />
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
+        <Card>
+          <Title order={3} mb="sm">
+            Cuenta
+          </Title>
+          <Stack gap={6}>
+            <Text size="sm">
+              <strong>Correo:</strong> {email || "—"}
+            </Text>
+            <Text size="sm">
+              <strong>Rol:</strong> {rolesLabel}
+            </Text>
+            <Text size="sm">
+              <strong>Gimnasio actual:</strong> {primaryGymId ? `${primaryGymId.slice(0, 8)}…` : "—"}
+            </Text>
+          </Stack>
+          <Group mt="md">
+            <Button variant="default" leftSection={<LogOut size={16} />} onClick={logout}>
+              Cerrar sesión
+            </Button>
+          </Group>
+        </Card>
 
-        <section className="nucleo-card" style={{ flex: 1, minWidth: 280 }}>
-          <h2 style={{ marginTop: 0 }}>Cambiar contraseña</h2>
-          <form onSubmit={onSubmit}>
-            <label>Contraseña actual</label>
-            <input
-              className="nucleo-input"
-              type="password"
-              value={current}
-              onChange={(e) => setCurrent(e.target.value)}
-              style={{ marginBottom: 12 }}
-            />
-            <label>Nueva contraseña</label>
-            <input
-              className="nucleo-input"
-              type="password"
-              value={next}
-              onChange={(e) => setNext(e.target.value)}
-              style={{ marginBottom: 12 }}
-            />
-            {msg && <p style={{ color: "var(--nucleo-accent)" }}>{msg}</p>}
-            {err && <p style={{ color: "var(--nucleo-danger)" }}>{err}</p>}
-            <button className="nucleo-btn" disabled={!current || !next || changePassword.isPending}>
-              {changePassword.isPending ? "Guardando…" : "Actualizar contraseña"}
-            </button>
-          </form>
-        </section>
-      </div>
+        <Card component="form" onSubmit={onSubmit}>
+          <Title order={3} mb="sm">
+            Cambiar contraseña
+          </Title>
+          <Stack gap="sm">
+            <PasswordInput label="Contraseña actual" value={current} onChange={(e) => setCurrent(e.currentTarget.value)} />
+            <PasswordInput label="Nueva contraseña" value={next} onChange={(e) => setNext(e.currentTarget.value)} />
+            {err && (
+              <Text c="red" size="sm">
+                {err}
+              </Text>
+            )}
+            <Button type="submit" disabled={!current || !next} loading={changePassword.isPending}>
+              Actualizar contraseña
+            </Button>
+          </Stack>
+        </Card>
+      </SimpleGrid>
     </div>
   );
 }

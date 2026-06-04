@@ -1,7 +1,19 @@
 import { useMemo, useState } from "react";
+import {
+  Button,
+  Card,
+  Group,
+  NumberInput,
+  Select,
+  Table,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { useBranches, useCreateErpSale, useErpProducts, useErpSales } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageLoading } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 
 interface CartLine {
@@ -20,28 +32,22 @@ export function PosPage() {
   const createSale = useCreateErpSale(gymId);
 
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [productId, setProductId] = useState("");
-  const [qty, setQty] = useState("1");
+  const [productId, setProductId] = useState<string | null>("");
+  const [qty, setQty] = useState<number | string>(1);
   const [athleteId, setAthleteId] = useState("");
-  const [branchId, setBranchId] = useState("");
+  const [branchId, setBranchId] = useState<string | null>("");
   const [method, setMethod] = useState<"cash" | "card" | "bank_transfer">("cash");
   const [error, setError] = useState("");
 
-  const total = useMemo(
-    () => cart.reduce((acc, l) => acc + Number(l.unit_price) * l.qty, 0),
-    [cart],
-  );
+  const total = useMemo(() => cart.reduce((acc, l) => acc + Number(l.unit_price) * l.qty, 0), [cart]);
 
   const addLine = () => {
     const product = (products ?? []).find((p) => p.id === productId);
-    const q = parseInt(qty, 10);
+    const q = Number(qty);
     if (!product || !Number.isFinite(q) || q <= 0) return;
-    setCart((prev) => [
-      ...prev,
-      { product_id: product.id, name: product.name, qty: q, unit_price: product.sale_price },
-    ]);
+    setCart((prev) => [...prev, { product_id: product.id, name: product.name, qty: q, unit_price: product.sale_price }]);
     setProductId("");
-    setQty("1");
+    setQty(1);
   };
 
   const submit = async () => {
@@ -69,119 +75,133 @@ export function PosPage() {
 
   return (
     <div>
-      <h1>Punto de venta (recepción)</h1>
-      <div className="nucleo-card" style={{ marginBottom: 16 }}>
-        <h2 style={{ marginTop: 0 }}>Nueva venta</h2>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-          <select className="nucleo-input" value={productId} onChange={(e) => setProductId(e.target.value)}>
-            <option value="">Selecciona producto…</option>
-            {(products ?? [])
+      <PageHeader title="Punto de venta (recepción)" subtitle="Registra ventas de productos y servicios." />
+
+      <Card mb="lg">
+        <Title order={3} mb="sm">
+          Nueva venta
+        </Title>
+        <Group align="flex-end" gap="md" mb="md">
+          <Select
+            label="Producto"
+            placeholder="Selecciona producto…"
+            value={productId}
+            onChange={setProductId}
+            searchable
+            style={{ flex: 1, minWidth: 260 }}
+            data={(products ?? [])
               .filter((p) => p.is_active)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — Q{p.sale_price} (stock {p.stock_qty})
-                </option>
-              ))}
-          </select>
-          <input className="nucleo-input" style={{ width: 80 }} value={qty} onChange={(e) => setQty(e.target.value)} />
-          <button type="button" className="nucleo-btn nucleo-btn--secondary" onClick={addLine} disabled={!productId}>
+              .map((p) => ({ value: p.id, label: `${p.name} — Q${p.sale_price} (stock ${p.stock_qty})` }))}
+          />
+          <NumberInput label="Cantidad" value={qty} onChange={setQty} w={100} min={1} />
+          <Button variant="default" onClick={addLine} disabled={!productId}>
             Añadir
-          </button>
-        </div>
+          </Button>
+        </Group>
 
         {cart.length === 0 ? (
           <EmptyState title="Carrito vacío" description="Añade productos para registrar la venta." />
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>Cant.</th>
-                <th>Precio</th>
-                <th>Subtotal</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Producto</Table.Th>
+                <Table.Th>Cant.</Table.Th>
+                <Table.Th>Precio</Table.Th>
+                <Table.Th>Subtotal</Table.Th>
+                <Table.Th />
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {cart.map((l, i) => (
-                <tr key={`${l.product_id}-${i}`}>
-                  <td>{l.name}</td>
-                  <td>{l.qty}</td>
-                  <td>Q{l.unit_price}</td>
-                  <td>Q{(Number(l.unit_price) * l.qty).toFixed(2)}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="nucleo-btn nucleo-btn--secondary"
-                      onClick={() => setCart((prev) => prev.filter((_, idx) => idx !== i))}
-                    >
+                <Table.Tr key={`${l.product_id}-${i}`}>
+                  <Table.Td>{l.name}</Table.Td>
+                  <Table.Td>{l.qty}</Table.Td>
+                  <Table.Td>Q{l.unit_price}</Table.Td>
+                  <Table.Td>Q{(Number(l.unit_price) * l.qty).toFixed(2)}</Table.Td>
+                  <Table.Td>
+                    <Button variant="subtle" color="red" size="xs" onClick={() => setCart((prev) => prev.filter((_, idx) => idx !== i))}>
                       Quitar
-                    </button>
-                  </td>
-                </tr>
+                    </Button>
+                  </Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
-          </table>
+            </Table.Tbody>
+          </Table>
         )}
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
-          <input
-            className="nucleo-input"
-            placeholder="ID de atleta (opcional)"
+        <Group align="flex-end" gap="md" mt="md">
+          <TextInput
+            label="ID de atleta (opcional)"
+            placeholder="Venta anónima si vacío"
             value={athleteId}
-            onChange={(e) => setAthleteId(e.target.value)}
-            title="Vincula la venta a un atleta para emitir su pago. Déjalo vacío para venta anónima."
+            onChange={(e) => setAthleteId(e.currentTarget.value)}
           />
           {(branches ?? []).length > 0 && (
-            <select className="nucleo-input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-              <option value="">Sin sede</option>
-              {(branches ?? []).map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+            <Select
+              label="Sede"
+              placeholder="Sin sede"
+              value={branchId}
+              onChange={setBranchId}
+              clearable
+              data={(branches ?? []).map((b) => ({ value: b.id, label: b.name }))}
+            />
           )}
-          <select className="nucleo-input" value={method} onChange={(e) => setMethod(e.target.value as typeof method)}>
-            <option value="cash">Efectivo</option>
-            <option value="card">Tarjeta</option>
-            <option value="bank_transfer">Transferencia</option>
-          </select>
-          <strong style={{ marginLeft: "auto" }}>Total: Q{total.toFixed(2)}</strong>
-          <button className="nucleo-btn" onClick={submit} disabled={cart.length === 0 || createSale.isPending}>
+          <Select
+            label="Método"
+            value={method}
+            onChange={(v) => setMethod((v as typeof method) ?? "cash")}
+            data={[
+              { value: "cash", label: "Efectivo" },
+              { value: "card", label: "Tarjeta" },
+              { value: "bank_transfer", label: "Transferencia" },
+            ]}
+          />
+          <Text fw={700} fz="lg" style={{ marginLeft: "auto" }} ff='"Space Grotesk", sans-serif'>
+            Total: Q{total.toFixed(2)}
+          </Text>
+          <Button onClick={submit} disabled={cart.length === 0} loading={createSale.isPending}>
             Registrar venta
-          </button>
-        </div>
-        {error && <p style={{ color: "var(--nucleo-danger)", marginTop: 8 }}>{error}</p>}
-      </div>
+          </Button>
+        </Group>
+        {error && (
+          <Text c="red" size="sm" mt="sm">
+            {error}
+          </Text>
+        )}
+      </Card>
 
-      <div className="nucleo-card">
-        <h2 style={{ marginTop: 0 }}>Ventas recientes</h2>
+      <Card>
+        <Title order={3} mb="sm">
+          Ventas recientes
+        </Title>
         {!(sales ?? []).length ? (
           <EmptyState title="Aún no hay ventas" description="Las ventas POS aparecerán aquí." />
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Productos</th>
-                <th>Total</th>
-                <th>Margen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(sales ?? []).map((s) => (
-                <tr key={s.id}>
-                  <td>{new Date(s.created_at).toLocaleString("es-GT")}</td>
-                  <td>{s.lines.map((l) => `${l.product_name} ×${l.qty}`).join(", ")}</td>
-                  <td>Q{s.total}</td>
-                  <td>Q{s.margin}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table.ScrollContainer minWidth={620}>
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Fecha</Table.Th>
+                  <Table.Th>Productos</Table.Th>
+                  <Table.Th>Total</Table.Th>
+                  <Table.Th>Margen</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {(sales ?? []).map((s) => (
+                  <Table.Tr key={s.id}>
+                    <Table.Td>{new Date(s.created_at).toLocaleString("es-GT")}</Table.Td>
+                    <Table.Td>{s.lines.map((l) => `${l.product_name} ×${l.qty}`).join(", ")}</Table.Td>
+                    <Table.Td>Q{s.total}</Table.Td>
+                    <Table.Td>Q{s.margin}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

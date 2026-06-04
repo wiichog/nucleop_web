@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { Center, Loader } from "@mantine/core";
 import { useAuth } from "./lib/auth";
 import { Layout } from "./components/Layout";
 import { LandingPage } from "./landing/LandingPage";
@@ -25,7 +26,12 @@ import { ProfilePage } from "./pages/ProfilePage";
 
 function Protected({ children }: { children: JSX.Element }) {
   const { authenticated, loading } = useAuth();
-  if (loading) return <div style={{ padding: 40 }}>Cargando…</div>;
+  if (loading)
+    return (
+      <Center mih="100vh">
+        <Loader color="flame" />
+      </Center>
+    );
   if (!authenticated) return <Navigate to="/login" replace />;
   return children;
 }

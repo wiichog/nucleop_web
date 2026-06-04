@@ -1,13 +1,15 @@
+import { Badge, Button, Card, Group, Table, Text, Title } from "@mantine/core";
 import { useGymClubs, useDecideClub } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { CLUB_STATUS, label } from "../lib/labels";
 
-const BADGE: Record<string, string> = {
-  pending: "badge--warn",
-  approved: "badge--ok",
-  rejected: "badge--danger",
+const BADGE_COLOR: Record<string, string> = {
+  pending: "yellow",
+  approved: "teal",
+  rejected: "red",
 };
 
 export function ClubsPage() {
@@ -24,52 +26,59 @@ export function ClubsPage() {
 
   return (
     <div>
-      <h1>Clubes del gimnasio</h1>
-      <p style={{ color: "var(--nucleo-muted)", marginTop: -8 }}>
-        Tus atletas pueden crear clubes; aquí apruebas o rechazas las solicitudes.
-      </p>
+      <PageHeader
+        title="Clubes del gimnasio"
+        subtitle="Tus atletas pueden crear clubes; aquí apruebas o rechazas las solicitudes."
+      />
 
       {pending.length > 0 && (
-        <section className="nucleo-card" style={{ marginBottom: 16 }}>
-          <h2 style={{ marginTop: 0 }}>Solicitudes pendientes ({pending.length})</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Club</th>
-                <th>Tipo</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card mb="lg">
+          <Title order={3} mb="sm">
+            Solicitudes pendientes ({pending.length})
+          </Title>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Club</Table.Th>
+                <Table.Th>Tipo</Table.Th>
+                <Table.Th>Acciones</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {pending.map((c) => (
-                <tr key={c.id}>
-                  <td>{c.name}</td>
-                  <td>{c.club_type}</td>
-                  <td style={{ display: "flex", gap: 8 }}>
-                    <button
-                      className="nucleo-btn"
-                      disabled={decide.isPending}
-                      onClick={() => decide.mutate({ clubId: c.id, decision: "approve" })}
-                    >
-                      Aprobar
-                    </button>
-                    <button
-                      className="nucleo-btn nucleo-btn--secondary"
-                      disabled={decide.isPending}
-                      onClick={() => decide.mutate({ clubId: c.id, decision: "reject" })}
-                    >
-                      Rechazar
-                    </button>
-                  </td>
-                </tr>
+                <Table.Tr key={c.id}>
+                  <Table.Td>{c.name}</Table.Td>
+                  <Table.Td>{c.club_type}</Table.Td>
+                  <Table.Td>
+                    <Group gap="xs">
+                      <Button
+                        size="xs"
+                        loading={decide.isPending}
+                        onClick={() => decide.mutate({ clubId: c.id, decision: "approve" })}
+                      >
+                        Aprobar
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="default"
+                        loading={decide.isPending}
+                        onClick={() => decide.mutate({ clubId: c.id, decision: "reject" })}
+                      >
+                        Rechazar
+                      </Button>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
-          </table>
-        </section>
+            </Table.Tbody>
+          </Table>
+        </Card>
       )}
 
-      <section className="nucleo-card">
-        <h2 style={{ marginTop: 0 }}>Todos los clubes</h2>
+      <Card>
+        <Title order={3} mb="sm">
+          Todos los clubes
+        </Title>
         {clubs.isLoading ? (
           <PageLoading />
         ) : !rows.length ? (
@@ -78,32 +87,34 @@ export function ClubsPage() {
             description="Cuando un atleta cree un club para este gimnasio, aparecerá aquí."
           />
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Club</th>
-                <th>Tipo</th>
-                <th>Estado</th>
-                <th>Miembros</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Club</Table.Th>
+                <Table.Th>Tipo</Table.Th>
+                <Table.Th>Estado</Table.Th>
+                <Table.Th>Miembros</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {rows.map((c) => (
-                <tr key={c.id}>
-                  <td>{c.name}</td>
-                  <td>{c.club_type}</td>
-                  <td>
-                    <span className={`badge ${BADGE[c.status] ?? "badge--warn"}`}>
+                <Table.Tr key={c.id}>
+                  <Table.Td>{c.name}</Table.Td>
+                  <Table.Td>{c.club_type}</Table.Td>
+                  <Table.Td>
+                    <Badge color={BADGE_COLOR[c.status] ?? "yellow"} variant="light">
                       {label(CLUB_STATUS, c.status)}
-                    </span>
-                  </td>
-                  <td>{c.member_count ?? 0}</td>
-                </tr>
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{c.member_count ?? 0}</Text>
+                  </Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
-          </table>
+            </Table.Tbody>
+          </Table>
         )}
-      </section>
+      </Card>
     </div>
   );
 }

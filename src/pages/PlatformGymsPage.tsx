@@ -1,11 +1,24 @@
 import { FormEvent, useState } from "react";
 import {
+  Button,
+  Card,
+  Checkbox,
+  Group,
+  Select,
+  Table,
+  TextInput,
+  Title,
+} from "@mantine/core";
+import { DateInput } from "@mantine/dates";
+import {
   useCreatePlatformGym,
   usePlatformGyms,
   useUpdatePlatformGym,
   useUpsertPlatformSubscription,
 } from "../api/hooks";
 import type { GymAdmin } from "../api/types";
+import { EmptyState } from "../components/EmptyState";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 
 export function PlatformGymsPage() {
@@ -17,15 +30,15 @@ export function PlatformGymsPage() {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [editingId, setEditingId] = useState("");
-  const [saasPlan, setSaasPlan] = useState("starter");
+  const [saasPlan, setSaasPlan] = useState<string | null>("starter");
   const [commission, setCommission] = useState("0.0300");
   const [fixedFee, setFixedFee] = useState("");
   const [isPublic, setIsPublic] = useState(true);
   const [monthlyPrice, setMonthlyPrice] = useState("");
-  const [subscriptionStatus, setSubscriptionStatus] = useState("active");
-  const [nextBillingDate, setNextBillingDate] = useState("");
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>("active");
+  const [nextBillingDate, setNextBillingDate] = useState<Date | null>(null);
 
-  if (!isSuperuser) return <p>Se requiere rol de superadmin.</p>;
+  if (!isSuperuser) return <EmptyState title="Acceso restringido" description="Se requiere rol de superadmin." />;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -42,7 +55,7 @@ export function PlatformGymsPage() {
     setIsPublic(gym.is_public ?? true);
     setMonthlyPrice(gym.subscription?.monthly_price ?? "");
     setSubscriptionStatus(gym.subscription?.status ?? "active");
-    setNextBillingDate(gym.subscription?.next_billing_date ?? "");
+    setNextBillingDate(gym.subscription?.next_billing_date ? new Date(gym.subscription.next_billing_date) : null);
   };
 
   const save = async (event: FormEvent) => {
@@ -50,7 +63,7 @@ export function PlatformGymsPage() {
     await updateGym.mutateAsync({
       gymId: editingId,
       body: {
-        saas_plan: saasPlan,
+        saas_plan: saasPlan ?? "starter",
         platform_commission_pct: commission,
         fixed_fee: fixedFee || null,
         is_public: isPublic,
@@ -60,10 +73,10 @@ export function PlatformGymsPage() {
       await upsertSubscription.mutateAsync({
         gymId: editingId,
         body: {
-          saas_plan: saasPlan,
+          saas_plan: saasPlan ?? "starter",
           monthly_price: monthlyPrice,
-          status: subscriptionStatus,
-          next_billing_date: nextBillingDate || null,
+          status: subscriptionStatus ?? "active",
+          next_billing_date: nextBillingDate ? nextBillingDate.toLocaleDateString("en-CA") : null,
         },
       });
     }
@@ -72,119 +85,100 @@ export function PlatformGymsPage() {
 
   return (
     <div>
-      <h1>Plataforma: gimnasios</h1>
-      <p style={{ color: "var(--nucleo-muted)", marginTop: -8 }}>
-        Alta y revisión de gimnasios conectados a Nucleo.
-      </p>
-      <form
-        className="nucleo-card"
-        style={{ display: "flex", gap: 12, marginBottom: 16 }}
-        onSubmit={submit}
-      >
-        <input
-          className="nucleo-input"
-          placeholder="Nombre del gimnasio"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-        />
-        <input
-          className="nucleo-input"
-          placeholder="Ubicación"
-          value={location}
-          onChange={(event) => setLocation(event.target.value)}
-        />
-        <button className="nucleo-btn" disabled={!name || createGym.isPending}>
-          Crear gym
-        </button>
-      </form>
+      <PageHeader title="Plataforma: gimnasios" subtitle="Alta y revisión de gimnasios conectados a Nucleo." />
+
+      <Card mb="lg" component="form" onSubmit={submit}>
+        <Title order={3} mb="sm">
+          Nuevo gimnasio
+        </Title>
+        <Group align="flex-end" gap="md">
+          <TextInput label="Nombre del gimnasio" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+          <TextInput label="Ubicación" value={location} onChange={(e) => setLocation(e.currentTarget.value)} style={{ flex: 1, minWidth: 200 }} />
+          <Button type="submit" disabled={!name} loading={createGym.isPending}>
+            Crear gym
+          </Button>
+        </Group>
+      </Card>
+
       {editingId && (
-        <form
-          className="nucleo-card"
-          style={{ display: "flex", gap: 12, marginBottom: 16 }}
-          onSubmit={save}
-        >
-          <select
-            className="nucleo-input"
-            value={saasPlan}
-            onChange={(event) => setSaasPlan(event.target.value)}
-          >
-            <option value="starter">Starter</option>
-            <option value="growth">Growth</option>
-            <option value="pro">Pro</option>
-            <option value="enterprise">Enterprise</option>
-          </select>
-          <input
-            className="nucleo-input"
-            placeholder="Comisión (ej. 0.0300)"
-            value={commission}
-            onChange={(event) => setCommission(event.target.value)}
-          />
-          <input
-            className="nucleo-input"
-            placeholder="Fee fijo"
-            value={fixedFee}
-            onChange={(event) => setFixedFee(event.target.value)}
-          />
-          <input
-            className="nucleo-input"
-            placeholder="Suscripción mensual"
-            value={monthlyPrice}
-            onChange={(event) => setMonthlyPrice(event.target.value)}
-          />
-          <select
-            className="nucleo-input"
-            value={subscriptionStatus}
-            onChange={(event) => setSubscriptionStatus(event.target.value)}
-          >
-            <option value="active">Activa</option>
-            <option value="paused">Pausada</option>
-            <option value="cancelled">Cancelada</option>
-          </select>
-          <input
-            className="nucleo-input"
-            type="date"
-            value={nextBillingDate}
-            onChange={(event) => setNextBillingDate(event.target.value)}
-          />
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input
-              type="checkbox"
-              checked={isPublic}
-              onChange={(event) => setIsPublic(event.target.checked)}
+        <Card mb="lg" component="form" onSubmit={save}>
+          <Title order={3} mb="sm">
+            Editar gimnasio
+          </Title>
+          <Group align="flex-end" gap="md">
+            <Select
+              label="SaaS plan"
+              value={saasPlan}
+              onChange={setSaasPlan}
+              data={[
+                { value: "starter", label: "Starter" },
+                { value: "growth", label: "Growth" },
+                { value: "pro", label: "Pro" },
+                { value: "enterprise", label: "Enterprise" },
+              ]}
             />
-            Público
-          </label>
-          <button
-            className="nucleo-btn"
-            disabled={!commission || updateGym.isPending || upsertSubscription.isPending}
-          >
-            Guardar
-          </button>
-        </form>
+            <TextInput label="Comisión" placeholder="0.0300" value={commission} onChange={(e) => setCommission(e.currentTarget.value)} w={120} />
+            <TextInput label="Fee fijo" value={fixedFee} onChange={(e) => setFixedFee(e.currentTarget.value)} w={110} />
+            <TextInput label="Suscripción mensual" value={monthlyPrice} onChange={(e) => setMonthlyPrice(e.currentTarget.value)} w={150} />
+            <Select
+              label="Estado suscripción"
+              value={subscriptionStatus}
+              onChange={setSubscriptionStatus}
+              data={[
+                { value: "active", label: "Activa" },
+                { value: "paused", label: "Pausada" },
+                { value: "cancelled", label: "Cancelada" },
+              ]}
+            />
+            <DateInput label="Próximo cobro" value={nextBillingDate} onChange={setNextBillingDate} valueFormat="YYYY-MM-DD" clearable />
+            <Checkbox label="Público" checked={isPublic} onChange={(e) => setIsPublic(e.currentTarget.checked)} mb={8} />
+            <Button type="submit" disabled={!commission} loading={updateGym.isPending || upsertSubscription.isPending}>
+              Guardar
+            </Button>
+          </Group>
+        </Card>
       )}
-      <section className="nucleo-card">
-        <table>
-          <thead><tr><th>Gimnasio</th><th>Ubicación</th><th>SaaS</th><th>Suscripción</th><th>Comisión</th><th>Fee fijo</th><th>Público</th><th></th></tr></thead>
-          <tbody>
-            {(gyms.data ?? []).map((gym) => (
-              <tr key={gym.id}>
-                <td>{gym.name}</td>
-                <td>{gym.location_text || "—"}</td>
-                <td>{gym.saas_plan}</td>
-                <td>
-                  {gym.subscription
-                    ? `Q${gym.subscription.monthly_price} (${gym.subscription.status})`
-                    : "—"}
-                </td>
-                <td>{gym.platform_commission_pct}</td>
-                <td>{gym.fixed_fee ?? "—"}</td>
-                <td>{gym.is_public ? "sí" : "no"}</td>
-                <td><button className="link-btn" onClick={() => edit(gym)}>Editar</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+
+      <Card>
+        <Table.ScrollContainer minWidth={820}>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Gimnasio</Table.Th>
+                <Table.Th>Ubicación</Table.Th>
+                <Table.Th>SaaS</Table.Th>
+                <Table.Th>Suscripción</Table.Th>
+                <Table.Th>Comisión</Table.Th>
+                <Table.Th>Fee fijo</Table.Th>
+                <Table.Th>Público</Table.Th>
+                <Table.Th />
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {(gyms.data ?? []).map((gym) => (
+                <Table.Tr key={gym.id}>
+                  <Table.Td>{gym.name}</Table.Td>
+                  <Table.Td>{gym.location_text || "—"}</Table.Td>
+                  <Table.Td>{gym.saas_plan}</Table.Td>
+                  <Table.Td>
+                    {gym.subscription
+                      ? `Q${gym.subscription.monthly_price} (${gym.subscription.status})`
+                      : "—"}
+                  </Table.Td>
+                  <Table.Td>{gym.platform_commission_pct}</Table.Td>
+                  <Table.Td>{gym.fixed_fee ?? "—"}</Table.Td>
+                  <Table.Td>{gym.is_public ? "sí" : "no"}</Table.Td>
+                  <Table.Td>
+                    <Button variant="subtle" size="xs" onClick={() => edit(gym)}>
+                      Editar
+                    </Button>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      </Card>
     </div>
   );
 }

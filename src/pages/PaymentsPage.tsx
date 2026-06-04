@@ -1,7 +1,21 @@
 import { FormEvent, useState } from "react";
+import {
+  Button,
+  Card,
+  FileInput,
+  Grid,
+  Group,
+  Select,
+  Table,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
+import { Download, Paperclip } from "lucide-react";
 import { useGymPayments, useMemberships, useRegisterManualPayment } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
 import {
@@ -19,170 +33,152 @@ export function PaymentsPage() {
   const memberships = useMemberships(gymId);
   const registerManual = useRegisterManualPayment(gymId);
 
-  const [membershipId, setMembershipId] = useState("");
+  const [membershipId, setMembershipId] = useState<string | null>("");
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"cash" | "bank_transfer">("cash");
-  const [proofFile, setProofFile] = useState<File>();
+  const [proofFile, setProofFile] = useState<File | null>(null);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!membershipId) return;
     await registerManual.mutateAsync({
       membership_id: membershipId,
       amount,
       method,
-      proof_file: proofFile,
+      proof_file: proofFile ?? undefined,
     });
     setAmount("");
-    setProofFile(undefined);
+    setProofFile(null);
   };
 
   if (!gymId) return <NoGymAssigned />;
-  if (payments.isError) {
-    return <PageError onRetry={() => payments.refetch()} />;
-  }
+  if (payments.isError) return <PageError onRetry={() => payments.refetch()} />;
 
   return (
     <div>
-      <h1>Pagos</h1>
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        <form className="nucleo-card" style={{ width: 320 }} onSubmit={onSubmit}>
-          <h2 style={{ marginTop: 0 }}>Registrar pago manual</h2>
-          <p style={{ color: "var(--nucleo-muted)", fontSize: 13 }}>
-            Efectivo o transferencia. No genera comisión, pero activa la membresía.
-          </p>
-          <label>Membresía</label>
-          <select
-            className="nucleo-input"
-            value={membershipId}
-            onChange={(e) => setMembershipId(e.target.value)}
-            style={{ marginBottom: 12 }}
-          >
-            <option value="">Selecciona…</option>
-            {(memberships.data ?? []).map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.athlete_name} ({label(MEMBERSHIP_STATUS, m.status)})
-              </option>
-            ))}
-          </select>
-          {method === "bank_transfer" && (
-            <>
-              <label>Comprobante</label>
-              <div className="nucleo-file" style={{ marginBottom: 16 }}>
-                <label className="nucleo-file__btn">
-                  <span>📎</span>
-                  {proofFile ? "Cambiar archivo" : "Adjuntar comprobante"}
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={(event) => setProofFile(event.target.files?.[0])}
-                  />
-                </label>
-                {proofFile && (
-                  <>
-                    <span className="nucleo-file__name">{proofFile.name}</span>
-                    <button
-                      type="button"
-                      className="nucleo-file__clear"
-                      onClick={() => setProofFile(undefined)}
-                    >
-                      Quitar
-                    </button>
-                  </>
-                )}
-              </div>
-            </>
-          )}
-          <label>Monto (Q)</label>
-          <input
-            className="nucleo-input"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            style={{ marginBottom: 12 }}
-          />
-          <label>Método</label>
-          <select
-            className="nucleo-input"
-            value={method}
-            onChange={(e) => setMethod(e.target.value as "cash" | "bank_transfer")}
-            style={{ marginBottom: 16 }}
-          >
-            <option value="cash">Efectivo</option>
-            <option value="bank_transfer">Transferencia</option>
-          </select>
-          {registerManual.isError && (
-            <p style={{ color: "var(--nucleo-danger)", fontSize: 13, marginBottom: 12 }}>
-              No se pudo registrar el pago. Verifica los datos.
-            </p>
-          )}
-          <button
-            className="nucleo-btn"
-            style={{ width: "100%" }}
-            disabled={!membershipId || !amount || registerManual.isPending}
-          >
-            {registerManual.isPending ? "Registrando…" : "Registrar pago"}
-          </button>
-        </form>
+      <PageHeader title="Pagos" subtitle="Registra pagos manuales y revisa el historial." />
+      <Grid gutter="lg">
+        <Grid.Col span={{ base: 12, md: 4 }}>
+          <Card component="form" onSubmit={onSubmit}>
+            <Title order={3} mb={4}>
+              Registrar pago manual
+            </Title>
+            <Text c="dimmed" size="sm" mb="md">
+              Efectivo o transferencia. No genera comisión, pero activa la membresía.
+            </Text>
+            <Select
+              label="Membresía"
+              placeholder="Selecciona…"
+              value={membershipId}
+              onChange={setMembershipId}
+              searchable
+              mb="sm"
+              data={(memberships.data ?? []).map((m) => ({
+                value: m.id,
+                label: `${m.athlete_name} (${label(MEMBERSHIP_STATUS, m.status)})`,
+              }))}
+            />
+            <Select
+              label="Método"
+              value={method}
+              onChange={(v) => setMethod((v as "cash" | "bank_transfer") ?? "cash")}
+              mb="sm"
+              data={[
+                { value: "cash", label: "Efectivo" },
+                { value: "bank_transfer", label: "Transferencia" },
+              ]}
+            />
+            {method === "bank_transfer" && (
+              <FileInput
+                label="Comprobante"
+                placeholder="Adjuntar comprobante"
+                leftSection={<Paperclip size={16} />}
+                accept="image/*,.pdf"
+                value={proofFile}
+                onChange={setProofFile}
+                clearable
+                mb="sm"
+              />
+            )}
+            <TextInput
+              label="Monto (Q)"
+              value={amount}
+              onChange={(e) => setAmount(e.currentTarget.value)}
+              mb="md"
+            />
+            {registerManual.isError && (
+              <Text c="red" size="sm" mb="sm">
+                No se pudo registrar el pago. Verifica los datos.
+              </Text>
+            )}
+            <Button type="submit" fullWidth disabled={!membershipId || !amount} loading={registerManual.isPending}>
+              Registrar pago
+            </Button>
+          </Card>
+        </Grid.Col>
 
-        <section className="nucleo-card" style={{ flex: 1, minWidth: 360 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-            <h2 style={{ marginTop: 0 }}>Historial</h2>
-            <button
-              className="nucleo-btn nucleo-btn--secondary"
-              style={{ alignSelf: "center" }}
-              onClick={() =>
-                downloadCsv(
-                  "pagos-nucleo.csv",
-                  ["fecha", "concepto", "monto", "método", "estado", "factura"],
-                  (payments.data ?? []).map((payment) => [
-                    new Date(payment.created_at).toLocaleString("es-GT"),
-                    payment.concept,
-                    payment.amount,
-                    label(PAYMENT_METHOD, payment.method),
-                    label(PAYMENT_TX_STATUS, payment.status),
-                    label(FEL_STATUS, payment.fel_status),
-                  ]),
-                )
-              }
-            >
-              Exportar CSV
-            </button>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Concepto</th>
-                <th>Monto</th>
-                <th>Método</th>
-                <th>Estado</th>
-                <th>Factura (FEL)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!payments.data?.length && (
-                <tr>
-                  <td colSpan={6}>
-                    <EmptyState
-                      title="Sin pagos registrados"
-                      description="Los pagos con tarjeta y manuales aparecerán aquí."
-                    />
-                  </td>
-                </tr>
-              )}
-              {(payments.data ?? []).map((p) => (
-                <tr key={p.id}>
-                  <td>{new Date(p.created_at).toLocaleDateString("es-GT")}</td>
-                  <td>{p.concept}</td>
-                  <td>Q{p.amount}</td>
-                  <td>{label(PAYMENT_METHOD, p.method)}</td>
-                  <td>{label(PAYMENT_TX_STATUS, p.status)}</td>
-                  <td>{label(FEL_STATUS, p.fel_status)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      </div>
+        <Grid.Col span={{ base: 12, md: 8 }}>
+          <Card>
+            <Group justify="space-between" mb="sm">
+              <Title order={3}>Historial</Title>
+              <Button
+                variant="default"
+                size="xs"
+                leftSection={<Download size={16} />}
+                onClick={() =>
+                  downloadCsv(
+                    "pagos-nucleo.csv",
+                    ["fecha", "concepto", "monto", "método", "estado", "factura"],
+                    (payments.data ?? []).map((payment) => [
+                      new Date(payment.created_at).toLocaleString("es-GT"),
+                      payment.concept,
+                      payment.amount,
+                      label(PAYMENT_METHOD, payment.method),
+                      label(PAYMENT_TX_STATUS, payment.status),
+                      label(FEL_STATUS, payment.fel_status),
+                    ]),
+                  )
+                }
+              >
+                Exportar CSV
+              </Button>
+            </Group>
+            {!payments.data?.length ? (
+              <EmptyState
+                title="Sin pagos registrados"
+                description="Los pagos con tarjeta y manuales aparecerán aquí."
+              />
+            ) : (
+              <Table.ScrollContainer minWidth={620}>
+                <Table>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Fecha</Table.Th>
+                      <Table.Th>Concepto</Table.Th>
+                      <Table.Th>Monto</Table.Th>
+                      <Table.Th>Método</Table.Th>
+                      <Table.Th>Estado</Table.Th>
+                      <Table.Th>Factura (FEL)</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {(payments.data ?? []).map((p) => (
+                      <Table.Tr key={p.id}>
+                        <Table.Td>{new Date(p.created_at).toLocaleDateString("es-GT")}</Table.Td>
+                        <Table.Td>{p.concept}</Table.Td>
+                        <Table.Td>Q{p.amount}</Table.Td>
+                        <Table.Td>{label(PAYMENT_METHOD, p.method)}</Table.Td>
+                        <Table.Td>{label(PAYMENT_TX_STATUS, p.status)}</Table.Td>
+                        <Table.Td>{label(FEL_STATUS, p.fel_status)}</Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Table.ScrollContainer>
+            )}
+          </Card>
+        </Grid.Col>
+      </Grid>
     </div>
   );
 }

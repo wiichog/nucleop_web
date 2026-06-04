@@ -1,5 +1,20 @@
 import { FormEvent, useState } from "react";
 import {
+  Button,
+  Card,
+  Checkbox,
+  Group,
+  NumberInput,
+  Select,
+  SimpleGrid,
+  Switch,
+  Table,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
+import { DateInput } from "@mantine/dates";
+import {
   useCreatePlan,
   useCreatePlanOffer,
   usePlanOffers,
@@ -8,9 +23,11 @@ import {
 } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageLoading } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 
 const OFFER_LABEL: Record<string, string> = { percent: "Descuento %", free_months: "Meses gratis" };
+const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
 
 export function PlansPage() {
   const { primaryGymId } = useAuth();
@@ -21,26 +38,24 @@ export function PlansPage() {
   const createOffer = useCreatePlanOffer(gymId);
   const toggleOffer = useTogglePlanOffer(gymId);
 
-  // Form de plan
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
-  const [durationDays, setDurationDays] = useState("30");
-  const [classLimit, setClassLimit] = useState("");
+  const [durationDays, setDurationDays] = useState<number | string>(30);
+  const [classLimit, setClassLimit] = useState<number | string>("");
   const [specialAccess, setSpecialAccess] = useState(false);
   const [openGym, setOpenGym] = useState(false);
-  const [noshowPoints, setNoshowPoints] = useState("-10");
+  const [noshowPoints, setNoshowPoints] = useState<number | string>(-10);
 
-  // Form de oferta
   const [offerName, setOfferName] = useState("");
   const [offerType, setOfferType] = useState<"percent" | "free_months">("percent");
   const [offerValue, setOfferValue] = useState("");
-  const [offerPlan, setOfferPlan] = useState("");
-  const [offerFrom, setOfferFrom] = useState("");
-  const [offerTo, setOfferTo] = useState("");
+  const [offerPlan, setOfferPlan] = useState<string | null>("");
+  const [offerFrom, setOfferFrom] = useState<Date | null>(null);
+  const [offerTo, setOfferTo] = useState<Date | null>(null);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const points = parseInt(noshowPoints, 10);
+    const points = Number(noshowPoints);
     await createPlan.mutateAsync({
       name,
       price,
@@ -50,11 +65,7 @@ export function PlansPage() {
       open_gym_access: openGym,
       noshow_penalty:
         Number.isFinite(points) && points !== 0
-          ? {
-              community_points: points,
-              notify: true,
-              message: "Penalización por no asistir a clase reservada.",
-            }
+          ? { community_points: points, notify: true, message: "Penalización por no asistir a clase reservada." }
           : null,
     });
     setName("");
@@ -69,8 +80,8 @@ export function PlansPage() {
       offer_type: offerType,
       value: offerValue,
       plan: offerPlan || null,
-      valid_from: offerFrom || null,
-      valid_to: offerTo || null,
+      valid_from: iso(offerFrom),
+      valid_to: iso(offerTo),
     });
     setOfferName("");
     setOfferValue("");
@@ -80,166 +91,145 @@ export function PlansPage() {
 
   return (
     <div>
-      <h1>Planes y cuotas</h1>
-      <form className="nucleo-card" style={{ marginBottom: 16 }} onSubmit={onSubmit}>
-        <h2 style={{ marginTop: 0 }}>Crear plan</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-          <label>
-            Nombre
-            <input className="nucleo-input" placeholder="Mensual CrossFit" value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label>
-            Precio (Q)
-            <input className="nucleo-input" placeholder="350" value={price} onChange={(e) => setPrice(e.target.value)} />
-          </label>
-          <label>
-            Duración (días)
-            <input className="nucleo-input" type="number" value={durationDays} onChange={(e) => setDurationDays(e.target.value)} />
-          </label>
-          <label>
-            Límite de clases (opcional)
-            <input className="nucleo-input" type="number" placeholder="Sin límite" value={classLimit} onChange={(e) => setClassLimit(e.target.value)} />
-          </label>
-        </div>
-        <div style={{ display: "flex", gap: 18, flexWrap: "wrap", margin: "12px 0" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-            <input type="checkbox" checked={specialAccess} onChange={(e) => setSpecialAccess(e.target.checked)} />
-            Acceso a clases especiales
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-            <input type="checkbox" checked={openGym} onChange={(e) => setOpenGym(e.target.checked)} />
-            Open gym
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            Penalización no-show (pts)
-            <input
-              className="nucleo-input"
-              style={{ width: 90 }}
-              value={noshowPoints}
-              onChange={(e) => setNoshowPoints(e.target.value)}
-              title="Puntos de comunidad que se restan si el atleta no asiste a una clase reservada"
-            />
-          </label>
-          <button className="nucleo-btn" disabled={!name || !price || createPlan.isPending}>
-            {createPlan.isPending ? "Creando…" : "Crear plan"}
-          </button>
-        </div>
-      </form>
+      <PageHeader title="Planes y cuotas" subtitle="Crea planes, promociones y aplícalas al asignar." />
 
-      <form className="nucleo-card nucleo-card--glow" style={{ marginBottom: 16 }} onSubmit={onCreateOffer}>
-        <h2 style={{ marginTop: 0 }}>Crear oferta / promoción</h2>
-        <p style={{ color: "var(--nucleo-muted)", fontSize: 13, marginTop: -6 }}>
-          Ej.: “2 meses gratis” (meses gratis = 2) o “30% de fecha a fecha” (descuento % = 30 con rango).
-          Se aplican al asignar el plan a un atleta.
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-          <label>
-            Nombre de la oferta
-            <input className="nucleo-input" placeholder="Promo verano" value={offerName} onChange={(e) => setOfferName(e.target.value)} />
-          </label>
-          <label>
-            Tipo
-            <select className="nucleo-input" value={offerType} onChange={(e) => setOfferType(e.target.value as "percent" | "free_months")}>
-              <option value="percent">Descuento %</option>
-              <option value="free_months">Meses gratis</option>
-            </select>
-          </label>
-          <label>
-            {offerType === "percent" ? "Porcentaje (0-100)" : "Meses gratis"}
-            <input className="nucleo-input" placeholder={offerType === "percent" ? "30" : "2"} value={offerValue} onChange={(e) => setOfferValue(e.target.value)} />
-          </label>
-          <label>
-            Plan (opcional)
-            <select className="nucleo-input" value={offerPlan} onChange={(e) => setOfferPlan(e.target.value)}>
-              <option value="">Cualquier plan</option>
-              {(data ?? []).map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Válida desde
-            <input className="nucleo-input" type="date" value={offerFrom} onChange={(e) => setOfferFrom(e.target.value)} />
-          </label>
-          <label>
-            Válida hasta
-            <input className="nucleo-input" type="date" value={offerTo} onChange={(e) => setOfferTo(e.target.value)} />
-          </label>
-        </div>
-        <button className="nucleo-btn" style={{ marginTop: 12 }} disabled={!offerName || !offerValue || createOffer.isPending}>
-          {createOffer.isPending ? "Creando…" : "Crear oferta"}
-        </button>
-      </form>
+      <Card mb="lg" component="form" onSubmit={onSubmit}>
+        <Title order={3} mb="sm">
+          Crear plan
+        </Title>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
+          <TextInput label="Nombre" placeholder="Mensual CrossFit" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+          <TextInput label="Precio (Q)" placeholder="350" value={price} onChange={(e) => setPrice(e.currentTarget.value)} />
+          <NumberInput label="Duración (días)" value={durationDays} onChange={setDurationDays} min={1} />
+          <NumberInput label="Límite de clases" placeholder="Sin límite" value={classLimit} onChange={setClassLimit} min={0} />
+        </SimpleGrid>
+        <Group mt="md" gap="lg" align="center">
+          <Checkbox label="Acceso a clases especiales" checked={specialAccess} onChange={(e) => setSpecialAccess(e.currentTarget.checked)} />
+          <Checkbox label="Open gym" checked={openGym} onChange={(e) => setOpenGym(e.currentTarget.checked)} />
+          <NumberInput label="Penalización no-show (pts)" value={noshowPoints} onChange={setNoshowPoints} w={170} />
+          <Button type="submit" mt={22} loading={createPlan.isPending} disabled={!name || !price}>
+            Crear plan
+          </Button>
+        </Group>
+      </Card>
 
-      <div className="nucleo-card" style={{ marginBottom: 16 }}>
-        <h2 style={{ marginTop: 0 }}>Ofertas</h2>
+      <Card mb="lg" component="form" onSubmit={onCreateOffer}>
+        <Title order={3} mb={4}>
+          Crear oferta / promoción
+        </Title>
+        <Text c="dimmed" size="sm" mb="md">
+          Ej.: “2 meses gratis” (meses gratis = 2) o “30% de fecha a fecha”. Se aplican al asignar el plan.
+        </Text>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
+          <TextInput label="Nombre de la oferta" placeholder="Promo verano" value={offerName} onChange={(e) => setOfferName(e.currentTarget.value)} />
+          <Select
+            label="Tipo"
+            value={offerType}
+            onChange={(v) => setOfferType((v as "percent" | "free_months") ?? "percent")}
+            data={[
+              { value: "percent", label: "Descuento %" },
+              { value: "free_months", label: "Meses gratis" },
+            ]}
+          />
+          <TextInput
+            label={offerType === "percent" ? "Porcentaje (0-100)" : "Meses gratis"}
+            placeholder={offerType === "percent" ? "30" : "2"}
+            value={offerValue}
+            onChange={(e) => setOfferValue(e.currentTarget.value)}
+          />
+          <Select
+            label="Plan (opcional)"
+            placeholder="Cualquier plan"
+            value={offerPlan}
+            onChange={setOfferPlan}
+            clearable
+            data={(data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+          />
+          <DateInput label="Válida desde" value={offerFrom} onChange={setOfferFrom} valueFormat="YYYY-MM-DD" clearable />
+          <DateInput label="Válida hasta" value={offerTo} onChange={setOfferTo} valueFormat="YYYY-MM-DD" clearable />
+        </SimpleGrid>
+        <Button type="submit" mt="md" loading={createOffer.isPending} disabled={!offerName || !offerValue}>
+          Crear oferta
+        </Button>
+      </Card>
+
+      <Card mb="lg">
+        <Title order={3} mb="sm">
+          Ofertas
+        </Title>
         {offers.isLoading ? (
           <PageLoading />
         ) : !(offers.data ?? []).length ? (
           <EmptyState title="Sin ofertas" description="Crea promociones reutilizables para tus planes." />
         ) : (
-          <table>
-            <thead>
-              <tr><th>Oferta</th><th>Tipo</th><th>Valor</th><th>Plan</th><th>Vigencia</th><th>Activa</th></tr>
-            </thead>
-            <tbody>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Oferta</Table.Th>
+                <Table.Th>Tipo</Table.Th>
+                <Table.Th>Valor</Table.Th>
+                <Table.Th>Plan</Table.Th>
+                <Table.Th>Vigencia</Table.Th>
+                <Table.Th>Activa</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {(offers.data ?? []).map((o) => (
-                <tr key={o.id}>
-                  <td>{o.name}</td>
-                  <td>{OFFER_LABEL[o.offer_type] ?? o.offer_type}</td>
-                  <td>{o.offer_type === "percent" ? `${o.value}%` : `${o.value} meses`}</td>
-                  <td>{o.plan_name ?? "Cualquiera"}</td>
-                  <td>{o.valid_from || "—"} → {o.valid_to || "—"}</td>
-                  <td>
-                    <button
-                      className="nucleo-btn nucleo-btn--secondary"
-                      disabled={toggleOffer.isPending}
-                      onClick={() => toggleOffer.mutate({ offerId: o.id, is_active: !o.is_active })}
-                    >
-                      {o.is_active ? "Activa ✓" : "Inactiva"}
-                    </button>
-                  </td>
-                </tr>
+                <Table.Tr key={o.id}>
+                  <Table.Td>{o.name}</Table.Td>
+                  <Table.Td>{OFFER_LABEL[o.offer_type] ?? o.offer_type}</Table.Td>
+                  <Table.Td>{o.offer_type === "percent" ? `${o.value}%` : `${o.value} meses`}</Table.Td>
+                  <Table.Td>{o.plan_name ?? "Cualquiera"}</Table.Td>
+                  <Table.Td>
+                    {o.valid_from || "—"} → {o.valid_to || "—"}
+                  </Table.Td>
+                  <Table.Td>
+                    <Switch
+                      checked={o.is_active}
+                      onChange={() => toggleOffer.mutate({ offerId: o.id, is_active: !o.is_active })}
+                      color="flame"
+                    />
+                  </Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
-          </table>
+            </Table.Tbody>
+          </Table>
         )}
-      </div>
+      </Card>
 
-      <div className="nucleo-card">
-        <h2 style={{ marginTop: 0 }}>Planes</h2>
+      <Card>
+        <Title order={3} mb="sm">
+          Planes
+        </Title>
         {isLoading ? (
           <PageLoading />
         ) : !(data ?? []).length ? (
-          <EmptyState
-            title="Sin planes"
-            description="Crea el primer plan para asignarlo a tus atletas."
-          />
+          <EmptyState title="Sin planes" description="Crea el primer plan para asignarlo a tus atletas." />
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Plan</th>
-                <th>Precio</th>
-                <th>Duración (días)</th>
-                <th>Renovación auto.</th>
-                <th>Activo</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Plan</Table.Th>
+                <Table.Th>Precio</Table.Th>
+                <Table.Th>Duración (días)</Table.Th>
+                <Table.Th>Renovación auto.</Table.Th>
+                <Table.Th>Activo</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {(data ?? []).map((p) => (
-                <tr key={p.id}>
-                  <td>{p.name}</td>
-                  <td>Q{p.price}</td>
-                  <td>{p.duration_days}</td>
-                  <td>{p.auto_renew_default ? "Sí" : "No"}</td>
-                  <td>{p.is_active ? "Sí" : "No"}</td>
-                </tr>
+                <Table.Tr key={p.id}>
+                  <Table.Td>{p.name}</Table.Td>
+                  <Table.Td>Q{p.price}</Table.Td>
+                  <Table.Td>{p.duration_days}</Table.Td>
+                  <Table.Td>{p.auto_renew_default ? "Sí" : "No"}</Table.Td>
+                  <Table.Td>{p.is_active ? "Sí" : "No"}</Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
-          </table>
+            </Table.Tbody>
+          </Table>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

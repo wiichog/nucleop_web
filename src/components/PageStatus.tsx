@@ -1,5 +1,16 @@
+import { Alert, Button, Center, Group, Loader, Stack, Text } from "@mantine/core";
+
 export function PageLoading({ label = "Cargando…" }: { label?: string }) {
-  return <p style={{ color: "var(--nucleo-muted)" }}>{label}</p>;
+  return (
+    <Center mih={160}>
+      <Stack align="center" gap="xs">
+        <Loader color="flame" />
+        <Text c="dimmed" size="sm">
+          {label}
+        </Text>
+      </Stack>
+    </Center>
+  );
 }
 
 export function PageError({
@@ -10,14 +21,16 @@ export function PageError({
   onRetry?: () => void;
 }) {
   return (
-    <div className="nucleo-card" role="alert">
-      <p style={{ margin: "0 0 12px", color: "var(--nucleo-danger)" }}>{message}</p>
-      {onRetry && (
-        <button type="button" className="nucleo-btn nucleo-btn--secondary" onClick={onRetry}>
-          Reintentar
-        </button>
-      )}
-    </div>
+    <Alert color="red" title="Algo salió mal" variant="light" radius="md">
+      <Group justify="space-between" align="center" wrap="nowrap">
+        <Text size="sm">{message}</Text>
+        {onRetry && (
+          <Button variant="default" size="xs" onClick={onRetry}>
+            Reintentar
+          </Button>
+        )}
+      </Group>
+    </Alert>
   );
 }
 
