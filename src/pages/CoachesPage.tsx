@@ -8,13 +8,17 @@ import {
   Select,
   Table,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import {
   useCoachPayouts,
+  useCoachRequests,
+  useDecideCoachRequest,
   useGeneratePayout,
   useGymCoaches,
+  useInviteCoach,
   usePayPayout,
   useUpdateCoach,
 } from "../api/hooks";
@@ -34,6 +38,28 @@ export function CoachesPage() {
   const payouts = useCoachPayouts(gymId);
   const generate = useGeneratePayout(gymId);
   const payPayout = usePayPayout(gymId);
+  const requests = useCoachRequests(gymId);
+  const inviteCoach = useInviteCoach(gymId);
+  const decideRequest = useDecideCoachRequest(gymId);
+
+  const [invEmail, setInvEmail] = useState("");
+  const [invFirst, setInvFirst] = useState("");
+  const [invLast, setInvLast] = useState("");
+  const [invMsg, setInvMsg] = useState("");
+
+  const onInvite = async (e: FormEvent) => {
+    e.preventDefault();
+    setInvMsg("");
+    try {
+      await inviteCoach.mutateAsync({ email: invEmail.trim(), first_name: invFirst, last_name: invLast });
+      setInvEmail("");
+      setInvFirst("");
+      setInvLast("");
+      setInvMsg("Invitación enviada. El coach debe reclamar su cuenta y aceptar.");
+    } catch {
+      setInvMsg("No se pudo invitar (¿correo ya activo como coach?).");
+    }
+  };
 
   const today = new Date();
   const [from, setFrom] = useState<Date | null>(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -53,6 +79,94 @@ export function CoachesPage() {
         title="Coaches y pagos"
         subtitle="Define cómo se le paga a cada coach y genera las liquidaciones por periodo."
       />
+
+      <Card mb="lg">
+        <Title order={3} mb={4}>
+          Invitar coach
+        </Title>
+        <Text c="dimmed" size="sm" mb="md">
+          Le creamos su cuenta de Nucleo; el coach la reclama y acepta para quedar activo.
+        </Text>
+        <Group align="flex-end" component="form" onSubmit={onInvite} gap="md">
+          <TextInput
+            label="Correo"
+            type="email"
+            value={invEmail}
+            onChange={(e) => setInvEmail(e.currentTarget.value)}
+            w={240}
+            required
+          />
+          <TextInput label="Nombre" value={invFirst} onChange={(e) => setInvFirst(e.currentTarget.value)} w={140} />
+          <TextInput label="Apellido" value={invLast} onChange={(e) => setInvLast(e.currentTarget.value)} w={140} />
+          <Button type="submit" loading={inviteCoach.isPending} disabled={!invEmail.trim()}>
+            Invitar
+          </Button>
+        </Group>
+        {invMsg && (
+          <Text size="sm" mt="sm" c={invMsg.startsWith("No se pudo") ? "red" : "flame"}>
+            {invMsg}
+          </Text>
+        )}
+
+        <Title order={4} mt="lg" mb="xs">
+          Solicitudes de coaches
+        </Title>
+        {requests.isLoading ? (
+          <PageLoading />
+        ) : !(requests.data ?? []).length ? (
+          <Text c="dimmed" size="sm">
+            No hay solicitudes ni invitaciones pendientes.
+          </Text>
+        ) : (
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Coach</Table.Th>
+                <Table.Th>Origen</Table.Th>
+                <Table.Th>Acción</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {(requests.data ?? []).map((r) => (
+                <Table.Tr key={r.id}>
+                  <Table.Td>{r.user_email}</Table.Td>
+                  <Table.Td>
+                    <Badge variant="light" color={r.direction === "coach_apply" ? "blue" : "grape"}>
+                      {r.direction === "coach_apply" ? "Solicitó unirse" : "Invitación enviada"}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    {r.direction === "coach_apply" ? (
+                      <Group gap="xs">
+                        <Button
+                          size="xs"
+                          loading={decideRequest.isPending}
+                          onClick={() => decideRequest.mutate({ requestId: r.id, action: "approve" })}
+                        >
+                          Aprobar
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="default"
+                          color="red"
+                          loading={decideRequest.isPending}
+                          onClick={() => decideRequest.mutate({ requestId: r.id, action: "reject" })}
+                        >
+                          Rechazar
+                        </Button>
+                      </Group>
+                    ) : (
+                      <Text c="dimmed" size="sm">
+                        Esperando que el coach acepte
+                      </Text>
+                    )}
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        )}
+      </Card>
 
       <Card mb="lg">
         <Title order={3} mb="sm">

@@ -255,6 +255,18 @@ export interface Coach {
   is_active: boolean;
 }
 
+export interface CoachRequest {
+  id: string;
+  gym: string;
+  gym_name: string;
+  user: string;
+  user_email: string;
+  direction: "gym_invite" | "coach_apply";
+  status: "pending" | "accepted" | "rejected" | "cancelled";
+  message: string;
+  created_at: string;
+}
+
 export interface CoachPayout {
   id: string;
   coach: string;

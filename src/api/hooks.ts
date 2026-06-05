@@ -25,6 +25,7 @@ import {
   GymClub,
   Coach,
   CoachPayout,
+  CoachRequest,
   unwrapList,
 } from "./types";
 
@@ -431,6 +432,39 @@ export function usePayPayout(gymId: string) {
     mutationFn: async (payoutId: string) =>
       (await api.post(`/gym/${gymId}/coach-payouts/${payoutId}/pay`, {})).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["coach-payouts", gymId] }),
+  });
+}
+
+// --- Onboarding de coaches ---
+export function useInviteCoach(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { email: string; first_name?: string; last_name?: string; phone?: string }) =>
+      (await api.post<CoachRequest>(`/gym/${gymId}/coach-invitations`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["coach-requests", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-coaches", gymId] });
+    },
+  });
+}
+
+export function useCoachRequests(gymId: string, status = "pending") {
+  return useQuery({
+    queryKey: ["coach-requests", gymId, status],
+    queryFn: () => getList<CoachRequest>(`/gym/${gymId}/coach-requests?status=${status}`),
+    enabled: !!gymId,
+  });
+}
+
+export function useDecideCoachRequest(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ requestId, action }: { requestId: string; action: "approve" | "reject" }) =>
+      (await api.post(`/gym/${gymId}/coach-requests/${requestId}/${action}`, {})).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["coach-requests", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-coaches", gymId] });
+    },
   });
 }
 
