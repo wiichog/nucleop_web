@@ -536,8 +536,21 @@ export function useSetAthleteOfMonth(gymId: string) {
 export function usePostAnnouncement(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: { title: string; body: string; class_type?: string }) =>
-      (await api.post(`/gym/${gymId}/announcements`, body)).data,
+    mutationFn: async (input: {
+      title: string;
+      body: string;
+      class_type?: string;
+      photo?: File | null;
+      video?: File | null;
+    }) => {
+      const form = new FormData();
+      form.append("title", input.title);
+      form.append("body", input.body);
+      if (input.class_type) form.append("class_type", input.class_type);
+      if (input.photo) form.append("photo", input.photo);
+      if (input.video) form.append("video", input.video);
+      return (await api.post(`/gym/${gymId}/announcements`, form)).data;
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-feed", gymId] }),
   });
 }

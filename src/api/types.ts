@@ -52,6 +52,16 @@ export interface FeedItem {
   created_at: string;
   reaction_count: number;
   reacted_by_me: boolean;
+  reactions?: Record<string, number>;
+  comment_count?: number;
+  status?: string;
+  photo_url?: string | null;
+  media?: FeedMedia[];
+}
+
+export interface FeedMedia {
+  url: string;
+  kind: "image" | "video";
 }
 
 export interface ClubActivityAdmin {
@@ -300,6 +310,7 @@ export interface AthletePost {
   athlete_name: string;
   body: string;
   photo: string | null;
+  media?: FeedMedia[];
   status: "pending" | "approved" | "rejected";
   status_display: string;
   created_at: string;

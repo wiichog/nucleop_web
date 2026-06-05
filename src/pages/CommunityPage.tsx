@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Card,
+  FileInput,
   Grid,
   Group,
   Select,
@@ -28,6 +29,23 @@ import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+
+const REACTION_EMOJI: Record<string, string> = {
+  like: "👍",
+  love: "❤️",
+  haha: "😂",
+  wow: "😮",
+  sad: "😢",
+  angry: "😡",
+};
+
+function reactionSummary(reactions?: Record<string, number>): string {
+  if (!reactions) return "";
+  return Object.entries(reactions)
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, n]) => `${REACTION_EMOJI[type] ?? "•"} ${n}`)
+    .join("  ");
+}
 
 const KIND_LABEL: Record<string, string> = {
   pr: "PR",
@@ -54,6 +72,8 @@ export function CommunityPage() {
   const [annTitle, setAnnTitle] = useState("");
   const [annBody, setAnnBody] = useState("");
   const [annClass, setAnnClass] = useState<string | null>("");
+  const [annPhoto, setAnnPhoto] = useState<File | null>(null);
+  const [annVideo, setAnnVideo] = useState<File | null>(null);
 
   const classTypes = useMemo(() => {
     const set = new Set<string>();
@@ -71,10 +91,18 @@ export function CommunityPage() {
 
   const onPost = async (event: FormEvent) => {
     event.preventDefault();
-    await postAnnouncement.mutateAsync({ title: annTitle, body: annBody, class_type: annClass || undefined });
+    await postAnnouncement.mutateAsync({
+      title: annTitle,
+      body: annBody,
+      class_type: annClass || undefined,
+      photo: annPhoto,
+      video: annVideo,
+    });
     setAnnTitle("");
     setAnnBody("");
     setAnnClass("");
+    setAnnPhoto(null);
+    setAnnVideo(null);
   };
 
   if (!gymId) return <NoGymAssigned />;
@@ -160,6 +188,31 @@ export function CommunityPage() {
                 autosize
                 minRows={3}
               />
+              <Group grow align="flex-start">
+                <FileInput
+                  label="Foto (opcional)"
+                  placeholder="Subir imagen"
+                  accept="image/*"
+                  clearable
+                  value={annPhoto}
+                  onChange={setAnnPhoto}
+                />
+                <FileInput
+                  label="Video (opcional)"
+                  placeholder="Subir video"
+                  accept="video/*"
+                  clearable
+                  value={annVideo}
+                  onChange={setAnnVideo}
+                />
+              </Group>
+              {annPhoto && (
+                <img
+                  src={URL.createObjectURL(annPhoto)}
+                  alt="vista previa"
+                  style={{ maxWidth: 200, borderRadius: 8 }}
+                />
+              )}
               <Button type="submit" loading={postAnnouncement.isPending} disabled={!annTitle || !annBody}>
                 Publicar anuncio
               </Button>
@@ -191,9 +244,20 @@ export function CommunityPage() {
                   {p.athlete_name} · {new Date(p.created_at).toLocaleString("es-GT")}
                 </Text>
                 {p.body && <Text size="sm">{p.body}</Text>}
-                {p.photo && (
-                  <img src={p.photo} alt="post" style={{ maxWidth: 280, borderRadius: 8, marginTop: 8 }} />
-                )}
+                <Group gap="xs" mt={8}>
+                  {(p.media && p.media.length
+                    ? p.media
+                    : p.photo
+                      ? [{ url: p.photo, kind: "image" as const }]
+                      : []
+                  ).map((m, i) =>
+                    m.kind === "video" ? (
+                      <video key={i} src={m.url} controls style={{ maxWidth: 280, borderRadius: 8 }} />
+                    ) : (
+                      <img key={i} src={m.url} alt="post" style={{ maxWidth: 280, borderRadius: 8 }} />
+                    ),
+                  )}
+                </Group>
                 <Group gap="xs" mt="sm">
                   <Button size="xs" loading={decidePost.isPending} onClick={() => decidePost.mutate({ postId: p.id, action: "approve" })}>
                     Aprobar
@@ -227,9 +291,21 @@ export function CommunityPage() {
                   <Text fw={600}>{item.title}</Text>
                 </Group>
                 <Text size="sm">{item.body}</Text>
+                {(item.media ?? []).length > 0 && (
+                  <Group gap="xs" mt={6}>
+                    {(item.media ?? []).map((m, i) =>
+                      m.kind === "video" ? (
+                        <video key={i} src={m.url} controls style={{ maxWidth: 240, borderRadius: 8 }} />
+                      ) : (
+                        <img key={i} src={m.url} alt="media" style={{ maxWidth: 240, borderRadius: 8 }} />
+                      ),
+                    )}
+                  </Group>
+                )}
                 <Text c="dimmed" size="xs" mt={2}>
                   {item.actor_name} · {new Date(item.created_at).toLocaleString("es-GT")}
-                  {item.reaction_count > 0 ? ` · ♥ ${item.reaction_count}` : ""}
+                  {item.reaction_count > 0 ? ` · ${reactionSummary(item.reactions) || `♥ ${item.reaction_count}`}` : ""}
+                  {item.comment_count ? ` · 💬 ${item.comment_count}` : ""}
                 </Text>
               </Box>
             ))}
