@@ -43,7 +43,7 @@ function reactionSummary(reactions?: Record<string, number>): string {
   if (!reactions) return "";
   return Object.entries(reactions)
     .sort((a, b) => b[1] - a[1])
-    .map(([type, n]) => `${REACTION_EMOJI[type] ?? "•"} ${n}`)
+    .map(([type, n]) => `${REACTION_EMOJI[type] ?? type} ${n}`)
     .join("  ");
 }
 
