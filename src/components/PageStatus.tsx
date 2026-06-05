@@ -1,10 +1,13 @@
-import { Alert, Button, Center, Group, Loader, Stack, Text } from "@mantine/core";
+import { Alert, Button, Center, Group, Stack, Text } from "@mantine/core";
+import { AtomLogo } from "../landing/AtomLogo";
 
 export function PageLoading({ label = "Cargando…" }: { label?: string }) {
   return (
     <Center mih={160}>
-      <Stack align="center" gap="xs">
-        <Loader color="flame" />
+      <Stack align="center" gap="sm">
+        <div className="atom-loader">
+          <AtomLogo size={46} pulse />
+        </div>
         <Text c="dimmed" size="sm">
           {label}
         </Text>

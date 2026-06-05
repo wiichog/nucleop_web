@@ -71,3 +71,10 @@
       drop-shadow(0 0 48px rgba(252, 76, 2, 0.35));
   }
 }
+
+/* Loader de marca: el átomo de Nucleo respira (usado en PageLoading). */
+@keyframes atom-loader-pulse {
+  0%, 100% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+.atom-loader { animation: atom-loader-pulse 1.2s ease-in-out infinite; }
