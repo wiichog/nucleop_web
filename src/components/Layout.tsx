@@ -30,6 +30,7 @@ import {
   ScrollText,
   Tag,
   TrendingDown,
+  UserCog,
   Zap,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -54,6 +55,7 @@ const GROUPS: NavGroup[] = [
       { to: "/panel", label: "Dashboard", icon: LayoutDashboard, end: true },
       { to: "/panel/retencion", label: "Retención y morosidad", icon: Zap },
       { to: "/panel/clases", label: "Clases", icon: CalendarDays },
+      { to: "/panel/coaches", label: "Coaches y pagos", icon: UserCog },
       { to: "/panel/pagos", label: "Pagos", icon: CreditCard },
       { to: "/panel/tickets", label: "Reportes / tickets", icon: LifeBuoy },
       { to: "/panel/actividad", label: "Actividad", icon: ScrollText },

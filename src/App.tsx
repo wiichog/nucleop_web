@@ -10,6 +10,7 @@ import { PaymentsPage } from "./pages/PaymentsPage";
 import { PlansPage } from "./pages/PlansPage";
 import { RequestsPage } from "./pages/RequestsPage";
 import { ClassesPage } from "./pages/ClassesPage";
+import { CoachesPage } from "./pages/CoachesPage";
 import { AuditPage } from "./pages/AuditPage";
 import { PasswordResetConfirmPage } from "./pages/PasswordResetConfirmPage";
 import { PlatformGymsPage } from "./pages/PlatformGymsPage";
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="servicios" element={<ServicesPage />} />
         <Route path="solicitudes" element={<RequestsPage />} />
         <Route path="clases" element={<ClassesPage />} />
+        <Route path="coaches" element={<CoachesPage />} />
         <Route path="comunidad" element={<CommunityPage />} />
         <Route path="tickets" element={<TicketsPage />} />
         <Route path="clubes" element={<ClubsPage />} />

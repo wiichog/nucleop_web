@@ -23,6 +23,8 @@ import {
   ErpPnl,
   ErpBranch,
   GymClub,
+  Coach,
+  CoachPayout,
   unwrapList,
 } from "./types";
 
@@ -350,8 +352,85 @@ export function useCreateRecurringClasses(gymId: string) {
       from_date: string;
       to_date?: string;
       open_ended?: boolean;
+      coach_id?: string | null;
+      branch_id?: string | null;
+      assignment_lead_min?: number;
     }) => (await api.post(`/gym/${gymId}/classes/recurring`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-classes", gymId] }),
+  });
+}
+
+export function useUpdateClass(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      classId,
+      body,
+    }: {
+      classId: string;
+      body: Partial<{
+        coach: string | null;
+        assignment_lead_min: number;
+        pay_extra: boolean;
+        extra_amount: string | number;
+        branch: string | null;
+      }>;
+    }) => (await api.patch(`/gym/${gymId}/classes/${classId}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-classes", gymId] }),
+  });
+}
+
+// --- Coaches y liquidaciones ---
+export function useGymCoaches(gymId: string) {
+  return useQuery({
+    queryKey: ["gym-coaches", gymId],
+    queryFn: () => getList<Coach>(`/gym/${gymId}/coaches`),
+    enabled: !!gymId,
+  });
+}
+
+export function useUpdateCoach(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      staffId,
+      body,
+    }: {
+      staffId: string;
+      body: Partial<{
+        pay_type: "per_class" | "fixed";
+        per_class_rate: string | number;
+        fixed_amount: string | number;
+        is_active: boolean;
+      }>;
+    }) => (await api.patch(`/gym/${gymId}/coaches/${staffId}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-coaches", gymId] }),
+  });
+}
+
+export function useCoachPayouts(gymId: string) {
+  return useQuery({
+    queryKey: ["coach-payouts", gymId],
+    queryFn: () => getList<CoachPayout>(`/gym/${gymId}/coach-payouts`),
+    enabled: !!gymId,
+  });
+}
+
+export function useGeneratePayout(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { period_start: string; period_end: string; coach_id?: string | null }) =>
+      (await api.post(`/gym/${gymId}/coach-payouts/generate`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["coach-payouts", gymId] }),
+  });
+}
+
+export function usePayPayout(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payoutId: string) =>
+      (await api.post(`/gym/${gymId}/coach-payouts/${payoutId}/pay`, {})).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["coach-payouts", gymId] }),
   });
 }
 

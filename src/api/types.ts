@@ -245,6 +245,42 @@ export interface ErpBranch {
   created_at: string;
 }
 
+export interface Coach {
+  id: string;
+  staff_role: string;
+  email: string;
+  pay_type: "per_class" | "fixed";
+  per_class_rate: string;
+  fixed_amount: string;
+  is_active: boolean;
+}
+
+export interface CoachPayout {
+  id: string;
+  coach: string;
+  coach_email: string;
+  period_start: string;
+  period_end: string;
+  total: string;
+  status: "open" | "paid";
+  paid_at: string | null;
+  earnings_count: number;
+  created_at: string;
+}
+
+/** Campos extra de GymClass añadidos por el sprint de coaches (no aún en el schema generado). */
+export interface ClassCoachFields {
+  coach: string | null;
+  coach_name: string | null;
+  branch: string | null;
+  assignment_lead_min: number;
+  assignment_deadline_at: string | null;
+  is_past_assignment_deadline: boolean;
+  needs_coach: boolean;
+  pay_extra: boolean;
+  extra_amount: string;
+}
+
 export interface ErpRevenueLine {
   line: string;
   label: string;
