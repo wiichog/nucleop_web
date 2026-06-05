@@ -240,9 +240,14 @@ export function CommunityPage() {
           <Stack gap="sm">
             {(pendingPosts.data ?? []).map((p) => (
               <Box key={p.id} p="sm" style={{ border: "1px solid var(--mantine-color-dark-5)", borderRadius: 8 }}>
-                <Text size="xs" c="dimmed" mb={2}>
-                  {p.athlete_name} · {new Date(p.created_at).toLocaleString("es-GT")}
-                </Text>
+                <Group gap={6} mb={2}>
+                  <Badge size="xs" variant="light" color={p.author_type === "coach" ? "grape" : "flame"}>
+                    {p.author_type === "coach" ? "Coach" : "Atleta"}
+                  </Badge>
+                  <Text size="xs" c="dimmed">
+                    {p.author_name ?? p.athlete_name} · {new Date(p.created_at).toLocaleString("es-GT")}
+                  </Text>
+                </Group>
                 {p.body && <Text size="sm">{p.body}</Text>}
                 <Group gap="xs" mt={8}>
                   {(p.media && p.media.length

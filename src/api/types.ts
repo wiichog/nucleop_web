@@ -356,6 +356,8 @@ export interface AthletePost {
   gym: string;
   athlete: string;
   athlete_name: string;
+  author_name?: string;
+  author_type?: "athlete" | "coach";
   body: string;
   photo: string | null;
   media?: FeedMedia[];
