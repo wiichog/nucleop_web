@@ -293,6 +293,87 @@ export interface ClassCoachFields {
   needs_coach: boolean;
   pay_extra: boolean;
   extra_amount: string;
+  // Fase servicios/horarios/WOD:
+  service_type: string | null;
+  service_type_name: string | null;
+  color: string;
+  schedule: string | null;
+  needs_wod: boolean;
+}
+
+export type ScoreType =
+  | "none"
+  | "for_time"
+  | "amrap"
+  | "rounds_reps"
+  | "load"
+  | "emom"
+  | "points";
+
+export interface ServiceType {
+  id: string;
+  name: string;
+  color: string;
+  icon: string;
+  description: string;
+  requires_wod: boolean;
+  default_score_type: ScoreType;
+  default_duration_min: number;
+  default_capacity: number;
+  default_level: string;
+  included_in_plan: boolean;
+  default_cost: string;
+  is_active: boolean;
+}
+
+export interface ClassSchedule {
+  id: string;
+  branch: string | null;
+  service_type: string;
+  service_type_name: string;
+  color: string;
+  requires_wod: boolean;
+  weekday: number;
+  start_time: string; // HH:MM[:SS]
+  duration_min: number;
+  capacity: number;
+  level: string;
+  cost: string;
+  included_in_plan: boolean;
+  default_coach: string | null;
+  assignment_lead_min: number;
+  valid_from: string;
+  valid_until: string | null;
+  is_open_ended: boolean;
+  is_active: boolean;
+}
+
+export interface Wod {
+  id: string;
+  service_type: string | null;
+  service_type_name: string;
+  date: string;
+  title: string;
+  description: string;
+  score_type: ScoreType;
+  time_cap_min: number | null;
+  movements: unknown;
+  published: boolean;
+  results_count: number;
+}
+
+export interface WodResult {
+  id: string;
+  wod: string;
+  gym_class: string | null;
+  athlete: string;
+  athlete_name: string;
+  raw_score: string;
+  score_value: string;
+  scaling: "rx" | "scaled" | "foundations";
+  notes: string;
+  rank?: number;
+  created_at: string;
 }
 
 export interface ErpRevenueLine {

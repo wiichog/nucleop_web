@@ -26,6 +26,10 @@ import {
   Coach,
   CoachPayout,
   CoachRequest,
+  ServiceType,
+  ClassSchedule,
+  Wod,
+  WodResult,
   unwrapList,
 } from "./types";
 
@@ -381,6 +385,127 @@ export function useUpdateClass(gymId: string) {
   });
 }
 
+// --- Servicios / tipos de clase (catálogo) ---
+export function useServiceTypes(gymId: string) {
+  return useQuery({
+    queryKey: ["service-types", gymId],
+    queryFn: () => getList<ServiceType>(`/gym/${gymId}/service-types`),
+    enabled: !!gymId,
+  });
+}
+
+export function useCreateServiceType(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: Partial<ServiceType>) =>
+      (await api.post<ServiceType>(`/gym/${gymId}/service-types`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["service-types", gymId] }),
+  });
+}
+
+export function useUpdateServiceType(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: Partial<ServiceType> }) =>
+      (await api.patch<ServiceType>(`/gym/${gymId}/service-types/${id}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["service-types", gymId] }),
+  });
+}
+
+// --- Horario semanal (plantillas) ---
+export function useSchedules(gymId: string) {
+  return useQuery({
+    queryKey: ["schedules", gymId],
+    queryFn: () => getList<ClassSchedule>(`/gym/${gymId}/schedules`),
+    enabled: !!gymId,
+  });
+}
+
+export function useCreateSchedule(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: Partial<ClassSchedule>) =>
+      (await api.post<ClassSchedule>(`/gym/${gymId}/schedules`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["schedules", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-classes", gymId] });
+    },
+  });
+}
+
+export function useDeleteSchedule(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      (await api.delete(`/gym/${gymId}/schedules/${id}`)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["schedules", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-classes", gymId] });
+    },
+  });
+}
+
+export function useMaterializeSchedules(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      (await api.post<{ materialized: number }>(`/gym/${gymId}/schedules/materialize`, {})).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-classes", gymId] }),
+  });
+}
+
+// --- WOD y board ---
+export function useWods(gymId: string, date?: string) {
+  const q = date ? `?date=${date}` : "";
+  return useQuery({
+    queryKey: ["wods", gymId, date ?? ""],
+    queryFn: () => getList<Wod>(`/gym/${gymId}/wods${q}`),
+    enabled: !!gymId,
+  });
+}
+
+export function useCreateWod(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: Partial<Wod>) =>
+      (await api.post<Wod>(`/gym/${gymId}/wods`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["wods", gymId] }),
+  });
+}
+
+export function useUpdateWod(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: Partial<Wod> }) =>
+      (await api.patch<Wod>(`/gym/${gymId}/wods/${id}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["wods", gymId] }),
+  });
+}
+
+export function useWodBoard(gymId: string, wodId: string, classId?: string) {
+  const q = classId ? `?class_id=${classId}` : "";
+  return useQuery({
+    queryKey: ["wod-board", gymId, wodId, classId ?? ""],
+    queryFn: async () =>
+      (await api.get<WodResult[]>(`/gym/${gymId}/wods/${wodId}/results${q}`)).data,
+    enabled: !!gymId && !!wodId,
+  });
+}
+
+export function useAddWodResult(gymId: string, wodId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      athlete_id: string;
+      raw_score: string;
+      scaling: string;
+      gym_class_id?: string | null;
+      notes?: string;
+    }) => (await api.post<WodResult>(`/gym/${gymId}/wods/${wodId}/results`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["wod-board", gymId, wodId] }),
+  });
+}
+
 // --- Coaches y liquidaciones ---
 export function useGymCoaches(gymId: string) {
   return useQuery({
@@ -580,6 +705,26 @@ export function useUpdatePlatformGym() {
       };
     }) => (await api.patch<GymAdmin>(`/gym/${gymId}`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-gyms"] }),
+  });
+}
+
+/** Config editable del gym por su propio admin (ej. reservas de clases futuras). */
+type GymConfig = GymAdmin & { allow_future_reservations?: boolean };
+
+export function useGymConfig(gymId: string) {
+  return useQuery({
+    queryKey: ["gym-config", gymId],
+    queryFn: async () => (await api.get<GymConfig>(`/gym/${gymId}`)).data,
+    enabled: !!gymId,
+  });
+}
+
+export function useUpdateGymConfig(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { allow_future_reservations: boolean }) =>
+      (await api.patch<GymConfig>(`/gym/${gymId}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-config", gymId] }),
   });
 }
 
