@@ -429,6 +429,15 @@ export function useCancelClass(gymId: string) {
   });
 }
 
+export function useDeleteClass(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (classId: string) =>
+      (await api.delete(`/gym/${gymId}/classes/${classId}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-classes", gymId] }),
+  });
+}
+
 // --- Servicios / tipos de clase (catálogo) ---
 export function useServiceTypes(gymId: string) {
   return useQuery({

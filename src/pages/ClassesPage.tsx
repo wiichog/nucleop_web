@@ -28,6 +28,7 @@ import {
   useCreateSchedule,
   useCreateServiceType,
   useCreateWod,
+  useDeleteClass,
   useDeleteSchedule,
   useDeleteServiceType,
   useDeleteWod,
@@ -553,7 +554,14 @@ function ClassesTab({ gymId }: { gymId: string }) {
   const coaches = useGymCoaches(gymId);
   const updateClass = useUpdateClass(gymId);
   const cancelClass = useCancelClass(gymId);
+  const deleteClass = useDeleteClass(gymId);
   const config = useGymConfig(gymId);
+
+  const onDeleteClass = (gymClass: ClassRow) => {
+    if (!window.confirm(`¿Eliminar la clase "${gymClass.class_type}" del ${new Date(gymClass.starts_at).toLocaleString("es-GT")}?`))
+      return;
+    deleteClass.mutate(gymClass.id);
+  };
   const updateConfig = useUpdateGymConfig(gymId);
   const allowFuture = config.data?.allow_future_reservations ?? true;
   const [selectedClassId, setSelectedClassId] = useState("");
@@ -690,14 +698,23 @@ function ClassesTab({ gymId }: { gymId: string }) {
                   {gymClass.status !== "cancelled" && (
                     <Button
                       variant="subtle"
-                      color="red"
+                      color="orange"
                       size="xs"
-                      loading={cancelClass.isPending}
+                      loading={cancelClass.isPending && cancelClass.variables === gymClass.id}
                       onClick={() => cancelClass.mutate(gymClass.id)}
                     >
                       Cancelar
                     </Button>
                   )}
+                  <Button
+                    variant="subtle"
+                    color="red"
+                    size="xs"
+                    loading={deleteClass.isPending && deleteClass.variables === gymClass.id}
+                    onClick={() => onDeleteClass(gymClass)}
+                  >
+                    Eliminar
+                  </Button>
                 </Group>
               ),
             },
