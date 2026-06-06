@@ -18,7 +18,7 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
+import { DatePickerInput, TimeInput } from "@mantine/dates";
 import { AxiosError } from "axios";
 import {
   useAddWodResult,
@@ -169,11 +169,11 @@ function ServicesTab({ gymId }: { gymId: string }) {
         <Text c="dimmed" size="sm" mb="md">
           Ej.: CrossFit, Functional, Hybrid, Open Gym. Define una vez y reutilízalo en el horario.
         </Text>
-        <Group align="flex-end" gap="md">
-          <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} w={200} required />
-          <ColorInput label="Color" value={color} onChange={setColor} w={150} format="hex" />
-          <NumberInput label="Min. por defecto" value={duration} onChange={setDuration} w={130} min={15} max={300} />
-          <NumberInput label="Cupo por defecto" value={capacity} onChange={setCapacity} w={130} min={1} max={200} />
+        <Group align="flex-end" gap="md" grow>
+          <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
+          <ColorInput label="Color" value={color} onChange={setColor} format="hex" />
+          <NumberInput label="Min. por defecto" value={duration} onChange={setDuration} min={15} max={300} />
+          <NumberInput label="Cupo por defecto" value={capacity} onChange={setCapacity} min={1} max={200} />
         </Group>
         <Group align="flex-end" gap="md" mt="md">
           <Switch
@@ -187,10 +187,10 @@ function ServicesTab({ gymId }: { gymId: string }) {
               data={SCORE_TYPES.filter((s) => s.value !== "none")}
               value={scoreType}
               onChange={(v) => setScoreType((v as ScoreType) ?? "for_time")}
-              w={260}
+              style={{ flex: 1 }}
             />
           )}
-          <Button type="submit" loading={create.isPending}>
+          <Button type="submit" loading={create.isPending} ml="auto">
             Crear servicio
           </Button>
         </Group>
@@ -270,7 +270,7 @@ function ScheduleTab({ gymId }: { gymId: string }) {
     [services.data],
   );
   const coachOptions = useMemo(
-    () => (coaches.data ?? []).map((c) => ({ value: c.staff_role, label: c.email })),
+    () => (coaches.data ?? []).map((c) => ({ value: c.staff_role, label: c.name || c.email })),
     [coaches.data],
   );
 
@@ -307,30 +307,28 @@ function ScheduleTab({ gymId }: { gymId: string }) {
         <Text c="dimmed" size="sm" mb="md">
           Ej.: CrossFit 6:00 lun–vie. Se materializan las próximas semanas automáticamente; sin fecha de fin se repite siempre.
         </Text>
-        <Group align="flex-end" gap="md">
+        <Group align="flex-end" gap="md" grow>
           <Select
             label="Servicio"
             placeholder={serviceOptions.length ? "Selecciona" : "Crea un servicio primero"}
             data={serviceOptions}
             value={serviceId}
             onChange={setServiceId}
-            w={200}
             searchable
             required
           />
-          <TextInput label="Hora" type="time" value={startTime} onChange={(e) => setStartTime(e.currentTarget.value)} w={120} />
-          <NumberInput label="Minutos" value={duration} onChange={setDuration} w={100} min={15} max={300} />
-          <NumberInput label="Cupo" value={capacity} onChange={setCapacity} w={90} min={1} max={200} />
-          <Select label="Coach" placeholder="Sin asignar" clearable searchable value={coachId} onChange={setCoachId} data={coachOptions} w={200} />
+          <TimeInput label="Hora" value={startTime} onChange={(e) => setStartTime(e.currentTarget.value)} />
+          <NumberInput label="Minutos" value={duration} onChange={setDuration} min={15} max={300} />
+          <NumberInput label="Cupo" value={capacity} onChange={setCapacity} min={1} max={200} />
+          <Select label="Coach" placeholder="Sin asignar" clearable searchable value={coachId} onChange={setCoachId} data={coachOptions} />
         </Group>
 
-        <Group gap="xs" my="md">
+        <Group gap="xs" my="md" grow>
           {WEEKDAYS.map((d) => {
             const active = weekdays.includes(d.value);
             return (
               <Button
                 key={d.value}
-                size="xs"
                 variant={active ? "filled" : "default"}
                 color="flame"
                 onClick={() =>
@@ -344,10 +342,10 @@ function ScheduleTab({ gymId }: { gymId: string }) {
         </Group>
 
         <Group align="flex-end" gap="md">
-          <DatePickerInput label="Desde" value={fromDate} onChange={setFromDate} valueFormat="YYYY-MM-DD" />
-          <DatePickerInput label="Hasta" value={toDate} onChange={setToDate} valueFormat="YYYY-MM-DD" disabled={openEnded} />
+          <DatePickerInput label="Desde" value={fromDate} onChange={setFromDate} valueFormat="YYYY-MM-DD" style={{ flex: 1 }} />
+          <DatePickerInput label="Hasta" value={toDate} onChange={setToDate} valueFormat="YYYY-MM-DD" disabled={openEnded} style={{ flex: 1 }} />
           <Switch label="Sin fecha de fin" checked={openEnded} onChange={(e) => setOpenEnded(e.currentTarget.checked)} />
-          <Button type="submit" loading={create.isPending} disabled={!serviceId || !weekdays.length}>
+          <Button type="submit" loading={create.isPending} disabled={!serviceId || !weekdays.length} ml="auto">
             Agregar
           </Button>
         </Group>
@@ -447,7 +445,7 @@ function ClassesTab({ gymId }: { gymId: string }) {
   const reception = useReceptionCheckin(gymId, selectedClassId);
 
   const coachOptions = useMemo(
-    () => (coaches.data ?? []).map((c) => ({ value: c.staff_role, label: c.email })),
+    () => (coaches.data ?? []).map((c) => ({ value: c.staff_role, label: c.name || c.email })),
     [coaches.data],
   );
   const coachName = (staffId: string | null) =>
@@ -683,7 +681,7 @@ function WodTab({ gymId }: { gymId: string }) {
         <Text c="dimmed" size="sm" mb="md">
           Un WOD por servicio y fecha; lo comparten todas las clases de ese día. Publícalo para que los atletas lo vean.
         </Text>
-        <Group align="flex-end" gap="md">
+        <Group align="flex-end" gap="md" grow>
           <DatePickerInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" />
           <Select
             label="Servicio (track)"
@@ -696,15 +694,13 @@ function WodTab({ gymId }: { gymId: string }) {
               const svc = wodServices.find((s) => s.id === v);
               if (svc && svc.default_score_type !== "none") setScoreType(svc.default_score_type);
             }}
-            w={180}
           />
-          <TextInput label="Título" placeholder="Fran" value={title} onChange={(e) => setTitle(e.currentTarget.value)} w={200} required />
+          <TextInput label="Título" placeholder="Fran" value={title} onChange={(e) => setTitle(e.currentTarget.value)} required />
           <Select
             label="Tipo de score"
             data={SCORE_TYPES.filter((s) => s.value !== "none")}
             value={scoreType}
             onChange={(v) => setScoreType((v as ScoreType) ?? "for_time")}
-            w={240}
           />
         </Group>
         <Textarea
@@ -896,7 +892,7 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
   );
 }
 
-type CoachOpt = { staff_role: string; email: string; pay_type: "per_class" | "fixed" };
+type CoachOpt = { staff_role: string; name: string; email: string; pay_type: "per_class" | "fixed" };
 
 function AssignCoachModal({
   gymClass,
@@ -959,7 +955,7 @@ function AssignCoachModal({
         searchable
         value={coach}
         onChange={setCoach}
-        data={coaches.map((c) => ({ value: c.staff_role, label: c.email }))}
+        data={coaches.map((c) => ({ value: c.staff_role, label: c.name || c.email }))}
         mb="sm"
       />
       <NumberInput
