@@ -76,6 +76,16 @@ export function DashboardPage() {
           </SimpleGrid>
 
           <Text c="dimmed" mb="xs">
+            Entrenamiento (periodo)
+          </Text>
+          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md" mb="lg">
+            <Kpi label="WODs publicados" value={d.wods_publicados ?? 0} tone="flame" />
+            <Kpi label="Resultados de WOD" value={d.resultados_wod ?? 0} />
+            <Kpi label="Nuevos PRs" value={d.prs_nuevos ?? 0} />
+            <Kpi label="Servicios activos" value={d.servicios_activos ?? 0} />
+          </SimpleGrid>
+
+          <Text c="dimmed" mb="xs">
             Estado actual del gimnasio
           </Text>
           <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mb="lg">

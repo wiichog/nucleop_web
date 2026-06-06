@@ -1,6 +1,7 @@
 import { Button, Card, SimpleGrid, Table, Text } from "@mantine/core";
-import { Download } from "lucide-react";
-import { useAtRisk, useOverdue } from "../api/hooks";
+import { notifications } from "@mantine/notifications";
+import { Bell, Download } from "lucide-react";
+import { useAtRisk, useOverdue, useSendReminder } from "../api/hooks";
 import { NoGymAssigned } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
@@ -13,6 +14,26 @@ export function RetentionPage() {
   const gymId = primaryGymId ?? "";
   const atRisk = useAtRisk(gymId);
   const overdue = useOverdue(gymId);
+  const sendReminder = useSendReminder(gymId);
+
+  const remind = (m: Membership) =>
+    sendReminder.mutate(
+      { membershipId: m.id },
+      {
+        onSuccess: () =>
+          notifications.show({
+            color: "teal",
+            title: "Recordatorio enviado",
+            message: `Se notificó a ${m.athlete_name} sobre su pago.`,
+          }),
+        onError: () =>
+          notifications.show({
+            color: "red",
+            title: "No se pudo enviar",
+            message: "Intenta de nuevo en un momento.",
+          }),
+      },
+    );
 
   if (!gymId) return <NoGymAssigned />;
 
@@ -52,13 +73,25 @@ export function RetentionPage() {
           <Text fw={600} mb="sm">
             Atletas en riesgo
           </Text>
-          <RelationTable rows={atRisk.data ?? []} empty="Nadie en riesgo. 💪" tone="orange" />
+          <RelationTable
+            rows={atRisk.data ?? []}
+            empty="Nadie en riesgo. 💪"
+            tone="orange"
+            onRemind={remind}
+            reminding={sendReminder.isPending}
+          />
         </Card>
         <Card>
           <Text fw={600} mb="sm">
             Morosidad
           </Text>
-          <RelationTable rows={overdue.data ?? []} empty="Sin morosos." tone="red" />
+          <RelationTable
+            rows={overdue.data ?? []}
+            empty="Sin morosos."
+            tone="red"
+            onRemind={remind}
+            reminding={sendReminder.isPending}
+          />
         </Card>
       </SimpleGrid>
     </div>
@@ -69,10 +102,14 @@ function RelationTable({
   rows,
   empty,
   tone,
+  onRemind,
+  reminding,
 }: {
   rows: Membership[];
   empty: string;
   tone: "orange" | "red";
+  onRemind: (m: Membership) => void;
+  reminding: boolean;
 }) {
   if (!rows.length)
     return (
@@ -87,6 +124,7 @@ function RelationTable({
           <Table.Th>Atleta</Table.Th>
           <Table.Th>Estado</Table.Th>
           <Table.Th>Cuota</Table.Th>
+          <Table.Th />
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
@@ -99,6 +137,17 @@ function RelationTable({
               </Text>
             </Table.Td>
             <Table.Td>Q{m.effective_fee ?? "—"}</Table.Td>
+            <Table.Td>
+              <Button
+                variant="light"
+                size="xs"
+                leftSection={<Bell size={14} />}
+                loading={reminding}
+                onClick={() => onRemind(m)}
+              >
+                Recordar
+              </Button>
+            </Table.Td>
           </Table.Tr>
         ))}
       </Table.Tbody>

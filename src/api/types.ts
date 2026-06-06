@@ -137,6 +137,10 @@ export interface Dashboard {
   atletas_activos: number;
   morosos: number;
   proximos_vencimientos: number;
+  wods_publicados: number;
+  resultados_wod: number;
+  prs_nuevos: number;
+  servicios_activos: number;
   clases_mas_demandadas: { class_type: string; reservas: number }[];
 }
 

@@ -776,6 +776,15 @@ function WodTab({ gymId }: { gymId: string }) {
                         Board
                       </Button>
                       <Button
+                        variant={w.is_benchmark ? "filled" : "default"}
+                        color="grape"
+                        size="xs"
+                        loading={update.isPending}
+                        onClick={() => update.mutate({ id: w.id, body: { is_benchmark: !w.is_benchmark } })}
+                      >
+                        {w.is_benchmark ? "Benchmark ✓" : "Benchmark"}
+                      </Button>
+                      <Button
                         variant="default"
                         size="xs"
                         loading={update.isPending}
@@ -799,7 +808,9 @@ function WodTab({ gymId }: { gymId: string }) {
 
 function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; onClose: () => void }) {
   const memberships = useMemberships(gymId);
-  const board = useWodBoard(gymId, wod?.id ?? "");
+  const classes = useGymClasses(gymId);
+  const [classId, setClassId] = useState<string | null>(null);
+  const board = useWodBoard(gymId, wod?.id ?? "", classId ?? undefined);
   const addResult = useAddWodResult(gymId, wod?.id ?? "");
   const [athleteId, setAthleteId] = useState<string | null>(null);
   const [score, setScore] = useState("");
@@ -810,12 +821,30 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
     .filter((m) => !!m.status && ["active", "trial"].includes(m.status))
     .map((m) => ({ value: m.athlete, label: m.athlete_name }));
 
+  // Clases del mismo día y servicio que el WOD: permiten ver el board por clase.
+  const classOptions = ((classes.data ?? []) as (GymClass & ClassCoachFields)[])
+    .filter(
+      (c) =>
+        wod &&
+        c.starts_at.slice(0, 10) === wod.date &&
+        (!wod.service_type || c.service_type === wod.service_type),
+    )
+    .map((c) => ({
+      value: c.id,
+      label: new Date(c.starts_at).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" }),
+    }));
+
   const add = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
     if (!athleteId || !score.trim()) return;
     try {
-      await addResult.mutateAsync({ athlete_id: athleteId, raw_score: score.trim(), scaling });
+      await addResult.mutateAsync({
+        athlete_id: athleteId,
+        raw_score: score.trim(),
+        scaling,
+        gym_class_id: classId,
+      });
       setScore("");
     } catch (err) {
       const detail = (err as AxiosError<{ detail?: string }>).response?.data?.detail;
@@ -851,6 +880,18 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
         <Text c="red" size="sm" mb="sm">
           {error}
         </Text>
+      )}
+      {classOptions.length > 1 && (
+        <Select
+          label="Board por clase"
+          placeholder="Todas las clases del día"
+          clearable
+          data={classOptions}
+          value={classId}
+          onChange={setClassId}
+          w={240}
+          mb="sm"
+        />
       )}
       {board.isLoading ? (
         <PageLoading />
