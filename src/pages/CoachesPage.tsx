@@ -13,6 +13,7 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useCoachRequests,
   useDecideCoachRequest,
@@ -20,10 +21,10 @@ import {
   useInviteCoach,
 } from "../api/hooks";
 import type { Coach } from "../api/types";
-import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { sortRecords } from "../lib/sortRecords";
 
 const money = (v: string | number) => `Q${Number(v).toFixed(2)}`;
 
@@ -42,6 +43,11 @@ export function CoachesPage() {
   const [invLast, setInvLast] = useState("");
   const [invMsg, setInvMsg] = useState("");
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
+  const [search, setSearch] = useState("");
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<Coach>>({
+    columnAccessor: "name",
+    direction: "asc",
+  });
 
   const onInvite = async (e: FormEvent) => {
     e.preventDefault();
@@ -155,61 +161,76 @@ export function CoachesPage() {
       </Card>
 
       <Card>
-        <Title order={3} mb="sm">
-          Coaches del gimnasio
-        </Title>
-        {coaches.isLoading ? (
-          <PageLoading />
-        ) : !(coaches.data ?? []).length ? (
-          <EmptyState title="Sin coaches" description="Invita al primer coach del gimnasio." />
-        ) : (
-          <Table.ScrollContainer minWidth={520}>
-            <Table verticalSpacing="sm">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Coach</Table.Th>
-                  <Table.Th>Forma de pago</Table.Th>
-                  <Table.Th>Estado</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {(coaches.data ?? []).map((c) => (
-                  <Table.Tr
-                    key={c.staff_role}
-                    onClick={() => setSelectedCoach(c)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <Table.Td>
-                      <Group gap="sm" wrap="nowrap">
-                        <Avatar src={c.photo} radius="xl" size={38} color="flame">
-                          {(c.name || c.email).slice(0, 1).toUpperCase()}
-                        </Avatar>
-                        <div>
-                          <Text fw={600} size="sm">
-                            {c.name || c.email}
-                          </Text>
-                          <Text c="dimmed" size="xs">
-                            {c.email}
-                          </Text>
-                        </div>
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge variant="light" color={c.pay_type === "fixed" ? "grape" : "blue"}>
-                        {c.pay_type === "fixed" ? "Salario fijo" : "Por clase"}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge variant="light" color={c.is_active ? "teal" : "gray"}>
-                        {c.is_active ? "Activo" : "Inactivo"}
-                      </Badge>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
+        <Group justify="space-between" mb="sm">
+          <Title order={3}>Coaches del gimnasio</Title>
+          <TextInput
+            placeholder="Buscar coach…"
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+            w={240}
+          />
+        </Group>
+        <DataTable<Coach>
+          minHeight={160}
+          highlightOnHover
+          striped
+          idAccessor="staff_role"
+          records={sortRecords(
+            (coaches.data ?? []).filter(
+              (c) =>
+                !search.trim() ||
+                (c.name || c.email).toLowerCase().includes(search.trim().toLowerCase()),
+            ),
+            sortStatus,
+          )}
+          fetching={coaches.isLoading}
+          noRecordsText="Sin coaches. Invita al primer coach del gimnasio."
+          sortStatus={sortStatus}
+          onSortStatusChange={setSortStatus}
+          onRowClick={({ record }) => setSelectedCoach(record)}
+          columns={[
+            {
+              accessor: "name",
+              title: "Coach",
+              sortable: true,
+              render: (c) => (
+                <Group gap="sm" wrap="nowrap">
+                  <Avatar src={c.photo} radius="xl" size={38} color="flame">
+                    {(c.name || c.email).slice(0, 1).toUpperCase()}
+                  </Avatar>
+                  <div>
+                    <Text fw={600} size="sm">
+                      {c.name || c.email}
+                    </Text>
+                    <Text c="dimmed" size="xs">
+                      {c.email}
+                    </Text>
+                  </div>
+                </Group>
+              ),
+            },
+            {
+              accessor: "pay_type",
+              title: "Forma de pago",
+              sortable: true,
+              render: (c) => (
+                <Badge variant="light" color={c.pay_type === "fixed" ? "grape" : "blue"}>
+                  {c.pay_type === "fixed" ? "Salario fijo" : "Por clase"}
+                </Badge>
+              ),
+            },
+            {
+              accessor: "is_active",
+              title: "Estado",
+              sortable: true,
+              render: (c) => (
+                <Badge variant="light" color={c.is_active ? "teal" : "gray"}>
+                  {c.is_active ? "Activo" : "Inactivo"}
+                </Badge>
+              ),
+            },
+          ]}
+        />
         <Text c="dimmed" size="xs" mt="sm">
           Toca un coach para ver su perfil. La tarifa y las liquidaciones se gestionan en Negocio → Pagos a coaches.
         </Text>

@@ -6,18 +6,19 @@ import {
   Grid,
   Group,
   Select,
-  Table,
   Text,
   TextInput,
   Title,
 } from "@mantine/core";
+import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import { Download, Paperclip } from "lucide-react";
 import { useGymPayments, useMemberships, useRegisterManualPayment } from "../api/hooks";
-import { EmptyState } from "../components/EmptyState";
+import type { Payment } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
+import { sortRecords } from "../lib/sortRecords";
 import {
   FEL_STATUS,
   MEMBERSHIP_STATUS,
@@ -37,6 +38,11 @@ export function PaymentsPage() {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"cash" | "bank_transfer">("cash");
   const [proofFile, setProofFile] = useState<File | null>(null);
+  const [search, setSearch] = useState("");
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<Payment>>({
+    columnAccessor: "created_at",
+    direction: "desc",
+  });
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -53,6 +59,18 @@ export function PaymentsPage() {
 
   if (!gymId) return <NoGymAssigned />;
   if (payments.isError) return <PageError onRetry={() => payments.refetch()} />;
+
+  const q = search.trim().toLowerCase();
+  const rows = sortRecords(
+    (payments.data ?? []).filter(
+      (p) =>
+        !q ||
+        (p.concept ?? "").toLowerCase().includes(q) ||
+        label(PAYMENT_METHOD, p.method).toLowerCase().includes(q) ||
+        label(PAYMENT_TX_STATUS, p.status).toLowerCase().includes(q),
+    ),
+    sortStatus,
+  );
 
   return (
     <div>
@@ -143,39 +161,52 @@ export function PaymentsPage() {
                 Exportar CSV
               </Button>
             </Group>
-            {!payments.data?.length ? (
-              <EmptyState
-                title="Sin pagos registrados"
-                description="Los pagos con tarjeta y manuales aparecerán aquí."
-              />
-            ) : (
-              <Table.ScrollContainer minWidth={620}>
-                <Table>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Fecha</Table.Th>
-                      <Table.Th>Concepto</Table.Th>
-                      <Table.Th>Monto</Table.Th>
-                      <Table.Th>Método</Table.Th>
-                      <Table.Th>Estado</Table.Th>
-                      <Table.Th>Factura (FEL)</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {(payments.data ?? []).map((p) => (
-                      <Table.Tr key={p.id}>
-                        <Table.Td>{new Date(p.created_at).toLocaleDateString("es-GT")}</Table.Td>
-                        <Table.Td>{p.concept}</Table.Td>
-                        <Table.Td>Q{p.amount}</Table.Td>
-                        <Table.Td>{label(PAYMENT_METHOD, p.method)}</Table.Td>
-                        <Table.Td>{label(PAYMENT_TX_STATUS, p.status)}</Table.Td>
-                        <Table.Td>{label(FEL_STATUS, p.fel_status)}</Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </Table.ScrollContainer>
-            )}
+            <TextInput
+              placeholder="Buscar por concepto, método o estado…"
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              mb="md"
+              w={300}
+            />
+            <DataTable<Payment>
+              minHeight={160}
+              highlightOnHover
+              striped
+              records={rows}
+              fetching={payments.isLoading}
+              idAccessor="id"
+              noRecordsText="Los pagos con tarjeta y manuales aparecerán aquí."
+              sortStatus={sortStatus}
+              onSortStatusChange={setSortStatus}
+              columns={[
+                {
+                  accessor: "created_at",
+                  title: "Fecha",
+                  sortable: true,
+                  render: (p) => new Date(p.created_at).toLocaleDateString("es-GT"),
+                },
+                { accessor: "concept", title: "Concepto", sortable: true },
+                { accessor: "amount", title: "Monto", sortable: true, render: (p) => `Q${p.amount}` },
+                {
+                  accessor: "method",
+                  title: "Método",
+                  sortable: true,
+                  render: (p) => label(PAYMENT_METHOD, p.method),
+                },
+                {
+                  accessor: "status",
+                  title: "Estado",
+                  sortable: true,
+                  render: (p) => label(PAYMENT_TX_STATUS, p.status),
+                },
+                {
+                  accessor: "fel_status",
+                  title: "Factura (FEL)",
+                  sortable: true,
+                  render: (p) => label(FEL_STATUS, p.fel_status),
+                },
+              ]}
+            />
           </Card>
         </Grid.Col>
       </Grid>

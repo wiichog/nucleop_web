@@ -16,6 +16,7 @@ import {
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
+import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import { Bell, Download, KeyRound, Mail, Smartphone } from "lucide-react";
 import {
   useAtRisk,
@@ -26,12 +27,13 @@ import {
   useResetAthletePassword,
   useSendReminder,
 } from "../api/hooks";
-import { EmptyState } from "../components/EmptyState";
-import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
+import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
 import { MEMBERSHIP_STATUS, PAYMENT_STATUS, label } from "../lib/labels";
+import { sortRecords } from "../lib/sortRecords";
+import type { Membership } from "../api/types";
 
 const STATUS_COLOR: Record<string, string> = {
   active: "teal",
@@ -77,6 +79,11 @@ export function AthletesPage() {
   const leaveDecision = useGymLeaveDecision(gymId);
   const atRisk = useAtRisk(gymId);
   const [filtro, setFiltro] = useState("todos");
+  const [search, setSearch] = useState("");
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<Membership>>({
+    columnAccessor: "athlete_name",
+    direction: "asc",
+  });
 
   const [edit, setEdit] = useState({ first_name: "", last_name: "", birth_date: "", ec_name: "", ec_phone: "", ec_relation: "" });
   useEffect(() => {
@@ -144,12 +151,16 @@ export function AthletesPage() {
 
   // Retención y morosidad vive aquí: filtra el padrón por estado de pago / riesgo.
   const atRiskIds = new Set((atRisk.data ?? []).map((m) => m.id));
-  const rows = (data ?? []).filter((m) => {
-    if (filtro === "morosos") return m.payment_status === "overdue";
-    if (filtro === "por_vencer") return m.payment_status === "due_soon";
-    if (filtro === "en_riesgo") return atRiskIds.has(m.id);
+  const q = search.trim().toLowerCase();
+  const filtered = (data ?? []).filter((m) => {
+    if (filtro === "morosos" && m.payment_status !== "overdue") return false;
+    if (filtro === "por_vencer" && m.payment_status !== "due_soon") return false;
+    if (filtro === "en_riesgo" && !atRiskIds.has(m.id)) return false;
+    if (q && !(m.athlete_name ?? "").toLowerCase().includes(q) && !(m.plan_name ?? "").toLowerCase().includes(q))
+      return false;
     return true;
   });
+  const rows = sortRecords(filtered, sortStatus);
 
   return (
     <div>
@@ -182,123 +193,127 @@ export function AthletesPage() {
       />
 
       <Group justify="space-between" mb="md" wrap="wrap">
-        <SegmentedControl
-          value={filtro}
-          onChange={setFiltro}
-          data={[
-            { label: "Todos", value: "todos" },
-            { label: `Morosos`, value: "morosos" },
-            { label: "Por vencer", value: "por_vencer" },
-            { label: "En riesgo", value: "en_riesgo" },
-          ]}
-        />
+        <Group gap="sm" wrap="wrap">
+          <SegmentedControl
+            value={filtro}
+            onChange={setFiltro}
+            data={[
+              { label: "Todos", value: "todos" },
+              { label: `Morosos`, value: "morosos" },
+              { label: "Por vencer", value: "por_vencer" },
+              { label: "En riesgo", value: "en_riesgo" },
+            ]}
+          />
+          <TextInput
+            placeholder="Buscar atleta o plan…"
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+            w={240}
+          />
+        </Group>
         <Text c="dimmed" size="sm">
           {rows.length} {rows.length === 1 ? "atleta" : "atletas"}
         </Text>
       </Group>
 
       <Card>
-        {isLoading ? (
-          <PageLoading />
-        ) : !rows.length ? (
-          <EmptyState
-            title="Sin atletas"
-            description={
-              filtro === "todos"
-                ? "Aprueba solicitudes o invita atletas al gym."
-                : "Ningún atleta en este segmento. 💪"
-            }
-          />
-        ) : (
-          <Table.ScrollContainer minWidth={760}>
-            <Table highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Atleta</Table.Th>
-                  <Table.Th>Estado</Table.Th>
-                  <Table.Th>Plan</Table.Th>
-                  <Table.Th>Miembro desde</Table.Th>
-                  <Table.Th>Vencimiento</Table.Th>
-                  <Table.Th>Puntos</Table.Th>
-                  <Table.Th>Acciones</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {rows.map((m) => (
-                  <Table.Tr key={m.id}>
-                    <Table.Td>
-                      <Group gap="sm" wrap="nowrap">
-                        <Avatar src={m.athlete_photo} color="flame" radius="xl" size={36}>
-                          {m.athlete_name?.[0]?.toUpperCase()}
-                        </Avatar>
-                        <Text size="sm">{m.athlete_name}</Text>
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color={STATUS_COLOR[m.status ?? ""] ?? "gray"} variant="light">
-                        {label(MEMBERSHIP_STATUS, m.status)}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>{m.plan_name ?? "—"}</Table.Td>
-                    <Table.Td>
-                      {m.start_date ? new Date(m.start_date).toLocaleDateString("es-GT") : "—"}
-                    </Table.Td>
-                    <Table.Td>
-                      <DueBadge days={m.days_to_due} date={m.renewal_date} />
-                    </Table.Td>
-                    <Table.Td>{m.community_points}</Table.Td>
-                    <Table.Td>
-                      <Group gap="xs" wrap="nowrap">
-                        <Button variant="default" size="xs" onClick={() => setSelectedMembershipId(m.id)}>
-                          Ver detalle
+        <DataTable<Membership>
+          minHeight={180}
+          highlightOnHover
+          striped
+          records={rows}
+          fetching={isLoading}
+          idAccessor="id"
+          noRecordsText={
+            filtro === "todos" ? "Aprueba solicitudes o invita atletas al gym." : "Ningún atleta en este segmento. 💪"
+          }
+          sortStatus={sortStatus}
+          onSortStatusChange={setSortStatus}
+          columns={[
+            {
+              accessor: "athlete_name",
+              title: "Atleta",
+              sortable: true,
+              render: (m) => (
+                <Group gap="sm" wrap="nowrap">
+                  <Avatar src={m.athlete_photo} color="flame" radius="xl" size={36}>
+                    {m.athlete_name?.[0]?.toUpperCase()}
+                  </Avatar>
+                  <Text size="sm">{m.athlete_name}</Text>
+                </Group>
+              ),
+            },
+            {
+              accessor: "status",
+              title: "Estado",
+              sortable: true,
+              render: (m) => (
+                <Badge color={STATUS_COLOR[m.status ?? ""] ?? "gray"} variant="light">
+                  {label(MEMBERSHIP_STATUS, m.status)}
+                </Badge>
+              ),
+            },
+            { accessor: "plan_name", title: "Plan", sortable: true, render: (m) => m.plan_name ?? "—" },
+            {
+              accessor: "start_date",
+              title: "Miembro desde",
+              sortable: true,
+              render: (m) => (m.start_date ? new Date(m.start_date).toLocaleDateString("es-GT") : "—"),
+            },
+            {
+              accessor: "days_to_due",
+              title: "Vencimiento",
+              sortable: true,
+              render: (m) => <DueBadge days={m.days_to_due} date={m.renewal_date} />,
+            },
+            { accessor: "community_points", title: "Puntos", sortable: true, render: (m) => m.community_points },
+            {
+              accessor: "actions",
+              title: "Acciones",
+              render: (m) => (
+                <Group gap="xs" wrap="nowrap">
+                  <Button variant="default" size="xs" onClick={() => setSelectedMembershipId(m.id)}>
+                    Ver detalle
+                  </Button>
+                  <Menu shadow="md" position="bottom-start" withinPortal>
+                    <Menu.Target>
+                      <Button variant="light" size="xs" leftSection={<Bell size={14} />} loading={sendReminder.isPending}>
+                        Recordatorio
+                      </Button>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Label>Enviar por</Menu.Label>
+                      <Menu.Item leftSection={<Smartphone size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "push")}>
+                        Notificación push
+                      </Menu.Item>
+                      <Menu.Item leftSection={<Mail size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "email")}>
+                        Correo
+                      </Menu.Item>
+                      <Menu.Item leftSection={<Bell size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "both")}>
+                        Ambos
+                      </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                  {(m.status as string) === "pending_leave" &&
+                    (m.leave_initiated_by === "athlete" ? (
+                      <>
+                        <Button size="xs" color="red" loading={leaveDecision.isPending} onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "approve" })}>
+                          Confirmar baja
                         </Button>
-                        <Menu shadow="md" position="bottom-start" withinPortal>
-                          <Menu.Target>
-                            <Button
-                              variant="light"
-                              size="xs"
-                              leftSection={<Bell size={14} />}
-                              loading={sendReminder.isPending}
-                            >
-                              Recordatorio
-                            </Button>
-                          </Menu.Target>
-                          <Menu.Dropdown>
-                            <Menu.Label>Enviar por</Menu.Label>
-                            <Menu.Item leftSection={<Smartphone size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "push")}>
-                              Notificación push
-                            </Menu.Item>
-                            <Menu.Item leftSection={<Mail size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "email")}>
-                              Correo
-                            </Menu.Item>
-                            <Menu.Item leftSection={<Bell size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "both")}>
-                              Ambos
-                            </Menu.Item>
-                          </Menu.Dropdown>
-                        </Menu>
-                        {(m.status as string) === "pending_leave" &&
-                          (m.leave_initiated_by === "athlete" ? (
-                            <>
-                              <Button size="xs" color="red" loading={leaveDecision.isPending} onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "approve" })}>
-                                Confirmar baja
-                              </Button>
-                              <Button size="xs" variant="default" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
-                                Cancelar
-                              </Button>
-                            </>
-                          ) : (
-                            <Button size="xs" variant="default" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
-                              Cancelar baja propuesta
-                            </Button>
-                          ))}
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
+                        <Button size="xs" variant="default" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
+                          Cancelar
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="xs" variant="default" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
+                        Cancelar baja propuesta
+                      </Button>
+                    ))}
+                </Group>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       {detail.data && (
