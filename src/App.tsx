@@ -11,6 +11,7 @@ import { PlansPage } from "./pages/PlansPage";
 import { RequestsPage } from "./pages/RequestsPage";
 import { ClassesPage } from "./pages/ClassesPage";
 import { CoachesPage } from "./pages/CoachesPage";
+import { CoachPayrollPage } from "./pages/CoachPayrollPage";
 import { AuditPage } from "./pages/AuditPage";
 import { PasswordResetConfirmPage } from "./pages/PasswordResetConfirmPage";
 import { PlatformGymsPage } from "./pages/PlatformGymsPage";
@@ -63,6 +64,7 @@ export default function App() {
         <Route path="solicitudes" element={<RequestsPage />} />
         <Route path="clases" element={<ClassesPage />} />
         <Route path="coaches" element={<CoachesPage />} />
+        <Route path="coaches-pagos" element={<CoachPayrollPage />} />
         <Route path="comunidad" element={<CommunityPage />} />
         <Route path="tickets" element={<TicketsPage />} />
         <Route path="clubes" element={<ClubsPage />} />

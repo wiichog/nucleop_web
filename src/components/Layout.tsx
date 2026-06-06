@@ -27,10 +27,10 @@ import {
   LifeBuoy,
   Package,
   Receipt,
-  ScrollText,
   Tag,
   TrendingDown,
   UserCog,
+  Wallet,
   Zap,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -55,10 +55,8 @@ const GROUPS: NavGroup[] = [
       { to: "/panel", label: "Dashboard", icon: LayoutDashboard, end: true },
       { to: "/panel/retencion", label: "Retención y morosidad", icon: Zap },
       { to: "/panel/clases", label: "Clases", icon: CalendarDays },
-      { to: "/panel/coaches", label: "Coaches y pagos", icon: UserCog },
-      { to: "/panel/pagos", label: "Pagos", icon: CreditCard },
+      { to: "/panel/coaches", label: "Coaches", icon: UserCog },
       { to: "/panel/tickets", label: "Reportes / tickets", icon: LifeBuoy },
-      { to: "/panel/actividad", label: "Actividad", icon: ScrollText },
     ],
   },
   {
@@ -80,6 +78,8 @@ const GROUPS: NavGroup[] = [
   {
     title: "Negocio (ERP)",
     items: [
+      { to: "/panel/pagos", label: "Pagos", icon: CreditCard },
+      { to: "/panel/coaches-pagos", label: "Pagos a coaches", icon: Wallet },
       { to: "/panel/inventario", label: "Inventario", icon: Package },
       { to: "/panel/pos", label: "Punto de venta", icon: Receipt },
       { to: "/panel/gastos", label: "Gastos", icon: TrendingDown },
