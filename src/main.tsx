@@ -13,6 +13,7 @@ import "./index.css";
 import "@mantine/core/styles.css";
 import "@mantine/dates/styles.css";
 import "@mantine/notifications/styles.css";
+import "mantine-datatable/styles.css";
 import "./lib/theme.css";
 
 const queryClient = new QueryClient();

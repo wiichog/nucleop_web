@@ -19,6 +19,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { DatePickerInput, TimeInput } from "@mantine/dates";
+import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import { AxiosError } from "axios";
 import {
   useAddWodResult,
@@ -59,6 +60,7 @@ import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus"
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { CLASS_STATUS, label } from "../lib/labels";
+import { sortRecords } from "../lib/sortRecords";
 
 const WEEKDAYS = [
   { value: "0", label: "Lun" },
@@ -138,6 +140,7 @@ function ServicesTab({ gymId }: { gymId: string }) {
   const create = useCreateServiceType(gymId);
   const update = useUpdateServiceType(gymId);
   const remove = useDeleteServiceType(gymId);
+  const [editing, setEditing] = useState<ServiceType | null>(null);
 
   const onDelete = (id: string, sname: string) => {
     if (!window.confirm(`¿Eliminar el servicio "${sname}"? Sus horarios quedarán sin servicio.`)) return;
@@ -234,9 +237,14 @@ function ServicesTab({ gymId }: { gymId: string }) {
                     />
                   </Table.Td>
                   <Table.Td>
-                    <Button variant="light" color="red" size="xs" onClick={() => onDelete(s.id, s.name)}>
-                      Eliminar
-                    </Button>
+                    <Group gap="xs" wrap="nowrap">
+                      <Button variant="default" size="xs" onClick={() => setEditing(s)}>
+                        Editar
+                      </Button>
+                      <Button variant="light" color="red" size="xs" onClick={() => onDelete(s.id, s.name)}>
+                        Eliminar
+                      </Button>
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -244,7 +252,83 @@ function ServicesTab({ gymId }: { gymId: string }) {
           </Table>
         )}
       </Card>
+
+      <EditServiceTypeModal
+        service={editing}
+        saving={update.isPending}
+        onClose={() => setEditing(null)}
+        onSave={async (body) => {
+          if (!editing) return;
+          await update.mutateAsync({ id: editing.id, body });
+          setEditing(null);
+        }}
+      />
     </>
+  );
+}
+
+function EditServiceTypeModal({
+  service,
+  saving,
+  onClose,
+  onSave,
+}: {
+  service: ServiceType | null;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (body: Partial<ServiceType>) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState("#1B7FA6");
+  const [requiresWod, setRequiresWod] = useState(false);
+  const [duration, setDuration] = useState<number | string>(60);
+  const [capacity, setCapacity] = useState<number | string>(20);
+  const [hydratedFor, setHydratedFor] = useState<string | null>(null);
+
+  if (service && hydratedFor !== service.id) {
+    setHydratedFor(service.id);
+    setName(service.name);
+    setColor(service.color || "#1B7FA6");
+    setRequiresWod(service.requires_wod);
+    setDuration(service.default_duration_min ?? 60);
+    setCapacity(service.default_capacity ?? 20);
+  }
+
+  return (
+    <Modal opened={!!service} onClose={onClose} title="Editar servicio" centered>
+      <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} mb="sm" />
+      <ColorInput label="Color" value={color} onChange={setColor} format="hex" mb="sm" />
+      <Group grow mb="sm">
+        <NumberInput label="Min. por defecto" value={duration} onChange={setDuration} min={15} max={300} />
+        <NumberInput label="Cupo por defecto" value={capacity} onChange={setCapacity} min={1} max={200} />
+      </Group>
+      <Switch
+        label="Requiere rutina"
+        checked={requiresWod}
+        onChange={(e) => setRequiresWod(e.currentTarget.checked)}
+        mb="md"
+      />
+      <Group justify="flex-end">
+        <Button variant="default" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button
+          disabled={!name}
+          loading={saving}
+          onClick={() =>
+            onSave({
+              name,
+              color,
+              requires_wod: requiresWod,
+              default_duration_min: Number(duration),
+              default_capacity: Number(capacity),
+            })
+          }
+        >
+          Guardar
+        </Button>
+      </Group>
+    </Modal>
   );
 }
 
@@ -475,9 +559,25 @@ function ClassesTab({ gymId }: { gymId: string }) {
   const coachName = (staffId: string | null) =>
     coachOptions.find((o) => o.value === staffId)?.label ?? null;
 
+  const [search, setSearch] = useState("");
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ClassRow>>({
+    columnAccessor: "starts_at",
+    direction: "asc",
+  });
+
   if (classes.isError) return <PageError onRetry={() => classes.refetch()} />;
 
-  const rows = (classes.data ?? []) as ClassRow[];
+  const all = (classes.data ?? []) as ClassRow[];
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? all.filter(
+        (c) =>
+          c.class_type.toLowerCase().includes(q) ||
+          (c.coach_name ?? coachName(c.coach ?? null) ?? "").toLowerCase().includes(q) ||
+          label(CLASS_STATUS, c.status).toLowerCase().includes(q),
+      )
+    : all;
+  const rows = sortRecords(filtered, sortStatus);
 
   return (
     <>
@@ -504,79 +604,95 @@ function ClassesTab({ gymId }: { gymId: string }) {
       </Card>
 
       <Card>
-        {classes.isLoading ? (
-          <PageLoading />
-        ) : !rows.length ? (
-          <EmptyState title="Sin clases" description="Arma el horario y genera las clases del calendario." />
-        ) : (
-          <Table.ScrollContainer minWidth={760}>
-            <Table>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Clase</Table.Th>
-                  <Table.Th>Fecha</Table.Th>
-                  <Table.Th>Coach</Table.Th>
-                  <Table.Th>Cupo</Table.Th>
-                  <Table.Th>Estado</Table.Th>
-                  <Table.Th>Acciones</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {rows.map((gymClass) => {
-                  const vencido = gymClass.is_past_assignment_deadline;
-                  return (
-                    <Table.Tr key={gymClass.id}>
-                      <Table.Td>
-                        <Group gap="xs">
-                          {gymClass.color && (
-                            <span style={{ width: 10, height: 10, borderRadius: 3, background: gymClass.color }} />
-                          )}
-                          {gymClass.class_type}
-                          {gymClass.needs_wod && <Badge size="xs" color="flame">Rutina</Badge>}
-                        </Group>
-                      </Table.Td>
-                      <Table.Td>{new Date(gymClass.starts_at).toLocaleString("es-GT")}</Table.Td>
-                      <Table.Td>
-                        {gymClass.coach ? (
-                          <Text size="sm">{gymClass.coach_name ?? coachName(gymClass.coach)}</Text>
-                        ) : (
-                          <Badge color={vencido ? "red" : "yellow"} variant="light">
-                            {vencido ? "Sin coach (vencido)" : "Sin asignar"}
-                          </Badge>
-                        )}
-                      </Table.Td>
-                      <Table.Td>
-                        {gymClass.reserved_count}/{gymClass.capacity}
-                      </Table.Td>
-                      <Table.Td>{label(CLASS_STATUS, gymClass.status)}</Table.Td>
-                      <Table.Td>
-                        <Group gap="xs">
-                          <Button variant="light" size="xs" onClick={() => setEditing(gymClass)}>
-                            Coach
-                          </Button>
-                          <Button variant="default" size="xs" onClick={() => setSelectedClassId(gymClass.id)}>
-                            Asistencia
-                          </Button>
-                          {gymClass.status !== "cancelled" && (
-                            <Button
-                              variant="subtle"
-                              color="red"
-                              size="xs"
-                              loading={cancelClass.isPending}
-                              onClick={() => cancelClass.mutate(gymClass.id)}
-                            >
-                              Cancelar
-                            </Button>
-                          )}
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                  );
-                })}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
+        <TextInput
+          placeholder="Buscar por clase, coach o estado…"
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          mb="md"
+          w={320}
+        />
+        <DataTable<ClassRow>
+          minHeight={160}
+          highlightOnHover
+          striped
+          records={rows}
+          fetching={classes.isLoading}
+          noRecordsText="Sin clases. Arma el horario y genera las clases del calendario."
+          sortStatus={sortStatus}
+          onSortStatusChange={setSortStatus}
+          idAccessor="id"
+          columns={[
+            {
+              accessor: "class_type",
+              title: "Clase",
+              sortable: true,
+              render: (gymClass) => (
+                <Group gap="xs">
+                  {gymClass.color && (
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: gymClass.color }} />
+                  )}
+                  {gymClass.class_type}
+                  {gymClass.needs_wod && <Badge size="xs" color="flame">Rutina</Badge>}
+                </Group>
+              ),
+            },
+            {
+              accessor: "starts_at",
+              title: "Fecha",
+              sortable: true,
+              render: (gymClass) => new Date(gymClass.starts_at).toLocaleString("es-GT"),
+            },
+            {
+              accessor: "coach",
+              title: "Coach",
+              render: (gymClass) =>
+                gymClass.coach ? (
+                  <Text size="sm">{gymClass.coach_name ?? coachName(gymClass.coach)}</Text>
+                ) : (
+                  <Badge color={gymClass.is_past_assignment_deadline ? "red" : "yellow"} variant="light">
+                    {gymClass.is_past_assignment_deadline ? "Sin coach (vencido)" : "Sin asignar"}
+                  </Badge>
+                ),
+            },
+            {
+              accessor: "capacity",
+              title: "Cupo",
+              sortable: true,
+              render: (gymClass) => `${gymClass.reserved_count}/${gymClass.capacity}`,
+            },
+            {
+              accessor: "status",
+              title: "Estado",
+              sortable: true,
+              render: (gymClass) => label(CLASS_STATUS, gymClass.status),
+            },
+            {
+              accessor: "actions",
+              title: "Acciones",
+              render: (gymClass) => (
+                <Group gap="xs">
+                  <Button variant="light" size="xs" onClick={() => setEditing(gymClass)}>
+                    Coach
+                  </Button>
+                  <Button variant="default" size="xs" onClick={() => setSelectedClassId(gymClass.id)}>
+                    Asistencia
+                  </Button>
+                  {gymClass.status !== "cancelled" && (
+                    <Button
+                      variant="subtle"
+                      color="red"
+                      size="xs"
+                      loading={cancelClass.isPending}
+                      onClick={() => cancelClass.mutate(gymClass.id)}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
+                </Group>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       <AssignCoachModal
