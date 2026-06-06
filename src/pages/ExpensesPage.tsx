@@ -1,11 +1,13 @@
 import { FormEvent, useState } from "react";
-import { Button, Card, Group, Select, Table, TextInput, Title } from "@mantine/core";
+import { Button, Card, Group, Select, TextInput, Title } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
+import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import { useCreateErpExpense, useErpExpenses } from "../api/hooks";
-import { EmptyState } from "../components/EmptyState";
-import { NoGymAssigned, PageLoading } from "../components/PageStatus";
+import type { ErpExpense } from "../api/types";
+import { NoGymAssigned } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { sortRecords } from "../lib/sortRecords";
 
 const CATEGORIES = [
   { value: "rent", label: "Renta" },
@@ -27,6 +29,11 @@ export function ExpensesPage() {
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState<Date | null>(new Date());
+  const [search, setSearch] = useState("");
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ErpExpense>>({
+    columnAccessor: "incurred_on",
+    direction: "desc",
+  });
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -61,32 +68,40 @@ export function ExpensesPage() {
       </Card>
 
       <Card>
-        {isLoading ? (
-          <PageLoading />
-        ) : !(data ?? []).length ? (
-          <EmptyState title="Sin gastos" description="Registra los costos del gym para ver tu utilidad real." />
-        ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Fecha</Table.Th>
-                <Table.Th>Categoría</Table.Th>
-                <Table.Th>Descripción</Table.Th>
-                <Table.Th>Monto</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {(data ?? []).map((e) => (
-                <Table.Tr key={e.id}>
-                  <Table.Td>{e.incurred_on}</Table.Td>
-                  <Table.Td>{e.category}</Table.Td>
-                  <Table.Td>{e.description || "—"}</Table.Td>
-                  <Table.Td>Q{e.amount}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        )}
+        <TextInput
+          placeholder="Buscar por descripción o categoría…"
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          mb="md"
+          w={300}
+        />
+        <DataTable<ErpExpense>
+          minHeight={160}
+          highlightOnHover
+          striped
+          idAccessor="id"
+          records={sortRecords(
+            (data ?? []).filter((e) => {
+              const term = search.trim().toLowerCase();
+              return (
+                !term ||
+                (e.description ?? "").toLowerCase().includes(term) ||
+                e.category.toLowerCase().includes(term)
+              );
+            }),
+            sortStatus,
+          )}
+          fetching={isLoading}
+          noRecordsText="Registra los costos del gym para ver tu utilidad real."
+          sortStatus={sortStatus}
+          onSortStatusChange={setSortStatus}
+          columns={[
+            { accessor: "incurred_on", title: "Fecha", sortable: true },
+            { accessor: "category", title: "Categoría", sortable: true },
+            { accessor: "description", title: "Descripción", sortable: true, render: (e) => e.description || "—" },
+            { accessor: "amount", title: "Monto", sortable: true, render: (e) => `Q${e.amount}` },
+          ]}
+        />
       </Card>
     </div>
   );

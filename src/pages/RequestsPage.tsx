@@ -5,13 +5,13 @@ import {
   Group,
   SimpleGrid,
   Stack,
-  Table,
   Text,
   TextInput,
   Select,
   Title,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
+import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useAssignPlan,
   useDecideJoinRequest,
@@ -21,10 +21,10 @@ import {
   usePlans,
 } from "../api/hooks";
 import { JoinRequest } from "../api/types";
-import { EmptyState } from "../components/EmptyState";
-import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
+import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { sortRecords } from "../lib/sortRecords";
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
 
@@ -118,6 +118,11 @@ export function RequestsPage() {
   const [form, setForm] = useState({ email: "", first_name: "", last_name: "", phone: "" });
   const [trialStart, setTrialStart] = useState<Date | null>(null);
   const [trialEnd, setTrialEnd] = useState<Date | null>(null);
+  const [search, setSearch] = useState("");
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<JoinRequest>>({
+    columnAccessor: "athlete_name",
+    direction: "asc",
+  });
 
   if (!gymId) return <NoGymAssigned />;
   if (requests.isError) return <PageError onRetry={() => requests.refetch()} />;
@@ -167,36 +172,39 @@ export function RequestsPage() {
       </Card>
 
       <Card>
-        {requests.isLoading ? (
-          <PageLoading />
-        ) : !(requests.data ?? []).length ? (
-          <EmptyState title="Sin solicitudes" description="Las nuevas solicitudes de unión aparecerán aquí." />
-        ) : (
-          <Table.ScrollContainer minWidth={720}>
-            <Table verticalSpacing="md">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Atleta</Table.Th>
-                  <Table.Th>Estado</Table.Th>
-                  <Table.Th>Objetivo</Table.Th>
-                  <Table.Th>Acciones</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {(requests.data ?? []).map((request) => (
-                  <Table.Tr key={request.id}>
-                    <Table.Td>{request.athlete_name}</Table.Td>
-                    <Table.Td>{request.status}</Table.Td>
-                    <Table.Td>{request.goal || "—"}</Table.Td>
-                    <Table.Td>
-                      <RequestActions request={request} gymId={gymId} />
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
+        <TextInput
+          placeholder="Buscar atleta…"
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          mb="md"
+          w={260}
+        />
+        <DataTable<JoinRequest>
+          minHeight={160}
+          highlightOnHover
+          verticalSpacing="md"
+          idAccessor="id"
+          records={sortRecords(
+            (requests.data ?? []).filter(
+              (r) => !search.trim() || (r.athlete_name ?? "").toLowerCase().includes(search.trim().toLowerCase()),
+            ),
+            sortStatus,
+          )}
+          fetching={requests.isLoading}
+          noRecordsText="Las nuevas solicitudes de unión aparecerán aquí."
+          sortStatus={sortStatus}
+          onSortStatusChange={setSortStatus}
+          columns={[
+            { accessor: "athlete_name", title: "Atleta", sortable: true },
+            { accessor: "status", title: "Estado", sortable: true },
+            { accessor: "goal", title: "Objetivo", render: (r) => r.goal || "—" },
+            {
+              accessor: "actions",
+              title: "Acciones",
+              render: (request) => <RequestActions request={request} gymId={gymId} />,
+            },
+          ]}
+        />
       </Card>
     </div>
   );

@@ -6,12 +6,12 @@ import {
   Modal,
   NumberInput,
   Select,
-  Table,
   Text,
   TextInput,
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useCreateErpMovement,
   useCreateErpProduct,
@@ -20,10 +20,10 @@ import {
   useUpdateErpProduct,
 } from "../api/hooks";
 import type { ErpProduct } from "../api/types";
-import { EmptyState } from "../components/EmptyState";
-import { NoGymAssigned, PageLoading } from "../components/PageStatus";
+import { NoGymAssigned } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { sortRecords } from "../lib/sortRecords";
 
 const CATEGORIES = [
   { value: "supplement", label: "Suplemento" },
@@ -43,6 +43,11 @@ export function InventoryPage() {
   const deleteProduct = useDeleteErpProduct(gymId);
   const createMovement = useCreateErpMovement(gymId);
   const [editing, setEditing] = useState<ErpProduct | null>(null);
+  const [search, setSearch] = useState("");
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ErpProduct>>({
+    columnAccessor: "name",
+    direction: "asc",
+  });
 
   const onDelete = (p: ErpProduct) => {
     if (!window.confirm(`¿Eliminar el producto "${p.name}"?`)) return;
@@ -103,71 +108,79 @@ export function InventoryPage() {
       </Card>
 
       <Card>
-        {isLoading ? (
-          <PageLoading />
-        ) : !(data ?? []).length ? (
-          <EmptyState
-            title="Sin productos"
-            description="Agrega tu primer producto (suplemento, merch o bebida) para vender en recepción."
-          />
-        ) : (
-          <Table.ScrollContainer minWidth={720}>
-            <Table>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Producto</Table.Th>
-                  <Table.Th>Categoría</Table.Th>
-                  <Table.Th>Precio</Table.Th>
-                  <Table.Th>Costo</Table.Th>
-                  <Table.Th>Margen</Table.Th>
-                  <Table.Th>Stock</Table.Th>
-                  <Table.Th>Reabastecer</Table.Th>
-                  <Table.Th>Acciones</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {(data ?? []).map((p) => (
-                  <Table.Tr key={p.id}>
-                    <Table.Td>{p.name}</Table.Td>
-                    <Table.Td>{p.category}</Table.Td>
-                    <Table.Td>Q{p.sale_price}</Table.Td>
-                    <Table.Td>Q{p.cost_price}</Table.Td>
-                    <Table.Td>Q{p.margin_unit}</Table.Td>
-                    <Table.Td>
-                      <Text c={p.needs_reorder ? "red" : undefined} size="sm">
-                        {p.stock_qty}
-                        {p.needs_reorder ? " ⚠" : ""}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap={6} wrap="nowrap">
-                        <TextInput
-                          w={70}
-                          placeholder="Qty"
-                          value={restock[p.id] ?? ""}
-                          onChange={(e) => setRestock((prev) => ({ ...prev, [p.id]: e.currentTarget.value }))}
-                        />
-                        <Button variant="default" size="xs" onClick={() => onRestock(p.id)} loading={createMovement.isPending}>
-                          Entrada
-                        </Button>
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap="xs" wrap="nowrap">
-                        <Button variant="default" size="xs" onClick={() => setEditing(p)}>
-                          Editar
-                        </Button>
-                        <Button variant="light" color="red" size="xs" onClick={() => onDelete(p)}>
-                          Eliminar
-                        </Button>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
+        <TextInput
+          placeholder="Buscar producto o categoría…"
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          mb="md"
+          w={300}
+        />
+        <DataTable<ErpProduct>
+          minHeight={160}
+          highlightOnHover
+          striped
+          idAccessor="id"
+          records={sortRecords(
+            (data ?? []).filter((p) => {
+              const term = search.trim().toLowerCase();
+              return !term || p.name.toLowerCase().includes(term) || p.category.toLowerCase().includes(term);
+            }),
+            sortStatus,
+          )}
+          fetching={isLoading}
+          noRecordsText="Agrega tu primer producto (suplemento, merch o bebida) para vender en recepción."
+          sortStatus={sortStatus}
+          onSortStatusChange={setSortStatus}
+          columns={[
+            { accessor: "name", title: "Producto", sortable: true },
+            { accessor: "category", title: "Categoría", sortable: true },
+            { accessor: "sale_price", title: "Precio", sortable: true, render: (p) => `Q${p.sale_price}` },
+            { accessor: "cost_price", title: "Costo", sortable: true, render: (p) => `Q${p.cost_price}` },
+            { accessor: "margin_unit", title: "Margen", render: (p) => `Q${p.margin_unit}` },
+            {
+              accessor: "stock_qty",
+              title: "Stock",
+              sortable: true,
+              render: (p) => (
+                <Text c={p.needs_reorder ? "red" : undefined} size="sm">
+                  {p.stock_qty}
+                  {p.needs_reorder ? " ⚠" : ""}
+                </Text>
+              ),
+            },
+            {
+              accessor: "restock",
+              title: "Reabastecer",
+              render: (p) => (
+                <Group gap={6} wrap="nowrap">
+                  <TextInput
+                    w={70}
+                    placeholder="Qty"
+                    value={restock[p.id] ?? ""}
+                    onChange={(e) => setRestock((prev) => ({ ...prev, [p.id]: e.currentTarget.value }))}
+                  />
+                  <Button variant="default" size="xs" onClick={() => onRestock(p.id)} loading={createMovement.isPending}>
+                    Entrada
+                  </Button>
+                </Group>
+              ),
+            },
+            {
+              accessor: "actions",
+              title: "Acciones",
+              render: (p) => (
+                <Group gap="xs" wrap="nowrap">
+                  <Button variant="default" size="xs" onClick={() => setEditing(p)}>
+                    Editar
+                  </Button>
+                  <Button variant="light" color="red" size="xs" onClick={() => onDelete(p)}>
+                    Eliminar
+                  </Button>
+                </Group>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       <EditProductModal
