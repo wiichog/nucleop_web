@@ -5,11 +5,11 @@ import {
   Checkbox,
   Group,
   Select,
-  Table,
   TextInput,
   Title,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
+import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useCreatePlatformGym,
   usePlatformGyms,
@@ -20,6 +20,7 @@ import type { GymAdmin } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { sortRecords } from "../lib/sortRecords";
 
 export function PlatformGymsPage() {
   const { isSuperuser } = useAuth();
@@ -37,6 +38,10 @@ export function PlatformGymsPage() {
   const [monthlyPrice, setMonthlyPrice] = useState("");
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>("active");
   const [nextBillingDate, setNextBillingDate] = useState<Date | null>(null);
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<GymAdmin>>({
+    columnAccessor: "name",
+    direction: "asc",
+  });
 
   if (!isSuperuser) return <EmptyState title="Acceso restringido" description="Se requiere rol de superadmin." />;
 
@@ -140,44 +145,39 @@ export function PlatformGymsPage() {
       )}
 
       <Card>
-        <Table.ScrollContainer minWidth={820}>
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Gimnasio</Table.Th>
-                <Table.Th>Ubicación</Table.Th>
-                <Table.Th>SaaS</Table.Th>
-                <Table.Th>Suscripción</Table.Th>
-                <Table.Th>Comisión</Table.Th>
-                <Table.Th>Fee fijo</Table.Th>
-                <Table.Th>Público</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {(gyms.data ?? []).map((gym) => (
-                <Table.Tr key={gym.id}>
-                  <Table.Td>{gym.name}</Table.Td>
-                  <Table.Td>{gym.location_text || "—"}</Table.Td>
-                  <Table.Td>{gym.saas_plan}</Table.Td>
-                  <Table.Td>
-                    {gym.subscription
-                      ? `Q${gym.subscription.monthly_price} (${gym.subscription.status})`
-                      : "—"}
-                  </Table.Td>
-                  <Table.Td>{gym.platform_commission_pct}</Table.Td>
-                  <Table.Td>{gym.fixed_fee ?? "—"}</Table.Td>
-                  <Table.Td>{gym.is_public ? "sí" : "no"}</Table.Td>
-                  <Table.Td>
-                    <Button variant="subtle" size="xs" onClick={() => edit(gym)}>
-                      Editar
-                    </Button>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
+        <DataTable<GymAdmin>
+          minHeight={160}
+          highlightOnHover
+          striped
+          idAccessor="id"
+          records={sortRecords((gyms.data ?? []) as GymAdmin[], sortStatus)}
+          fetching={gyms.isLoading}
+          noRecordsText="Aún no hay gimnasios conectados."
+          sortStatus={sortStatus}
+          onSortStatusChange={setSortStatus}
+          columns={[
+            { accessor: "name", title: "Gimnasio", sortable: true },
+            { accessor: "location_text", title: "Ubicación", sortable: true, render: (g) => g.location_text || "—" },
+            { accessor: "saas_plan", title: "SaaS", sortable: true },
+            {
+              accessor: "subscription",
+              title: "Suscripción",
+              render: (g) => (g.subscription ? `Q${g.subscription.monthly_price} (${g.subscription.status})` : "—"),
+            },
+            { accessor: "platform_commission_pct", title: "Comisión", sortable: true },
+            { accessor: "fixed_fee", title: "Fee fijo", render: (g) => g.fixed_fee ?? "—" },
+            { accessor: "is_public", title: "Público", sortable: true, render: (g) => (g.is_public ? "sí" : "no") },
+            {
+              accessor: "actions",
+              title: "",
+              render: (gym) => (
+                <Button variant="subtle" size="xs" onClick={() => edit(gym)}>
+                  Editar
+                </Button>
+              ),
+            },
+          ]}
+        />
       </Card>
     </div>
   );

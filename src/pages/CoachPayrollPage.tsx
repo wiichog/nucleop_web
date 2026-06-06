@@ -12,6 +12,7 @@ import {
   Title,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
+import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useCoachPayouts,
   useGeneratePayout,
@@ -19,10 +20,12 @@ import {
   usePayPayout,
   useUpdateCoach,
 } from "../api/hooks";
+import type { CoachPayout } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { sortRecords } from "../lib/sortRecords";
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : "");
 const money = (v: string | number) => `Q${Number(v).toFixed(2)}`;
@@ -40,6 +43,10 @@ export function CoachPayrollPage() {
   const today = new Date();
   const [from, setFrom] = useState<Date | null>(new Date(today.getFullYear(), today.getMonth(), 1));
   const [to, setTo] = useState<Date | null>(today);
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<CoachPayout>>({
+    columnAccessor: "period_start",
+    direction: "desc",
+  });
 
   if (!gymId) return <NoGymAssigned />;
   if (coaches.isError) return <PageError onRetry={() => coaches.refetch()} />;
@@ -172,50 +179,47 @@ export function CoachPayrollPage() {
           </Group>
         </Group>
 
-        {payouts.isLoading ? (
-          <PageLoading />
-        ) : !(payouts.data ?? []).length ? (
-          <EmptyState title="Sin liquidaciones" description="Genera la primera liquidación de un periodo." />
-        ) : (
-          <Table.ScrollContainer minWidth={680}>
-            <Table>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Coach</Table.Th>
-                  <Table.Th>Periodo</Table.Th>
-                  <Table.Th>Clases</Table.Th>
-                  <Table.Th>Total</Table.Th>
-                  <Table.Th>Estado</Table.Th>
-                  <Table.Th />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {(payouts.data ?? []).map((p) => (
-                  <Table.Tr key={p.id}>
-                    <Table.Td>{p.coach_email}</Table.Td>
-                    <Table.Td>
-                      {p.period_start} → {p.period_end}
-                    </Table.Td>
-                    <Table.Td>{p.earnings_count}</Table.Td>
-                    <Table.Td>{money(p.total)}</Table.Td>
-                    <Table.Td>
-                      <Badge color={p.status === "paid" ? "teal" : "yellow"} variant="light">
-                        {p.status === "paid" ? "Pagada" : "Abierta"}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      {p.status === "open" && (
-                        <Button size="xs" loading={payPayout.isPending} onClick={() => payPayout.mutate(p.id)}>
-                          Marcar pagada
-                        </Button>
-                      )}
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
+        <DataTable<CoachPayout>
+          minHeight={140}
+          highlightOnHover
+          striped
+          idAccessor="id"
+          records={sortRecords((payouts.data ?? []) as CoachPayout[], sortStatus)}
+          fetching={payouts.isLoading}
+          noRecordsText="Genera la primera liquidación de un periodo."
+          sortStatus={sortStatus}
+          onSortStatusChange={setSortStatus}
+          columns={[
+            { accessor: "coach_email", title: "Coach", sortable: true },
+            { accessor: "period_start", title: "Periodo", sortable: true, render: (p) => `${p.period_start} → ${p.period_end}` },
+            { accessor: "earnings_count", title: "Clases", sortable: true },
+            { accessor: "total", title: "Total", sortable: true, render: (p) => money(p.total) },
+            {
+              accessor: "status",
+              title: "Estado",
+              sortable: true,
+              render: (p) => (
+                <Badge color={p.status === "paid" ? "teal" : "yellow"} variant="light">
+                  {p.status === "paid" ? "Pagada" : "Abierta"}
+                </Badge>
+              ),
+            },
+            {
+              accessor: "actions",
+              title: "",
+              render: (p) =>
+                p.status === "open" ? (
+                  <Button
+                    size="xs"
+                    loading={payPayout.isPending && payPayout.variables === p.id}
+                    onClick={() => payPayout.mutate(p.id)}
+                  >
+                    Marcar pagada
+                  </Button>
+                ) : null,
+            },
+          ]}
+        />
       </Card>
     </div>
   );
