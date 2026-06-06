@@ -714,6 +714,23 @@ export function useClassCheckins(gymId: string, classId: string) {
   });
 }
 
+export interface ClassQr {
+  id: string;
+  gym_name?: string;
+  class_type: string;
+  starts_at: string;
+  qr_token: string;
+}
+
+/** QR de asistencia de una clase (para mostrarlo/enviarlo desde el panel). */
+export function useClassQr(gymId: string, classId: string) {
+  return useQuery({
+    queryKey: ["class-qr", gymId, classId],
+    queryFn: async () => (await api.get<ClassQr>(`/gym/${gymId}/classes/${classId}/qr`)).data,
+    enabled: !!gymId && !!classId,
+  });
+}
+
 export function useReceptionCheckin(gymId: string, classId: string) {
   const qc = useQueryClient();
   return useMutation({

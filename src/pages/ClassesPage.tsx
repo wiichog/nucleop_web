@@ -18,13 +18,15 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { DatePickerInput, TimeInput } from "@mantine/dates";
+import { DateInput, TimeInput } from "@mantine/dates";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
+import QRCode from "react-qr-code";
 import { AxiosError } from "axios";
 import {
   useAddWodResult,
   useCancelClass,
   useClassCheckins,
+  useClassQr,
   useCreateSchedule,
   useCreateServiceType,
   useCreateWod,
@@ -449,8 +451,8 @@ function ScheduleTab({ gymId }: { gymId: string }) {
         </Group>
 
         <Group align="flex-end" gap="md">
-          <DatePickerInput label="Desde" value={fromDate} onChange={setFromDate} valueFormat="YYYY-MM-DD" style={{ flex: 1 }} />
-          <DatePickerInput label="Hasta" value={toDate} onChange={setToDate} valueFormat="YYYY-MM-DD" disabled={openEnded} style={{ flex: 1 }} />
+          <DateInput label="Desde" value={fromDate} onChange={setFromDate} valueFormat="YYYY-MM-DD" popoverProps={{ withinPortal: true }} clearable style={{ flex: 1 }} />
+          <DateInput label="Hasta" value={toDate} onChange={setToDate} valueFormat="YYYY-MM-DD" disabled={openEnded} popoverProps={{ withinPortal: true }} clearable style={{ flex: 1 }} />
           <Switch label="Sin fecha de fin" checked={openEnded} onChange={(e) => setOpenEnded(e.currentTarget.checked)} />
           <Button type="submit" loading={create.isPending} disabled={!serviceId || !weekdays.length} ml="auto">
             Agregar
@@ -734,65 +736,93 @@ function ClassesTab({ gymId }: { gymId: string }) {
         saving={updateClass.isPending}
       />
 
-      {!!selectedClassId && (
-        <Card mt="lg">
-          <Title order={3} mb="sm">
-            Check-in desde recepción
-          </Title>
-          <Group
-            align="flex-end"
-            component="form"
-            onSubmit={async (event: FormEvent) => {
-              event.preventDefault();
-              if (membershipId) await reception.mutateAsync(membershipId);
-              setMembershipId("");
-            }}
-          >
-            <Select
-              label="Atleta activo"
-              placeholder="Selecciona un atleta"
-              value={membershipId}
-              onChange={setMembershipId}
-              searchable
-              w={320}
-              data={(memberships.data ?? [])
-                .filter((m) => !!m.status && ["active", "trial"].includes(m.status))
-                .map((m) => ({ value: m.id, label: m.athlete_name }))}
-            />
-            <Button type="submit" disabled={!membershipId} loading={reception.isPending}>
-              Registrar check-in
-            </Button>
-          </Group>
-          <Title order={4} mt="md" mb="xs">
-            Asistencia registrada
-          </Title>
-          {(checkins.data ?? []).length === 0 ? (
-            <Text c="dimmed" size="sm">
-              Sin check-ins registrados.
-            </Text>
-          ) : (
-            <Table>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Atleta</Table.Th>
-                  <Table.Th>Hora</Table.Th>
-                  <Table.Th>Método</Table.Th>
+      <Modal
+        opened={!!selectedClassId}
+        onClose={() => setSelectedClassId("")}
+        title="Asistencia de la clase"
+        size="lg"
+        centered
+      >
+        {selectedClassId && <ClassQrBlock gymId={gymId} classId={selectedClassId} />}
+        <Title order={4} mt="md" mb="xs">
+          Check-in desde recepción
+        </Title>
+        <Group
+          align="flex-end"
+          component="form"
+          onSubmit={async (event: FormEvent) => {
+            event.preventDefault();
+            if (membershipId) await reception.mutateAsync(membershipId);
+            setMembershipId("");
+          }}
+        >
+          <Select
+            label="Atleta activo"
+            placeholder="Selecciona un atleta"
+            value={membershipId}
+            onChange={setMembershipId}
+            searchable
+            style={{ flex: 1 }}
+            data={(memberships.data ?? [])
+              .filter((m) => !!m.status && ["active", "trial"].includes(m.status))
+              .map((m) => ({ value: m.id, label: m.athlete_name }))}
+          />
+          <Button type="submit" disabled={!membershipId} loading={reception.isPending}>
+            Registrar check-in
+          </Button>
+        </Group>
+        <Title order={5} mt="md" mb="xs">
+          Asistencia registrada ({(checkins.data ?? []).length})
+        </Title>
+        {(checkins.data ?? []).length === 0 ? (
+          <Text c="dimmed" size="sm">
+            Sin check-ins registrados.
+          </Text>
+        ) : (
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Atleta</Table.Th>
+                <Table.Th>Hora</Table.Th>
+                <Table.Th>Método</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {(checkins.data ?? []).map((checkin) => (
+                <Table.Tr key={checkin.id}>
+                  <Table.Td>{checkin.athlete_name}</Table.Td>
+                  <Table.Td>{new Date(checkin.checked_in_at).toLocaleString("es-GT")}</Table.Td>
+                  <Table.Td>{checkin.method}</Table.Td>
                 </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {(checkins.data ?? []).map((checkin) => (
-                  <Table.Tr key={checkin.id}>
-                    <Table.Td>{checkin.athlete_name}</Table.Td>
-                    <Table.Td>{new Date(checkin.checked_in_at).toLocaleString("es-GT")}</Table.Td>
-                    <Table.Td>{checkin.method}</Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          )}
-        </Card>
-      )}
+              ))}
+            </Table.Tbody>
+          </Table>
+        )}
+      </Modal>
     </>
+  );
+}
+
+/** QR único de la clase: el coach lo muestra y los atletas lo escanean para su check-in. */
+function ClassQrBlock({ gymId, classId }: { gymId: string; classId: string }) {
+  const qr = useClassQr(gymId, classId);
+  if (qr.isLoading) return <Text c="dimmed" size="sm">Generando QR…</Text>;
+  if (!qr.data) return <Text c="dimmed" size="sm">No se pudo generar el QR.</Text>;
+  return (
+    <Group align="center" gap="lg">
+      <div style={{ background: "#fff", padding: 12, borderRadius: 8 }}>
+        <QRCode value={qr.data.qr_token} size={140} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <Text fw={600}>QR de asistencia</Text>
+        <Text c="dimmed" size="sm">
+          Los atletas lo escanean desde su app para registrar su asistencia. El código pertenece a esta clase.
+        </Text>
+        <Text c="dimmed" size="xs" mt={6} style={{ wordBreak: "break-all" }}>
+          Token: {qr.data.qr_token}
+        </Text>
+      </div>
+    </Group>
   );
 }
 
@@ -925,7 +955,7 @@ function WodTab({ gymId }: { gymId: string }) {
           Una rutina por servicio y fecha; la comparten todas las clases de ese día. Publícala para que los atletas la vean.
         </Text>
         <Group align="flex-end" gap="md" grow>
-          <DatePickerInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" />
+          <DateInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" popoverProps={{ withinPortal: true }} />
           <Select
             label="Servicio (track)"
             placeholder="General"
