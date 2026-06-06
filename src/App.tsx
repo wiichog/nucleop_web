@@ -25,7 +25,6 @@ import { ExpensesPage } from "./pages/ExpensesPage";
 import { BusinessReportPage } from "./pages/BusinessReportPage";
 import { BranchesPage } from "./pages/BranchesPage";
 import { ClubsPage } from "./pages/ClubsPage";
-import { RetentionPage } from "./pages/RetentionPage";
 import { ProfilePage } from "./pages/ProfilePage";
 
 function Protected({ children }: { children: JSX.Element }) {
@@ -55,7 +54,8 @@ export default function App() {
         }
       >
         <Route index element={<DashboardPage />} />
-        <Route path="retencion" element={<RetentionPage />} />
+        {/* Retención y morosidad se consolidó en Atletas (filtros por pago/riesgo). */}
+        <Route path="retencion" element={<Navigate to="/panel/atletas" replace />} />
         <Route path="perfil" element={<ProfilePage />} />
         <Route path="atletas" element={<AthletesPage />} />
         <Route path="pagos" element={<PaymentsPage />} />

@@ -4,7 +4,10 @@ import {
   Badge,
   Button,
   Card,
+  Divider,
   Group,
+  Modal,
+  SimpleGrid,
   Table,
   Text,
   TextInput,
@@ -16,10 +19,13 @@ import {
   useGymCoaches,
   useInviteCoach,
 } from "../api/hooks";
+import type { Coach } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+
+const money = (v: string | number) => `Q${Number(v).toFixed(2)}`;
 
 /** Catálogo de coaches del gimnasio: invitación, solicitudes y roster (Operación).
  *  La forma de pago y las liquidaciones viven en Negocio → Pagos a coaches. */
@@ -35,6 +41,7 @@ export function CoachesPage() {
   const [invFirst, setInvFirst] = useState("");
   const [invLast, setInvLast] = useState("");
   const [invMsg, setInvMsg] = useState("");
+  const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
 
   const onInvite = async (e: FormEvent) => {
     e.preventDefault();
@@ -167,7 +174,11 @@ export function CoachesPage() {
               </Table.Thead>
               <Table.Tbody>
                 {(coaches.data ?? []).map((c) => (
-                  <Table.Tr key={c.staff_role}>
+                  <Table.Tr
+                    key={c.staff_role}
+                    onClick={() => setSelectedCoach(c)}
+                    style={{ cursor: "pointer" }}
+                  >
                     <Table.Td>
                       <Group gap="sm" wrap="nowrap">
                         <Avatar src={c.photo} radius="xl" size={38} color="flame">
@@ -200,9 +211,63 @@ export function CoachesPage() {
           </Table.ScrollContainer>
         )}
         <Text c="dimmed" size="xs" mt="sm">
-          La tarifa de cada coach y las liquidaciones se gestionan en Negocio → Pagos a coaches.
+          Toca un coach para ver su perfil. La tarifa y las liquidaciones se gestionan en Negocio → Pagos a coaches.
         </Text>
       </Card>
+
+      <CoachProfileModal coach={selectedCoach} onClose={() => setSelectedCoach(null)} />
     </div>
+  );
+}
+
+function CoachProfileModal({ coach, onClose }: { coach: Coach | null; onClose: () => void }) {
+  return (
+    <Modal opened={!!coach} onClose={onClose} title="Perfil del coach" centered>
+      {coach && (
+        <>
+          <Group gap="md" mb="md">
+            <Avatar src={coach.photo} radius="xl" size={64} color="flame">
+              {(coach.name || coach.email).slice(0, 1).toUpperCase()}
+            </Avatar>
+            <div>
+              <Text fw={700} size="lg">
+                {coach.name || coach.email}
+              </Text>
+              <Text c="dimmed" size="sm">
+                {coach.email}
+              </Text>
+              <Badge mt={4} variant="light" color={coach.is_active ? "teal" : "gray"}>
+                {coach.is_active ? "Activo" : "Inactivo"}
+              </Badge>
+            </div>
+          </Group>
+          <Divider mb="md" />
+          <SimpleGrid cols={2} spacing="sm">
+            <div>
+              <Text c="dimmed" size="xs">
+                Forma de pago
+              </Text>
+              <Text fw={600}>{coach.pay_type === "fixed" ? "Salario fijo" : "Por clase"}</Text>
+            </div>
+            <div>
+              <Text c="dimmed" size="xs">
+                {coach.pay_type === "fixed" ? "Salario fijo" : "Tarifa por clase"}
+              </Text>
+              <Text fw={600}>
+                {coach.pay_type === "fixed" ? money(coach.fixed_amount) : money(coach.per_class_rate)}
+              </Text>
+            </div>
+          </SimpleGrid>
+          <Text c="dimmed" size="xs" mt="md">
+            La tarifa y las liquidaciones se editan en Negocio → Pagos a coaches.
+          </Text>
+          <Group justify="flex-end" mt="lg">
+            <Button variant="default" onClick={onClose}>
+              Cerrar
+            </Button>
+          </Group>
+        </>
+      )}
+    </Modal>
   );
 }

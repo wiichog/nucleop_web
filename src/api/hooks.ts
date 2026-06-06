@@ -235,8 +235,17 @@ export function useResetAthletePassword(gymId: string) {
 
 export function useSendReminder(gymId: string) {
   return useMutation({
-    mutationFn: async ({ membershipId, message }: { membershipId: string; message?: string }) =>
-      (await api.post(`/gym/${gymId}/memberships/${membershipId}/reminder`, { message })).data,
+    mutationFn: async ({
+      membershipId,
+      message,
+      channel = "push",
+    }: {
+      membershipId: string;
+      message?: string;
+      channel?: "push" | "email" | "both";
+    }) =>
+      (await api.post(`/gym/${gymId}/memberships/${membershipId}/reminder`, { message, channel }))
+        .data,
   });
 }
 

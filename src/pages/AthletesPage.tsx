@@ -6,6 +6,8 @@ import {
   Button,
   Card,
   Group,
+  Menu,
+  SegmentedControl,
   SimpleGrid,
   Table,
   Text,
@@ -14,8 +16,9 @@ import {
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { Bell, Download, KeyRound } from "lucide-react";
+import { Bell, Download, KeyRound, Mail, Smartphone } from "lucide-react";
 import {
+  useAtRisk,
   useEditAthleteProfile,
   useGymLeaveDecision,
   useMembershipDetail,
@@ -72,6 +75,8 @@ export function AthletesPage() {
   const sendReminder = useSendReminder(gymId);
   const editProfile = useEditAthleteProfile(gymId);
   const leaveDecision = useGymLeaveDecision(gymId);
+  const atRisk = useAtRisk(gymId);
+  const [filtro, setFiltro] = useState("todos");
 
   const [edit, setEdit] = useState({ first_name: "", last_name: "", birth_date: "", ec_name: "", ec_phone: "", ec_relation: "" });
   useEffect(() => {
@@ -102,10 +107,15 @@ export function AthletesPage() {
     }
   };
 
-  const onReminder = async (membershipId: string, name: string) => {
+  const onReminder = async (
+    membershipId: string,
+    name: string,
+    channel: "push" | "email" | "both",
+  ) => {
+    const medio = channel === "email" ? "por correo" : channel === "both" ? "por push y correo" : "por push";
     try {
-      await sendReminder.mutateAsync({ membershipId });
-      ok(`Recordatorio enviado a ${name}.`);
+      await sendReminder.mutateAsync({ membershipId, channel });
+      ok(`Recordatorio enviado a ${name} ${medio}.`);
     } catch {
       fail("No se pudo enviar el recordatorio.");
     }
@@ -132,6 +142,15 @@ export function AthletesPage() {
   if (!gymId) return <NoGymAssigned />;
   if (isError) return <PageError onRetry={() => refetch()} />;
 
+  // Retención y morosidad vive aquí: filtra el padrón por estado de pago / riesgo.
+  const atRiskIds = new Set((atRisk.data ?? []).map((m) => m.id));
+  const rows = (data ?? []).filter((m) => {
+    if (filtro === "morosos") return m.payment_status === "overdue";
+    if (filtro === "por_vencer") return m.payment_status === "due_soon";
+    if (filtro === "en_riesgo") return atRiskIds.has(m.id);
+    return true;
+  });
+
   return (
     <div>
       <PageHeader
@@ -145,7 +164,7 @@ export function AthletesPage() {
               downloadCsv(
                 "atletas-nucleo.csv",
                 ["atleta", "estado", "plan", "cuota", "pago", "vence_en_dias", "puntos_comunidad"],
-                (data ?? []).map((m) => [
+                rows.map((m) => [
                   m.athlete_name,
                   label(MEMBERSHIP_STATUS, m.status),
                   m.plan_name ?? "Sin plan",
@@ -162,11 +181,34 @@ export function AthletesPage() {
         }
       />
 
+      <Group justify="space-between" mb="md" wrap="wrap">
+        <SegmentedControl
+          value={filtro}
+          onChange={setFiltro}
+          data={[
+            { label: "Todos", value: "todos" },
+            { label: `Morosos`, value: "morosos" },
+            { label: "Por vencer", value: "por_vencer" },
+            { label: "En riesgo", value: "en_riesgo" },
+          ]}
+        />
+        <Text c="dimmed" size="sm">
+          {rows.length} {rows.length === 1 ? "atleta" : "atletas"}
+        </Text>
+      </Group>
+
       <Card>
         {isLoading ? (
           <PageLoading />
-        ) : !(data ?? []).length ? (
-          <EmptyState title="Sin atletas" description="Aprueba solicitudes o invita atletas al gym." />
+        ) : !rows.length ? (
+          <EmptyState
+            title="Sin atletas"
+            description={
+              filtro === "todos"
+                ? "Aprueba solicitudes o invita atletas al gym."
+                : "Ningún atleta en este segmento. 💪"
+            }
+          />
         ) : (
           <Table.ScrollContainer minWidth={760}>
             <Table highlightOnHover>
@@ -183,7 +225,7 @@ export function AthletesPage() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {(data ?? []).map((m) => (
+                {rows.map((m) => (
                   <Table.Tr key={m.id}>
                     <Table.Td>
                       <Group gap="sm" wrap="nowrap">
@@ -210,15 +252,30 @@ export function AthletesPage() {
                         <Button variant="default" size="xs" onClick={() => setSelectedMembershipId(m.id)}>
                           Ver detalle
                         </Button>
-                        <Button
-                          variant="light"
-                          size="xs"
-                          leftSection={<Bell size={14} />}
-                          loading={sendReminder.isPending}
-                          onClick={() => onReminder(m.id, m.athlete_name)}
-                        >
-                          Recordatorio
-                        </Button>
+                        <Menu shadow="md" position="bottom-start" withinPortal>
+                          <Menu.Target>
+                            <Button
+                              variant="light"
+                              size="xs"
+                              leftSection={<Bell size={14} />}
+                              loading={sendReminder.isPending}
+                            >
+                              Recordatorio
+                            </Button>
+                          </Menu.Target>
+                          <Menu.Dropdown>
+                            <Menu.Label>Enviar por</Menu.Label>
+                            <Menu.Item leftSection={<Smartphone size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "push")}>
+                              Notificación push
+                            </Menu.Item>
+                            <Menu.Item leftSection={<Mail size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "email")}>
+                              Correo
+                            </Menu.Item>
+                            <Menu.Item leftSection={<Bell size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "both")}>
+                              Ambos
+                            </Menu.Item>
+                          </Menu.Dropdown>
+                        </Menu>
                         {(m.status as string) === "pending_leave" &&
                           (m.leave_initiated_by === "athlete" ? (
                             <>
@@ -271,14 +328,25 @@ export function AthletesPage() {
               </div>
             </Group>
             <Group gap="xs">
-              <Button
-                variant="light"
-                leftSection={<Bell size={16} />}
-                loading={sendReminder.isPending}
-                onClick={() => onReminder(selectedMembershipId, detail.data!.athlete_name)}
-              >
-                Recordatorio
-              </Button>
+              <Menu shadow="md" position="bottom-start" withinPortal>
+                <Menu.Target>
+                  <Button variant="light" leftSection={<Bell size={16} />} loading={sendReminder.isPending}>
+                    Recordatorio
+                  </Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>Enviar por</Menu.Label>
+                  <Menu.Item leftSection={<Smartphone size={14} />} onClick={() => onReminder(selectedMembershipId, detail.data!.athlete_name, "push")}>
+                    Notificación push
+                  </Menu.Item>
+                  <Menu.Item leftSection={<Mail size={14} />} onClick={() => onReminder(selectedMembershipId, detail.data!.athlete_name, "email")}>
+                    Correo
+                  </Menu.Item>
+                  <Menu.Item leftSection={<Bell size={14} />} onClick={() => onReminder(selectedMembershipId, detail.data!.athlete_name, "both")}>
+                    Ambos
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
               <Button
                 variant="default"
                 leftSection={<KeyRound size={16} />}

@@ -31,7 +31,6 @@ import {
   TrendingDown,
   UserCog,
   Wallet,
-  Zap,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { AtomLogo } from "../landing/AtomLogo";
@@ -53,7 +52,6 @@ const GROUPS: NavGroup[] = [
     title: "Operación",
     items: [
       { to: "/panel", label: "Dashboard", icon: LayoutDashboard, end: true },
-      { to: "/panel/retencion", label: "Retención y morosidad", icon: Zap },
       { to: "/panel/clases", label: "Clases", icon: CalendarDays },
       { to: "/panel/coaches", label: "Coaches", icon: UserCog },
       { to: "/panel/tickets", label: "Reportes / tickets", icon: LifeBuoy },
