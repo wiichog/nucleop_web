@@ -359,6 +359,7 @@ export interface Wod {
   time_cap_min: number | null;
   movements: unknown;
   published: boolean;
+  is_benchmark: boolean;
   results_count: number;
 }
 

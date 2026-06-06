@@ -22,6 +22,7 @@ import { DatePickerInput } from "@mantine/dates";
 import { AxiosError } from "axios";
 import {
   useAddWodResult,
+  useCancelClass,
   useClassCheckins,
   useCreateSchedule,
   useCreateServiceType,
@@ -435,6 +436,7 @@ function ClassesTab({ gymId }: { gymId: string }) {
   const memberships = useMemberships(gymId);
   const coaches = useGymCoaches(gymId);
   const updateClass = useUpdateClass(gymId);
+  const cancelClass = useCancelClass(gymId);
   const config = useGymConfig(gymId);
   const updateConfig = useUpdateGymConfig(gymId);
   const allowFuture = config.data?.allow_future_reservations ?? true;
@@ -533,6 +535,17 @@ function ClassesTab({ gymId }: { gymId: string }) {
                           <Button variant="default" size="xs" onClick={() => setSelectedClassId(gymClass.id)}>
                             Asistencia
                           </Button>
+                          {gymClass.status !== "cancelled" && (
+                            <Button
+                              variant="subtle"
+                              color="red"
+                              size="xs"
+                              loading={cancelClass.isPending}
+                              onClick={() => cancelClass.mutate(gymClass.id)}
+                            >
+                              Cancelar
+                            </Button>
+                          )}
                         </Group>
                       </Table.Td>
                     </Table.Tr>
@@ -634,6 +647,7 @@ function WodTab({ gymId }: { gymId: string }) {
   const [title, setTitle] = useState("");
   const [scoreType, setScoreType] = useState<ScoreType>("for_time");
   const [description, setDescription] = useState("");
+  const [isBenchmark, setIsBenchmark] = useState(false);
 
   const wodServices = useMemo(
     () => ((services.data ?? []) as ServiceType[]).filter((s) => s.requires_wod),
@@ -651,9 +665,11 @@ function WodTab({ gymId }: { gymId: string }) {
       title: title.trim(),
       score_type: scoreType,
       description,
+      is_benchmark: isBenchmark,
     });
     setTitle("");
     setDescription("");
+    setIsBenchmark(false);
   };
 
   const rows = (wods.data ?? []) as Wod[];
@@ -700,7 +716,12 @@ function WodTab({ gymId }: { gymId: string }) {
           autosize
           minRows={2}
         />
-        <Group justify="flex-end" mt="md">
+        <Group justify="space-between" mt="md">
+          <Switch
+            label="Benchmark (mejorar la marca genera un PR al feed)"
+            checked={isBenchmark}
+            onChange={(e) => setIsBenchmark(e.currentTarget.checked)}
+          />
           <Button type="submit" loading={create.isPending}>
             Crear WOD
           </Button>
@@ -731,7 +752,10 @@ function WodTab({ gymId }: { gymId: string }) {
               {rows.map((w) => (
                 <Table.Tr key={w.id}>
                   <Table.Td>
-                    <Text fw={600}>{w.title}</Text>
+                    <Group gap="xs">
+                      <Text fw={600}>{w.title}</Text>
+                      {w.is_benchmark && <Badge size="xs" color="grape">Benchmark</Badge>}
+                    </Group>
                     {w.description && (
                       <Text c="dimmed" size="xs" lineClamp={1}>
                         {w.description}
