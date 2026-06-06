@@ -217,8 +217,7 @@ export function AthletesPage() {
                   <Table.Th>Atleta</Table.Th>
                   <Table.Th>Estado</Table.Th>
                   <Table.Th>Plan</Table.Th>
-                  <Table.Th>Cuota</Table.Th>
-                  <Table.Th>Pago</Table.Th>
+                  <Table.Th>Miembro desde</Table.Th>
                   <Table.Th>Vencimiento</Table.Th>
                   <Table.Th>Puntos</Table.Th>
                   <Table.Th>Acciones</Table.Th>
@@ -241,8 +240,9 @@ export function AthletesPage() {
                       </Badge>
                     </Table.Td>
                     <Table.Td>{m.plan_name ?? "—"}</Table.Td>
-                    <Table.Td>Q{m.effective_fee ?? "—"}</Table.Td>
-                    <Table.Td>{label(PAYMENT_STATUS, m.payment_status)}</Table.Td>
+                    <Table.Td>
+                      {m.start_date ? new Date(m.start_date).toLocaleDateString("es-GT") : "—"}
+                    </Table.Td>
                     <Table.Td>
                       <DueBadge days={m.days_to_due} date={m.renewal_date} />
                     </Table.Td>

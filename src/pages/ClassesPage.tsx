@@ -28,6 +28,8 @@ import {
   useCreateServiceType,
   useCreateWod,
   useDeleteSchedule,
+  useDeleteServiceType,
+  useDeleteWod,
   useGymCoaches,
   useGymClasses,
   useGymConfig,
@@ -38,6 +40,7 @@ import {
   useServiceTypes,
   useUpdateClass,
   useUpdateGymConfig,
+  useUpdateSchedule,
   useUpdateServiceType,
   useUpdateWod,
   useWodBoard,
@@ -99,15 +102,15 @@ export function ClassesPage() {
   return (
     <div>
       <PageHeader
-        title="Clases y WOD"
-        subtitle="Define servicios, arma el horario semanal, registra asistencia y publica el WOD del día."
+        title="Clases y rutinas"
+        subtitle="Define servicios, arma el horario semanal, registra asistencia y publica la rutina del día."
       />
       <Tabs defaultValue="schedule">
         <Tabs.List mb="lg">
           <Tabs.Tab value="services">Servicios</Tabs.Tab>
           <Tabs.Tab value="schedule">Horario semanal</Tabs.Tab>
           <Tabs.Tab value="classes">Clases</Tabs.Tab>
-          <Tabs.Tab value="wod">WOD</Tabs.Tab>
+          <Tabs.Tab value="wod">Rutina</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="services">
@@ -134,11 +137,16 @@ function ServicesTab({ gymId }: { gymId: string }) {
   const services = useServiceTypes(gymId);
   const create = useCreateServiceType(gymId);
   const update = useUpdateServiceType(gymId);
+  const remove = useDeleteServiceType(gymId);
+
+  const onDelete = (id: string, sname: string) => {
+    if (!window.confirm(`¿Eliminar el servicio "${sname}"? Sus horarios quedarán sin servicio.`)) return;
+    remove.mutate(id);
+  };
 
   const [name, setName] = useState("");
   const [color, setColor] = useState("#1B7FA6");
   const [requiresWod, setRequiresWod] = useState(false);
-  const [scoreType, setScoreType] = useState<ScoreType>("for_time");
   const [duration, setDuration] = useState<number | string>(60);
   const [capacity, setCapacity] = useState<number | string>(20);
 
@@ -151,7 +159,8 @@ function ServicesTab({ gymId }: { gymId: string }) {
       name: name.trim(),
       color,
       requires_wod: requiresWod,
-      default_score_type: requiresWod ? scoreType : "none",
+      // El tipo de score se elige al publicar cada rutina, no por servicio.
+      default_score_type: "none",
       default_duration_min: Number(duration),
       default_capacity: Number(capacity),
     });
@@ -177,19 +186,11 @@ function ServicesTab({ gymId }: { gymId: string }) {
         </Group>
         <Group align="flex-end" gap="md" mt="md">
           <Switch
-            label="Requiere WOD"
+            label="Requiere rutina"
+            description="Las clases de este servicio llevan rutina del día y tablero."
             checked={requiresWod}
             onChange={(e) => setRequiresWod(e.currentTarget.checked)}
           />
-          {requiresWod && (
-            <Select
-              label="Score por defecto"
-              data={SCORE_TYPES.filter((s) => s.value !== "none")}
-              value={scoreType}
-              onChange={(v) => setScoreType((v as ScoreType) ?? "for_time")}
-              style={{ flex: 1 }}
-            />
-          )}
           <Button type="submit" loading={create.isPending} ml="auto">
             Crear servicio
           </Button>
@@ -206,10 +207,10 @@ function ServicesTab({ gymId }: { gymId: string }) {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Servicio</Table.Th>
-                <Table.Th>WOD</Table.Th>
-                <Table.Th>Score</Table.Th>
+                <Table.Th>Rutina</Table.Th>
                 <Table.Th>Cupo</Table.Th>
                 <Table.Th>Estado</Table.Th>
+                <Table.Th>Acciones</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -222,9 +223,8 @@ function ServicesTab({ gymId }: { gymId: string }) {
                     </Group>
                   </Table.Td>
                   <Table.Td>
-                    {s.requires_wod ? <Badge color="flame">WOD</Badge> : <Text c="dimmed" size="sm">—</Text>}
+                    {s.requires_wod ? <Badge color="flame">Rutina</Badge> : <Text c="dimmed" size="sm">—</Text>}
                   </Table.Td>
-                  <Table.Td>{s.requires_wod ? scoreLabel(s.default_score_type) : "—"}</Table.Td>
                   <Table.Td>{s.default_capacity}</Table.Td>
                   <Table.Td>
                     <Switch
@@ -232,6 +232,11 @@ function ServicesTab({ gymId }: { gymId: string }) {
                       onChange={(e) => update.mutate({ id: s.id, body: { is_active: e.currentTarget.checked } })}
                       size="sm"
                     />
+                  </Table.Td>
+                  <Table.Td>
+                    <Button variant="light" color="red" size="xs" onClick={() => onDelete(s.id, s.name)}>
+                      Eliminar
+                    </Button>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -251,8 +256,10 @@ function ScheduleTab({ gymId }: { gymId: string }) {
   const schedules = useSchedules(gymId);
   const coaches = useGymCoaches(gymId);
   const create = useCreateSchedule(gymId);
+  const update = useUpdateSchedule(gymId);
   const remove = useDeleteSchedule(gymId);
   const materialize = useMaterializeSchedules(gymId);
+  const [editing, setEditing] = useState<ClassSchedule | null>(null);
 
   const [serviceId, setServiceId] = useState<string | null>(null);
   const [startTime, setStartTime] = useState("06:00");
@@ -397,7 +404,7 @@ function ScheduleTab({ gymId }: { gymId: string }) {
                     <Group gap="xs">
                       <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color || "#888" }} />
                       {s.service_type_name}
-                      {s.requires_wod && <Badge size="xs" color="flame">WOD</Badge>}
+                      {s.requires_wod && <Badge size="xs" color="flame">Rutina</Badge>}
                     </Group>
                   </Table.Td>
                   <Table.Td>{s.capacity}</Table.Td>
@@ -405,16 +412,21 @@ function ScheduleTab({ gymId }: { gymId: string }) {
                     {s.is_open_ended ? <Badge variant="light">Sin fin</Badge> : `hasta ${s.valid_until}`}
                   </Table.Td>
                   <Table.Td>
-                    <Tooltip label="Quitar del horario y cancelar clases futuras sin reservas">
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        loading={remove.isPending}
-                        onClick={() => remove.mutate(s.id)}
-                      >
-                        ✕
-                      </ActionIcon>
-                    </Tooltip>
+                    <Group gap="xs" wrap="nowrap">
+                      <Button variant="default" size="xs" onClick={() => setEditing(s)}>
+                        Editar
+                      </Button>
+                      <Tooltip label="Quitar del horario y cancelar clases futuras sin reservas">
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          loading={remove.isPending}
+                          onClick={() => remove.mutate(s.id)}
+                        >
+                          ✕
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -422,6 +434,18 @@ function ScheduleTab({ gymId }: { gymId: string }) {
           </Table>
         )}
       </Card>
+
+      <EditScheduleModal
+        schedule={editing}
+        coachOptions={coachOptions}
+        saving={update.isPending}
+        onClose={() => setEditing(null)}
+        onSave={async (body) => {
+          if (!editing) return;
+          await update.mutateAsync({ id: editing.id, body });
+          setEditing(null);
+        }}
+      />
     </>
   );
 }
@@ -508,7 +532,7 @@ function ClassesTab({ gymId }: { gymId: string }) {
                             <span style={{ width: 10, height: 10, borderRadius: 3, background: gymClass.color }} />
                           )}
                           {gymClass.class_type}
-                          {gymClass.needs_wod && <Badge size="xs" color="flame">WOD</Badge>}
+                          {gymClass.needs_wod && <Badge size="xs" color="flame">Rutina</Badge>}
                         </Group>
                       </Table.Td>
                       <Table.Td>{new Date(gymClass.starts_at).toLocaleString("es-GT")}</Table.Td>
@@ -632,6 +656,72 @@ function ClassesTab({ gymId }: { gymId: string }) {
 // ---------------------------------------------------------------------------
 // WOD del día + board
 // ---------------------------------------------------------------------------
+function EditScheduleModal({
+  schedule,
+  coachOptions,
+  saving,
+  onClose,
+  onSave,
+}: {
+  schedule: ClassSchedule | null;
+  coachOptions: { value: string; label: string }[];
+  saving: boolean;
+  onClose: () => void;
+  onSave: (body: Partial<ClassSchedule>) => Promise<void>;
+}) {
+  const [startTime, setStartTime] = useState("06:00");
+  const [duration, setDuration] = useState<number | string>(60);
+  const [capacity, setCapacity] = useState<number | string>(20);
+  const [coachId, setCoachId] = useState<string | null>(null);
+  const [hydratedFor, setHydratedFor] = useState<string | null>(null);
+
+  if (schedule && hydratedFor !== schedule.id) {
+    setHydratedFor(schedule.id);
+    setStartTime(schedule.start_time.slice(0, 5));
+    setDuration(schedule.duration_min);
+    setCapacity(schedule.capacity);
+    setCoachId(schedule.default_coach ?? null);
+  }
+
+  return (
+    <Modal opened={!!schedule} onClose={onClose} title="Editar horario" centered>
+      <TimeInput label="Hora" value={startTime} onChange={(e) => setStartTime(e.currentTarget.value)} mb="sm" />
+      <Group grow mb="sm">
+        <NumberInput label="Minutos" value={duration} onChange={setDuration} min={15} max={300} />
+        <NumberInput label="Cupo" value={capacity} onChange={setCapacity} min={1} max={200} />
+      </Group>
+      <Select
+        label="Coach"
+        placeholder="Sin asignar"
+        clearable
+        searchable
+        value={coachId}
+        onChange={setCoachId}
+        data={coachOptions}
+        mb="md"
+      />
+      <Group justify="flex-end">
+        <Button variant="default" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button
+          loading={saving}
+          onClick={() =>
+            onSave({
+              start_time: startTime,
+              duration_min: Number(duration),
+              capacity: Number(capacity),
+              default_coach: coachId,
+            } as Partial<ClassSchedule>)
+          }
+        >
+          Guardar
+        </Button>
+      </Group>
+    </Modal>
+  );
+}
+
 function WodTab({ gymId }: { gymId: string }) {
   const [date, setDate] = useState<Date | null>(new Date());
   const dateStr = iso(date);
@@ -639,7 +729,13 @@ function WodTab({ gymId }: { gymId: string }) {
   const wods = useWods(gymId, dateStr);
   const create = useCreateWod(gymId);
   const update = useUpdateWod(gymId);
+  const remove = useDeleteWod(gymId);
   const [openBoard, setOpenBoard] = useState<Wod | null>(null);
+
+  const onDeleteWod = (id: string, wtitle: string) => {
+    if (!window.confirm(`¿Eliminar la rutina "${wtitle}"?`)) return;
+    remove.mutate(id);
+  };
 
   const [serviceId, setServiceId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -676,10 +772,10 @@ function WodTab({ gymId }: { gymId: string }) {
     <>
       <Card mb="lg" component="form" onSubmit={submit}>
         <Title order={3} mb={4}>
-          WOD del día
+          Rutina del día
         </Title>
         <Text c="dimmed" size="sm" mb="md">
-          Un WOD por servicio y fecha; lo comparten todas las clases de ese día. Publícalo para que los atletas lo vean.
+          Una rutina por servicio y fecha; la comparten todas las clases de ese día. Publícala para que los atletas la vean.
         </Text>
         <Group align="flex-end" gap="md" grow>
           <DatePickerInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" />
@@ -719,24 +815,24 @@ function WodTab({ gymId }: { gymId: string }) {
             onChange={(e) => setIsBenchmark(e.currentTarget.checked)}
           />
           <Button type="submit" loading={create.isPending}>
-            Crear WOD
+            Crear rutina
           </Button>
         </Group>
       </Card>
 
       <Card>
         <Title order={3} mb="sm">
-          WODs del {dateStr}
+          Rutinas del {dateStr}
         </Title>
         {wods.isLoading ? (
           <PageLoading />
         ) : !rows.length ? (
-          <EmptyState title="Sin WOD" description="Crea el WOD del día para este servicio." />
+          <EmptyState title="Sin rutina" description="Crea la rutina del día para este servicio." />
         ) : (
           <Table>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>WOD</Table.Th>
+                <Table.Th>Rutina</Table.Th>
                 <Table.Th>Track</Table.Th>
                 <Table.Th>Score</Table.Th>
                 <Table.Th>Resultados</Table.Th>
@@ -791,6 +887,15 @@ function WodTab({ gymId }: { gymId: string }) {
                         onClick={() => update.mutate({ id: w.id, body: { published: !w.published } })}
                       >
                         {w.published ? "Despublicar" : "Publicar"}
+                      </Button>
+                      <Button
+                        variant="light"
+                        color="red"
+                        size="xs"
+                        loading={remove.isPending}
+                        onClick={() => onDeleteWod(w.id, w.title)}
+                      >
+                        Eliminar
                       </Button>
                     </Group>
                   </Table.Td>

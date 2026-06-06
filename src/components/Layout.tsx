@@ -76,7 +76,7 @@ const GROUPS: NavGroup[] = [
   {
     title: "Negocio (ERP)",
     items: [
-      { to: "/panel/pagos", label: "Pagos", icon: CreditCard },
+      { to: "/panel/pagos", label: "Membresías", icon: CreditCard },
       { to: "/panel/coaches-pagos", label: "Pagos a coaches", icon: Wallet },
       { to: "/panel/inventario", label: "Inventario", icon: Package },
       { to: "/panel/pos", label: "Punto de venta", icon: Receipt },

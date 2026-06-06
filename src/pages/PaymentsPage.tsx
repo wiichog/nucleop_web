@@ -56,7 +56,7 @@ export function PaymentsPage() {
 
   return (
     <div>
-      <PageHeader title="Pagos" subtitle="Registra pagos manuales y revisa el historial." />
+      <PageHeader title="Membresías" subtitle="Registra pagos de membresía y revisa el historial." />
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Card component="form" onSubmit={onSubmit}>

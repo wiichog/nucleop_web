@@ -322,6 +322,23 @@ export function usePlanOffers(gymId: string) {
   });
 }
 
+export function useUpdatePlan(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: Partial<Plan> }) =>
+      (await api.patch<Plan>(`/gym/${gymId}/plans/${id}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["plans", gymId] }),
+  });
+}
+
+export function useDeletePlan(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.delete(`/gym/${gymId}/plans/${id}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["plans", gymId] }),
+  });
+}
+
 export function useCreatePlanOffer(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -342,6 +359,15 @@ export function useTogglePlanOffer(gymId: string) {
   return useMutation({
     mutationFn: async ({ offerId, is_active }: { offerId: string; is_active: boolean }) =>
       (await api.patch<PlanOffer>(`/gym/${gymId}/plans/offers/${offerId}`, { is_active })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["plan-offers", gymId] }),
+  });
+}
+
+export function useDeletePlanOffer(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (offerId: string) =>
+      (await api.delete(`/gym/${gymId}/plans/offers/${offerId}`)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plan-offers", gymId] }),
   });
 }
@@ -430,6 +456,15 @@ export function useUpdateServiceType(gymId: string) {
   });
 }
 
+export function useDeleteServiceType(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      (await api.delete(`/gym/${gymId}/service-types/${id}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["service-types", gymId] }),
+  });
+}
+
 // --- Horario semanal (plantillas) ---
 export function useSchedules(gymId: string) {
   return useQuery({
@@ -444,6 +479,18 @@ export function useCreateSchedule(gymId: string) {
   return useMutation({
     mutationFn: async (body: Partial<ClassSchedule>) =>
       (await api.post<ClassSchedule>(`/gym/${gymId}/schedules`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["schedules", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-classes", gymId] });
+    },
+  });
+}
+
+export function useUpdateSchedule(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: Partial<ClassSchedule> }) =>
+      (await api.patch<ClassSchedule>(`/gym/${gymId}/schedules/${id}`, body)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["schedules", gymId] });
       qc.invalidateQueries({ queryKey: ["gym-classes", gymId] });
@@ -496,6 +543,14 @@ export function useUpdateWod(gymId: string) {
   return useMutation({
     mutationFn: async ({ id, body }: { id: string; body: Partial<Wod> }) =>
       (await api.patch<Wod>(`/gym/${gymId}/wods/${id}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["wods", gymId] }),
+  });
+}
+
+export function useDeleteWod(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.delete(`/gym/${gymId}/wods/${id}`)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["wods", gymId] }),
   });
 }
@@ -971,6 +1026,23 @@ export function useCreateBranch(gymId: string) {
   });
 }
 
+export function useUpdateBranch(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: { name?: string; location_text?: string } }) =>
+      (await api.patch<ErpBranch>(`/gym/${gymId}/branches/${id}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["branches", gymId] }),
+  });
+}
+
+export function useDeleteBranch(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.delete(`/gym/${gymId}/branches/${id}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["branches", gymId] }),
+  });
+}
+
 // --- ERP (§18) ---
 export function useErpProducts(gymId: string) {
   return useQuery({
@@ -991,6 +1063,24 @@ export function useCreateErpProduct(gymId: string) {
       reorder_level?: number;
       sku?: string;
     }) => (await api.post<ErpProduct>(`/gym/${gymId}/erp/products`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["erp-products", gymId] }),
+  });
+}
+
+export function useUpdateErpProduct(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: Partial<ErpProduct> }) =>
+      (await api.patch<ErpProduct>(`/gym/${gymId}/erp/products/${id}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["erp-products", gymId] }),
+  });
+}
+
+export function useDeleteErpProduct(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      (await api.delete(`/gym/${gymId}/erp/products/${id}`)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["erp-products", gymId] }),
   });
 }

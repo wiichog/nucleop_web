@@ -3,6 +3,7 @@ import {
   Button,
   Card,
   Group,
+  Modal,
   NumberInput,
   Select,
   Table,
@@ -10,7 +11,15 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { useCreateErpMovement, useCreateErpProduct, useErpProducts } from "../api/hooks";
+import { notifications } from "@mantine/notifications";
+import {
+  useCreateErpMovement,
+  useCreateErpProduct,
+  useDeleteErpProduct,
+  useErpProducts,
+  useUpdateErpProduct,
+} from "../api/hooks";
+import type { ErpProduct } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageLoading } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
@@ -30,7 +39,18 @@ export function InventoryPage() {
   const gymId = primaryGymId ?? "";
   const { data, isLoading } = useErpProducts(gymId);
   const createProduct = useCreateErpProduct(gymId);
+  const updateProduct = useUpdateErpProduct(gymId);
+  const deleteProduct = useDeleteErpProduct(gymId);
   const createMovement = useCreateErpMovement(gymId);
+  const [editing, setEditing] = useState<ErpProduct | null>(null);
+
+  const onDelete = (p: ErpProduct) => {
+    if (!window.confirm(`¿Eliminar el producto "${p.name}"?`)) return;
+    deleteProduct
+      .mutateAsync(p.id)
+      .then(() => notifications.show({ color: "teal", message: "Producto eliminado." }))
+      .catch(() => notifications.show({ color: "red", message: "No se pudo eliminar." }));
+  };
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<string | null>("supplement");
@@ -102,6 +122,7 @@ export function InventoryPage() {
                   <Table.Th>Margen</Table.Th>
                   <Table.Th>Stock</Table.Th>
                   <Table.Th>Reabastecer</Table.Th>
+                  <Table.Th>Acciones</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -131,6 +152,16 @@ export function InventoryPage() {
                         </Button>
                       </Group>
                     </Table.Td>
+                    <Table.Td>
+                      <Group gap="xs" wrap="nowrap">
+                        <Button variant="default" size="xs" onClick={() => setEditing(p)}>
+                          Editar
+                        </Button>
+                        <Button variant="light" color="red" size="xs" onClick={() => onDelete(p)}>
+                          Eliminar
+                        </Button>
+                      </Group>
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -138,6 +169,82 @@ export function InventoryPage() {
           </Table.ScrollContainer>
         )}
       </Card>
+
+      <EditProductModal
+        product={editing}
+        saving={updateProduct.isPending}
+        onClose={() => setEditing(null)}
+        onSave={async (body) => {
+          if (!editing) return;
+          try {
+            await updateProduct.mutateAsync({ id: editing.id, body });
+            notifications.show({ color: "teal", message: "Producto actualizado." });
+            setEditing(null);
+          } catch {
+            notifications.show({ color: "red", message: "No se pudo actualizar." });
+          }
+        }}
+      />
     </div>
+  );
+}
+
+function EditProductModal({
+  product,
+  saving,
+  onClose,
+  onSave,
+}: {
+  product: ErpProduct | null;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (body: Partial<ErpProduct>) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState<string | null>("supplement");
+  const [salePrice, setSalePrice] = useState("");
+  const [costPrice, setCostPrice] = useState("");
+  const [reorder, setReorder] = useState<number | string>(0);
+  const [hydratedFor, setHydratedFor] = useState<string | null>(null);
+
+  if (product && hydratedFor !== product.id) {
+    setHydratedFor(product.id);
+    setName(product.name);
+    setCategory(product.category);
+    setSalePrice(String(product.sale_price ?? ""));
+    setCostPrice(String(product.cost_price ?? ""));
+    setReorder(product.reorder_level ?? 0);
+  }
+
+  return (
+    <Modal opened={!!product} onClose={onClose} title="Editar producto" centered>
+      <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} mb="sm" />
+      <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIES} mb="sm" />
+      <Group grow mb="sm">
+        <TextInput label="Precio venta (Q)" value={salePrice} onChange={(e) => setSalePrice(e.currentTarget.value)} />
+        <TextInput label="Costo (Q)" value={costPrice} onChange={(e) => setCostPrice(e.currentTarget.value)} />
+      </Group>
+      <NumberInput label="Nivel de reorden" value={reorder} onChange={setReorder} min={0} mb="md" />
+      <Group justify="flex-end">
+        <Button variant="default" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button
+          disabled={!name || !salePrice}
+          loading={saving}
+          onClick={() =>
+            onSave({
+              name,
+              category: category ?? "other",
+              sale_price: salePrice,
+              cost_price: costPrice || "0",
+              reorder_level: Number(reorder) || 0,
+            })
+          }
+        >
+          Guardar
+        </Button>
+      </Group>
+    </Modal>
   );
 }

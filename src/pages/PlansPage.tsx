@@ -4,6 +4,7 @@ import {
   Card,
   Checkbox,
   Group,
+  Modal,
   NumberInput,
   Select,
   SimpleGrid,
@@ -14,13 +15,18 @@ import {
   Title,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
+import { notifications } from "@mantine/notifications";
 import {
   useCreatePlan,
   useCreatePlanOffer,
+  useDeletePlan,
+  useDeletePlanOffer,
   usePlanOffers,
   usePlans,
   useTogglePlanOffer,
+  useUpdatePlan,
 } from "../api/hooks";
+import type { Plan } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageLoading } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
@@ -34,9 +40,33 @@ export function PlansPage() {
   const gymId = primaryGymId ?? "";
   const { data, isLoading } = usePlans(gymId);
   const createPlan = useCreatePlan(gymId);
+  const updatePlan = useUpdatePlan(gymId);
+  const deletePlan = useDeletePlan(gymId);
   const offers = usePlanOffers(gymId);
   const createOffer = useCreatePlanOffer(gymId);
   const toggleOffer = useTogglePlanOffer(gymId);
+  const deleteOffer = useDeletePlanOffer(gymId);
+  const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+
+  const onDeletePlan = async (p: Plan) => {
+    if (!window.confirm(`¿Eliminar el plan "${p.name}"? Las membresías con este plan quedarán sin plan.`)) return;
+    try {
+      await deletePlan.mutateAsync(p.id);
+      notifications.show({ color: "teal", message: "Plan eliminado." });
+    } catch {
+      notifications.show({ color: "red", message: "No se pudo eliminar el plan." });
+    }
+  };
+
+  const onDeleteOffer = async (id: string, name: string) => {
+    if (!window.confirm(`¿Eliminar la oferta "${name}"?`)) return;
+    try {
+      await deleteOffer.mutateAsync(id);
+      notifications.show({ color: "teal", message: "Oferta eliminada." });
+    } catch {
+      notifications.show({ color: "red", message: "No se pudo eliminar la oferta." });
+    }
+  };
 
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
@@ -171,6 +201,7 @@ export function PlansPage() {
                 <Table.Th>Plan</Table.Th>
                 <Table.Th>Vigencia</Table.Th>
                 <Table.Th>Activa</Table.Th>
+                <Table.Th>Acciones</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -189,6 +220,11 @@ export function PlansPage() {
                       onChange={() => toggleOffer.mutate({ offerId: o.id, is_active: !o.is_active })}
                       color="flame"
                     />
+                  </Table.Td>
+                  <Table.Td>
+                    <Button variant="light" color="red" size="xs" onClick={() => onDeleteOffer(o.id, o.name)}>
+                      Eliminar
+                    </Button>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -214,6 +250,7 @@ export function PlansPage() {
                 <Table.Th>Duración (días)</Table.Th>
                 <Table.Th>Renovación auto.</Table.Th>
                 <Table.Th>Activo</Table.Th>
+                <Table.Th>Acciones</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -223,13 +260,99 @@ export function PlansPage() {
                   <Table.Td>Q{p.price}</Table.Td>
                   <Table.Td>{p.duration_days}</Table.Td>
                   <Table.Td>{p.auto_renew_default ? "Sí" : "No"}</Table.Td>
-                  <Table.Td>{p.is_active ? "Sí" : "No"}</Table.Td>
+                  <Table.Td>
+                    <Switch
+                      checked={p.is_active}
+                      onChange={() => updatePlan.mutate({ id: p.id, body: { is_active: !p.is_active } })}
+                      color="flame"
+                    />
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap="xs">
+                      <Button variant="default" size="xs" onClick={() => setEditingPlan(p)}>
+                        Editar
+                      </Button>
+                      <Button variant="light" color="red" size="xs" onClick={() => onDeletePlan(p)}>
+                        Eliminar
+                      </Button>
+                    </Group>
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
           </Table>
         )}
       </Card>
+
+      <EditPlanModal
+        plan={editingPlan}
+        saving={updatePlan.isPending}
+        onClose={() => setEditingPlan(null)}
+        onSave={async (body) => {
+          if (!editingPlan) return;
+          try {
+            await updatePlan.mutateAsync({ id: editingPlan.id, body });
+            notifications.show({ color: "teal", message: "Plan actualizado." });
+            setEditingPlan(null);
+          } catch {
+            notifications.show({ color: "red", message: "No se pudo actualizar el plan." });
+          }
+        }}
+      />
     </div>
+  );
+}
+
+function EditPlanModal({
+  plan,
+  saving,
+  onClose,
+  onSave,
+}: {
+  plan: Plan | null;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (body: { name: string; price: string; duration_days: number; class_limit: number | null }) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [duration, setDuration] = useState<number | string>(30);
+  const [classLimit, setClassLimit] = useState<number | string>("");
+  const [hydratedFor, setHydratedFor] = useState<string | null>(null);
+
+  if (plan && hydratedFor !== plan.id) {
+    setHydratedFor(plan.id);
+    setName(plan.name);
+    setPrice(String(plan.price ?? ""));
+    setDuration(plan.duration_days ?? 30);
+    setClassLimit(plan.class_limit ?? "");
+  }
+
+  return (
+    <Modal opened={!!plan} onClose={onClose} title="Editar plan" centered>
+      <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} mb="sm" />
+      <TextInput label="Precio (Q)" value={price} onChange={(e) => setPrice(e.currentTarget.value)} mb="sm" />
+      <NumberInput label="Duración (días)" value={duration} onChange={setDuration} min={1} mb="sm" />
+      <NumberInput label="Límite de clases (vacío = sin límite)" value={classLimit} onChange={setClassLimit} min={0} mb="md" />
+      <Group justify="flex-end">
+        <Button variant="default" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button
+          disabled={!name || !price}
+          loading={saving}
+          onClick={() =>
+            onSave({
+              name,
+              price,
+              duration_days: Number(duration) || 30,
+              class_limit: classLimit === "" ? null : Number(classLimit),
+            })
+          }
+        >
+          Guardar
+        </Button>
+      </Group>
+    </Modal>
   );
 }
