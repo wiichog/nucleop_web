@@ -248,7 +248,9 @@ export interface ErpBranch {
 export interface Coach {
   id: string;
   staff_role: string;
+  name: string;
   email: string;
+  photo: string | null;
   pay_type: "per_class" | "fixed";
   per_class_rate: string;
   fixed_amount: string;

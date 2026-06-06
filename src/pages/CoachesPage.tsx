@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import {
+  Avatar,
   Badge,
   Button,
   Card,
@@ -193,7 +194,21 @@ export function CoachesPage() {
               <Table.Tbody>
                 {(coaches.data ?? []).map((c) => (
                   <Table.Tr key={c.staff_role}>
-                    <Table.Td>{c.email}</Table.Td>
+                    <Table.Td>
+                      <Group gap="sm" wrap="nowrap">
+                        <Avatar src={c.photo} radius="xl" size={38} color="flame">
+                          {(c.name || c.email).slice(0, 1).toUpperCase()}
+                        </Avatar>
+                        <div>
+                          <Text fw={600} size="sm">
+                            {c.name || c.email}
+                          </Text>
+                          <Text c="dimmed" size="xs">
+                            {c.email}
+                          </Text>
+                        </div>
+                      </Group>
+                    </Table.Td>
                     <Table.Td>
                       <Select
                         w={150}
