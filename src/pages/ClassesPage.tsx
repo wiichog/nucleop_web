@@ -55,7 +55,6 @@ import type {
   ServiceType,
   Wod,
 } from "../api/types";
-import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
@@ -152,6 +151,10 @@ function ServicesTab({ gymId }: { gymId: string }) {
   const [requiresWod, setRequiresWod] = useState(false);
   const [duration, setDuration] = useState<number | string>(60);
   const [capacity, setCapacity] = useState<number | string>(20);
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ServiceType>>({
+    columnAccessor: "name",
+    direction: "asc",
+  });
 
   if (services.isError) return <PageError onRetry={() => services.refetch()} />;
 
@@ -201,56 +204,64 @@ function ServicesTab({ gymId }: { gymId: string }) {
       </Card>
 
       <Card>
-        {services.isLoading ? (
-          <PageLoading />
-        ) : !rows.length ? (
-          <EmptyState title="Sin servicios" description="Crea el primer servicio del gym." />
-        ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Servicio</Table.Th>
-                <Table.Th>Rutina</Table.Th>
-                <Table.Th>Cupo</Table.Th>
-                <Table.Th>Estado</Table.Th>
-                <Table.Th>Acciones</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.map((s) => (
-                <Table.Tr key={s.id}>
-                  <Table.Td>
-                    <Group gap="xs">
-                      <span style={{ width: 12, height: 12, borderRadius: 3, background: s.color || "#888" }} />
-                      <Text fw={600}>{s.name}</Text>
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>
-                    {s.requires_wod ? <Badge color="flame">Rutina</Badge> : <Text c="dimmed" size="sm">—</Text>}
-                  </Table.Td>
-                  <Table.Td>{s.default_capacity}</Table.Td>
-                  <Table.Td>
-                    <Switch
-                      checked={s.is_active}
-                      onChange={(e) => update.mutate({ id: s.id, body: { is_active: e.currentTarget.checked } })}
-                      size="sm"
-                    />
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs" wrap="nowrap">
-                      <Button variant="default" size="xs" onClick={() => setEditing(s)}>
-                        Editar
-                      </Button>
-                      <Button variant="light" color="red" size="xs" onClick={() => onDelete(s.id, s.name)}>
-                        Eliminar
-                      </Button>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        )}
+        <DataTable<ServiceType>
+          minHeight={140}
+          highlightOnHover
+          striped
+          idAccessor="id"
+          records={sortRecords(rows, sortStatus)}
+          fetching={services.isLoading}
+          noRecordsText="Crea el primer servicio del gym."
+          sortStatus={sortStatus}
+          onSortStatusChange={setSortStatus}
+          columns={[
+            {
+              accessor: "name",
+              title: "Servicio",
+              sortable: true,
+              render: (s) => (
+                <Group gap="xs">
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: s.color || "#888" }} />
+                  <Text fw={600}>{s.name}</Text>
+                </Group>
+              ),
+            },
+            {
+              accessor: "requires_wod",
+              title: "Rutina",
+              sortable: true,
+              render: (s) =>
+                s.requires_wod ? <Badge color="flame">Rutina</Badge> : <Text c="dimmed" size="sm">—</Text>,
+            },
+            { accessor: "default_capacity", title: "Cupo", sortable: true },
+            {
+              accessor: "is_active",
+              title: "Estado",
+              sortable: true,
+              render: (s) => (
+                <Switch
+                  checked={s.is_active}
+                  onChange={(e) => update.mutate({ id: s.id, body: { is_active: e.currentTarget.checked } })}
+                  size="sm"
+                />
+              ),
+            },
+            {
+              accessor: "actions",
+              title: "Acciones",
+              render: (s) => (
+                <Group gap="xs" wrap="nowrap">
+                  <Button variant="default" size="xs" onClick={() => setEditing(s)}>
+                    Editar
+                  </Button>
+                  <Button variant="light" color="red" size="xs" onClick={() => onDelete(s.id, s.name)}>
+                    Eliminar
+                  </Button>
+                </Group>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       <EditServiceTypeModal
@@ -355,6 +366,10 @@ function ScheduleTab({ gymId }: { gymId: string }) {
   const [openEnded, setOpenEnded] = useState(true);
   const [toDate, setToDate] = useState<Date | null>(null);
   const [materialized, setMaterialized] = useState<number | null>(null);
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ClassSchedule>>({
+    columnAccessor: "start_time",
+    direction: "asc",
+  });
 
   const serviceOptions = useMemo(
     () => ((services.data ?? []) as ServiceType[]).map((s) => ({ value: s.id, label: s.name })),
@@ -463,60 +478,55 @@ function ScheduleTab({ gymId }: { gymId: string }) {
             Se generaron {materialized} clases nuevas en el horizonte.
           </Text>
         )}
-        {schedules.isLoading ? (
-          <PageLoading />
-        ) : !rows.length ? (
-          <EmptyState title="Sin horarios" description="Agrega la primera franja del horario semanal." />
-        ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Hora</Table.Th>
-                <Table.Th>Día</Table.Th>
-                <Table.Th>Servicio</Table.Th>
-                <Table.Th>Cupo</Table.Th>
-                <Table.Th>Vigencia</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.map((s) => (
-                <Table.Tr key={s.id}>
-                  <Table.Td>{s.start_time.slice(0, 5)}</Table.Td>
-                  <Table.Td>{weekdayLabel(s.weekday)}</Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
-                      <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color || "#888" }} />
-                      {s.service_type_name}
-                      {s.requires_wod && <Badge size="xs" color="flame">Rutina</Badge>}
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>{s.capacity}</Table.Td>
-                  <Table.Td>
-                    {s.is_open_ended ? <Badge variant="light">Sin fin</Badge> : `hasta ${s.valid_until}`}
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs" wrap="nowrap">
-                      <Button variant="default" size="xs" onClick={() => setEditing(s)}>
-                        Editar
-                      </Button>
-                      <Tooltip label="Quitar del horario y cancelar clases futuras sin reservas">
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          loading={remove.isPending}
-                          onClick={() => remove.mutate(s.id)}
-                        >
-                          ✕
-                        </ActionIcon>
-                      </Tooltip>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        )}
+        <DataTable<ClassSchedule>
+          minHeight={140}
+          highlightOnHover
+          striped
+          idAccessor="id"
+          records={sortRecords(rows, sortStatus)}
+          fetching={schedules.isLoading}
+          noRecordsText="Agrega la primera franja del horario semanal."
+          sortStatus={sortStatus}
+          onSortStatusChange={setSortStatus}
+          columns={[
+            { accessor: "start_time", title: "Hora", sortable: true, render: (s) => s.start_time.slice(0, 5) },
+            { accessor: "weekday", title: "Día", sortable: true, render: (s) => weekdayLabel(s.weekday) },
+            {
+              accessor: "service_type_name",
+              title: "Servicio",
+              sortable: true,
+              render: (s) => (
+                <Group gap="xs">
+                  <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color || "#888" }} />
+                  {s.service_type_name}
+                  {s.requires_wod && <Badge size="xs" color="flame">Rutina</Badge>}
+                </Group>
+              ),
+            },
+            { accessor: "capacity", title: "Cupo", sortable: true },
+            {
+              accessor: "valid_until",
+              title: "Vigencia",
+              render: (s) => (s.is_open_ended ? <Badge variant="light">Sin fin</Badge> : `hasta ${s.valid_until}`),
+            },
+            {
+              accessor: "actions",
+              title: "",
+              render: (s) => (
+                <Group gap="xs" wrap="nowrap">
+                  <Button variant="default" size="xs" onClick={() => setEditing(s)}>
+                    Editar
+                  </Button>
+                  <Tooltip label="Quitar del horario y cancelar clases futuras sin reservas">
+                    <ActionIcon variant="subtle" color="red" loading={remove.isPending} onClick={() => remove.mutate(s.id)}>
+                      ✕
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       <EditScheduleModal
@@ -858,6 +868,10 @@ function WodTab({ gymId }: { gymId: string }) {
   const [scoreType, setScoreType] = useState<ScoreType>("for_time");
   const [description, setDescription] = useState("");
   const [isBenchmark, setIsBenchmark] = useState(false);
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<Wod>>({
+    columnAccessor: "title",
+    direction: "asc",
+  });
 
   const wodServices = useMemo(
     () => ((services.data ?? []) as ServiceType[]).filter((s) => s.requires_wod),
@@ -940,86 +954,84 @@ function WodTab({ gymId }: { gymId: string }) {
         <Title order={3} mb="sm">
           Rutinas del {dateStr}
         </Title>
-        {wods.isLoading ? (
-          <PageLoading />
-        ) : !rows.length ? (
-          <EmptyState title="Sin rutina" description="Crea la rutina del día para este servicio." />
-        ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Rutina</Table.Th>
-                <Table.Th>Track</Table.Th>
-                <Table.Th>Score</Table.Th>
-                <Table.Th>Resultados</Table.Th>
-                <Table.Th>Estado</Table.Th>
-                <Table.Th>Acciones</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.map((w) => (
-                <Table.Tr key={w.id}>
-                  <Table.Td>
-                    <Group gap="xs">
-                      <Text fw={600}>{w.title}</Text>
-                      {w.is_benchmark && <Badge size="xs" color="grape">Benchmark</Badge>}
-                    </Group>
-                    {w.description && (
-                      <Text c="dimmed" size="xs" lineClamp={1}>
-                        {w.description}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>{w.service_type_name || "General"}</Table.Td>
-                  <Table.Td>{scoreLabel(w.score_type)}</Table.Td>
-                  <Table.Td>{w.results_count}</Table.Td>
-                  <Table.Td>
-                    {w.published ? (
-                      <Badge color="green">Publicado</Badge>
-                    ) : (
-                      <Badge color="gray" variant="light">
-                        Borrador
-                      </Badge>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
-                      <Button variant="light" size="xs" onClick={() => setOpenBoard(w)}>
-                        Board
-                      </Button>
-                      <Button
-                        variant={w.is_benchmark ? "filled" : "default"}
-                        color="grape"
-                        size="xs"
-                        loading={update.isPending}
-                        onClick={() => update.mutate({ id: w.id, body: { is_benchmark: !w.is_benchmark } })}
-                      >
-                        {w.is_benchmark ? "Benchmark ✓" : "Benchmark"}
-                      </Button>
-                      <Button
-                        variant="default"
-                        size="xs"
-                        loading={update.isPending}
-                        onClick={() => update.mutate({ id: w.id, body: { published: !w.published } })}
-                      >
-                        {w.published ? "Despublicar" : "Publicar"}
-                      </Button>
-                      <Button
-                        variant="light"
-                        color="red"
-                        size="xs"
-                        loading={remove.isPending}
-                        onClick={() => onDeleteWod(w.id, w.title)}
-                      >
-                        Eliminar
-                      </Button>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        )}
+        <DataTable<Wod>
+          minHeight={140}
+          highlightOnHover
+          striped
+          idAccessor="id"
+          records={sortRecords(rows, sortStatus)}
+          fetching={wods.isLoading}
+          noRecordsText="Crea la rutina del día para este servicio."
+          sortStatus={sortStatus}
+          onSortStatusChange={setSortStatus}
+          columns={[
+            {
+              accessor: "title",
+              title: "Rutina",
+              sortable: true,
+              render: (w) => (
+                <>
+                  <Group gap="xs">
+                    <Text fw={600}>{w.title}</Text>
+                    {w.is_benchmark && <Badge size="xs" color="grape">Benchmark</Badge>}
+                  </Group>
+                  {w.description && (
+                    <Text c="dimmed" size="xs" lineClamp={1}>
+                      {w.description}
+                    </Text>
+                  )}
+                </>
+              ),
+            },
+            { accessor: "service_type_name", title: "Track", sortable: true, render: (w) => w.service_type_name || "General" },
+            { accessor: "score_type", title: "Score", render: (w) => scoreLabel(w.score_type) },
+            { accessor: "results_count", title: "Resultados", sortable: true },
+            {
+              accessor: "published",
+              title: "Estado",
+              sortable: true,
+              render: (w) =>
+                w.published ? (
+                  <Badge color="green">Publicado</Badge>
+                ) : (
+                  <Badge color="gray" variant="light">
+                    Borrador
+                  </Badge>
+                ),
+            },
+            {
+              accessor: "actions",
+              title: "Acciones",
+              render: (w) => (
+                <Group gap="xs">
+                  <Button variant="light" size="xs" onClick={() => setOpenBoard(w)}>
+                    Board
+                  </Button>
+                  <Button
+                    variant={w.is_benchmark ? "filled" : "default"}
+                    color="grape"
+                    size="xs"
+                    loading={update.isPending}
+                    onClick={() => update.mutate({ id: w.id, body: { is_benchmark: !w.is_benchmark } })}
+                  >
+                    {w.is_benchmark ? "Benchmark ✓" : "Benchmark"}
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="xs"
+                    loading={update.isPending}
+                    onClick={() => update.mutate({ id: w.id, body: { published: !w.published } })}
+                  >
+                    {w.published ? "Despublicar" : "Publicar"}
+                  </Button>
+                  <Button variant="light" color="red" size="xs" loading={remove.isPending} onClick={() => onDeleteWod(w.id, w.title)}>
+                    Eliminar
+                  </Button>
+                </Group>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       <BoardModal gymId={gymId} wod={openBoard} onClose={() => setOpenBoard(null)} />

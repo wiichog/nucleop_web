@@ -9,13 +9,13 @@ import {
   Select,
   SimpleGrid,
   Switch,
-  Table,
   Text,
   TextInput,
   Title,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
+import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useCreatePlan,
   useCreatePlanOffer,
@@ -26,11 +26,11 @@ import {
   useTogglePlanOffer,
   useUpdatePlan,
 } from "../api/hooks";
-import type { Plan } from "../api/types";
-import { EmptyState } from "../components/EmptyState";
-import { NoGymAssigned, PageLoading } from "../components/PageStatus";
+import type { Plan, PlanOffer } from "../api/types";
+import { NoGymAssigned } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { sortRecords } from "../lib/sortRecords";
 
 const OFFER_LABEL: Record<string, string> = { percent: "Descuento %", free_months: "Meses gratis" };
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
@@ -47,6 +47,14 @@ export function PlansPage() {
   const toggleOffer = useTogglePlanOffer(gymId);
   const deleteOffer = useDeletePlanOffer(gymId);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+  const [sortOffers, setSortOffers] = useState<DataTableSortStatus<PlanOffer>>({
+    columnAccessor: "name",
+    direction: "asc",
+  });
+  const [sortPlans, setSortPlans] = useState<DataTableSortStatus<Plan>>({
+    columnAccessor: "name",
+    direction: "asc",
+  });
 
   const onDeletePlan = async (p: Plan) => {
     if (!window.confirm(`¿Eliminar el plan "${p.name}"? Las membresías con este plan quedarán sin plan.`)) return;
@@ -187,101 +195,99 @@ export function PlansPage() {
         <Title order={3} mb="sm">
           Ofertas
         </Title>
-        {offers.isLoading ? (
-          <PageLoading />
-        ) : !(offers.data ?? []).length ? (
-          <EmptyState title="Sin ofertas" description="Crea promociones reutilizables para tus planes." />
-        ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Oferta</Table.Th>
-                <Table.Th>Tipo</Table.Th>
-                <Table.Th>Valor</Table.Th>
-                <Table.Th>Plan</Table.Th>
-                <Table.Th>Vigencia</Table.Th>
-                <Table.Th>Activa</Table.Th>
-                <Table.Th>Acciones</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {(offers.data ?? []).map((o) => (
-                <Table.Tr key={o.id}>
-                  <Table.Td>{o.name}</Table.Td>
-                  <Table.Td>{OFFER_LABEL[o.offer_type] ?? o.offer_type}</Table.Td>
-                  <Table.Td>{o.offer_type === "percent" ? `${o.value}%` : `${o.value} meses`}</Table.Td>
-                  <Table.Td>{o.plan_name ?? "Cualquiera"}</Table.Td>
-                  <Table.Td>
-                    {o.valid_from || "—"} → {o.valid_to || "—"}
-                  </Table.Td>
-                  <Table.Td>
-                    <Switch
-                      checked={o.is_active}
-                      onChange={() => toggleOffer.mutate({ offerId: o.id, is_active: !o.is_active })}
-                      color="flame"
-                    />
-                  </Table.Td>
-                  <Table.Td>
-                    <Button variant="light" color="red" size="xs" onClick={() => onDeleteOffer(o.id, o.name)}>
-                      Eliminar
-                    </Button>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        )}
+        <DataTable<PlanOffer>
+          minHeight={140}
+          highlightOnHover
+          striped
+          idAccessor="id"
+          records={sortRecords((offers.data ?? []) as PlanOffer[], sortOffers)}
+          fetching={offers.isLoading}
+          noRecordsText="Crea promociones reutilizables para tus planes."
+          sortStatus={sortOffers}
+          onSortStatusChange={setSortOffers}
+          columns={[
+            { accessor: "name", title: "Oferta", sortable: true },
+            {
+              accessor: "offer_type",
+              title: "Tipo",
+              sortable: true,
+              render: (o) => OFFER_LABEL[o.offer_type] ?? o.offer_type,
+            },
+            { accessor: "value", title: "Valor", render: (o) => (o.offer_type === "percent" ? `${o.value}%` : `${o.value} meses`) },
+            { accessor: "plan_name", title: "Plan", sortable: true, render: (o) => o.plan_name ?? "Cualquiera" },
+            { accessor: "valid_from", title: "Vigencia", render: (o) => `${o.valid_from || "—"} → ${o.valid_to || "—"}` },
+            {
+              accessor: "is_active",
+              title: "Activa",
+              sortable: true,
+              render: (o) => (
+                <Switch
+                  checked={o.is_active}
+                  onChange={() => toggleOffer.mutate({ offerId: o.id, is_active: !o.is_active })}
+                  color="flame"
+                />
+              ),
+            },
+            {
+              accessor: "actions",
+              title: "Acciones",
+              render: (o) => (
+                <Button variant="light" color="red" size="xs" onClick={() => onDeleteOffer(o.id, o.name)}>
+                  Eliminar
+                </Button>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       <Card>
         <Title order={3} mb="sm">
           Planes
         </Title>
-        {isLoading ? (
-          <PageLoading />
-        ) : !(data ?? []).length ? (
-          <EmptyState title="Sin planes" description="Crea el primer plan para asignarlo a tus atletas." />
-        ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Plan</Table.Th>
-                <Table.Th>Precio</Table.Th>
-                <Table.Th>Duración (días)</Table.Th>
-                <Table.Th>Renovación auto.</Table.Th>
-                <Table.Th>Activo</Table.Th>
-                <Table.Th>Acciones</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {(data ?? []).map((p) => (
-                <Table.Tr key={p.id}>
-                  <Table.Td>{p.name}</Table.Td>
-                  <Table.Td>Q{p.price}</Table.Td>
-                  <Table.Td>{p.duration_days}</Table.Td>
-                  <Table.Td>{p.auto_renew_default ? "Sí" : "No"}</Table.Td>
-                  <Table.Td>
-                    <Switch
-                      checked={p.is_active}
-                      onChange={() => updatePlan.mutate({ id: p.id, body: { is_active: !p.is_active } })}
-                      color="flame"
-                    />
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
-                      <Button variant="default" size="xs" onClick={() => setEditingPlan(p)}>
-                        Editar
-                      </Button>
-                      <Button variant="light" color="red" size="xs" onClick={() => onDeletePlan(p)}>
-                        Eliminar
-                      </Button>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        )}
+        <DataTable<Plan>
+          minHeight={140}
+          highlightOnHover
+          striped
+          idAccessor="id"
+          records={sortRecords((data ?? []) as Plan[], sortPlans)}
+          fetching={isLoading}
+          noRecordsText="Crea el primer plan para asignarlo a tus atletas."
+          sortStatus={sortPlans}
+          onSortStatusChange={setSortPlans}
+          columns={[
+            { accessor: "name", title: "Plan", sortable: true },
+            { accessor: "price", title: "Precio", sortable: true, render: (p) => `Q${p.price}` },
+            { accessor: "duration_days", title: "Duración (días)", sortable: true },
+            { accessor: "auto_renew_default", title: "Renovación auto.", render: (p) => (p.auto_renew_default ? "Sí" : "No") },
+            {
+              accessor: "is_active",
+              title: "Activo",
+              sortable: true,
+              render: (p) => (
+                <Switch
+                  checked={p.is_active}
+                  onChange={() => updatePlan.mutate({ id: p.id, body: { is_active: !p.is_active } })}
+                  color="flame"
+                />
+              ),
+            },
+            {
+              accessor: "actions",
+              title: "Acciones",
+              render: (p) => (
+                <Group gap="xs">
+                  <Button variant="default" size="xs" onClick={() => setEditingPlan(p)}>
+                    Editar
+                  </Button>
+                  <Button variant="light" color="red" size="xs" onClick={() => onDeletePlan(p)}>
+                    Eliminar
+                  </Button>
+                </Group>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       <EditPlanModal

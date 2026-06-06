@@ -1,11 +1,12 @@
 import { FormEvent, useState } from "react";
-import { Button, Card, Group, Modal, Table, TextInput, Title } from "@mantine/core";
+import { Button, Card, Group, Modal, TextInput, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import { useBranches, useCreateBranch, useDeleteBranch, useUpdateBranch } from "../api/hooks";
-import { EmptyState } from "../components/EmptyState";
-import { NoGymAssigned, PageLoading } from "../components/PageStatus";
+import { NoGymAssigned } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { sortRecords } from "../lib/sortRecords";
 
 type Branch = { id: string; name: string; location_text?: string | null };
 
@@ -19,6 +20,10 @@ export function BranchesPage() {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [editing, setEditing] = useState<Branch | null>(null);
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<Branch>>({
+    columnAccessor: "name",
+    direction: "asc",
+  });
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -56,39 +61,35 @@ export function BranchesPage() {
       </Card>
 
       <Card>
-        {isLoading ? (
-          <PageLoading />
-        ) : !(data ?? []).length ? (
-          <EmptyState title="Sin sucursales" description="Agrega tus sedes para medir rentabilidad por ubicación." />
-        ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Sede</Table.Th>
-                <Table.Th>Ubicación</Table.Th>
-                <Table.Th>Acciones</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {(data ?? []).map((b) => (
-                <Table.Tr key={b.id}>
-                  <Table.Td>{b.name}</Table.Td>
-                  <Table.Td>{b.location_text || "—"}</Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
-                      <Button variant="default" size="xs" onClick={() => setEditing(b as Branch)}>
-                        Editar
-                      </Button>
-                      <Button variant="light" color="red" size="xs" loading={deleteBranch.isPending} onClick={() => onDelete(b as Branch)}>
-                        Eliminar
-                      </Button>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        )}
+        <DataTable<Branch>
+          minHeight={140}
+          highlightOnHover
+          striped
+          idAccessor="id"
+          records={sortRecords((data ?? []) as Branch[], sortStatus)}
+          fetching={isLoading}
+          noRecordsText="Agrega tus sedes para medir rentabilidad por ubicación."
+          sortStatus={sortStatus}
+          onSortStatusChange={setSortStatus}
+          columns={[
+            { accessor: "name", title: "Sede", sortable: true },
+            { accessor: "location_text", title: "Ubicación", sortable: true, render: (b) => b.location_text || "—" },
+            {
+              accessor: "actions",
+              title: "Acciones",
+              render: (b) => (
+                <Group gap="xs">
+                  <Button variant="default" size="xs" onClick={() => setEditing(b)}>
+                    Editar
+                  </Button>
+                  <Button variant="light" color="red" size="xs" loading={deleteBranch.isPending} onClick={() => onDelete(b)}>
+                    Eliminar
+                  </Button>
+                </Group>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       <EditBranchModal
