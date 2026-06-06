@@ -461,7 +461,7 @@ function ScheduleTab({ gymId }: { gymId: string }) {
       <Card>
         <Group justify="space-between" mb="sm">
           <Title order={3}>Horario actual</Title>
-          <Tooltip label="Genera/extiende las próximas semanas de clases">
+          <Tooltip label="Reconstruye el calendario futuro desde los horarios activos (quita clases sobrantes sin reservas y regenera las próximas semanas)">
             <Button
               variant="light"
               loading={materialize.isPending}
@@ -470,13 +470,13 @@ function ScheduleTab({ gymId }: { gymId: string }) {
                 setMaterialized(res.materialized);
               }}
             >
-              Generar clases
+              Regenerar calendario
             </Button>
           </Tooltip>
         </Group>
         {materialized !== null && (
           <Text c="flame" size="sm" mb="sm">
-            Se generaron {materialized} clases nuevas en el horizonte.
+            Calendario regenerado: {materialized} clases en el horizonte.
           </Text>
         )}
         <DataTable<ClassSchedule>
