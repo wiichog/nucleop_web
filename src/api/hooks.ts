@@ -30,7 +30,6 @@ import {
   ClassSchedule,
   Wod,
   WodResult,
-  unwrapList,
 } from "./types";
 
 export interface Role {
@@ -46,9 +45,26 @@ interface Me {
   roles: Role[];
 }
 
-async function getList<T>(url: string) {
-  const { data } = await api.get<T[] | Paginated<T>>(url);
-  return unwrapList(data);
+// Trae la lista COMPLETA siguiendo la paginación por cursor del backend (DRF
+// pagina a 25). Sin esto, las tablas con +25 filas se truncaban a la 1ra página
+// y el orden/búsqueda del cliente solo operaba sobre esas 25.
+async function getList<T>(url: string): Promise<T[]> {
+  const out: T[] = [];
+  let cursor: string | null = null;
+  for (let guard = 0; guard < 50; guard++) {
+    const sep: string = url.includes("?") ? "&" : "?";
+    const reqUrl: string = cursor ? `${url}${sep}cursor=${encodeURIComponent(cursor)}` : url;
+    const resp = await api.get<T[] | Paginated<T>>(reqUrl);
+    const data: T[] | Paginated<T> = resp.data;
+    if (Array.isArray(data)) return data;
+    out.push(...data.results);
+    const next: string | null = data.next;
+    if (!next) break;
+    const m: RegExpMatchArray | null = next.match(/[?&]cursor=([^&]+)/);
+    cursor = m ? decodeURIComponent(m[1]) : null;
+    if (!cursor) break;
+  }
+  return out;
 }
 
 export function useLogin() {

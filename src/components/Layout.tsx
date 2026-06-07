@@ -17,7 +17,6 @@ import {
   CalendarDays,
   CreditCard,
   Dumbbell,
-  Sparkles,
   Globe,
   Handshake,
   LayoutDashboard,
@@ -63,7 +62,6 @@ const GROUPS: NavGroup[] = [
       { to: "/panel/atletas", label: "Atletas", icon: Dumbbell },
       { to: "/panel/solicitudes", label: "Solicitudes", icon: Mail },
       { to: "/panel/planes", label: "Planes y cuotas", icon: Tag },
-      { to: "/panel/servicios", label: "Servicios", icon: Sparkles },
     ],
   },
   {
