@@ -327,6 +327,7 @@ export interface ServiceType {
   default_level: string;
   included_in_plan: boolean;
   default_cost: string;
+  completion_points: number;
   is_active: boolean;
 }
 

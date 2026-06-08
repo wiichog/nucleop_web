@@ -154,6 +154,7 @@ function ServicesTab({ gymId }: { gymId: string }) {
   const [requiresWod, setRequiresWod] = useState(false);
   const [duration, setDuration] = useState<number | string>(60);
   const [capacity, setCapacity] = useState<number | string>(20);
+  const [points, setPoints] = useState<number | string>(5);
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ServiceType>>({
     columnAccessor: "name",
     direction: "asc",
@@ -172,6 +173,7 @@ function ServicesTab({ gymId }: { gymId: string }) {
       default_score_type: "none",
       default_duration_min: Number(duration),
       default_capacity: Number(capacity),
+      completion_points: Number(points),
     });
     setName("");
   };
@@ -192,6 +194,14 @@ function ServicesTab({ gymId }: { gymId: string }) {
           <ColorInput label="Color" value={color} onChange={setColor} format="hex" />
           <NumberInput label="Min. por defecto" value={duration} onChange={setDuration} min={15} max={300} />
           <NumberInput label="Cupo por defecto" value={capacity} onChange={setCapacity} min={1} max={200} />
+          <NumberInput
+            label="Puntos al completar"
+            description="Gamificación"
+            value={points}
+            onChange={setPoints}
+            min={0}
+            max={1000}
+          />
         </Group>
         <Group align="flex-end" gap="md" mt="md">
           <Switch
@@ -237,6 +247,12 @@ function ServicesTab({ gymId }: { gymId: string }) {
                 s.requires_wod ? <Badge color="flame">Rutina</Badge> : <Text c="dimmed" size="sm">—</Text>,
             },
             { accessor: "default_capacity", title: "Cupo", sortable: true },
+            {
+              accessor: "completion_points",
+              title: "Puntos",
+              sortable: true,
+              render: (s) => `${s.completion_points ?? 5} pts`,
+            },
             {
               accessor: "is_active",
               title: "Estado",
@@ -297,6 +313,7 @@ function EditServiceTypeModal({
   const [requiresWod, setRequiresWod] = useState(false);
   const [duration, setDuration] = useState<number | string>(60);
   const [capacity, setCapacity] = useState<number | string>(20);
+  const [points, setPoints] = useState<number | string>(5);
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
 
   if (service && hydratedFor !== service.id) {
@@ -306,6 +323,7 @@ function EditServiceTypeModal({
     setRequiresWod(service.requires_wod);
     setDuration(service.default_duration_min ?? 60);
     setCapacity(service.default_capacity ?? 20);
+    setPoints(service.completion_points ?? 5);
   }
 
   return (
@@ -316,6 +334,14 @@ function EditServiceTypeModal({
         <NumberInput label="Min. por defecto" value={duration} onChange={setDuration} min={15} max={300} />
         <NumberInput label="Cupo por defecto" value={capacity} onChange={setCapacity} min={1} max={200} />
       </Group>
+      <NumberInput
+        label="Puntos al completar (gamificación)"
+        value={points}
+        onChange={setPoints}
+        min={0}
+        max={1000}
+        mb="sm"
+      />
       <Switch
         label="Requiere rutina"
         checked={requiresWod}
@@ -336,6 +362,7 @@ function EditServiceTypeModal({
               requires_wod: requiresWod,
               default_duration_min: Number(duration),
               default_capacity: Number(capacity),
+              completion_points: Number(points),
             })
           }
         >
