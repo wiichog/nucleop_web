@@ -1,10 +1,12 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import {
+  Badge,
   Button,
   Card,
   Checkbox,
   Group,
   Modal,
+  MultiSelect,
   NumberInput,
   Select,
   SimpleGrid,
@@ -23,6 +25,7 @@ import {
   useDeletePlanOffer,
   usePlanOffers,
   usePlans,
+  useServiceTypes,
   useTogglePlanOffer,
   useUpdatePlan,
 } from "../api/hooks";
@@ -39,6 +42,11 @@ export function PlansPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
   const { data, isLoading } = usePlans(gymId);
+  const serviceTypes = useServiceTypes(gymId);
+  const serviceOptions = useMemo(
+    () => (serviceTypes.data ?? []).map((s) => ({ value: s.id, label: s.name })),
+    [serviceTypes.data],
+  );
   const createPlan = useCreatePlan(gymId);
   const updatePlan = useUpdatePlan(gymId);
   const deletePlan = useDeletePlan(gymId);
@@ -83,6 +91,7 @@ export function PlansPage() {
   const [specialAccess, setSpecialAccess] = useState(false);
   const [openGym, setOpenGym] = useState(false);
   const [noshowPoints, setNoshowPoints] = useState<number | string>(-10);
+  const [planServices, setPlanServices] = useState<string[]>([]);
 
   const [offerName, setOfferName] = useState("");
   const [offerType, setOfferType] = useState<"percent" | "free_months">("percent");
@@ -101,6 +110,7 @@ export function PlansPage() {
       class_limit: classLimit ? Number(classLimit) : null,
       special_classes_access: specialAccess,
       open_gym_access: openGym,
+      service_types: planServices,
       noshow_penalty:
         Number.isFinite(points) && points !== 0
           ? { community_points: points, notify: true, message: "Penalización por no asistir a clase reservada." }
@@ -109,6 +119,7 @@ export function PlansPage() {
     setName("");
     setPrice("");
     setClassLimit("");
+    setPlanServices([]);
   };
 
   const onCreateOffer = async (event: FormEvent) => {
@@ -141,6 +152,17 @@ export function PlansPage() {
           <NumberInput label="Duración (días)" value={durationDays} onChange={setDurationDays} min={1} />
           <NumberInput label="Límite de clases" placeholder="Sin límite" value={classLimit} onChange={setClassLimit} min={0} />
         </SimpleGrid>
+        <MultiSelect
+          mt="md"
+          label="Servicios incluidos"
+          description="Disciplinas del catálogo que esta suscripción incluye; el atleta lo ve en la app."
+          placeholder={serviceOptions.length ? "Selecciona servicios" : "Crea servicios en Clases → Servicios"}
+          data={serviceOptions}
+          value={planServices}
+          onChange={setPlanServices}
+          searchable
+          clearable
+        />
         <Group mt="md" gap="lg" align="center">
           <Checkbox label="Acceso a clases especiales" checked={specialAccess} onChange={(e) => setSpecialAccess(e.currentTarget.checked)} />
           <Checkbox label="Open gym" checked={openGym} onChange={(e) => setOpenGym(e.currentTarget.checked)} />
@@ -259,6 +281,22 @@ export function PlansPage() {
             { accessor: "name", title: "Plan", sortable: true },
             { accessor: "price", title: "Precio", sortable: true, render: (p) => `Q${p.price}` },
             { accessor: "duration_days", title: "Duración (días)", sortable: true },
+            {
+              accessor: "service_type_names",
+              title: "Servicios",
+              render: (p) =>
+                (p.service_type_names ?? []).length ? (
+                  <Group gap={4}>
+                    {(p.service_type_names ?? []).map((n) => (
+                      <Badge key={n} variant="light" color="flame" size="sm">
+                        {n}
+                      </Badge>
+                    ))}
+                  </Group>
+                ) : (
+                  <Text c="dimmed" size="sm">—</Text>
+                ),
+            },
             { accessor: "auto_renew_default", title: "Renovación auto.", render: (p) => (p.auto_renew_default ? "Sí" : "No") },
             {
               accessor: "is_active",
@@ -292,6 +330,7 @@ export function PlansPage() {
 
       <EditPlanModal
         plan={editingPlan}
+        serviceOptions={serviceOptions}
         saving={updatePlan.isPending}
         onClose={() => setEditingPlan(null)}
         onSave={async (body) => {
@@ -311,19 +350,28 @@ export function PlansPage() {
 
 function EditPlanModal({
   plan,
+  serviceOptions,
   saving,
   onClose,
   onSave,
 }: {
   plan: Plan | null;
+  serviceOptions: { value: string; label: string }[];
   saving: boolean;
   onClose: () => void;
-  onSave: (body: { name: string; price: string; duration_days: number; class_limit: number | null }) => Promise<void>;
+  onSave: (body: {
+    name: string;
+    price: string;
+    duration_days: number;
+    class_limit: number | null;
+    service_types: string[];
+  }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [duration, setDuration] = useState<number | string>(30);
   const [classLimit, setClassLimit] = useState<number | string>("");
+  const [services, setServices] = useState<string[]>([]);
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
 
   if (plan && hydratedFor !== plan.id) {
@@ -332,6 +380,7 @@ function EditPlanModal({
     setPrice(String(plan.price ?? ""));
     setDuration(plan.duration_days ?? 30);
     setClassLimit(plan.class_limit ?? "");
+    setServices(plan.service_types ?? []);
   }
 
   return (
@@ -339,7 +388,18 @@ function EditPlanModal({
       <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} mb="sm" />
       <TextInput label="Precio (Q)" value={price} onChange={(e) => setPrice(e.currentTarget.value)} mb="sm" />
       <NumberInput label="Duración (días)" value={duration} onChange={setDuration} min={1} mb="sm" />
-      <NumberInput label="Límite de clases (vacío = sin límite)" value={classLimit} onChange={setClassLimit} min={0} mb="md" />
+      <NumberInput label="Límite de clases (vacío = sin límite)" value={classLimit} onChange={setClassLimit} min={0} mb="sm" />
+      <MultiSelect
+        label="Servicios incluidos"
+        description="El atleta ve estos servicios como parte de su suscripción."
+        placeholder={serviceOptions.length ? "Selecciona servicios" : "Crea servicios en Clases → Servicios"}
+        data={serviceOptions}
+        value={services}
+        onChange={setServices}
+        searchable
+        clearable
+        mb="md"
+      />
       <Group justify="flex-end">
         <Button variant="default" onClick={onClose}>
           Cancelar
@@ -353,6 +413,7 @@ function EditPlanModal({
               price,
               duration_days: Number(duration) || 30,
               class_limit: classLimit === "" ? null : Number(classLimit),
+              service_types: services,
             })
           }
         >

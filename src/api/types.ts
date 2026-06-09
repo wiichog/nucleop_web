@@ -23,7 +23,11 @@ export type MembershipDetail = Omit<
       AthleteProfileExtra;
   };
 export type Payment = components["schemas"]["Payment"];
-export type Plan = components["schemas"]["Plan"];
+export type Plan = components["schemas"]["Plan"] & {
+  // Servicios del catálogo incluidos en la suscripción (aún no en el schema generado).
+  service_types?: string[];
+  service_type_names?: string[];
+};
 export type JoinRequest = components["schemas"]["JoinRequest"];
 export type GymClass = components["schemas"]["GymClass"];
 export type GymCheckin = components["schemas"]["GymCheckin"];
@@ -320,6 +324,8 @@ export interface ServiceType {
   color: string;
   icon: string;
   description: string;
+  photo: string | null;
+  how_it_works: string;
   requires_wod: boolean;
   default_score_type: ScoreType;
   default_duration_min: number;

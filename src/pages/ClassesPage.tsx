@@ -5,9 +5,11 @@ import {
   Button,
   Card,
   ColorInput,
+  FileInput,
   Group,
   Modal,
   NumberInput,
+  SegmentedControl,
   Select,
   Switch,
   Table,
@@ -37,6 +39,7 @@ import {
   useGymCoaches,
   useGymClasses,
   useGymConfig,
+  useGymPastClasses,
   useMaterializeSchedules,
   useMemberships,
   useReceptionCheckin,
@@ -46,6 +49,7 @@ import {
   useUpdateGymConfig,
   useUpdateSchedule,
   useUpdateServiceType,
+  useUploadServiceTypePhoto,
   useUpdateWod,
   useWodBoard,
   useWods,
@@ -142,6 +146,7 @@ function ServicesTab({ gymId }: { gymId: string }) {
   const create = useCreateServiceType(gymId);
   const update = useUpdateServiceType(gymId);
   const remove = useDeleteServiceType(gymId);
+  const uploadPhoto = useUploadServiceTypePhoto(gymId);
   const [editing, setEditing] = useState<ServiceType | null>(null);
 
   const onDelete = (id: string, sname: string) => {
@@ -155,6 +160,9 @@ function ServicesTab({ gymId }: { gymId: string }) {
   const [duration, setDuration] = useState<number | string>(60);
   const [capacity, setCapacity] = useState<number | string>(20);
   const [points, setPoints] = useState<number | string>(5);
+  const [description, setDescription] = useState("");
+  const [howItWorks, setHowItWorks] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ServiceType>>({
     columnAccessor: "name",
     direction: "asc",
@@ -165,17 +173,23 @@ function ServicesTab({ gymId }: { gymId: string }) {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    await create.mutateAsync({
+    const created = await create.mutateAsync({
       name: name.trim(),
       color,
       requires_wod: requiresWod,
+      description: description.trim(),
+      how_it_works: howItWorks.trim(),
       // El tipo de score se elige al publicar cada rutina, no por servicio.
       default_score_type: "none",
       default_duration_min: Number(duration),
       default_capacity: Number(capacity),
       completion_points: Number(points),
     });
+    if (photoFile) await uploadPhoto.mutateAsync({ id: created.id, file: photoFile });
     setName("");
+    setDescription("");
+    setHowItWorks("");
+    setPhotoFile(null);
   };
 
   const rows = (services.data ?? []) as ServiceType[];
@@ -203,14 +217,43 @@ function ServicesTab({ gymId }: { gymId: string }) {
             max={1000}
           />
         </Group>
+        <Group align="flex-start" gap="md" mt="md" grow>
+          <Textarea
+            label="Descripción"
+            description="Qué es el servicio; se muestra a los atletas en la app."
+            placeholder="Entrenamiento funcional de alta intensidad en grupo…"
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+            autosize
+            minRows={2}
+          />
+          <Textarea
+            label="Cómo funciona"
+            description="Onboarding del servicio en la app (si lo dejas vacío, se usa el texto estándar)."
+            placeholder="Reserva tu cupo, asiste y escanea el QR al finalizar para ganar puntos…"
+            value={howItWorks}
+            onChange={(e) => setHowItWorks(e.currentTarget.value)}
+            autosize
+            minRows={2}
+          />
+        </Group>
         <Group align="flex-end" gap="md" mt="md">
+          <FileInput
+            label="Foto del servicio"
+            placeholder="Subir imagen"
+            accept="image/*"
+            value={photoFile}
+            onChange={setPhotoFile}
+            clearable
+            w={260}
+          />
           <Switch
             label="Requiere rutina"
             description="Las clases de este servicio llevan rutina del día y tablero."
             checked={requiresWod}
             onChange={(e) => setRequiresWod(e.currentTarget.checked)}
           />
-          <Button type="submit" loading={create.isPending} ml="auto">
+          <Button type="submit" loading={create.isPending || uploadPhoto.isPending} ml="auto">
             Crear servicio
           </Button>
         </Group>
@@ -233,9 +276,24 @@ function ServicesTab({ gymId }: { gymId: string }) {
               title: "Servicio",
               sortable: true,
               render: (s) => (
-                <Group gap="xs">
-                  <span style={{ width: 12, height: 12, borderRadius: 3, background: s.color || "#888" }} />
-                  <Text fw={600}>{s.name}</Text>
+                <Group gap="sm" wrap="nowrap">
+                  {s.photo ? (
+                    <img
+                      src={s.photo}
+                      alt={s.name}
+                      style={{ width: 46, height: 34, objectFit: "cover", borderRadius: 6 }}
+                    />
+                  ) : (
+                    <span style={{ width: 12, height: 12, borderRadius: 3, background: s.color || "#888" }} />
+                  )}
+                  <div>
+                    <Text fw={600}>{s.name}</Text>
+                    {s.description && (
+                      <Text c="dimmed" size="xs" lineClamp={1} maw={280}>
+                        {s.description}
+                      </Text>
+                    )}
+                  </div>
                 </Group>
               ),
             },
@@ -285,11 +343,12 @@ function ServicesTab({ gymId }: { gymId: string }) {
 
       <EditServiceTypeModal
         service={editing}
-        saving={update.isPending}
+        saving={update.isPending || uploadPhoto.isPending}
         onClose={() => setEditing(null)}
-        onSave={async (body) => {
+        onSave={async (body, photo) => {
           if (!editing) return;
           await update.mutateAsync({ id: editing.id, body });
+          if (photo) await uploadPhoto.mutateAsync({ id: editing.id, file: photo });
           setEditing(null);
         }}
       />
@@ -306,7 +365,7 @@ function EditServiceTypeModal({
   service: ServiceType | null;
   saving: boolean;
   onClose: () => void;
-  onSave: (body: Partial<ServiceType>) => Promise<void>;
+  onSave: (body: Partial<ServiceType>, photo: File | null) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("#1B7FA6");
@@ -314,6 +373,9 @@ function EditServiceTypeModal({
   const [duration, setDuration] = useState<number | string>(60);
   const [capacity, setCapacity] = useState<number | string>(20);
   const [points, setPoints] = useState<number | string>(5);
+  const [description, setDescription] = useState("");
+  const [howItWorks, setHowItWorks] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
 
   if (service && hydratedFor !== service.id) {
@@ -324,10 +386,13 @@ function EditServiceTypeModal({
     setDuration(service.default_duration_min ?? 60);
     setCapacity(service.default_capacity ?? 20);
     setPoints(service.completion_points ?? 5);
+    setDescription(service.description ?? "");
+    setHowItWorks(service.how_it_works ?? "");
+    setPhoto(null);
   }
 
   return (
-    <Modal opened={!!service} onClose={onClose} title="Editar servicio" centered>
+    <Modal opened={!!service} onClose={onClose} title="Editar servicio" centered size="lg">
       <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} mb="sm" />
       <ColorInput label="Color" value={color} onChange={setColor} format="hex" mb="sm" />
       <Group grow mb="sm">
@@ -340,6 +405,45 @@ function EditServiceTypeModal({
         onChange={setPoints}
         min={0}
         max={1000}
+        mb="sm"
+      />
+      <Textarea
+        label="Descripción"
+        description="Qué es el servicio; los atletas la ven en la app."
+        value={description}
+        onChange={(e) => setDescription(e.currentTarget.value)}
+        autosize
+        minRows={2}
+        mb="sm"
+      />
+      <Textarea
+        label="Cómo funciona"
+        description="Onboarding que ve el atleta. Vacío = texto estándar (reserva → QR al cierre → puntos)."
+        value={howItWorks}
+        onChange={(e) => setHowItWorks(e.currentTarget.value)}
+        autosize
+        minRows={2}
+        mb="sm"
+      />
+      {service?.photo && !photo && (
+        <Group gap="sm" mb="xs">
+          <img
+            src={service.photo}
+            alt={service.name}
+            style={{ width: 86, height: 56, objectFit: "cover", borderRadius: 8 }}
+          />
+          <Text c="dimmed" size="xs">
+            Foto actual — sube otra para reemplazarla.
+          </Text>
+        </Group>
+      )}
+      <FileInput
+        label="Foto del servicio"
+        placeholder="Subir imagen"
+        accept="image/*"
+        value={photo}
+        onChange={setPhoto}
+        clearable
         mb="sm"
       />
       <Switch
@@ -356,14 +460,19 @@ function EditServiceTypeModal({
           disabled={!name}
           loading={saving}
           onClick={() =>
-            onSave({
-              name,
-              color,
-              requires_wod: requiresWod,
-              default_duration_min: Number(duration),
-              default_capacity: Number(capacity),
-              completion_points: Number(points),
-            })
+            onSave(
+              {
+                name,
+                color,
+                requires_wod: requiresWod,
+                default_duration_min: Number(duration),
+                default_capacity: Number(capacity),
+                completion_points: Number(points),
+                description,
+                how_it_works: howItWorks,
+              },
+              photo,
+            )
           }
         >
           Guardar
@@ -579,6 +688,7 @@ function ScheduleTab({ gymId }: { gymId: string }) {
 // ---------------------------------------------------------------------------
 function ClassesTab({ gymId }: { gymId: string }) {
   const classes = useGymClasses(gymId);
+  const pastClasses = useGymPastClasses(gymId);
   const memberships = useMemberships(gymId);
   const coaches = useGymCoaches(gymId);
   const updateClass = useUpdateClass(gymId);
@@ -607,14 +717,23 @@ function ClassesTab({ gymId }: { gymId: string }) {
     coachOptions.find((o) => o.value === staffId)?.label ?? null;
 
   const [search, setSearch] = useState("");
+  // Igual que la app móvil: las clases se separan en Pasado / Hoy / Próximas.
+  const [timeTab, setTimeTab] = useState<"pasado" | "hoy" | "proximas">("hoy");
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ClassRow>>({
     columnAccessor: "starts_at",
     direction: "asc",
   });
 
-  if (classes.isError) return <PageError onRetry={() => classes.refetch()} />;
+  const source = timeTab === "pasado" ? pastClasses : classes;
+  if (source.isError) return <PageError onRetry={() => source.refetch()} />;
 
-  const all = (classes.data ?? []) as ClassRow[];
+  const todayStr = new Date().toLocaleDateString("en-CA");
+  const dayOf = (c: ClassRow) => new Date(c.starts_at).toLocaleDateString("en-CA");
+  const upcoming = (classes.data ?? []) as ClassRow[];
+  const all =
+    timeTab === "pasado"
+      ? ((pastClasses.data ?? []) as ClassRow[])
+      : upcoming.filter((c) => (timeTab === "hoy" ? dayOf(c) === todayStr : dayOf(c) > todayStr));
   const q = search.trim().toLowerCase();
   const filtered = q
     ? all.filter(
@@ -625,6 +744,10 @@ function ClassesTab({ gymId }: { gymId: string }) {
       )
     : all;
   const rows = sortRecords(filtered, sortStatus);
+
+  const countHoy = upcoming.filter((c) => dayOf(c) === todayStr).length;
+  const countProximas = upcoming.filter((c) => dayOf(c) > todayStr).length;
+  const countPasado = (pastClasses.data ?? []).length;
 
   return (
     <>
@@ -651,20 +774,44 @@ function ClassesTab({ gymId }: { gymId: string }) {
       </Card>
 
       <Card>
-        <TextInput
-          placeholder="Buscar por clase, coach o estado…"
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          mb="md"
-          w={320}
-        />
+        <Group justify="space-between" mb="md">
+          <SegmentedControl
+            value={timeTab}
+            onChange={(v) => {
+              const tab = v as "pasado" | "hoy" | "proximas";
+              setTimeTab(tab);
+              // Pasado: lo más reciente primero; Hoy/Próximas: lo más cercano primero.
+              setSortStatus({
+                columnAccessor: "starts_at",
+                direction: tab === "pasado" ? "desc" : "asc",
+              });
+            }}
+            data={[
+              { value: "pasado", label: `Pasado (${countPasado})` },
+              { value: "hoy", label: `Hoy (${countHoy})` },
+              { value: "proximas", label: `Próximas (${countProximas})` },
+            ]}
+          />
+          <TextInput
+            placeholder="Buscar por clase, coach o estado…"
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+            w={320}
+          />
+        </Group>
         <DataTable<ClassRow>
           minHeight={160}
           highlightOnHover
           striped
           records={rows}
-          fetching={classes.isLoading}
-          noRecordsText="Sin clases. Arma el horario y genera las clases del calendario."
+          fetching={source.isLoading}
+          noRecordsText={
+            timeTab === "pasado"
+              ? "Sin clases pasadas en los últimos 60 días."
+              : timeTab === "hoy"
+                ? "Sin clases hoy. Arma el horario y genera las clases del calendario."
+                : "Sin clases próximas. Arma el horario y genera las clases del calendario."
+          }
           sortStatus={sortStatus}
           onSortStatusChange={setSortStatus}
           idAccessor="id"
@@ -724,7 +871,7 @@ function ClassesTab({ gymId }: { gymId: string }) {
                   <Button variant="default" size="xs" onClick={() => setSelectedClassId(gymClass.id)}>
                     Asistencia
                   </Button>
-                  {gymClass.status !== "cancelled" && (
+                  {gymClass.status !== "cancelled" && timeTab !== "pasado" && (
                     <Button
                       variant="subtle"
                       color="orange"

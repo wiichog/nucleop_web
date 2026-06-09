@@ -325,6 +325,7 @@ export function useCreatePlan(gymId: string) {
       open_gym_access?: boolean;
       benefits?: Record<string, unknown> | null;
       noshow_penalty?: Record<string, unknown> | null;
+      service_types?: string[];
     }) => (await api.post<Plan>(`/gym/${gymId}/plans`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plans", gymId] }),
   });
@@ -392,6 +393,23 @@ export function useGymClasses(gymId: string) {
   return useQuery({
     queryKey: ["gym-classes", gymId],
     queryFn: () => getList<GymClass>(`/gym/${gymId}/classes`),
+    enabled: !!gymId,
+  });
+}
+
+/** Clases pasadas del gym (últimos 60 días, hasta ayer) para la pestaña "Pasado". */
+export function useGymPastClasses(gymId: string) {
+  const iso = (d: Date) => d.toLocaleDateString("en-CA");
+  const hoy = new Date();
+  const ayer = new Date(hoy);
+  ayer.setDate(hoy.getDate() - 1);
+  const desde = new Date(hoy);
+  desde.setDate(hoy.getDate() - 60);
+  return useQuery({
+    // Bajo el prefijo ["gym-classes", gymId] para que las mutaciones de clases
+    // (cancelar/eliminar/editar) también refresquen esta lista.
+    queryKey: ["gym-classes", gymId, "past", iso(ayer)],
+    queryFn: () => getList<GymClass>(`/gym/${gymId}/classes?from=${iso(desde)}&to=${iso(ayer)}`),
     enabled: !!gymId,
   });
 }
@@ -477,6 +495,23 @@ export function useUpdateServiceType(gymId: string) {
   return useMutation({
     mutationFn: async ({ id, body }: { id: string; body: Partial<ServiceType> }) =>
       (await api.patch<ServiceType>(`/gym/${gymId}/service-types/${id}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["service-types", gymId] }),
+  });
+}
+
+/** Sube/reemplaza la foto de portada de un servicio (PATCH multipart). */
+export function useUploadServiceTypePhoto(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+      const form = new FormData();
+      form.append("photo", file);
+      return (
+        await api.patch<ServiceType>(`/gym/${gymId}/service-types/${id}`, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data;
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["service-types", gymId] }),
   });
 }
