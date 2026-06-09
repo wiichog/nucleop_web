@@ -107,13 +107,15 @@ export function DashboardPage() {
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Clase</Table.Th>
+                    <Table.Th>Horario</Table.Th>
                     <Table.Th>Reservas</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {d.clases_mas_demandadas.map((c) => (
-                    <Table.Tr key={c.class_type}>
+                  {d.clases_mas_demandadas.map((c, i) => (
+                    <Table.Tr key={`${c.class_type}-${c.horario}-${i}`}>
                       <Table.Td>{c.class_type}</Table.Td>
+                      <Table.Td>{c.horario}</Table.Td>
                       <Table.Td>{c.reservas}</Table.Td>
                     </Table.Tr>
                   ))}

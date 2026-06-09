@@ -141,7 +141,7 @@ export interface Dashboard {
   resultados_wod: number;
   prs_nuevos: number;
   servicios_activos: number;
-  clases_mas_demandadas: { class_type: string; reservas: number }[];
+  clases_mas_demandadas: { class_type: string; horario: string; reservas: number }[];
 }
 
 export interface PlanOffer {
