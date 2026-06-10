@@ -911,37 +911,45 @@ function ClassesTab({ gymId }: { gymId: string }) {
             {
               accessor: "actions",
               title: "Acciones",
-              render: (gymClass) => (
-                <Group gap="xs">
-                  <Button variant="light" size="xs" onClick={() => setEditing(gymClass)}>
-                    Coach
-                  </Button>
-                  <Button variant="default" size="xs" onClick={() => setSelectedClassId(gymClass.id)}>
-                    Asistencia
-                  </Button>
-                  {/* Una clase que ya inició (o pasó) ya no se puede cancelar. */}
-                  {gymClass.status !== "cancelled" && timeTab !== "pasado" && !yaInicio(gymClass) && (
-                    <Button
-                      variant="subtle"
-                      color="orange"
-                      size="xs"
-                      loading={cancelClass.isPending && cancelClass.variables === gymClass.id}
-                      onClick={() => cancelClass.mutate(gymClass.id)}
-                    >
-                      Cancelar
+              render: (gymClass) => {
+                // Una clase que ya inició (o está en Pasado) es de solo asistencia:
+                // no se le cambia el coach, no se cancela ni se elimina.
+                const iniciada = timeTab === "pasado" || yaInicio(gymClass);
+                return (
+                  <Group gap="xs">
+                    {!iniciada && (
+                      <Button variant="light" size="xs" onClick={() => setEditing(gymClass)}>
+                        Coach
+                      </Button>
+                    )}
+                    <Button variant="default" size="xs" onClick={() => setSelectedClassId(gymClass.id)}>
+                      Asistencia
                     </Button>
-                  )}
-                  <Button
-                    variant="subtle"
-                    color="red"
-                    size="xs"
-                    loading={deleteClass.isPending && deleteClass.variables === gymClass.id}
-                    onClick={() => onDeleteClass(gymClass)}
-                  >
-                    Eliminar
-                  </Button>
-                </Group>
-              ),
+                    {gymClass.status !== "cancelled" && !iniciada && (
+                      <Button
+                        variant="subtle"
+                        color="orange"
+                        size="xs"
+                        loading={cancelClass.isPending && cancelClass.variables === gymClass.id}
+                        onClick={() => cancelClass.mutate(gymClass.id)}
+                      >
+                        Cancelar
+                      </Button>
+                    )}
+                    {!iniciada && (
+                      <Button
+                        variant="subtle"
+                        color="red"
+                        size="xs"
+                        loading={deleteClass.isPending && deleteClass.variables === gymClass.id}
+                        onClick={() => onDeleteClass(gymClass)}
+                      >
+                        Eliminar
+                      </Button>
+                    )}
+                  </Group>
+                );
+              },
             },
           ]}
         />
