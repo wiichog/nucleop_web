@@ -184,7 +184,38 @@ export interface ErpProduct {
   reorder_level: number;
   margin_unit: string;
   needs_reorder: boolean;
+  // Marketplace (tienda en la app del atleta)
+  show_in_marketplace: boolean;
+  description: string;
+  photo: string | null;
+  sizes: string[];
+  colors: string[];
+  delivery_days: number;
+  is_upcoming: boolean;
+  launch_date: string | null;
   is_active: boolean;
+  created_at: string;
+}
+
+/** Pedido/apartado de la tienda del gym (marketplace de la app). */
+export interface ProductOrder {
+  id: string;
+  gym: string;
+  gym_name: string;
+  product: string;
+  product_name: string;
+  product_photo: string | null;
+  athlete: string;
+  athlete_name: string;
+  qty: number;
+  size: string;
+  color: string;
+  unit_price: string;
+  total: string;
+  kind: "purchase" | "preorder";
+  status: "pending_payment" | "reserved" | "paid" | "delivered" | "cancelled";
+  payment: string | null;
+  delivery_days: number;
   created_at: string;
 }
 

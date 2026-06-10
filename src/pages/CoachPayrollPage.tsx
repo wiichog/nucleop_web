@@ -12,6 +12,8 @@ import {
   Title,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
+import { notifications } from "@mantine/notifications";
+import { AxiosError } from "axios";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useCoachPayouts,
@@ -53,7 +55,32 @@ export function CoachPayrollPage() {
 
   const onGenerate = async (e: FormEvent) => {
     e.preventDefault();
-    await generate.mutateAsync({ period_start: iso(from), period_end: iso(to) });
+    try {
+      const result = await generate.mutateAsync({ period_start: iso(from), period_end: iso(to) });
+      if (result.length > 0) {
+        const total = result.reduce((acc, p) => acc + Number(p.total), 0);
+        notifications.show({
+          color: "teal",
+          title: "Liquidación generada",
+          message: `${result.length} ${result.length === 1 ? "liquidación" : "liquidaciones"} por un total de ${money(total)}.`,
+        });
+      } else {
+        notifications.show({
+          color: "yellow",
+          title: "No hay nada que liquidar en ese periodo",
+          message:
+            "No se encontraron ingresos pendientes. Verifica que: las clases del periodo ya hayan pasado y tengan coach asignado; el coach 'por clase' tenga tarifa mayor a Q0; y las clases de coaches con salario fijo estén marcadas como 'pagar extra'.",
+          autoClose: 12000,
+        });
+      }
+    } catch (err) {
+      const detail = (err as AxiosError<{ detail?: string }>).response?.data?.detail;
+      notifications.show({
+        color: "red",
+        title: "No se pudo generar la liquidación",
+        message: detail ?? "Revisa las fechas e intenta de nuevo.",
+      });
+    }
   };
 
   return (

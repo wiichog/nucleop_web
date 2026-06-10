@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Button,
   Card,
@@ -695,6 +696,7 @@ function ClassesTab({ gymId }: { gymId: string }) {
   const cancelClass = useCancelClass(gymId);
   const deleteClass = useDeleteClass(gymId);
   const config = useGymConfig(gymId);
+  const wodsToday = useWods(gymId, new Date().toLocaleDateString("en-CA"));
 
   const onDeleteClass = (gymClass: ClassRow) => {
     if (!window.confirm(`¿Eliminar la clase "${gymClass.class_type}" del ${new Date(gymClass.starts_at).toLocaleString("es-GT")}?`))
@@ -730,6 +732,15 @@ function ClassesTab({ gymId }: { gymId: string }) {
   const todayStr = new Date().toLocaleDateString("en-CA");
   const dayOf = (c: ClassRow) => new Date(c.starts_at).toLocaleDateString("en-CA");
   const upcoming = (classes.data ?? []) as ClassRow[];
+
+  // Ventana de asistencia (espejo del backend): 30 min antes del inicio hasta
+  // una hora después del fin. Fuera de ella solo se CONSULTA lo registrado.
+  const now = Date.now();
+  const startMs = (c: ClassRow) => new Date(c.starts_at).getTime();
+  const endMs = (c: ClassRow) => startMs(c) + (c.duration_min ?? 60) * 60 * 1000;
+  const yaInicio = (c: ClassRow) => now >= startMs(c);
+  const enVentanaAsistencia = (c: ClassRow) =>
+    now >= startMs(c) - 30 * 60 * 1000 && now <= endMs(c) + 60 * 60 * 1000;
   const all =
     timeTab === "pasado"
       ? ((pastClasses.data ?? []) as ClassRow[])
@@ -749,8 +760,45 @@ function ClassesTab({ gymId }: { gymId: string }) {
   const countProximas = upcoming.filter((c) => dayOf(c) > todayStr).length;
   const countPasado = (pastClasses.data ?? []).length;
 
+  // Pendientes de HOY que necesitan atención: clases sin coach y clases con
+  // rutina requerida cuyo WOD del día aún no está publicado.
+  const hoyActivas = upcoming.filter((c) => dayOf(c) === todayStr && c.status !== "cancelled");
+  const hoySinCoach = hoyActivas.filter((c) => !c.coach);
+  const hoySinRutina = hoyActivas.filter(
+    (c) =>
+      c.needs_wod &&
+      !(wodsToday.data ?? []).some(
+        (w) => w.published && (!w.service_type || w.service_type === c.service_type),
+      ),
+  );
+  const hora = (c: ClassRow) =>
+    new Date(c.starts_at).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" });
+
+  // La clase del modal de asistencia (puede venir de hoy/próximas o del pasado).
+  const selectedClass =
+    [...upcoming, ...((pastClasses.data ?? []) as ClassRow[])].find((c) => c.id === selectedClassId) ??
+    null;
+  const asistenciaAbierta = !!selectedClass && enVentanaAsistencia(selectedClass);
+
   return (
     <>
+      {(hoySinCoach.length > 0 || hoySinRutina.length > 0) && (
+        <Alert color="yellow" variant="light" mb="lg" title="Atención para hoy">
+          {hoySinCoach.length > 0 && (
+            <Text size="sm">
+              🧑‍🏫 {hoySinCoach.length === 1 ? "1 clase sin coach asignado" : `${hoySinCoach.length} clases sin coach asignado`}:{" "}
+              {hoySinCoach.map((c) => `${c.class_type} ${hora(c)}`).join(", ")}
+            </Text>
+          )}
+          {hoySinRutina.length > 0 && (
+            <Text size="sm" mt={hoySinCoach.length ? 4 : 0}>
+              📋 {hoySinRutina.length === 1 ? "1 clase requiere rutina y aún no está publicada" : `${hoySinRutina.length} clases requieren rutina y aún no está publicada`}:{" "}
+              {hoySinRutina.map((c) => `${c.class_type} ${hora(c)}`).join(", ")} — publícala en la pestaña Rutina.
+            </Text>
+          )}
+        </Alert>
+      )}
+
       <Card mb="lg">
         <Title order={3} mb={4}>
           Reservas de clases
@@ -871,7 +919,8 @@ function ClassesTab({ gymId }: { gymId: string }) {
                   <Button variant="default" size="xs" onClick={() => setSelectedClassId(gymClass.id)}>
                     Asistencia
                   </Button>
-                  {gymClass.status !== "cancelled" && timeTab !== "pasado" && (
+                  {/* Una clase que ya inició (o pasó) ya no se puede cancelar. */}
+                  {gymClass.status !== "cancelled" && timeTab !== "pasado" && !yaInicio(gymClass) && (
                     <Button
                       variant="subtle"
                       color="orange"
@@ -917,34 +966,45 @@ function ClassesTab({ gymId }: { gymId: string }) {
         size="lg"
         centered
       >
-        {selectedClassId && <ClassQrBlock gymId={gymId} classId={selectedClassId} />}
-        <Title order={4} mt="md" mb="xs">
-          Check-in desde recepción
-        </Title>
-        <Group
-          align="flex-end"
-          component="form"
-          onSubmit={async (event: FormEvent) => {
-            event.preventDefault();
-            if (membershipId) await reception.mutateAsync(membershipId);
-            setMembershipId("");
-          }}
-        >
-          <Select
-            label="Atleta activo"
-            placeholder="Selecciona un atleta"
-            value={membershipId}
-            onChange={setMembershipId}
-            searchable
-            style={{ flex: 1 }}
-            data={(memberships.data ?? [])
-              .filter((m) => !!m.status && ["active", "trial"].includes(m.status))
-              .map((m) => ({ value: m.id, label: m.athlete_name }))}
-          />
-          <Button type="submit" disabled={!membershipId} loading={reception.isPending}>
-            Registrar check-in
-          </Button>
-        </Group>
+        {/* Registrar asistencia SOLO dentro de la ventana (ni pasadas ni futuras). */}
+        {asistenciaAbierta ? (
+          <>
+            {selectedClassId && <ClassQrBlock gymId={gymId} classId={selectedClassId} />}
+            <Title order={4} mt="md" mb="xs">
+              Check-in desde recepción
+            </Title>
+            <Group
+              align="flex-end"
+              component="form"
+              onSubmit={async (event: FormEvent) => {
+                event.preventDefault();
+                if (membershipId) await reception.mutateAsync(membershipId);
+                setMembershipId("");
+              }}
+            >
+              <Select
+                label="Atleta activo"
+                placeholder="Selecciona un atleta"
+                value={membershipId}
+                onChange={setMembershipId}
+                searchable
+                style={{ flex: 1 }}
+                data={(memberships.data ?? [])
+                  .filter((m) => !!m.status && ["active", "trial"].includes(m.status))
+                  .map((m) => ({ value: m.id, label: m.athlete_name }))}
+              />
+              <Button type="submit" disabled={!membershipId} loading={reception.isPending}>
+                Registrar check-in
+              </Button>
+            </Group>
+          </>
+        ) : (
+          <Alert color="gray" variant="light">
+            {selectedClass && now < startMs(selectedClass) - 30 * 60 * 1000
+              ? "El registro de asistencia abre 30 minutos antes de la clase."
+              : "La ventana de asistencia de esta clase ya cerró; solo se muestra lo registrado."}
+          </Alert>
+        )}
         <Title order={5} mt="md" mb="xs">
           Asistencia registrada ({(checkins.data ?? []).length})
         </Title>

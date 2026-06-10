@@ -1,15 +1,21 @@
 import { FormEvent, useState } from "react";
 import {
+  Badge,
   Button,
   Card,
+  FileInput,
   Group,
   Modal,
   NumberInput,
   Select,
+  Switch,
+  TagsInput,
   Text,
+  Textarea,
   TextInput,
   Title,
 } from "@mantine/core";
+import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
@@ -17,9 +23,12 @@ import {
   useCreateErpProduct,
   useDeleteErpProduct,
   useErpProducts,
+  useGymProductOrders,
   useUpdateErpProduct,
+  useUpdateProductOrder,
+  useUploadProductPhoto,
 } from "../api/hooks";
-import type { ErpProduct } from "../api/types";
+import type { ErpProduct, ProductOrder } from "../api/types";
 import { NoGymAssigned } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
@@ -27,12 +36,42 @@ import { sortRecords } from "../lib/sortRecords";
 
 const CATEGORIES = [
   { value: "supplement", label: "Suplemento" },
-  { value: "merch", label: "Merch" },
-  { value: "drink", label: "Bebida" },
+  { value: "merch", label: "Merch / Ropa" },
+  { value: "drink", label: "Bebida / Comida" },
   { value: "gear", label: "Equipamiento" },
   { value: "service", label: "Servicio" },
   { value: "other", label: "Otro" },
 ];
+
+const ORDER_STATUS: Record<string, { label: string; color: string }> = {
+  pending_payment: { label: "Pago pendiente", color: "yellow" },
+  reserved: { label: "Apartado", color: "grape" },
+  paid: { label: "Pagado", color: "teal" },
+  delivered: { label: "Entregado", color: "blue" },
+  cancelled: { label: "Cancelado", color: "gray" },
+};
+
+/** Cómo se anuncia el producto en la tienda de la app. */
+function marketplaceBadge(p: ErpProduct) {
+  if (!p.show_in_marketplace) return <Text c="dimmed" size="sm">—</Text>;
+  if (p.is_upcoming)
+    return (
+      <Badge color="grape" variant="light">
+        Próximamente{p.launch_date ? ` · ${p.launch_date}` : ""}
+      </Badge>
+    );
+  if (p.delivery_days > 0)
+    return (
+      <Badge color="yellow" variant="light">
+        Entrega en {p.delivery_days} {p.delivery_days === 1 ? "día" : "días"}
+      </Badge>
+    );
+  return (
+    <Badge color="teal" variant="light">
+      Disponible
+    </Badge>
+  );
+}
 
 export function InventoryPage() {
   const { primaryGymId } = useAuth();
@@ -42,6 +81,9 @@ export function InventoryPage() {
   const updateProduct = useUpdateErpProduct(gymId);
   const deleteProduct = useDeleteErpProduct(gymId);
   const createMovement = useCreateErpMovement(gymId);
+  const uploadPhoto = useUploadProductPhoto(gymId);
+  const orders = useGymProductOrders(gymId);
+  const updateOrder = useUpdateProductOrder(gymId);
   const [editing, setEditing] = useState<ErpProduct | null>(null);
   const [search, setSearch] = useState("");
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ErpProduct>>({
@@ -132,8 +174,32 @@ export function InventoryPage() {
           sortStatus={sortStatus}
           onSortStatusChange={setSortStatus}
           columns={[
-            { accessor: "name", title: "Producto", sortable: true },
+            {
+              accessor: "name",
+              title: "Producto",
+              sortable: true,
+              render: (p) => (
+                <Group gap="sm" wrap="nowrap">
+                  {p.photo && (
+                    <img
+                      src={p.photo}
+                      alt={p.name}
+                      style={{ width: 42, height: 32, objectFit: "cover", borderRadius: 6 }}
+                    />
+                  )}
+                  <Text size="sm" fw={600}>
+                    {p.name}
+                  </Text>
+                </Group>
+              ),
+            },
             { accessor: "category", title: "Categoría", sortable: true },
+            {
+              accessor: "show_in_marketplace",
+              title: "Tienda (app)",
+              sortable: true,
+              render: (p) => marketplaceBadge(p),
+            },
             { accessor: "sale_price", title: "Precio", sortable: true, render: (p) => `Q${p.sale_price}` },
             { accessor: "cost_price", title: "Costo", sortable: true, render: (p) => `Q${p.cost_price}` },
             { accessor: "margin_unit", title: "Margen", render: (p) => `Q${p.margin_unit}` },
@@ -183,14 +249,99 @@ export function InventoryPage() {
         />
       </Card>
 
+      <Card mt="lg">
+        <Title order={3} mb={4}>
+          Pedidos de la tienda
+        </Title>
+        <Text c="dimmed" size="sm" mb="md">
+          Compras y apartados que tus atletas hacen desde la app. Marca “Entregado” al despachar.
+        </Text>
+        <DataTable<ProductOrder>
+          minHeight={140}
+          highlightOnHover
+          striped
+          idAccessor="id"
+          records={orders.data ?? []}
+          fetching={orders.isLoading}
+          noRecordsText="Sin pedidos todavía. Activa productos en la tienda para que tus atletas compren desde la app."
+          columns={[
+            { accessor: "athlete_name", title: "Atleta" },
+            {
+              accessor: "product_name",
+              title: "Producto",
+              render: (o) => (
+                <div>
+                  <Text size="sm" fw={600}>
+                    {o.product_name} × {o.qty}
+                  </Text>
+                  {(o.size || o.color) && (
+                    <Text c="dimmed" size="xs">
+                      {[o.size && `Talla ${o.size}`, o.color].filter(Boolean).join(" · ")}
+                    </Text>
+                  )}
+                </div>
+              ),
+            },
+            { accessor: "total", title: "Total", render: (o) => `Q${o.total}` },
+            {
+              accessor: "kind",
+              title: "Tipo",
+              render: (o) => (o.kind === "preorder" ? "Apartado" : "Compra"),
+            },
+            {
+              accessor: "status",
+              title: "Estado",
+              render: (o) => {
+                const s = ORDER_STATUS[o.status] ?? { label: o.status, color: "gray" };
+                return (
+                  <Badge color={s.color} variant="light">
+                    {s.label}
+                  </Badge>
+                );
+              },
+            },
+            {
+              accessor: "created_at",
+              title: "Fecha",
+              render: (o) => new Date(o.created_at).toLocaleString("es-GT"),
+            },
+            {
+              accessor: "actions",
+              title: "",
+              render: (o) =>
+                ["paid", "reserved"].includes(o.status) ? (
+                  <Group gap="xs" wrap="nowrap">
+                    <Button
+                      size="xs"
+                      loading={updateOrder.isPending && updateOrder.variables?.id === o.id}
+                      onClick={() => updateOrder.mutate({ id: o.id, status: "delivered" })}
+                    >
+                      Entregado
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="subtle"
+                      color="red"
+                      onClick={() => updateOrder.mutate({ id: o.id, status: "cancelled" })}
+                    >
+                      Cancelar
+                    </Button>
+                  </Group>
+                ) : null,
+            },
+          ]}
+        />
+      </Card>
+
       <EditProductModal
         product={editing}
-        saving={updateProduct.isPending}
+        saving={updateProduct.isPending || uploadPhoto.isPending}
         onClose={() => setEditing(null)}
-        onSave={async (body) => {
+        onSave={async (body, photo) => {
           if (!editing) return;
           try {
             await updateProduct.mutateAsync({ id: editing.id, body });
+            if (photo) await uploadPhoto.mutateAsync({ id: editing.id, file: photo });
             notifications.show({ color: "teal", message: "Producto actualizado." });
             setEditing(null);
           } catch {
@@ -211,13 +362,22 @@ function EditProductModal({
   product: ErpProduct | null;
   saving: boolean;
   onClose: () => void;
-  onSave: (body: Partial<ErpProduct>) => Promise<void>;
+  onSave: (body: Partial<ErpProduct>, photo: File | null) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState<string | null>("supplement");
   const [salePrice, setSalePrice] = useState("");
   const [costPrice, setCostPrice] = useState("");
   const [reorder, setReorder] = useState<number | string>(0);
+  // Tienda en la app
+  const [inMarketplace, setInMarketplace] = useState(false);
+  const [description, setDescription] = useState("");
+  const [sizes, setSizes] = useState<string[]>([]);
+  const [colors, setColors] = useState<string[]>([]);
+  const [deliveryDays, setDeliveryDays] = useState<number | string>(0);
+  const [isUpcoming, setIsUpcoming] = useState(false);
+  const [launchDate, setLaunchDate] = useState<Date | null>(null);
+  const [photo, setPhoto] = useState<File | null>(null);
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
 
   if (product && hydratedFor !== product.id) {
@@ -227,18 +387,109 @@ function EditProductModal({
     setSalePrice(String(product.sale_price ?? ""));
     setCostPrice(String(product.cost_price ?? ""));
     setReorder(product.reorder_level ?? 0);
+    setInMarketplace(product.show_in_marketplace ?? false);
+    setDescription(product.description ?? "");
+    setSizes(product.sizes ?? []);
+    setColors(product.colors ?? []);
+    setDeliveryDays(product.delivery_days ?? 0);
+    setIsUpcoming(product.is_upcoming ?? false);
+    setLaunchDate(product.launch_date ? new Date(`${product.launch_date}T00:00:00`) : null);
+    setPhoto(null);
   }
 
   return (
-    <Modal opened={!!product} onClose={onClose} title="Editar producto" centered>
+    <Modal opened={!!product} onClose={onClose} title="Editar producto" centered size="lg">
       <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} mb="sm" />
       <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIES} mb="sm" />
       <Group grow mb="sm">
         <TextInput label="Precio venta (Q)" value={salePrice} onChange={(e) => setSalePrice(e.currentTarget.value)} />
         <TextInput label="Costo (Q)" value={costPrice} onChange={(e) => setCostPrice(e.currentTarget.value)} />
+        <NumberInput label="Nivel de reorden" value={reorder} onChange={setReorder} min={0} />
       </Group>
-      <NumberInput label="Nivel de reorden" value={reorder} onChange={setReorder} min={0} mb="md" />
-      <Group justify="flex-end">
+
+      <Switch
+        label="Vender en la tienda de la app"
+        description="El producto aparece en el marketplace del gym para tus atletas."
+        checked={inMarketplace}
+        onChange={(e) => setInMarketplace(e.currentTarget.checked)}
+        my="md"
+      />
+      {inMarketplace && (
+        <>
+          <Textarea
+            label="Descripción"
+            placeholder="Material, beneficios, sabor…"
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+            autosize
+            minRows={2}
+            mb="sm"
+          />
+          <Group grow mb="sm">
+            <TagsInput
+              label="Tallas (ropa)"
+              description="Enter para agregar cada talla"
+              placeholder="S, M, L…"
+              value={sizes}
+              onChange={setSizes}
+            />
+            <TagsInput
+              label="Colores"
+              description="Enter para agregar cada color"
+              placeholder="Negro, Naranja…"
+              value={colors}
+              onChange={setColors}
+            />
+          </Group>
+          <Group grow mb="sm" align="flex-end">
+            <NumberInput
+              label="Días de entrega"
+              description="0 = disponible de inmediato"
+              value={deliveryDays}
+              onChange={setDeliveryDays}
+              min={0}
+              max={120}
+            />
+            <Switch
+              label="Próximo lanzamiento (se puede apartar)"
+              checked={isUpcoming}
+              onChange={(e) => setIsUpcoming(e.currentTarget.checked)}
+            />
+            <DateInput
+              label="Fecha de lanzamiento"
+              value={launchDate}
+              onChange={setLaunchDate}
+              valueFormat="YYYY-MM-DD"
+              disabled={!isUpcoming}
+              clearable
+              popoverProps={{ withinPortal: true }}
+            />
+          </Group>
+          {product?.photo && !photo && (
+            <Group gap="sm" mb="xs">
+              <img
+                src={product.photo}
+                alt={product.name}
+                style={{ width: 86, height: 56, objectFit: "cover", borderRadius: 8 }}
+              />
+              <Text c="dimmed" size="xs">
+                Foto actual — sube otra para reemplazarla.
+              </Text>
+            </Group>
+          )}
+          <FileInput
+            label="Foto del producto"
+            placeholder="Subir imagen"
+            accept="image/*"
+            value={photo}
+            onChange={setPhoto}
+            clearable
+            mb="sm"
+          />
+        </>
+      )}
+
+      <Group justify="flex-end" mt="md">
         <Button variant="default" onClick={onClose}>
           Cancelar
         </Button>
@@ -246,13 +497,23 @@ function EditProductModal({
           disabled={!name || !salePrice}
           loading={saving}
           onClick={() =>
-            onSave({
-              name,
-              category: category ?? "other",
-              sale_price: salePrice,
-              cost_price: costPrice || "0",
-              reorder_level: Number(reorder) || 0,
-            })
+            onSave(
+              {
+                name,
+                category: category ?? "other",
+                sale_price: salePrice,
+                cost_price: costPrice || "0",
+                reorder_level: Number(reorder) || 0,
+                show_in_marketplace: inMarketplace,
+                description,
+                sizes,
+                colors,
+                delivery_days: Number(deliveryDays) || 0,
+                is_upcoming: isUpcoming,
+                launch_date: launchDate ? launchDate.toLocaleDateString("en-CA") : null,
+              },
+              photo,
+            )
           }
         >
           Guardar

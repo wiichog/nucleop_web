@@ -15,6 +15,8 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
+import { AxiosError } from "axios";
 import {
   useAthletesOfMonth,
   useDecidePost,
@@ -89,6 +91,27 @@ export function CommunityPage() {
   const awardFor = (classType: string) =>
     (awards.data ?? []).find((a) => (a.class_type ?? "") === classType);
 
+  // Publica (o limpia) el atleta del mes con feedback visible: antes los errores
+  // se tragaban en silencio y parecía que "no dejaba publicar".
+  const publicarAom = async (classType: string, athleteId: string | null) => {
+    try {
+      await setAom.mutateAsync({ class_type: classType, athlete_id: athleteId });
+      notifications.show({
+        color: "teal",
+        message: athleteId
+          ? `Atleta del mes publicado para ${classType || "todo el gym"}. Ya aparece en el feed.`
+          : `Atleta del mes de ${classType || "todo el gym"} quitado.`,
+      });
+    } catch (e) {
+      const detail = (e as AxiosError<{ detail?: string }>).response?.data?.detail;
+      notifications.show({
+        color: "red",
+        title: "No se pudo publicar el atleta del mes",
+        message: detail ?? "Revisa que el atleta siga activo en el gimnasio e intenta de nuevo.",
+      });
+    }
+  };
+
   const onPost = async (event: FormEvent) => {
     event.preventDefault();
     await postAnnouncement.mutateAsync({
@@ -146,7 +169,8 @@ export function CommunityPage() {
                           <Select
                             placeholder="Sin asignar"
                             value={current?.athlete ?? null}
-                            onChange={(v) => setAom.mutate({ class_type: ct, athlete_id: v })}
+                            onChange={(v) => void publicarAom(ct, v)}
+                            disabled={setAom.isPending}
                             clearable
                             searchable
                             maw={320}

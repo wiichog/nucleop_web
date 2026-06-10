@@ -17,6 +17,7 @@ import {
   FeedItem,
   AthleteOfMonth,
   ErpProduct,
+  ProductOrder,
   ErpMovement,
   ErpSale,
   ErpExpense,
@@ -679,7 +680,7 @@ export function useGeneratePayout(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: { period_start: string; period_end: string; coach_id?: string | null }) =>
-      (await api.post(`/gym/${gymId}/coach-payouts/generate`, body)).data,
+      (await api.post<CoachPayout[]>(`/gym/${gymId}/coach-payouts/generate`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["coach-payouts", gymId] }),
   });
 }
@@ -1159,6 +1160,44 @@ export function useDeleteErpProduct(gymId: string) {
     mutationFn: async (id: string) =>
       (await api.delete(`/gym/${gymId}/erp/products/${id}`)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["erp-products", gymId] }),
+  });
+}
+
+/** Sube/reemplaza la foto de un producto (PATCH multipart). */
+export function useUploadProductPhoto(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+      const form = new FormData();
+      form.append("photo", file);
+      return (
+        await api.patch<ErpProduct>(`/gym/${gymId}/erp/products/${id}`, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["erp-products", gymId] }),
+  });
+}
+
+// --- Pedidos de la tienda (marketplace de la app) ---
+export function useGymProductOrders(gymId: string) {
+  return useQuery({
+    queryKey: ["marketplace-orders", gymId],
+    queryFn: async () => (await api.get<ProductOrder[]>(`/gym/${gymId}/marketplace-orders`)).data,
+    enabled: !!gymId,
+  });
+}
+
+export function useUpdateProductOrder(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: "delivered" | "cancelled" }) =>
+      (await api.patch<ProductOrder>(`/gym/${gymId}/marketplace-orders/${id}`, { status })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["marketplace-orders", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
+    },
   });
 }
 
