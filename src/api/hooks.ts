@@ -930,6 +930,15 @@ export function useAthletesOfMonth(gymId: string) {
   });
 }
 
+/** Histórico completo de atletas del mes (todos los períodos, recientes primero). */
+export function useAthletesOfMonthHistory(gymId: string) {
+  return useQuery({
+    queryKey: ["athletes-of-month", gymId, "history"],
+    queryFn: () => getList<AthleteOfMonth>(`/gym/${gymId}/athletes-of-month?period=all`),
+    enabled: !!gymId,
+  });
+}
+
 export function useSetAthleteOfMonth(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -1140,6 +1149,14 @@ export function useCreateErpProduct(gymId: string) {
       cost_price: string;
       reorder_level?: number;
       sku?: string;
+      // Tienda de la app
+      show_in_marketplace?: boolean;
+      description?: string;
+      sizes?: string[];
+      colors?: string[];
+      delivery_days?: number;
+      is_upcoming?: boolean;
+      launch_date?: string | null;
     }) => (await api.post<ErpProduct>(`/gym/${gymId}/erp/products`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["erp-products", gymId] }),
   });

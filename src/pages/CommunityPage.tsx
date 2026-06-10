@@ -19,6 +19,7 @@ import { notifications } from "@mantine/notifications";
 import { AxiosError } from "axios";
 import {
   useAthletesOfMonth,
+  useAthletesOfMonthHistory,
   useDecidePost,
   useGymClasses,
   useGymFeed,
@@ -66,7 +67,10 @@ export function CommunityPage() {
   const classes = useGymClasses(gymId);
   const memberships = useMemberships(gymId);
   const awards = useAthletesOfMonth(gymId);
+  const aomHistory = useAthletesOfMonthHistory(gymId);
   const setAom = useSetAthleteOfMonth(gymId);
+  // Borrador por clase: el cambio del Select NO publica; se confirma con el botón.
+  const [aomDraft, setAomDraft] = useState<Record<string, string | null>>({});
   const postAnnouncement = usePostAnnouncement(gymId);
   const pendingPosts = useGymPendingPosts(gymId);
   const decidePost = useDecidePost(gymId);
@@ -91,17 +95,18 @@ export function CommunityPage() {
   const awardFor = (classType: string) =>
     (awards.data ?? []).find((a) => (a.class_type ?? "") === classType);
 
-  // Publica (o limpia) el atleta del mes con feedback visible: antes los errores
-  // se tragaban en silencio y parecía que "no dejaba publicar".
+  // Publica (o quita) el atleta del mes con feedback visible. Devuelve si tuvo
+  // éxito para limpiar el borrador solo cuando realmente se publicó.
   const publicarAom = async (classType: string, athleteId: string | null) => {
     try {
       await setAom.mutateAsync({ class_type: classType, athlete_id: athleteId });
       notifications.show({
         color: "teal",
         message: athleteId
-          ? `Atleta del mes publicado para ${classType || "todo el gym"}. Ya aparece en el feed.`
+          ? `Atleta del mes publicado para ${classType || "todo el gym"}. Ya aparece en el feed con su imagen.`
           : `Atleta del mes de ${classType || "todo el gym"} quitado.`,
       });
+      return true;
     } catch (e) {
       const detail = (e as AxiosError<{ detail?: string }>).response?.data?.detail;
       notifications.show({
@@ -109,6 +114,7 @@ export function CommunityPage() {
         title: "No se pudo publicar el atleta del mes",
         message: detail ?? "Revisa que el atleta siga activo en el gimnasio e intenta de nuevo.",
       });
+      return false;
     }
   };
 
@@ -147,7 +153,8 @@ export function CommunityPage() {
               Atleta del mes por clase
             </Title>
             <Text c="dimmed" size="sm" mb="md">
-              Selección manual. Elige un atleta por clase (el de pilates no es el de crossfit) o deja “Sin asignar”.
+              Elige un atleta por clase y confirma con “Publicar”: el anuncio sale al feed con una
+              imagen enmarcada con su foto.
             </Text>
             {memberships.isLoading || awards.isLoading ? (
               <PageLoading />
@@ -162,20 +169,54 @@ export function CommunityPage() {
                 <Table.Tbody>
                   {aomRows.map((ct) => {
                     const current = awardFor(ct);
+                    const key = ct || "__all__";
+                    const draft = aomDraft[key]; // undefined = sin cambios pendientes
+                    const value = draft !== undefined ? draft : current?.athlete ?? null;
+                    const dirty = draft !== undefined && draft !== (current?.athlete ?? null);
                     return (
-                      <Table.Tr key={ct || "__all__"}>
+                      <Table.Tr key={key}>
                         <Table.Td>{ct || "Todo el gym"}</Table.Td>
                         <Table.Td>
-                          <Select
-                            placeholder="Sin asignar"
-                            value={current?.athlete ?? null}
-                            onChange={(v) => void publicarAom(ct, v)}
-                            disabled={setAom.isPending}
-                            clearable
-                            searchable
-                            maw={320}
-                            data={activeAthletes.map((m) => ({ value: m.athlete, label: m.athlete_name }))}
-                          />
+                          <Group gap="sm" wrap="nowrap">
+                            {current?.image && (
+                              <a href={current.image} target="_blank" rel="noreferrer">
+                                <img
+                                  src={current.image}
+                                  alt={current.athlete_name}
+                                  style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }}
+                                />
+                              </a>
+                            )}
+                            <Select
+                              placeholder="Sin asignar"
+                              value={value}
+                              onChange={(v) =>
+                                setAomDraft((prev) => ({ ...prev, [key]: v }))
+                              }
+                              clearable
+                              searchable
+                              maw={280}
+                              data={activeAthletes.map((m) => ({ value: m.athlete, label: m.athlete_name }))}
+                            />
+                            {dirty && (
+                              <Button
+                                size="xs"
+                                color={draft ? "flame" : "red"}
+                                loading={setAom.isPending}
+                                onClick={async () => {
+                                  const ok = await publicarAom(ct, draft ?? null);
+                                  if (ok)
+                                    setAomDraft((prev) => {
+                                      const next = { ...prev };
+                                      delete next[key];
+                                      return next;
+                                    });
+                                }}
+                              >
+                                {draft ? "Publicar" : "Quitar"}
+                              </Button>
+                            )}
+                          </Group>
                         </Table.Td>
                       </Table.Tr>
                     );
@@ -244,6 +285,66 @@ export function CommunityPage() {
           </Card>
         </Grid.Col>
       </Grid>
+
+      <Card mt="lg">
+        <Title order={3} mb={4}>
+          Histórico de atletas del mes
+        </Title>
+        <Text c="dimmed" size="sm" mb="md">
+          Todos los destacados publicados, del mes más reciente al más antiguo.
+        </Text>
+        {aomHistory.isLoading ? (
+          <PageLoading />
+        ) : !(aomHistory.data ?? []).length ? (
+          <Text c="dimmed" size="sm">
+            Aún no has publicado atletas del mes.
+          </Text>
+        ) : (
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Mes</Table.Th>
+                <Table.Th>Clase</Table.Th>
+                <Table.Th>Atleta</Table.Th>
+                <Table.Th>Anuncio</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {(aomHistory.data ?? []).map((a) => (
+                <Table.Tr key={a.id}>
+                  <Table.Td>{a.period}</Table.Td>
+                  <Table.Td>{a.class_type || "Todo el gym"}</Table.Td>
+                  <Table.Td>
+                    <Group gap="sm" wrap="nowrap">
+                      {a.athlete_photo && (
+                        <img
+                          src={a.athlete_photo}
+                          alt={a.athlete_name}
+                          style={{ width: 30, height: 30, objectFit: "cover", borderRadius: 15 }}
+                        />
+                      )}
+                      {a.athlete_name}
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>
+                    {a.image ? (
+                      <a href={a.image} target="_blank" rel="noreferrer">
+                        <img
+                          src={a.image}
+                          alt={`Atleta del mes ${a.period}`}
+                          style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8 }}
+                        />
+                      </a>
+                    ) : (
+                      <Text c="dimmed" size="sm">—</Text>
+                    )}
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        )}
+      </Card>
 
       <Card mt="lg">
         <Group justify="space-between" mb="sm">

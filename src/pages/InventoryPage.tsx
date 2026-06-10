@@ -105,20 +105,46 @@ export function InventoryPage() {
   const [costPrice, setCostPrice] = useState("");
   const [reorder, setReorder] = useState<number | string>(0);
   const [restock, setRestock] = useState<Record<string, string>>({});
+  // Tienda de la app (los mismos campos también se pueden editar después).
+  const [inMarketplace, setInMarketplace] = useState(false);
+  const [description, setDescription] = useState("");
+  const [sizes, setSizes] = useState<string[]>([]);
+  const [colors, setColors] = useState<string[]>([]);
+  const [deliveryDays, setDeliveryDays] = useState<number | string>(0);
+  const [isUpcoming, setIsUpcoming] = useState(false);
+  const [launchDate, setLaunchDate] = useState<Date | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
 
   const onCreate = async (event: FormEvent) => {
     event.preventDefault();
-    await createProduct.mutateAsync({
+    const created = await createProduct.mutateAsync({
       name,
       category: category ?? "other",
       sale_price: salePrice,
       cost_price: costPrice || "0",
       reorder_level: Number(reorder) || 0,
+      show_in_marketplace: inMarketplace,
+      description: description.trim(),
+      sizes,
+      colors,
+      delivery_days: Number(deliveryDays) || 0,
+      is_upcoming: isUpcoming,
+      launch_date: launchDate ? launchDate.toLocaleDateString("en-CA") : null,
     });
+    if (photoFile) await uploadPhoto.mutateAsync({ id: created.id, file: photoFile });
     setName("");
     setSalePrice("");
     setCostPrice("");
     setReorder(0);
+    setInMarketplace(false);
+    setDescription("");
+    setSizes([]);
+    setColors([]);
+    setDeliveryDays(0);
+    setIsUpcoming(false);
+    setLaunchDate(null);
+    setPhotoFile(null);
+    notifications.show({ color: "teal", message: "Producto creado." });
   };
 
   const onRestock = async (productId: string) => {
@@ -143,8 +169,80 @@ export function InventoryPage() {
           <TextInput label="Precio venta (Q)" value={salePrice} onChange={(e) => setSalePrice(e.currentTarget.value)} w={130} />
           <TextInput label="Costo (Q)" value={costPrice} onChange={(e) => setCostPrice(e.currentTarget.value)} w={120} />
           <NumberInput label="Reorden" value={reorder} onChange={setReorder} w={100} min={0} />
-          <Button type="submit" disabled={!name || !salePrice} loading={createProduct.isPending}>
-            Agregar
+        </Group>
+
+        <Switch
+          label="Vender en la tienda de la app"
+          description="Tus atletas lo verán y comprarán desde el marketplace del gym."
+          checked={inMarketplace}
+          onChange={(e) => setInMarketplace(e.currentTarget.checked)}
+          mt="md"
+        />
+        {inMarketplace && (
+          <>
+            <Group grow mt="sm" align="flex-start">
+              <Textarea
+                label="Descripción"
+                placeholder="Material, beneficios, sabor…"
+                value={description}
+                onChange={(e) => setDescription(e.currentTarget.value)}
+                autosize
+                minRows={2}
+              />
+              <FileInput
+                label="Foto del producto"
+                placeholder="Subir imagen"
+                accept="image/*"
+                value={photoFile}
+                onChange={setPhotoFile}
+                clearable
+              />
+            </Group>
+            <Group grow mt="sm">
+              <TagsInput
+                label="Tallas (ropa)"
+                description="Escribe y presiona Enter por cada talla"
+                placeholder="S, M, L…"
+                value={sizes}
+                onChange={setSizes}
+              />
+              <TagsInput
+                label="Colores"
+                description="Enter por cada color"
+                placeholder="Negro, Naranja…"
+                value={colors}
+                onChange={setColors}
+              />
+            </Group>
+            <Group grow mt="sm" align="flex-end">
+              <NumberInput
+                label="Días de entrega"
+                description="0 = disponible de inmediato"
+                value={deliveryDays}
+                onChange={setDeliveryDays}
+                min={0}
+                max={120}
+              />
+              <Switch
+                label="Próximo lanzamiento (se puede apartar)"
+                checked={isUpcoming}
+                onChange={(e) => setIsUpcoming(e.currentTarget.checked)}
+              />
+              <DateInput
+                label="Fecha de lanzamiento"
+                value={launchDate}
+                onChange={setLaunchDate}
+                valueFormat="YYYY-MM-DD"
+                disabled={!isUpcoming}
+                clearable
+                popoverProps={{ withinPortal: true }}
+              />
+            </Group>
+          </>
+        )}
+        <Group justify="flex-end" mt="md">
+          <Button type="submit" disabled={!name || !salePrice} loading={createProduct.isPending || uploadPhoto.isPending}>
+            Agregar producto
           </Button>
         </Group>
       </Card>

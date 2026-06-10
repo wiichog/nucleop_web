@@ -123,9 +123,12 @@ export interface AthleteOfMonth {
   id: string;
   athlete: string;
   athlete_name: string;
+  athlete_photo: string | null;
   period: string;
   class_type: string;
   score: string;
+  /** Imagen del anuncio (marco + foto del atleta) generada al publicar. */
+  image: string | null;
   awarded_at: string;
 }
 
