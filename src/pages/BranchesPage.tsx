@@ -1,9 +1,10 @@
 import { FormEvent, useState } from "react";
-import { Button, Card, Group, Modal, TextInput, Title } from "@mantine/core";
+import { Button, Card, Group, Modal, SimpleGrid, Stack, TextInput, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import { useBranches, useCreateBranch, useDeleteBranch, useUpdateBranch } from "../api/hooks";
 import { NoGymAssigned } from "../components/PageStatus";
+import { RowActions } from "../components/RowActions";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { sortRecords } from "../lib/sortRecords";
@@ -51,13 +52,17 @@ export function BranchesPage() {
         <Title order={3} mb="sm">
           Nueva sede
         </Title>
-        <Group align="flex-end" gap="md">
-          <TextInput label="Nombre" placeholder="Ej. Zona 10" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-          <TextInput label="Ubicación" value={location} onChange={(e) => setLocation(e.currentTarget.value)} style={{ flex: 1, minWidth: 200 }} />
-          <Button type="submit" disabled={!name} loading={createBranch.isPending}>
-            Agregar
-          </Button>
-        </Group>
+        <Stack gap="md">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+            <TextInput label="Nombre" placeholder="Ej. Zona 10" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+            <TextInput label="Ubicación" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
+          </SimpleGrid>
+          <Group justify="flex-end">
+            <Button type="submit" disabled={!name} loading={createBranch.isPending}>
+              Agregar
+            </Button>
+          </Group>
+        </Stack>
       </Card>
 
       <Card>
@@ -78,14 +83,12 @@ export function BranchesPage() {
               accessor: "actions",
               title: "Acciones",
               render: (b) => (
-                <Group gap="xs">
-                  <Button variant="default" size="xs" onClick={() => setEditing(b)}>
-                    Editar
-                  </Button>
-                  <Button variant="light" color="red" size="xs" loading={deleteBranch.isPending} onClick={() => onDelete(b)}>
-                    Eliminar
-                  </Button>
-                </Group>
+                <RowActions
+                  actions={[
+                    { label: "Editar", onClick: () => setEditing(b) },
+                    { label: "Eliminar", color: "red", variant: "light", loading: deleteBranch.isPending, onClick: () => onDelete(b) },
+                  ]}
+                />
               ),
             },
           ]}

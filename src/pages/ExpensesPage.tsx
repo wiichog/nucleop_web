@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Button, Card, Group, Select, TextInput, Title } from "@mantine/core";
+import { Button, Card, Group, Select, SimpleGrid, Stack, TextInput, Title } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import { useCreateErpExpense, useErpExpenses } from "../api/hooks";
@@ -56,15 +56,19 @@ export function ExpensesPage() {
         <Title order={3} mb="sm">
           Registrar gasto
         </Title>
-        <Group align="flex-end" gap="md">
-          <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIES} />
-          <TextInput label="Monto (Q)" value={amount} onChange={(e) => setAmount(e.currentTarget.value)} w={120} />
-          <TextInput label="Descripción" value={description} onChange={(e) => setDescription(e.currentTarget.value)} style={{ flex: 1, minWidth: 200 }} />
-          <DateInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" />
-          <Button type="submit" disabled={!amount} loading={createExpense.isPending}>
-            Registrar
-          </Button>
-        </Group>
+        <Stack gap="md">
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+            <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIES} />
+            <TextInput label="Monto (Q)" value={amount} onChange={(e) => setAmount(e.currentTarget.value)} />
+            <TextInput label="Descripción" value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
+            <DateInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" />
+          </SimpleGrid>
+          <Group justify="flex-end">
+            <Button type="submit" disabled={!amount} loading={createExpense.isPending}>
+              Registrar
+            </Button>
+          </Group>
+        </Stack>
       </Card>
 
       <Card>
@@ -73,7 +77,7 @@ export function ExpensesPage() {
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
           mb="md"
-          w={300}
+          w={{ base: "100%", sm: 300 }}
         />
         <DataTable<ErpExpense>
           minHeight={160}

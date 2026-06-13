@@ -167,7 +167,7 @@ export function CoachesPage() {
             placeholder="Buscar coach…"
             value={search}
             onChange={(e) => setSearch(e.currentTarget.value)}
-            w={240}
+            w={{ base: "100%", sm: 240 }}
           />
         </Group>
         <DataTable<Coach>
@@ -263,7 +263,7 @@ function CoachProfileModal({ coach, onClose }: { coach: Coach | null; onClose: (
             </div>
           </Group>
           <Divider mb="md" />
-          <SimpleGrid cols={2} spacing="sm">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
             <div>
               <Text c="dimmed" size="xs">
                 Forma de pago

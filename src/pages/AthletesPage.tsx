@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Accordion,
+  ActionIcon,
   Avatar,
   Badge,
   Button,
@@ -17,7 +18,7 @@ import {
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
-import { Bell, Download, KeyRound, Mail, Smartphone } from "lucide-react";
+import { Bell, Download, Eye, KeyRound, Mail, MoreVertical, Smartphone } from "lucide-react";
 import {
   useAtRisk,
   useEditAthleteProfile,
@@ -208,7 +209,7 @@ export function AthletesPage() {
             placeholder="Buscar atleta o plan…"
             value={search}
             onChange={(e) => setSearch(e.currentTarget.value)}
-            w={240}
+            w={{ base: "100%", sm: 240 }}
           />
         </Group>
         <Text c="dimmed" size="sm">
@@ -270,47 +271,94 @@ export function AthletesPage() {
             {
               accessor: "actions",
               title: "Acciones",
-              render: (m) => (
-                <Group gap="xs" wrap="nowrap">
-                  <Button variant="default" size="xs" onClick={() => setSelectedMembershipId(m.id)}>
-                    Ver detalle
-                  </Button>
-                  <Menu shadow="md" position="bottom-start" withinPortal>
-                    <Menu.Target>
-                      <Button variant="light" size="xs" leftSection={<Bell size={14} />} loading={sendReminder.isPending}>
-                        Recordatorio
+              render: (m) => {
+                const pendingLeave = (m.status as string) === "pending_leave";
+                const fromAthlete = m.leave_initiated_by === "athlete";
+                return (
+                  <>
+                    {/* Desktop: acciones en línea con submenú de recordatorio */}
+                    <Group gap="xs" wrap="nowrap" visibleFrom="sm">
+                      <Button variant="default" size="xs" onClick={() => setSelectedMembershipId(m.id)}>
+                        Ver detalle
                       </Button>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                      <Menu.Label>Enviar por</Menu.Label>
-                      <Menu.Item leftSection={<Smartphone size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "push")}>
-                        Notificación push
-                      </Menu.Item>
-                      <Menu.Item leftSection={<Mail size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "email")}>
-                        Correo
-                      </Menu.Item>
-                      <Menu.Item leftSection={<Bell size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "both")}>
-                        Ambos
-                      </Menu.Item>
-                    </Menu.Dropdown>
-                  </Menu>
-                  {(m.status as string) === "pending_leave" &&
-                    (m.leave_initiated_by === "athlete" ? (
-                      <>
-                        <Button size="xs" color="red" loading={leaveDecision.isPending} onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "approve" })}>
-                          Confirmar baja
-                        </Button>
-                        <Button size="xs" variant="default" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
-                          Cancelar
-                        </Button>
-                      </>
-                    ) : (
-                      <Button size="xs" variant="default" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
-                        Cancelar baja propuesta
-                      </Button>
-                    ))}
-                </Group>
-              ),
+                      <Menu shadow="md" position="bottom-start" withinPortal>
+                        <Menu.Target>
+                          <Button variant="light" size="xs" leftSection={<Bell size={14} />} loading={sendReminder.isPending}>
+                            Recordatorio
+                          </Button>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                          <Menu.Label>Enviar por</Menu.Label>
+                          <Menu.Item leftSection={<Smartphone size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "push")}>
+                            Notificación push
+                          </Menu.Item>
+                          <Menu.Item leftSection={<Mail size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "email")}>
+                            Correo
+                          </Menu.Item>
+                          <Menu.Item leftSection={<Bell size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "both")}>
+                            Ambos
+                          </Menu.Item>
+                        </Menu.Dropdown>
+                      </Menu>
+                      {pendingLeave &&
+                        (fromAthlete ? (
+                          <>
+                            <Button size="xs" color="red" loading={leaveDecision.isPending} onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "approve" })}>
+                              Confirmar baja
+                            </Button>
+                            <Button size="xs" variant="default" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
+                              Cancelar
+                            </Button>
+                          </>
+                        ) : (
+                          <Button size="xs" variant="default" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
+                            Cancelar baja propuesta
+                          </Button>
+                        ))}
+                    </Group>
+
+                    {/* Móvil: un solo kebab con las mismas acciones */}
+                    <Menu shadow="md" position="bottom-end" withinPortal>
+                      <Menu.Target>
+                        <ActionIcon variant="subtle" color="gray" aria-label="Acciones" hiddenFrom="sm">
+                          <MoreVertical size={18} />
+                        </ActionIcon>
+                      </Menu.Target>
+                      <Menu.Dropdown>
+                        <Menu.Item leftSection={<Eye size={14} />} onClick={() => setSelectedMembershipId(m.id)}>
+                          Ver detalle
+                        </Menu.Item>
+                        <Menu.Label>Recordatorio</Menu.Label>
+                        <Menu.Item leftSection={<Smartphone size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "push")}>
+                          Push
+                        </Menu.Item>
+                        <Menu.Item leftSection={<Mail size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "email")}>
+                          Correo
+                        </Menu.Item>
+                        <Menu.Item leftSection={<Bell size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "both")}>
+                          Ambos
+                        </Menu.Item>
+                        {pendingLeave && <Menu.Divider />}
+                        {pendingLeave &&
+                          (fromAthlete ? (
+                            <>
+                              <Menu.Item color="red" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "approve" })}>
+                                Confirmar baja
+                              </Menu.Item>
+                              <Menu.Item onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
+                                Cancelar baja
+                              </Menu.Item>
+                            </>
+                          ) : (
+                            <Menu.Item onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
+                              Cancelar baja propuesta
+                            </Menu.Item>
+                          ))}
+                      </Menu.Dropdown>
+                    </Menu>
+                  </>
+                );
+              },
             },
           ]}
         />

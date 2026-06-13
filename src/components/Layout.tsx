@@ -114,7 +114,7 @@ export function Layout() {
     <AppShell
       header={{ height: 56 }}
       navbar={{ width: 264, breakpoint: "sm", collapsed: { mobile: !opened } }}
-      padding="lg"
+      padding={{ base: "md", sm: "lg" }}
     >
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">

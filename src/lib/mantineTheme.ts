@@ -45,6 +45,14 @@ export const mantineTheme = createTheme({
     PasswordInput: { defaultProps: { radius: "md" } },
     Select: { defaultProps: { radius: "md", checkIconPosition: "right" } },
     NumberInput: { defaultProps: { radius: "md" } },
-    Table: { defaultProps: { verticalSpacing: "sm", highlightOnHover: true } },
+    Table: {
+      defaultProps: { verticalSpacing: "sm", highlightOnHover: true },
+      // Estilo de marca aplicado SOLO al componente <Table> (antes era un
+      // `table {}` global que se filtraba a calendarios y datatable).
+      styles: {
+        table: { "--table-border-color": "var(--nucleo-surface-2)" },
+        th: { color: "var(--nucleo-muted)", fontWeight: 600, fontSize: 13 },
+      },
+    },
   },
 });

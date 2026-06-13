@@ -25,7 +25,7 @@ export function PageError({
 }) {
   return (
     <Alert color="red" title="Algo salió mal" variant="light" radius="md">
-      <Group justify="space-between" align="center" wrap="nowrap">
+      <Group justify="space-between" align="center" gap="sm">
         <Text size="sm">{message}</Text>
         {onRetry && (
           <Button variant="default" size="xs" onClick={onRetry}>

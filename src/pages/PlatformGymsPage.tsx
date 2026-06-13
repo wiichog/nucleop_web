@@ -5,6 +5,8 @@ import {
   Checkbox,
   Group,
   Select,
+  SimpleGrid,
+  Stack,
   TextInput,
   Title,
 } from "@mantine/core";
@@ -96,13 +98,17 @@ export function PlatformGymsPage() {
         <Title order={3} mb="sm">
           Nuevo gimnasio
         </Title>
-        <Group align="flex-end" gap="md">
-          <TextInput label="Nombre del gimnasio" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-          <TextInput label="Ubicación" value={location} onChange={(e) => setLocation(e.currentTarget.value)} style={{ flex: 1, minWidth: 200 }} />
-          <Button type="submit" disabled={!name} loading={createGym.isPending}>
-            Crear gym
-          </Button>
-        </Group>
+        <Stack gap="md">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+            <TextInput label="Nombre del gimnasio" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+            <TextInput label="Ubicación" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
+          </SimpleGrid>
+          <Group justify="flex-end">
+            <Button type="submit" disabled={!name} loading={createGym.isPending}>
+              Crear gym
+            </Button>
+          </Group>
+        </Stack>
       </Card>
 
       {editingId && (
@@ -110,37 +116,41 @@ export function PlatformGymsPage() {
           <Title order={3} mb="sm">
             Editar gimnasio
           </Title>
-          <Group align="flex-end" gap="md">
-            <Select
-              label="SaaS plan"
-              value={saasPlan}
-              onChange={setSaasPlan}
-              data={[
-                { value: "starter", label: "Starter" },
-                { value: "growth", label: "Growth" },
-                { value: "pro", label: "Pro" },
-                { value: "enterprise", label: "Enterprise" },
-              ]}
-            />
-            <TextInput label="Comisión" placeholder="0.0300" value={commission} onChange={(e) => setCommission(e.currentTarget.value)} w={120} />
-            <TextInput label="Fee fijo" value={fixedFee} onChange={(e) => setFixedFee(e.currentTarget.value)} w={110} />
-            <TextInput label="Suscripción mensual" value={monthlyPrice} onChange={(e) => setMonthlyPrice(e.currentTarget.value)} w={150} />
-            <Select
-              label="Estado suscripción"
-              value={subscriptionStatus}
-              onChange={setSubscriptionStatus}
-              data={[
-                { value: "active", label: "Activa" },
-                { value: "paused", label: "Pausada" },
-                { value: "cancelled", label: "Cancelada" },
-              ]}
-            />
-            <DateInput label="Próximo cobro" value={nextBillingDate} onChange={setNextBillingDate} valueFormat="YYYY-MM-DD" clearable />
-            <Checkbox label="Público" checked={isPublic} onChange={(e) => setIsPublic(e.currentTarget.checked)} mb={8} />
-            <Button type="submit" disabled={!commission} loading={updateGym.isPending || upsertSubscription.isPending}>
-              Guardar
-            </Button>
-          </Group>
+          <Stack gap="md">
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+              <Select
+                label="SaaS plan"
+                value={saasPlan}
+                onChange={setSaasPlan}
+                data={[
+                  { value: "starter", label: "Starter" },
+                  { value: "growth", label: "Growth" },
+                  { value: "pro", label: "Pro" },
+                  { value: "enterprise", label: "Enterprise" },
+                ]}
+              />
+              <TextInput label="Comisión" placeholder="0.0300" value={commission} onChange={(e) => setCommission(e.currentTarget.value)} />
+              <TextInput label="Fee fijo" value={fixedFee} onChange={(e) => setFixedFee(e.currentTarget.value)} />
+              <TextInput label="Suscripción mensual" value={monthlyPrice} onChange={(e) => setMonthlyPrice(e.currentTarget.value)} />
+              <Select
+                label="Estado suscripción"
+                value={subscriptionStatus}
+                onChange={setSubscriptionStatus}
+                data={[
+                  { value: "active", label: "Activa" },
+                  { value: "paused", label: "Pausada" },
+                  { value: "cancelled", label: "Cancelada" },
+                ]}
+              />
+              <DateInput label="Próximo cobro" value={nextBillingDate} onChange={setNextBillingDate} valueFormat="YYYY-MM-DD" clearable />
+            </SimpleGrid>
+            <Group justify="space-between" align="center">
+              <Checkbox label="Público" checked={isPublic} onChange={(e) => setIsPublic(e.currentTarget.checked)} />
+              <Button type="submit" disabled={!commission} loading={updateGym.isPending || upsertSubscription.isPending}>
+                Guardar
+              </Button>
+            </Group>
+          </Stack>
         </Card>
       )}
 

@@ -166,7 +166,7 @@ export function PaymentsPage() {
               value={search}
               onChange={(e) => setSearch(e.currentTarget.value)}
               mb="md"
-              w={300}
+              w={{ base: "100%", sm: 300 }}
             />
             <DataTable<Payment>
               minHeight={160}

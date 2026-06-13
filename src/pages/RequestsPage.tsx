@@ -177,7 +177,7 @@ export function RequestsPage() {
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
           mb="md"
-          w={260}
+          w={{ base: "100%", sm: 260 }}
         />
         <DataTable<JoinRequest>
           minHeight={160}

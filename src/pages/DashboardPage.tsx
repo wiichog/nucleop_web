@@ -29,7 +29,7 @@ function Kpi({
       <Text c="dimmed" size="sm" mb={4}>
         {label}
       </Text>
-      <Text fw={700} fz={28} c={tone} ff='"Space Grotesk", sans-serif'>
+      <Text fw={700} fz={{ base: 22, sm: 28 }} c={tone} ff='"Space Grotesk", sans-serif'>
         {value}
       </Text>
     </Card>

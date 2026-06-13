@@ -50,7 +50,8 @@ export function LoginPage() {
         withBorder
         radius="lg"
         p="xl"
-        w={380}
+        w="100%"
+        maw={380}
         style={{ position: "relative", backdropFilter: "blur(10px)", background: "rgba(255,255,255,0.03)" }}
         onSubmit={
           resetMode

@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Card,
+  Grid,
   Group,
   SegmentedControl,
   Select,
@@ -74,8 +75,9 @@ export function TicketsPage() {
         }
       />
 
-      <Group align="flex-start" gap="lg" wrap="nowrap" style={{ alignItems: "stretch" }}>
-        <Card style={{ flex: 1, minWidth: 320 }}>
+      <Grid gutter="lg" align="stretch">
+        <Grid.Col span={{ base: 12, lg: selected ? 5 : 12 }}>
+        <Card h="100%">
           {tickets.isLoading ? (
             <PageLoading />
           ) : !rows.length ? (
@@ -110,9 +112,11 @@ export function TicketsPage() {
             </Table>
           )}
         </Card>
+        </Grid.Col>
 
         {selected && (
-          <Card style={{ flex: 1.2, minWidth: 360 }}>
+          <Grid.Col span={{ base: 12, lg: 7 }}>
+          <Card h="100%">
             <Group justify="space-between" align="flex-start">
               <div>
                 <Title order={3}>{selected.subject}</Title>
@@ -176,8 +180,9 @@ export function TicketsPage() {
               </Button>
             </Group>
           </Card>
+          </Grid.Col>
         )}
-      </Group>
+      </Grid>
     </div>
   );
 }
