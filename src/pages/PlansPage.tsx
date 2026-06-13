@@ -10,6 +10,7 @@ import {
   NumberInput,
   Select,
   SimpleGrid,
+  Stack,
   Switch,
   Text,
   TextInput,
@@ -28,8 +29,9 @@ import {
   useServiceTypes,
   useTogglePlanOffer,
   useUpdatePlan,
+  useUpdateServiceType,
 } from "../api/hooks";
-import type { Plan, PlanOffer } from "../api/types";
+import type { Plan, PlanOffer, ServiceType } from "../api/types";
 import { NoGymAssigned } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
@@ -47,6 +49,7 @@ export function PlansPage() {
     () => (serviceTypes.data ?? []).map((s) => ({ value: s.id, label: s.name })),
     [serviceTypes.data],
   );
+  const updateService = useUpdateServiceType(gymId);
   const createPlan = useCreatePlan(gymId);
   const updatePlan = useUpdatePlan(gymId);
   const deletePlan = useDeletePlan(gymId);
@@ -171,6 +174,58 @@ export function PlansPage() {
             Crear plan
           </Button>
         </Group>
+      </Card>
+
+      <Card mb="lg">
+        <Title order={3} mb={4}>
+          Servicios y su cobro
+        </Title>
+        <Text c="dimmed" size="sm" mb="md">
+          Los servicios que creas en <b>Clases → Servicios</b> llegan aquí como{" "}
+          <b>pendientes</b>. Defínele su cobro (incluido o pago extra), asígnalo a uno o más planes
+          y actívalo para poder agendarlo y mostrarlo a tus atletas.
+        </Text>
+        {serviceTypes.isLoading ? (
+          <Text c="dimmed" size="sm">Cargando servicios…</Text>
+        ) : !(serviceTypes.data ?? []).length ? (
+          <Text c="dimmed" size="sm">
+            Aún no hay servicios. Créalos en Clases → Servicios.
+          </Text>
+        ) : (
+          <Stack gap="sm">
+            {[...((serviceTypes.data ?? []) as ServiceType[])]
+              .sort((a, b) => Number(a.status === "active") - Number(b.status === "active"))
+              .map((s) => (
+                <ServiceConfigCard
+                  key={s.id}
+                  service={s}
+                  planOptions={(data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+                  saving={updateService.isPending && updateService.variables?.id === s.id}
+                  onSave={async (body) => {
+                    try {
+                      await updateService.mutateAsync({ id: s.id, body });
+                      notifications.show({
+                        color: "teal",
+                        message: body.status === "active" ? "Servicio activado." : "Servicio actualizado.",
+                      });
+                    } catch (e: unknown) {
+                      const detail =
+                        typeof e === "object" && e !== null && "response" in e
+                          ? (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
+                          : undefined;
+                      notifications.show({
+                        color: "red",
+                        message:
+                          typeof detail === "string"
+                            ? detail
+                            : "Revisa el precio (si es pago extra) o asígnalo a un plan (si es incluido).",
+                      });
+                    }
+                  }}
+                />
+              ))}
+          </Stack>
+        )}
       </Card>
 
       <Card mb="lg" component="form" onSubmit={onCreateOffer}>
@@ -421,5 +476,110 @@ function EditPlanModal({
         </Button>
       </Group>
     </Modal>
+  );
+}
+
+/** Tarjeta de configuración de cobro/inclusión de un servicio (fusión). Pendiente
+ *  → se activa al definir su cobro y asignarlo a un plan. */
+function ServiceConfigCard({
+  service,
+  planOptions,
+  saving,
+  onSave,
+}: {
+  service: ServiceType;
+  planOptions: { value: string; label: string }[];
+  saving: boolean;
+  onSave: (body: Partial<ServiceType>) => Promise<void>;
+}) {
+  const [access, setAccess] = useState<"included" | "extra">(service.access_type);
+  const [charge, setCharge] = useState<"recurring" | "one_time">(service.charge_type);
+  const [price, setPrice] = useState<string>(String(service.price ?? "0"));
+  const [days, setDays] = useState<number | string>(service.duration_days ?? 30);
+  const [plans, setPlans] = useState<string[]>(service.plans ?? []);
+  const [hydratedFor, setHydratedFor] = useState<string>("");
+
+  const stamp = `${service.id}:${service.status}:${service.access_type}`;
+  if (hydratedFor !== stamp) {
+    setHydratedFor(stamp);
+    setAccess(service.access_type);
+    setCharge(service.charge_type);
+    setPrice(String(service.price ?? "0"));
+    setDays(service.duration_days ?? 30);
+    setPlans(service.plans ?? []);
+  }
+
+  const isDraft = service.status !== "active";
+
+  return (
+    <Card withBorder>
+      <Group justify="space-between" mb="xs">
+        <Group gap="sm">
+          <Text fw={600}>{service.name}</Text>
+          {isDraft ? (
+            <Badge color="yellow" variant="light">Pendiente</Badge>
+          ) : (
+            <Badge color="teal" variant="light">Activo</Badge>
+          )}
+        </Group>
+      </Group>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
+        <Select
+          label="Cobro"
+          value={access}
+          onChange={(v) => setAccess((v as "included" | "extra") ?? "included")}
+          data={[
+            { value: "included", label: "Incluido en la membresía" },
+            { value: "extra", label: "Requiere pago extra" },
+          ]}
+        />
+        {access === "extra" && (
+          <Select
+            label="Tipo"
+            value={charge}
+            onChange={(v) => setCharge((v as "recurring" | "one_time") ?? "recurring")}
+            data={[
+              { value: "recurring", label: "Recurrente" },
+              { value: "one_time", label: "Pase único" },
+            ]}
+          />
+        )}
+        {access === "extra" && (
+          <NumberInput label="Precio (Q)" value={price} onChange={(v) => setPrice(String(v))} min={0} />
+        )}
+        {access === "extra" && (
+          <NumberInput label="Vigencia (días)" value={days} onChange={setDays} min={1} />
+        )}
+      </SimpleGrid>
+      <MultiSelect
+        mt="sm"
+        label={access === "included" ? "Planes que lo incluyen" : "Planes que lo incluyen (opcional)"}
+        description="El atleta verá “tu plan ya lo incluye” en estos planes."
+        placeholder={planOptions.length ? "Selecciona planes" : "Crea un plan primero"}
+        data={planOptions}
+        value={plans}
+        onChange={setPlans}
+        searchable
+        clearable
+      />
+      <Group justify="flex-end" mt="md">
+        <Button
+          variant={isDraft ? "filled" : "default"}
+          loading={saving}
+          onClick={() =>
+            onSave({
+              access_type: access,
+              charge_type: charge,
+              price: access === "extra" ? price || "0" : "0",
+              duration_days: Number(days) || 30,
+              plans,
+              status: "active",
+            })
+          }
+        >
+          {isDraft ? "Activar servicio" : "Guardar cambios"}
+        </Button>
+      </Group>
+    </Card>
   );
 }

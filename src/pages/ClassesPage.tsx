@@ -1,6 +1,5 @@
 import { FormEvent, useMemo, useState } from "react";
 import {
-  ActionIcon,
   Alert,
   Badge,
   Button,
@@ -12,6 +11,7 @@ import {
   NumberInput,
   SegmentedControl,
   Select,
+  SimpleGrid,
   Switch,
   Table,
   Tabs,
@@ -64,6 +64,7 @@ import type {
   Wod,
 } from "../api/types";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
+import { RowActions } from "../components/RowActions";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { CLASS_STATUS, label } from "../lib/labels";
@@ -203,8 +204,10 @@ function ServicesTab({ gymId }: { gymId: string }) {
         </Title>
         <Text c="dimmed" size="sm" mb="md">
           Ej.: CrossFit, Functional, Hybrid, Open Gym. Define una vez y reutilízalo en el horario.
+          El servicio queda <b>pendiente</b> hasta que le pongas precio/inclusión y lo asignes a un
+          plan en <b>Planes y cuotas</b>; recién ahí podrás agendarlo y se mostrará a tus atletas.
         </Text>
-        <Group align="flex-end" gap="md" grow>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} spacing="md">
           <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
           <ColorInput label="Color" value={color} onChange={setColor} format="hex" />
           <NumberInput label="Min. por defecto" value={duration} onChange={setDuration} min={15} max={300} />
@@ -217,8 +220,8 @@ function ServicesTab({ gymId }: { gymId: string }) {
             min={0}
             max={1000}
           />
-        </Group>
-        <Group align="flex-start" gap="md" mt="md" grow>
+        </SimpleGrid>
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="md">
           <Textarea
             label="Descripción"
             description="Qué es el servicio; se muestra a los atletas en la app."
@@ -237,7 +240,7 @@ function ServicesTab({ gymId }: { gymId: string }) {
             autosize
             minRows={2}
           />
-        </Group>
+        </SimpleGrid>
         <Group align="flex-end" gap="md" mt="md">
           <FileInput
             label="Foto del servicio"
@@ -246,7 +249,7 @@ function ServicesTab({ gymId }: { gymId: string }) {
             value={photoFile}
             onChange={setPhotoFile}
             clearable
-            w={260}
+            w={{ base: "100%", sm: 260 }}
           />
           <Switch
             label="Requiere rutina"
@@ -313,6 +316,19 @@ function ServicesTab({ gymId }: { gymId: string }) {
               render: (s) => `${s.completion_points ?? 5} pts`,
             },
             {
+              accessor: "status",
+              title: "Publicación",
+              sortable: true,
+              render: (s) =>
+                s.status === "active" ? (
+                  <Badge color="teal" variant="light">Activo</Badge>
+                ) : (
+                  <Badge color="yellow" variant="light" title="Ponle precio y asígnalo a un plan en Membresías">
+                    Pendiente · configúralo en Membresías
+                  </Badge>
+                ),
+            },
+            {
               accessor: "is_active",
               title: "Estado",
               sortable: true,
@@ -328,14 +344,12 @@ function ServicesTab({ gymId }: { gymId: string }) {
               accessor: "actions",
               title: "Acciones",
               render: (s) => (
-                <Group gap="xs" wrap="nowrap">
-                  <Button variant="default" size="xs" onClick={() => setEditing(s)}>
-                    Editar
-                  </Button>
-                  <Button variant="light" color="red" size="xs" onClick={() => onDelete(s.id, s.name)}>
-                    Eliminar
-                  </Button>
-                </Group>
+                <RowActions
+                  actions={[
+                    { label: "Editar", onClick: () => setEditing(s) },
+                    { label: "Eliminar", color: "red", variant: "light", onClick: () => onDelete(s.id, s.name) },
+                  ]}
+                />
               ),
             },
           ]}
@@ -553,7 +567,7 @@ function ScheduleTab({ gymId }: { gymId: string }) {
         <Text c="dimmed" size="sm" mb="md">
           Ej.: CrossFit 6:00 lun–vie. Se materializan las próximas semanas automáticamente; sin fecha de fin se repite siempre.
         </Text>
-        <Group align="flex-end" gap="md" grow>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} spacing="md">
           <Select
             label="Servicio"
             placeholder={serviceOptions.length ? "Selecciona" : "Crea un servicio primero"}
@@ -567,7 +581,7 @@ function ScheduleTab({ gymId }: { gymId: string }) {
           <NumberInput label="Minutos" value={duration} onChange={setDuration} min={15} max={300} />
           <NumberInput label="Cupo" value={capacity} onChange={setCapacity} min={1} max={200} />
           <Select label="Coach" placeholder="Sin asignar" clearable searchable value={coachId} onChange={setCoachId} data={coachOptions} />
-        </Group>
+        </SimpleGrid>
 
         <Group gap="xs" my="md" grow>
           {WEEKDAYS.map((d) => {
@@ -653,16 +667,12 @@ function ScheduleTab({ gymId }: { gymId: string }) {
               accessor: "actions",
               title: "",
               render: (s) => (
-                <Group gap="xs" wrap="nowrap">
-                  <Button variant="default" size="xs" onClick={() => setEditing(s)}>
-                    Editar
-                  </Button>
-                  <Tooltip label="Quitar del horario y cancelar clases futuras sin reservas">
-                    <ActionIcon variant="subtle" color="red" loading={remove.isPending} onClick={() => remove.mutate(s.id)}>
-                      ✕
-                    </ActionIcon>
-                  </Tooltip>
-                </Group>
+                <RowActions
+                  actions={[
+                    { label: "Editar", onClick: () => setEditing(s) },
+                    { label: "Quitar del horario", color: "red", variant: "subtle", loading: remove.isPending, onClick: () => remove.mutate(s.id) },
+                  ]}
+                />
               ),
             },
           ]}
@@ -844,7 +854,7 @@ function ClassesTab({ gymId }: { gymId: string }) {
             placeholder="Buscar por clase, coach o estado…"
             value={search}
             onChange={(e) => setSearch(e.currentTarget.value)}
-            w={320}
+            w={{ base: "100%", sm: 320 }}
           />
         </Group>
         <DataTable<ClassRow>
@@ -916,38 +926,26 @@ function ClassesTab({ gymId }: { gymId: string }) {
                 // no se le cambia el coach, no se cancela ni se elimina.
                 const iniciada = timeTab === "pasado" || yaInicio(gymClass);
                 return (
-                  <Group gap="xs">
-                    {!iniciada && (
-                      <Button variant="light" size="xs" onClick={() => setEditing(gymClass)}>
-                        Coach
-                      </Button>
-                    )}
-                    <Button variant="default" size="xs" onClick={() => setSelectedClassId(gymClass.id)}>
-                      Asistencia
-                    </Button>
-                    {gymClass.status !== "cancelled" && !iniciada && (
-                      <Button
-                        variant="subtle"
-                        color="orange"
-                        size="xs"
-                        loading={cancelClass.isPending && cancelClass.variables === gymClass.id}
-                        onClick={() => cancelClass.mutate(gymClass.id)}
-                      >
-                        Cancelar
-                      </Button>
-                    )}
-                    {!iniciada && (
-                      <Button
-                        variant="subtle"
-                        color="red"
-                        size="xs"
-                        loading={deleteClass.isPending && deleteClass.variables === gymClass.id}
-                        onClick={() => onDeleteClass(gymClass)}
-                      >
-                        Eliminar
-                      </Button>
-                    )}
-                  </Group>
+                  <RowActions
+                    actions={[
+                      !iniciada && { label: "Coach", variant: "light", onClick: () => setEditing(gymClass) },
+                      { label: "Asistencia", onClick: () => setSelectedClassId(gymClass.id) },
+                      gymClass.status !== "cancelled" && !iniciada && {
+                        label: "Cancelar",
+                        variant: "subtle",
+                        color: "orange",
+                        loading: cancelClass.isPending && cancelClass.variables === gymClass.id,
+                        onClick: () => cancelClass.mutate(gymClass.id),
+                      },
+                      !iniciada && {
+                        label: "Eliminar",
+                        variant: "subtle",
+                        color: "red",
+                        loading: deleteClass.isPending && deleteClass.variables === gymClass.id,
+                        onClick: () => onDeleteClass(gymClass),
+                      },
+                    ]}
+                  />
                 );
               },
             },
@@ -1196,7 +1194,7 @@ function WodTab({ gymId }: { gymId: string }) {
         <Text c="dimmed" size="sm" mb="md">
           Una rutina por servicio y fecha; la comparten todas las clases de ese día. Publícala para que los atletas la vean.
         </Text>
-        <Group align="flex-end" gap="md" grow>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
           <DateInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" popoverProps={{ withinPortal: true }} />
           <Select
             label="Servicio (track)"
@@ -1217,7 +1215,7 @@ function WodTab({ gymId }: { gymId: string }) {
             value={scoreType}
             onChange={(v) => setScoreType((v as ScoreType) ?? "for_time")}
           />
-        </Group>
+        </SimpleGrid>
         <Textarea
           label="Descripción"
           placeholder="21-15-9 thrusters + pull-ups"
@@ -1292,31 +1290,24 @@ function WodTab({ gymId }: { gymId: string }) {
               accessor: "actions",
               title: "Acciones",
               render: (w) => (
-                <Group gap="xs">
-                  <Button variant="light" size="xs" onClick={() => setOpenBoard(w)}>
-                    Board
-                  </Button>
-                  <Button
-                    variant={w.is_benchmark ? "filled" : "default"}
-                    color="grape"
-                    size="xs"
-                    loading={update.isPending}
-                    onClick={() => update.mutate({ id: w.id, body: { is_benchmark: !w.is_benchmark } })}
-                  >
-                    {w.is_benchmark ? "Benchmark ✓" : "Benchmark"}
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="xs"
-                    loading={update.isPending}
-                    onClick={() => update.mutate({ id: w.id, body: { published: !w.published } })}
-                  >
-                    {w.published ? "Despublicar" : "Publicar"}
-                  </Button>
-                  <Button variant="light" color="red" size="xs" loading={remove.isPending} onClick={() => onDeleteWod(w.id, w.title)}>
-                    Eliminar
-                  </Button>
-                </Group>
+                <RowActions
+                  actions={[
+                    { label: "Board", variant: "light", onClick: () => setOpenBoard(w) },
+                    {
+                      label: w.is_benchmark ? "Benchmark ✓" : "Benchmark",
+                      variant: w.is_benchmark ? "filled" : "default",
+                      color: "grape",
+                      loading: update.isPending,
+                      onClick: () => update.mutate({ id: w.id, body: { is_benchmark: !w.is_benchmark } }),
+                    },
+                    {
+                      label: w.published ? "Despublicar" : "Publicar",
+                      loading: update.isPending,
+                      onClick: () => update.mutate({ id: w.id, body: { published: !w.published } }),
+                    },
+                    { label: "Eliminar", variant: "light", color: "red", loading: remove.isPending, onClick: () => onDeleteWod(w.id, w.title) },
+                  ]}
+                />
               ),
             },
           ]}
@@ -1384,16 +1375,16 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
           value={athleteId}
           onChange={setAthleteId}
           searchable
-          w={220}
+          w={{ base: "100%", sm: 220 }}
         />
         <TextInput
           label="Score"
           placeholder={wod?.score_type === "for_time" ? "3:21" : "120"}
           value={score}
           onChange={(e) => setScore(e.currentTarget.value)}
-          w={120}
+          w={{ base: "100%", sm: 120 }}
         />
-        <Select label="Modalidad" data={SCALINGS} value={scaling} onChange={(v) => setScaling(v ?? "rx")} w={140} />
+        <Select label="Modalidad" data={SCALINGS} value={scaling} onChange={(v) => setScaling(v ?? "rx")} w={{ base: "100%", sm: 140 }} />
         <Button type="submit" loading={addResult.isPending} disabled={!athleteId || !score.trim()}>
           Registrar
         </Button>
@@ -1411,7 +1402,7 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
           data={classOptions}
           value={classId}
           onChange={setClassId}
-          w={240}
+          w={{ base: "100%", sm: 240 }}
           mb="sm"
         />
       )}

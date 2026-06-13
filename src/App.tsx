@@ -17,7 +17,6 @@ import { PasswordResetConfirmPage } from "./pages/PasswordResetConfirmPage";
 import { PlatformGymsPage } from "./pages/PlatformGymsPage";
 import { CommunityPage } from "./pages/CommunityPage";
 import { TicketsPage } from "./pages/TicketsPage";
-import { ServicesPage } from "./pages/ServicesPage";
 import { ClubAdminPage } from "./pages/ClubAdminPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { PosPage } from "./pages/PosPage";
@@ -60,7 +59,8 @@ export default function App() {
         <Route path="atletas" element={<AthletesPage />} />
         <Route path="pagos" element={<PaymentsPage />} />
         <Route path="planes" element={<PlansPage />} />
-        <Route path="servicios" element={<ServicesPage />} />
+        {/* "servicios" fusionado en Clases (catálogo) + Planes (cobro/activación). */}
+        <Route path="servicios" element={<Navigate to="/panel/planes" replace />} />
         <Route path="solicitudes" element={<RequestsPage />} />
         <Route path="clases" element={<ClassesPage />} />
         <Route path="coaches" element={<CoachesPage />} />

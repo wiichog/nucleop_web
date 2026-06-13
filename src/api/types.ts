@@ -176,6 +176,12 @@ export interface InvitationInput {
 }
 
 // --- ERP (§18) ---
+export interface ProductComponentRef {
+  component: string;
+  component_name?: string;
+  qty: number;
+}
+
 export interface ErpProduct {
   id: string;
   name: string;
@@ -196,6 +202,9 @@ export interface ErpProduct {
   delivery_days: number;
   is_upcoming: boolean;
   launch_date: string | null;
+  // Receta / preparados (licuados): insumos que se descuentan al vender.
+  components: ProductComponentRef[];
+  is_composite: boolean;
   is_active: boolean;
   created_at: string;
 }
@@ -247,10 +256,12 @@ export interface ErpSale {
   id: string;
   athlete: string | null;
   payment: string | null;
+  method?: string;
   total: string;
   cogs: string;
   margin: string;
   note: string;
+  return_of: string | null;
   lines: ErpSaleLine[];
   created_at: string;
 }
@@ -368,6 +379,14 @@ export interface ServiceType {
   included_in_plan: boolean;
   default_cost: string;
   completion_points: number;
+  // Estado y cobro (fusión): el servicio nace "draft" y se activa al configurar
+  // su precio/inclusión y asignarlo a planes desde Membresías.
+  status: "draft" | "active";
+  access_type: "included" | "extra";
+  charge_type: "recurring" | "one_time";
+  price: string;
+  duration_days: number;
+  plans: string[];
   is_active: boolean;
 }
 
@@ -428,6 +447,26 @@ export interface ErpRevenueLine {
   revenue: string;
 }
 
+export interface ErpCategoryRevenue {
+  category: string;
+  label: string;
+  revenue: string;
+  cogs: string;
+  units: number;
+}
+
+export interface ErpMethodRevenue {
+  method: string;
+  label: string;
+  revenue: string;
+}
+
+export interface ErpExpenseCategory {
+  category: string;
+  label: string;
+  amount: string;
+}
+
 export interface ErpPnl {
   from: string;
   to: string;
@@ -435,6 +474,8 @@ export interface ErpPnl {
   membership_revenue: string;
   service_revenue: string;
   retail_revenue: string;
+  counter_revenue: string;
+  marketplace_revenue: string;
   gross_revenue: string;
   cogs: string;
   direct_cost: string;
@@ -448,6 +489,9 @@ export interface ErpPnl {
   delta_revenue_pct: number | null;
   delta_net_pct: number | null;
   revenue_lines: ErpRevenueLine[];
+  revenue_by_category: ErpCategoryRevenue[];
+  revenue_by_method: ErpMethodRevenue[];
+  expenses_by_category: ErpExpenseCategory[];
   active_members: number;
   new_members: number;
   inventory_purchases_units: number;
@@ -492,6 +536,8 @@ export interface AthletePost {
   media?: FeedMedia[];
   status: "pending" | "approved" | "rejected";
   status_display: string;
+  report_count?: number;
+  moderation_label?: string;
   created_at: string;
 }
 

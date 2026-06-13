@@ -8,6 +8,7 @@ import {
   Modal,
   NumberInput,
   Select,
+  SimpleGrid,
   Switch,
   TagsInput,
   Text,
@@ -30,6 +31,7 @@ import {
 } from "../api/hooks";
 import type { ErpProduct, ProductOrder } from "../api/types";
 import { NoGymAssigned } from "../components/PageStatus";
+import { RowActions } from "../components/RowActions";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { sortRecords } from "../lib/sortRecords";
@@ -114,6 +116,9 @@ export function InventoryPage() {
   const [isUpcoming, setIsUpcoming] = useState(false);
   const [launchDate, setLaunchDate] = useState<Date | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  // Receta (preparados/licuados).
+  const [prepared, setPrepared] = useState(false);
+  const [components, setComponents] = useState<{ component: string; qty: number }[]>([]);
 
   const onCreate = async (event: FormEvent) => {
     event.preventDefault();
@@ -130,6 +135,7 @@ export function InventoryPage() {
       delivery_days: Number(deliveryDays) || 0,
       is_upcoming: isUpcoming,
       launch_date: launchDate ? launchDate.toLocaleDateString("en-CA") : null,
+      components: prepared ? components : [],
     });
     if (photoFile) await uploadPhoto.mutateAsync({ id: created.id, file: photoFile });
     setName("");
@@ -144,6 +150,8 @@ export function InventoryPage() {
     setIsUpcoming(false);
     setLaunchDate(null);
     setPhotoFile(null);
+    setPrepared(false);
+    setComponents([]);
     notifications.show({ color: "teal", message: "Producto creado." });
   };
 
@@ -163,13 +171,13 @@ export function InventoryPage() {
         <Title order={3} mb="sm">
           Nuevo producto
         </Title>
-        <Group align="flex-end" gap="md">
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} spacing="md">
           <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} />
           <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIES} />
-          <TextInput label="Precio venta (Q)" value={salePrice} onChange={(e) => setSalePrice(e.currentTarget.value)} w={130} />
-          <TextInput label="Costo (Q)" value={costPrice} onChange={(e) => setCostPrice(e.currentTarget.value)} w={120} />
-          <NumberInput label="Reorden" value={reorder} onChange={setReorder} w={100} min={0} />
-        </Group>
+          <TextInput label="Precio venta (Q)" value={salePrice} onChange={(e) => setSalePrice(e.currentTarget.value)} />
+          <TextInput label="Costo (Q)" value={costPrice} onChange={(e) => setCostPrice(e.currentTarget.value)} />
+          <NumberInput label="Reorden" value={reorder} onChange={setReorder} min={0} />
+        </SimpleGrid>
 
         <Switch
           label="Vender en la tienda de la app"
@@ -180,7 +188,7 @@ export function InventoryPage() {
         />
         {inMarketplace && (
           <>
-            <Group grow mt="sm" align="flex-start">
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
               <Textarea
                 label="Descripción"
                 placeholder="Material, beneficios, sabor…"
@@ -197,8 +205,8 @@ export function InventoryPage() {
                 onChange={setPhotoFile}
                 clearable
               />
-            </Group>
-            <Group grow mt="sm">
+            </SimpleGrid>
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
               <TagsInput
                 label="Tallas (ropa)"
                 description="Escribe y presiona Enter por cada talla"
@@ -213,8 +221,8 @@ export function InventoryPage() {
                 value={colors}
                 onChange={setColors}
               />
-            </Group>
-            <Group grow mt="sm" align="flex-end">
+            </SimpleGrid>
+            <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mt="sm">
               <NumberInput
                 label="Días de entrega"
                 description="0 = disponible de inmediato"
@@ -237,9 +245,24 @@ export function InventoryPage() {
                 clearable
                 popoverProps={{ withinPortal: true }}
               />
-            </Group>
+            </SimpleGrid>
           </>
         )}
+        <Switch
+          label="Es un preparado (receta)"
+          description="Ej. licuado: al venderlo se descuentan sus insumos, no el preparado."
+          checked={prepared}
+          onChange={(e) => setPrepared(e.currentTarget.checked)}
+          mt="md"
+        />
+        {prepared && (
+          <RecipeFields
+            products={data ?? []}
+            value={components}
+            onChange={setComponents}
+          />
+        )}
+
         <Group justify="flex-end" mt="md">
           <Button type="submit" disabled={!name || !salePrice} loading={createProduct.isPending || uploadPhoto.isPending}>
             Agregar producto
@@ -253,7 +276,7 @@ export function InventoryPage() {
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
           mb="md"
-          w={300}
+          w={{ base: "100%", sm: 300 }}
         />
         <DataTable<ErpProduct>
           minHeight={160}
@@ -333,14 +356,12 @@ export function InventoryPage() {
               accessor: "actions",
               title: "Acciones",
               render: (p) => (
-                <Group gap="xs" wrap="nowrap">
-                  <Button variant="default" size="xs" onClick={() => setEditing(p)}>
-                    Editar
-                  </Button>
-                  <Button variant="light" color="red" size="xs" onClick={() => onDelete(p)}>
-                    Eliminar
-                  </Button>
-                </Group>
+                <RowActions
+                  actions={[
+                    { label: "Editar", onClick: () => setEditing(p) },
+                    { label: "Eliminar", color: "red", variant: "light", onClick: () => onDelete(p) },
+                  ]}
+                />
               ),
             },
           ]}
@@ -408,23 +429,22 @@ export function InventoryPage() {
               title: "",
               render: (o) =>
                 ["paid", "reserved"].includes(o.status) ? (
-                  <Group gap="xs" wrap="nowrap">
-                    <Button
-                      size="xs"
-                      loading={updateOrder.isPending && updateOrder.variables?.id === o.id}
-                      onClick={() => updateOrder.mutate({ id: o.id, status: "delivered" })}
-                    >
-                      Entregado
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="subtle"
-                      color="red"
-                      onClick={() => updateOrder.mutate({ id: o.id, status: "cancelled" })}
-                    >
-                      Cancelar
-                    </Button>
-                  </Group>
+                  <RowActions
+                    actions={[
+                      {
+                        label: "Entregado",
+                        variant: "filled",
+                        loading: updateOrder.isPending && updateOrder.variables?.id === o.id,
+                        onClick: () => updateOrder.mutate({ id: o.id, status: "delivered" }),
+                      },
+                      {
+                        label: "Cancelar",
+                        variant: "subtle",
+                        color: "red",
+                        onClick: () => updateOrder.mutate({ id: o.id, status: "cancelled" }),
+                      },
+                    ]}
+                  />
                 ) : null,
             },
           ]}
@@ -433,6 +453,7 @@ export function InventoryPage() {
 
       <EditProductModal
         product={editing}
+        products={data ?? []}
         saving={updateProduct.isPending || uploadPhoto.isPending}
         onClose={() => setEditing(null)}
         onSave={async (body, photo) => {
@@ -453,11 +474,13 @@ export function InventoryPage() {
 
 function EditProductModal({
   product,
+  products,
   saving,
   onClose,
   onSave,
 }: {
   product: ErpProduct | null;
+  products: ErpProduct[];
   saving: boolean;
   onClose: () => void;
   onSave: (body: Partial<ErpProduct>, photo: File | null) => Promise<void>;
@@ -476,6 +499,8 @@ function EditProductModal({
   const [isUpcoming, setIsUpcoming] = useState(false);
   const [launchDate, setLaunchDate] = useState<Date | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
+  const [prepared, setPrepared] = useState(false);
+  const [components, setComponents] = useState<{ component: string; qty: number }[]>([]);
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
 
   if (product && hydratedFor !== product.id) {
@@ -493,6 +518,8 @@ function EditProductModal({
     setIsUpcoming(product.is_upcoming ?? false);
     setLaunchDate(product.launch_date ? new Date(`${product.launch_date}T00:00:00`) : null);
     setPhoto(null);
+    setPrepared((product.components ?? []).length > 0);
+    setComponents((product.components ?? []).map((c) => ({ component: c.component, qty: c.qty })));
   }
 
   return (
@@ -587,6 +614,22 @@ function EditProductModal({
         </>
       )}
 
+      <Switch
+        label="Es un preparado (receta)"
+        description="Ej. licuado: al venderlo se descuentan sus insumos, no el preparado."
+        checked={prepared}
+        onChange={(e) => setPrepared(e.currentTarget.checked)}
+        my="md"
+      />
+      {prepared && (
+        <RecipeFields
+          products={products}
+          selfId={product?.id}
+          value={components}
+          onChange={setComponents}
+        />
+      )}
+
       <Group justify="flex-end" mt="md">
         <Button variant="default" onClick={onClose}>
           Cancelar
@@ -609,6 +652,7 @@ function EditProductModal({
                 delivery_days: Number(deliveryDays) || 0,
                 is_upcoming: isUpcoming,
                 launch_date: launchDate ? launchDate.toLocaleDateString("en-CA") : null,
+                components: prepared ? components : [],
               },
               photo,
             )
@@ -618,5 +662,79 @@ function EditProductModal({
         </Button>
       </Group>
     </Modal>
+  );
+}
+
+/** Editor de receta (insumos) de un producto preparado, p. ej. un licuado. */
+function RecipeFields({
+  products,
+  selfId,
+  value,
+  onChange,
+}: {
+  products: ErpProduct[];
+  selfId?: string;
+  value: { component: string; qty: number }[];
+  onChange: (v: { component: string; qty: number }[]) => void;
+}) {
+  const [pick, setPick] = useState<string | null>(null);
+  const [qty, setQty] = useState<number | string>(1);
+
+  const nameOf = (id: string) => products.find((p) => p.id === id)?.name ?? id;
+  const options = products
+    .filter((p) => p.id !== selfId && !value.some((c) => c.component === p.id))
+    .map((p) => ({ value: p.id, label: `${p.name} (stock ${p.stock_qty})` }));
+
+  const add = () => {
+    if (!pick) return;
+    onChange([...value, { component: pick, qty: Number(qty) || 1 }]);
+    setPick(null);
+    setQty(1);
+  };
+
+  return (
+    <div>
+      <Text size="sm" c="dimmed" mb={6}>
+        Insumos que se descuentan del inventario al vender 1 unidad. El COGS del preparado
+        se calcula de la receta.
+      </Text>
+      {value.map((c, i) => (
+        <Group key={c.component} gap="xs" mb={6} wrap="nowrap">
+          <Text size="sm" style={{ flex: 1 }}>
+            {nameOf(c.component)}
+          </Text>
+          <NumberInput
+            w={90}
+            min={1}
+            value={c.qty}
+            onChange={(v) =>
+              onChange(value.map((x, idx) => (idx === i ? { ...x, qty: Number(v) || 1 } : x)))
+            }
+          />
+          <Button
+            variant="subtle"
+            color="red"
+            size="xs"
+            onClick={() => onChange(value.filter((_, idx) => idx !== i))}
+          >
+            Quitar
+          </Button>
+        </Group>
+      ))}
+      <Group gap="xs" align="flex-end" wrap="nowrap">
+        <Select
+          placeholder="Agregar insumo…"
+          data={options}
+          value={pick}
+          onChange={setPick}
+          searchable
+          style={{ flex: 1 }}
+        />
+        <NumberInput w={90} min={1} value={qty} onChange={setQty} />
+        <Button variant="default" size="sm" onClick={add} disabled={!pick}>
+          Añadir
+        </Button>
+      </Group>
+    </div>
   );
 }

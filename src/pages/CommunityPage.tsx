@@ -369,6 +369,16 @@ export function CommunityPage() {
                   <Badge size="xs" variant="light" color={p.author_type === "coach" ? "grape" : "flame"}>
                     {p.author_type === "coach" ? "Coach" : "Atleta"}
                   </Badge>
+                  {(p.report_count ?? 0) > 0 && (
+                    <Badge size="xs" variant="filled" color="red">
+                      Reportado ×{p.report_count}
+                    </Badge>
+                  )}
+                  {p.moderation_label && (
+                    <Badge size="xs" variant="light" color="orange" title="Marcado por moderación automática (IA)">
+                      IA: {p.moderation_label}
+                    </Badge>
+                  )}
                   <Text size="xs" c="dimmed">
                     {p.author_name ?? p.athlete_name} · {new Date(p.created_at).toLocaleString("es-GT")}
                   </Text>

@@ -39,7 +39,7 @@ function Metric({
       <Text c="dimmed" size="sm">
         {label}
       </Text>
-      <Text fw={700} fz={24} c={accent ? "flame" : undefined} ff='"Space Grotesk", sans-serif'>
+      <Text fw={700} fz={{ base: 20, sm: 24 }} c={accent ? "flame" : undefined} ff='"Space Grotesk", sans-serif'>
         {value}
       </Text>
       {sub && <div style={{ marginTop: 4 }}>{sub}</div>}
@@ -162,6 +162,90 @@ export function BusinessReportPage() {
                       <Table.Tr key={p.name}>
                         <Table.Td>{p.name}</Table.Td>
                         <Table.Td>{p.units}</Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              )}
+            </Card>
+          </SimpleGrid>
+
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mt="lg">
+            <Card>
+              <Title order={3} mb={4}>
+                Retail por categoría
+              </Title>
+              <Text c="dimmed" size="sm" mb="sm">
+                Ropa, bebidas, suplementos… mostrador + tienda de la app.
+              </Text>
+              {!(data.revenue_by_category ?? []).length ? (
+                <EmptyState title="Sin ventas" description="Aún no hay ventas de productos en el período." />
+              ) : (
+                <Table>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Categoría</Table.Th>
+                      <Table.Th>Uds.</Table.Th>
+                      <Table.Th>Ingreso</Table.Th>
+                      <Table.Th>Margen</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {data.revenue_by_category.map((c) => (
+                      <Table.Tr key={c.category}>
+                        <Table.Td>{c.label}</Table.Td>
+                        <Table.Td>{c.units}</Table.Td>
+                        <Table.Td>Q{c.revenue}</Table.Td>
+                        <Table.Td>Q{(Number(c.revenue) - Number(c.cogs)).toFixed(2)}</Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              )}
+            </Card>
+
+            <Card>
+              <Title order={3} mb="sm">
+                Cobros por método
+              </Title>
+              {!(data.revenue_by_method ?? []).length ? (
+                <EmptyState title="Sin ventas" description="Registra ventas para ver el corte de caja." />
+              ) : (
+                <Table>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Método</Table.Th>
+                      <Table.Th>Total</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {data.revenue_by_method.map((m) => (
+                      <Table.Tr key={m.method}>
+                        <Table.Td>{m.label}</Table.Td>
+                        <Table.Td>Q{m.revenue}</Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              )}
+              <Title order={3} mt="lg" mb="sm">
+                Gastos por categoría
+              </Title>
+              {!(data.expenses_by_category ?? []).length ? (
+                <EmptyState title="Sin gastos" description="No hay gastos registrados en el período." />
+              ) : (
+                <Table>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Categoría</Table.Th>
+                      <Table.Th>Monto</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {data.expenses_by_category.map((e) => (
+                      <Table.Tr key={e.category}>
+                        <Table.Td>{e.label}</Table.Td>
+                        <Table.Td>Q{e.amount}</Table.Td>
                       </Table.Tr>
                     ))}
                   </Table.Tbody>

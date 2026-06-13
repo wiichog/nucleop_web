@@ -1157,6 +1157,8 @@ export function useCreateErpProduct(gymId: string) {
       delivery_days?: number;
       is_upcoming?: boolean;
       launch_date?: string | null;
+      // Receta (preparados/licuados): insumos a descontar al vender.
+      components?: { component: string; qty: number }[];
     }) => (await api.post<ErpProduct>(`/gym/${gymId}/erp/products`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["erp-products", gymId] }),
   });
@@ -1253,6 +1255,24 @@ export function useCreateErpSale(gymId: string) {
       note?: string;
       lines: { product_id: string; qty: number }[];
     }) => (await api.post<ErpSale>(`/gym/${gymId}/erp/sales`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["erp-sales", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-pnl", gymId] });
+    },
+  });
+}
+
+/** Devolución (total o parcial) de una venta POS: regresa stock + reembolso. */
+export function useReturnErpSale(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { id: string; items?: { product_id: string; qty: number }[] }) =>
+      (
+        await api.post<ErpSale>(`/gym/${gymId}/erp/sales/${vars.id}/return`, {
+          items: vars.items ?? [],
+        })
+      ).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["erp-sales", gymId] });
       qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
@@ -1376,37 +1396,7 @@ export function useGymLeaveDecision(gymId: string) {
   });
 }
 
-// --- Servicios del gym (CRUD admin) ---
-export function useGymServices(gymId: string) {
-  return useQuery({
-    queryKey: ["gym-services", gymId],
-    queryFn: () => getList<import("./types").GymService>(`/gym/${gymId}/services/manage`),
-    enabled: !!gymId,
-  });
-}
-
-export function useCreateService(gymId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (body: Partial<import("./types").GymService>) =>
-      (await api.post(`/gym/${gymId}/services/manage`, body)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-services", gymId] }),
-  });
-}
-
-export function useUpdateService(gymId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, ...body }: { id: string } & Partial<import("./types").GymService>) =>
-      (await api.patch(`/gym/${gymId}/services/manage/${id}`, body)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-services", gymId] }),
-  });
-}
-
-export function useDeleteService(gymId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => (await api.delete(`/gym/${gymId}/services/manage/${id}`)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-services", gymId] }),
-  });
-}
+// --- Servicios del gym ---
+// El CRUD de servicios se fusionó en classes.ServiceType: el catálogo se crea en
+// Clases (useServiceTypes/useCreateServiceType/useUpdateServiceType) y su cobro +
+// activación se configuran en Planes. Los hooks de /services/manage se retiraron.
