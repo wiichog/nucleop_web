@@ -130,8 +130,8 @@ export function InventoryPage() {
       reorder_level: Number(reorder) || 0,
       show_in_marketplace: inMarketplace,
       description: description.trim(),
-      sizes,
-      colors,
+      sizes: category === "merch" ? sizes : [],
+      colors: category === "merch" ? colors : [],
       delivery_days: Number(deliveryDays) || 0,
       is_upcoming: isUpcoming,
       launch_date: launchDate ? launchDate.toLocaleDateString("en-CA") : null,
@@ -179,6 +179,30 @@ export function InventoryPage() {
           <NumberInput label="Reorden" value={reorder} onChange={setReorder} min={0} />
         </SimpleGrid>
 
+        {category === "merch" && (
+          <>
+            <Text size="sm" c="dimmed" mt="md">
+              Es ropa/merch: agrega tallas y/o colores si aplica. El atleta los elige al comprar.
+            </Text>
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="xs">
+              <TagsInput
+                label="Tallas"
+                description="Escribe y presiona Enter por cada talla"
+                placeholder="S, M, L, XL…"
+                value={sizes}
+                onChange={setSizes}
+              />
+              <TagsInput
+                label="Colores"
+                description="Enter por cada color"
+                placeholder="Negro, Naranja…"
+                value={colors}
+                onChange={setColors}
+              />
+            </SimpleGrid>
+          </>
+        )}
+
         <Switch
           label="Vender en la tienda de la app"
           description="Tus atletas lo verán y comprarán desde el marketplace del gym."
@@ -204,22 +228,6 @@ export function InventoryPage() {
                 value={photoFile}
                 onChange={setPhotoFile}
                 clearable
-              />
-            </SimpleGrid>
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
-              <TagsInput
-                label="Tallas (ropa)"
-                description="Escribe y presiona Enter por cada talla"
-                placeholder="S, M, L…"
-                value={sizes}
-                onChange={setSizes}
-              />
-              <TagsInput
-                label="Colores"
-                description="Enter por cada color"
-                placeholder="Negro, Naranja…"
-                value={colors}
-                onChange={setColors}
               />
             </SimpleGrid>
             <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mt="sm">
@@ -532,6 +540,30 @@ function EditProductModal({
         <NumberInput label="Nivel de reorden" value={reorder} onChange={setReorder} min={0} />
       </Group>
 
+      {category === "merch" && (
+        <>
+          <Text size="sm" c="dimmed">
+            Ropa/merch: agrega tallas y/o colores si aplica.
+          </Text>
+          <Group grow my="sm">
+            <TagsInput
+              label="Tallas"
+              description="Enter para agregar cada talla"
+              placeholder="S, M, L, XL…"
+              value={sizes}
+              onChange={setSizes}
+            />
+            <TagsInput
+              label="Colores"
+              description="Enter para agregar cada color"
+              placeholder="Negro, Naranja…"
+              value={colors}
+              onChange={setColors}
+            />
+          </Group>
+        </>
+      )}
+
       <Switch
         label="Vender en la tienda de la app"
         description="El producto aparece en el marketplace del gym para tus atletas."
@@ -550,22 +582,6 @@ function EditProductModal({
             minRows={2}
             mb="sm"
           />
-          <Group grow mb="sm">
-            <TagsInput
-              label="Tallas (ropa)"
-              description="Enter para agregar cada talla"
-              placeholder="S, M, L…"
-              value={sizes}
-              onChange={setSizes}
-            />
-            <TagsInput
-              label="Colores"
-              description="Enter para agregar cada color"
-              placeholder="Negro, Naranja…"
-              value={colors}
-              onChange={setColors}
-            />
-          </Group>
           <Group grow mb="sm" align="flex-end">
             <NumberInput
               label="Días de entrega"
@@ -647,8 +663,8 @@ function EditProductModal({
                 reorder_level: Number(reorder) || 0,
                 show_in_marketplace: inMarketplace,
                 description,
-                sizes,
-                colors,
+                sizes: category === "merch" ? sizes : [],
+                colors: category === "merch" ? colors : [],
                 delivery_days: Number(deliveryDays) || 0,
                 is_upcoming: isUpcoming,
                 launch_date: launchDate ? launchDate.toLocaleDateString("en-CA") : null,
