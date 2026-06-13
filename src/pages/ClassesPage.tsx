@@ -902,7 +902,7 @@ function ClassesTab({ gymId }: { gymId: string }) {
                   <Text size="sm">{gymClass.coach_name ?? coachName(gymClass.coach)}</Text>
                 ) : (
                   <Badge color={gymClass.is_past_assignment_deadline ? "red" : "yellow"} variant="light">
-                    {gymClass.is_past_assignment_deadline ? "Sin coach (vencido)" : "Sin asignar"}
+                    {gymClass.is_past_assignment_deadline ? "Sin coach · urge" : "Sin asignar"}
                   </Badge>
                 ),
             },
