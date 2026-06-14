@@ -100,11 +100,22 @@ export function PosPage() {
       setCart([]);
       setAthleteId("");
     } catch (e: unknown) {
-      const detail =
+      const data =
         typeof e === "object" && e !== null && "response" in e
-          ? (e as { response?: { data?: { detail?: string; qty?: string } } }).response?.data
+          ? (e as { response?: { data?: unknown } }).response?.data
           : undefined;
-      setError(detail?.detail ?? detail?.qty ?? "No se pudo registrar la venta.");
+      // El mensaje SIEMPRE debe ser string (renderizar un objeto tronaba el panel).
+      let msg = "No se pudo registrar la venta.";
+      if (typeof data === "string") {
+        msg = data;
+      } else if (data && typeof data === "object") {
+        const d = data as Record<string, unknown>;
+        if (typeof d.detail === "string") msg = d.detail;
+        else if (Array.isArray(d.detail) && typeof d.detail[0] === "string") msg = d.detail[0];
+        else if (typeof d.qty === "string") msg = d.qty;
+        else if (Array.isArray(d.qty) && typeof d.qty[0] === "string") msg = d.qty[0];
+      }
+      setError(msg);
     }
   };
 

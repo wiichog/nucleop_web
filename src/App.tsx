@@ -22,7 +22,6 @@ import { InventoryPage } from "./pages/InventoryPage";
 import { PosPage } from "./pages/PosPage";
 import { ExpensesPage } from "./pages/ExpensesPage";
 import { BusinessReportPage } from "./pages/BusinessReportPage";
-import { BranchesPage } from "./pages/BranchesPage";
 import { ClubsPage } from "./pages/ClubsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 
@@ -72,7 +71,8 @@ export default function App() {
         <Route path="pos" element={<PosPage />} />
         <Route path="gastos" element={<ExpensesPage />} />
         <Route path="reportes" element={<BusinessReportPage />} />
-        <Route path="sucursales" element={<BranchesPage />} />
+        {/* Sucursales eliminadas: cada sucursal se maneja como un gimnasio aparte. */}
+        <Route path="sucursales" element={<Navigate to="/panel" replace />} />
         <Route path="club" element={<ClubAdminPage />} />
         <Route path="actividad" element={<AuditPage />} />
         <Route path="auditoria" element={<AuditPage />} />

@@ -66,14 +66,16 @@ export function BusinessReportPage() {
         <Group align="flex-end" gap="md">
           <DatePickerInput label="Desde" value={from} onChange={setFrom} valueFormat="YYYY-MM-DD" />
           <DatePickerInput label="Hasta" value={to} onChange={setTo} valueFormat="YYYY-MM-DD" />
-          <Select
-            label="Sede"
-            placeholder="Todas"
-            value={branch}
-            onChange={setBranch}
-            clearable
-            data={(branches ?? []).map((b) => ({ value: b.id, label: b.name }))}
-          />
+          {(branches ?? []).length > 0 && (
+            <Select
+              label="Sede"
+              placeholder="Todas"
+              value={branch}
+              onChange={setBranch}
+              clearable
+              data={(branches ?? []).map((b) => ({ value: b.id, label: b.name }))}
+            />
+          )}
         </Group>
       </Card>
 

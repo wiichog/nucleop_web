@@ -13,7 +13,6 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import {
   BarChart3,
-  Building2,
   CalendarDays,
   CreditCard,
   Dumbbell,
@@ -79,7 +78,6 @@ const GROUPS: NavGroup[] = [
       { to: "/panel/inventario", label: "Inventario", icon: Package },
       { to: "/panel/pos", label: "Punto de venta", icon: Receipt },
       { to: "/panel/gastos", label: "Gastos", icon: TrendingDown },
-      { to: "/panel/sucursales", label: "Sucursales", icon: Building2 },
       { to: "/panel/reportes", label: "Reportes de negocio", icon: BarChart3 },
     ],
   },
