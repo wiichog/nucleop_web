@@ -23,10 +23,12 @@ import {
   useCreateErpMovement,
   useCreateErpProduct,
   useDeleteErpProduct,
+  useDeleteProductImage,
   useErpProducts,
   useGymProductOrders,
   useUpdateErpProduct,
   useUpdateProductOrder,
+  useUploadProductImages,
   useUploadProductPhoto,
 } from "../api/hooks";
 import type { ErpProduct, ProductOrder } from "../api/types";
@@ -460,8 +462,9 @@ export function InventoryPage() {
       </Card>
 
       <EditProductModal
-        product={editing}
+        product={editing ? (data ?? []).find((p) => p.id === editing.id) ?? editing : null}
         products={data ?? []}
+        gymId={gymId}
         saving={updateProduct.isPending || uploadPhoto.isPending}
         onClose={() => setEditing(null)}
         onSave={async (body, photo) => {
@@ -483,16 +486,21 @@ export function InventoryPage() {
 function EditProductModal({
   product,
   products,
+  gymId,
   saving,
   onClose,
   onSave,
 }: {
   product: ErpProduct | null;
   products: ErpProduct[];
+  gymId: string;
   saving: boolean;
   onClose: () => void;
   onSave: (body: Partial<ErpProduct>, photo: File | null) => Promise<void>;
 }) {
+  const uploadImages = useUploadProductImages(gymId);
+  const deleteImage = useDeleteProductImage(gymId);
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [name, setName] = useState("");
   const [category, setCategory] = useState<string | null>("supplement");
   const [salePrice, setSalePrice] = useState("");
@@ -644,6 +652,61 @@ function EditProductModal({
           value={components}
           onChange={setComponents}
         />
+      )}
+
+      {product && (
+        <>
+          <Text fw={600} mt="md">
+            Galería de imágenes
+          </Text>
+          <Text c="dimmed" size="xs" mb="sm">
+            Fotos adicionales del producto (además de la portada). Se muestran en el detalle en la app.
+          </Text>
+          {(product.images ?? []).length > 0 && (
+            <Group gap="xs" mb="sm">
+              {(product.images ?? []).map((im) => (
+                <div key={im.id} style={{ position: "relative" }}>
+                  <img src={im.url} alt="" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8 }} />
+                  <Button
+                    size="xs"
+                    color="red"
+                    variant="filled"
+                    px={6}
+                    style={{ position: "absolute", top: -8, right: -8, height: 22, borderRadius: 999 }}
+                    loading={deleteImage.isPending && deleteImage.variables?.imageId === im.id}
+                    onClick={() => deleteImage.mutate({ id: product.id, imageId: im.id })}
+                  >
+                    ✕
+                  </Button>
+                </div>
+              ))}
+            </Group>
+          )}
+          <Group align="flex-end" gap="sm">
+            <FileInput
+              label="Agregar imágenes"
+              placeholder="Una o varias…"
+              accept="image/*"
+              multiple
+              value={galleryFiles}
+              onChange={(v) => setGalleryFiles(v as File[])}
+              clearable
+              style={{ flex: 1 }}
+            />
+            <Button
+              variant="default"
+              disabled={!galleryFiles.length}
+              loading={uploadImages.isPending}
+              onClick={async () => {
+                await uploadImages.mutateAsync({ id: product.id, files: galleryFiles });
+                setGalleryFiles([]);
+                notifications.show({ color: "teal", message: "Imágenes agregadas." });
+              }}
+            >
+              Subir
+            </Button>
+          </Group>
+        </>
       )}
 
       <Group justify="flex-end" mt="md">

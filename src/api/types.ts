@@ -197,6 +197,8 @@ export interface ErpProduct {
   show_in_marketplace: boolean;
   description: string;
   photo: string | null;
+  // Galería: imágenes adicionales del producto (la portada sigue siendo `photo`).
+  images: { id: string; url: string; order: number }[];
   sizes: string[];
   colors: string[];
   delivery_days: number;

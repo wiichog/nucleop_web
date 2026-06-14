@@ -1199,6 +1199,33 @@ export function useUploadProductPhoto(gymId: string) {
   });
 }
 
+/** Sube VARIAS imágenes a la galería de un producto (multipart, campo 'images'). */
+export function useUploadProductImages(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, files }: { id: string; files: File[] }) => {
+      const form = new FormData();
+      for (const f of files) form.append("images", f);
+      return (
+        await api.post<ErpProduct>(`/gym/${gymId}/erp/products/${id}/images`, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["erp-products", gymId] }),
+  });
+}
+
+/** Elimina una imagen de la galería de un producto. */
+export function useDeleteProductImage(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, imageId }: { id: string; imageId: string }) =>
+      (await api.delete(`/gym/${gymId}/erp/products/${id}/images/${imageId}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["erp-products", gymId] }),
+  });
+}
+
 // --- Pedidos de la tienda (marketplace de la app) ---
 export function useGymProductOrders(gymId: string) {
   return useQuery({
