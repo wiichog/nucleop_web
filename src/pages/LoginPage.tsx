@@ -12,7 +12,7 @@ import {
 } from "@mantine/core";
 import { useLogin, usePasswordResetRequest } from "../api/hooks";
 import { AtomLogo } from "../landing/AtomLogo";
-import { ParticleSnow } from "../landing/ParticleSnow";
+import { BRAND_VIDEO_URL } from "../lib/brand";
 
 function AuthBrand({ subtitle }: { subtitle: string }) {
   return (
@@ -43,8 +43,34 @@ export function LoginPage() {
   };
 
   return (
-    <Center mih="100vh" p="md" style={{ position: "relative" }}>
-      <ParticleSnow />
+    <Center mih="100vh" p="md" style={{ position: "relative", overflow: "hidden" }}>
+      {/* Video de fondo (misma identidad que la landing) */}
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        src={BRAND_VIDEO_URL}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          zIndex: 0,
+        }}
+      />
+      {/* Velos de marca: oscurecer + tinte flame para legibilidad */}
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 0 }} />
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "radial-gradient(ellipse at top, rgba(252,76,2,0.18), transparent 60%)",
+          zIndex: 0,
+          pointerEvents: "none",
+        }}
+      />
       <Paper
         component="form"
         withBorder
@@ -52,7 +78,7 @@ export function LoginPage() {
         p="xl"
         w="100%"
         maw={380}
-        style={{ position: "relative", backdropFilter: "blur(10px)", background: "rgba(255,255,255,0.03)" }}
+        style={{ position: "relative", zIndex: 1, backdropFilter: "blur(10px)", background: "rgba(255,255,255,0.03)" }}
         onSubmit={
           resetMode
             ? async (event: FormEvent) => {

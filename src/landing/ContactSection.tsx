@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { motion, useInView } from "framer-motion";
 import { Phone, Mail, ArrowRight, Send, CheckCircle2 } from "lucide-react";
 import { AtomLogo } from "./AtomLogo";
-import { NeonBackground } from "./NeonBackground";
+import { Eyebrow } from "./ui";
 import { api } from "../api/client";
 
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined;
@@ -89,16 +89,18 @@ export function ContactSection() {
 
   return (
     <section id="contacto" className="relative overflow-hidden bg-black px-6 pb-12 pt-28 md:pt-40">
-      <NeonBackground variant="section" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.12),_transparent_55%)]" />
       <div ref={ref} className="relative z-10 mx-auto max-w-5xl">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.8 }}
-          className="text-center"
+          className="flex flex-col items-center text-center"
         >
-          <h2 className="font-display text-5xl font-semibold tracking-tight text-white md:text-7xl">
-            Lleva tu gimnasio <span className="text-nucleo-flame">a la red</span>.
+          <Eyebrow>Contacto</Eyebrow>
+          <h2 className="hero-title mt-6 font-display text-5xl font-medium text-white md:text-7xl">
+            Lleva tu gimnasio <span className="text-nucleo-flame">a la red</span>
+            <span className="text-nucleo-flame">.</span>
           </h2>
           <p className="mx-auto mt-6 max-w-xl text-sm leading-relaxed text-white/60">
             Escríbenos para una demo o entra directo al panel de administración.
@@ -106,7 +108,7 @@ export function ContactSection() {
 
           <Link
             to="/login"
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-nucleo-flame px-8 py-3 text-sm font-bold uppercase tracking-wide text-white transition-transform hover:scale-105"
+            className="mt-8 inline-flex items-center gap-2 rounded-full bg-nucleo-flame px-8 py-3 font-display text-sm font-medium text-white transition-colors hover:bg-nucleo-coral"
           >
             Portal Admin
             <ArrowRight size={16} />
@@ -173,7 +175,7 @@ export function ContactSection() {
               <button
                 type="submit"
                 disabled={status === "sending"}
-                className="mt-5 inline-flex items-center gap-2 rounded-full bg-nucleo-flame px-7 py-3 text-sm font-bold uppercase tracking-wide text-white transition-transform hover:scale-105 disabled:opacity-60"
+                className="mt-5 inline-flex items-center gap-2 rounded-full bg-nucleo-flame px-7 py-3 font-display text-sm font-medium text-white transition-colors hover:bg-nucleo-coral disabled:opacity-60"
               >
                 {status === "sending" ? "Enviando…" : "Enviar mensaje"}
                 <Send size={16} />
@@ -213,8 +215,8 @@ export function ContactSection() {
         {/* Pie */}
         <div className="mt-20 flex flex-col items-center gap-4 border-t border-white/10 pt-10 md:flex-row md:justify-between">
           <div className="flex items-center gap-2">
-            <AtomLogo size={26} />
-            <span className="font-display text-lg font-bold tracking-tight text-white">Nucleo</span>
+            <AtomLogo size={26} pulse={false} />
+            <span className="font-display text-lg font-semibold lowercase tracking-tight text-white">nucleo</span>
           </div>
           <span className="text-xs text-white/40">El núcleo de tu vida deportiva.</span>
         </div>

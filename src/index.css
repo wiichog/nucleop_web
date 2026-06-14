@@ -52,6 +52,11 @@
 }
 
 @layer utilities {
+  /* Titulares gigantes escalonados del hero (kerning apretado, líneas pegadas). */
+  .hero-title {
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+  }
   .text-glow-flame {
     text-shadow: 0 0 18px rgba(252, 76, 2, 0.6), 0 0 42px rgba(252, 76, 2, 0.3);
   }

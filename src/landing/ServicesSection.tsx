@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { LayoutDashboard, HeartPulse, Share2 } from "lucide-react";
+import { Eyebrow } from "./ui";
 
 const MOTORES = [
   {
@@ -34,22 +35,19 @@ export function ServicesSection() {
   const inView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <section
-      id="servicios"
-      className="relative overflow-hidden bg-black px-6 py-28 md:py-40"
-    >
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(255,255,255,0.02)_0%,_transparent_60%)]" />
+    <section id="servicios" className="relative overflow-hidden bg-black px-6 py-28 md:py-40">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.10),_transparent_55%)]" />
       <div ref={ref} className="relative z-10 mx-auto max-w-6xl">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.7 }}
-          className="mb-12 flex items-end justify-between md:mb-16"
+          className="mb-12 flex flex-col gap-4 md:mb-16 md:flex-row md:items-end md:justify-between"
         >
-          <h2 className="font-display text-3xl font-semibold tracking-tight text-white md:text-5xl">
-            Qué hacemos
+          <h2 className="hero-title font-display text-4xl font-medium text-white md:text-6xl">
+            Qué hacemos<span className="text-nucleo-flame">.</span>
           </h2>
-          <span className="hidden text-sm text-white/40 md:block">Tres motores, una red</span>
+          <Eyebrow>Tres motores · una red</Eyebrow>
         </motion.div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-8">
@@ -68,6 +66,11 @@ export function ServicesSection() {
                     background: `radial-gradient(circle at 50% 60%, ${m.color}55, transparent 65%)`,
                   }}
                 />
+                {/* Índice + divisor diagonal (motivo stat del hero) */}
+                <span className="absolute left-5 top-5 z-10 flex items-center gap-2">
+                  <span className="font-display text-sm text-white/60">0{i + 1}</span>
+                  <span aria-hidden className="h-px w-8 rotate-[20deg] bg-white/30" />
+                </span>
                 <m.Icon
                   size={56}
                   strokeWidth={1.3}
@@ -78,8 +81,8 @@ export function ServicesSection() {
               </div>
 
               <div className="p-6 md:p-8">
-                <span className="text-xs uppercase tracking-widest text-white/40">{m.tag}</span>
-                <h3 className="mb-3 mt-3 font-display text-xl font-semibold tracking-tight text-white md:text-2xl">
+                <Eyebrow>{m.tag}</Eyebrow>
+                <h3 className="mb-3 mt-4 font-display text-xl font-medium tracking-tight text-white md:text-2xl">
                   {m.title}
                 </h3>
                 <p className="text-sm leading-relaxed text-white/50">{m.description}</p>

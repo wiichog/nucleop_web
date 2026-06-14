@@ -2,90 +2,81 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { AtomLogo } from "./AtomLogo";
+import { BRAND_VIDEO_URL } from "../lib/brand";
 
 const NAV_LINKS = [
-  { label: "PLATAFORMA", href: "#servicios" },
-  { label: "COMUNIDAD", href: "#enfoque" },
-  { label: "NOSOTROS", href: "#nosotros" },
-  { label: "CONTACTO", href: "#contacto" },
+  { label: "plataforma", href: "#servicios" },
+  { label: "comunidad", href: "#enfoque" },
+  { label: "nosotros", href: "#nosotros" },
+  { label: "contacto", href: "#contacto" },
 ];
 
+/**
+ * Hero a pantalla completa con video de fondo, navbar de pastillas flotantes y
+ * titulares gigantes escalonados. Estructura inspirada en el brief "securify"
+ * pero vestida con el manual de marca de Nucleo: tipografía Space Grotesk,
+ * negro profundo + naranja flame, logo átomo y copy en español.
+ */
 export function HeroSection() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const year = new Date().getFullYear();
 
   return (
-    <section className="relative flex min-h-screen flex-col overflow-hidden bg-nucleo-ink">
-      {/* ===== Fondo: degradado naranja sutil (sin video) ===== */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.14),_transparent_60%)]" />
-      <div className="absolute inset-0 bg-gradient-to-t from-nucleo-ink via-transparent to-transparent" />
+    <section className="relative h-screen w-full overflow-hidden bg-nucleo-ink">
+      {/* ===== Video de fondo a pantalla completa ===== */}
+      <video
+        className="absolute inset-0 h-full w-full object-cover"
+        autoPlay
+        loop
+        muted
+        playsInline
+        src={BRAND_VIDEO_URL}
+      />
+      {/* Velos de marca: oscurecer para legibilidad + tinte flame superior */}
+      <div className="absolute inset-0 bg-black/45" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.18),_transparent_60%)]" />
 
-      {/* Grid vertical (desktop) */}
-      <div aria-hidden className="absolute inset-0 hidden md:block">
-        {["25%", "50%", "75%"].map((left) => (
-          <div
-            key={left}
-            className="absolute top-0 h-full w-px bg-white/10"
-            style={{ left }}
-          />
-        ))}
-      </div>
+      {/* ===== Navbar de pastillas flotantes ===== */}
+      <nav className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between gap-4 px-6 pt-6 md:px-10">
+        {/* Pastilla izquierda: marca */}
+        <Link
+          to="/"
+          className="flex items-center gap-2 rounded-full border border-white/10 bg-nucleo-carbon/80 py-3 pl-3 pr-5 backdrop-blur"
+        >
+          <AtomLogo size={22} pulse={false} />
+          <span className="font-display text-sm font-semibold tracking-tight text-white">nucleo</span>
+        </Link>
 
-      {/* Glow central (elipse cyan/verde con blur) */}
-      <svg
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-[8%] -translate-x-1/2"
-        width="900"
-        height="360"
-        viewBox="0 0 900 360"
-      >
-        <defs>
-          <filter id="hero-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="25" />
-          </filter>
-        </defs>
-        <ellipse cx="450" cy="180" rx="360" ry="90" fill="#b8380a" opacity="0.45" filter="url(#hero-glow)" />
-        <ellipse cx="450" cy="170" rx="220" ry="55" fill="#FC4C02" opacity="0.3" filter="url(#hero-glow)" />
-      </svg>
+        {/* Pastilla central: navegación (oculta en móvil) */}
+        <div className="hidden items-center gap-1 rounded-full border border-white/10 bg-nucleo-carbon/80 px-3 py-2 backdrop-blur md:flex">
+          {NAV_LINKS.map((l) => (
+            <a
+              key={l.label}
+              href={l.href}
+              className="rounded-full px-5 py-2 font-display text-sm text-white/70 transition-colors hover:text-white"
+            >
+              {l.label}
+            </a>
+          ))}
+        </div>
 
-      {/* ===== Navegación ===== */}
-      <header className="relative z-30 px-6 py-6 md:px-10">
-        <nav className="mx-auto flex max-w-6xl items-center justify-between">
-          <a href="#top" className="flex items-center gap-2">
-            <AtomLogo size={30} />
-            <span className="font-display text-xl font-bold tracking-tight text-white">Nucleo</span>
-          </a>
-
-          <div className="hidden items-center gap-9 md:flex">
-            {NAV_LINKS.map((l) => (
-              <a
-                key={l.label}
-                href={l.href}
-                className="font-display text-[15px] font-medium tracking-wide text-white/80 transition-colors hover:text-nucleo-flame"
-              >
-                {l.label}
-              </a>
-            ))}
-          </div>
-
+        {/* Pastilla derecha: CTA + hamburguesa móvil */}
+        <div className="flex items-center gap-2">
           <Link
             to="/login"
-            className="hidden items-center gap-2 rounded-full bg-nucleo-flame px-5 py-2 text-xs font-bold uppercase tracking-wide text-white transition-transform hover:scale-105 md:inline-flex"
+            className="rounded-full bg-nucleo-flame px-6 py-3 font-display text-sm font-medium text-white transition-colors hover:bg-nucleo-coral"
           >
-            Portal Admin
+            portal admin
           </Link>
-
-          {/* Hamburguesa (móvil) */}
           <button
             type="button"
             aria-label="Abrir menú"
             onClick={() => setMenuOpen(true)}
-            className="text-white md:hidden"
+            className="rounded-full border border-white/10 bg-nucleo-carbon/80 p-3 text-white backdrop-blur md:hidden"
           >
-            <Menu size={26} />
+            <Menu size={18} />
           </button>
-        </nav>
-      </header>
+        </div>
+      </nav>
 
       {/* Overlay móvil a pantalla completa */}
       {menuOpen && (
@@ -93,7 +84,7 @@ export function HeroSection() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AtomLogo size={30} pulse={false} />
-              <span className="font-display text-xl font-bold tracking-tight text-white">Nucleo</span>
+              <span className="font-display text-xl font-bold tracking-tight text-white">nucleo</span>
             </div>
             <button type="button" aria-label="Cerrar menú" onClick={() => setMenuOpen(false)} className="text-white">
               <X size={26} />
@@ -121,50 +112,68 @@ export function HeroSection() {
         </div>
       )}
 
-      {/* ===== Contenido del hero ===== */}
-      <div id="top" className="relative z-20 flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
-        {/* Liquid glass card flotante */}
-        <div className="liquid-glass flex h-[200px] w-[200px] -translate-y-[50px] flex-col justify-between rounded-2xl p-5 text-left">
-          <span className="font-display text-sm font-medium tracking-widest text-nucleo-flame">
-            [ {year} ]
-          </span>
-          <div>
-            <p className="font-display text-[18px] font-semibold leading-snug text-white">
-              Hecho para <span className="text-nucleo-flame">atletas</span> y gimnasios
-            </p>
-            <p className="mt-2 font-sans text-[11px] leading-relaxed text-white/55">
-              El núcleo de tu vida deportiva, en una sola red.
-            </p>
-          </div>
-        </div>
-
-        <p className="-mt-2 font-display text-[11px] font-bold uppercase tracking-[0.25em] text-nucleo-flame">
-          Red deportiva
-        </p>
-
-        <h1 className="mt-4 font-display text-[40px] font-bold uppercase leading-[0.95] tracking-tight text-white sm:text-6xl lg:text-7xl">
-          Impulsa tu gimnasio<span className="text-nucleo-flame">.</span>
+      {/* ===== Contenido foreground (sobre el video) ===== */}
+      <div className="relative h-full w-full">
+        {/* H1 semántico único para SEO (las palabras visibles son decorativas) */}
+        <h1 className="sr-only">
+          Nucleo — software y red deportiva para gimnasios y boxes de CrossFit en Guatemala:
+          impulsa tu gimnasio
         </h1>
 
-        <p className="mt-6 max-w-[512px] font-sans text-sm leading-relaxed text-white/70">
-          Administra, cobra y retén desde un solo lugar. Nucleo conecta a tu gimnasio con su
-          comunidad y le da a cada atleta una identidad portátil entre boxes, clubes y eventos.
+        {/* Titulares gigantes escalonados (decorativos) */}
+        <div
+          aria-hidden
+          className="hero-title absolute left-4 top-[18%] font-display text-[14vw] font-medium text-white md:left-10 md:text-[13vw]"
+        >
+          impulsa
+        </div>
+        <div
+          aria-hidden
+          className="hero-title absolute right-4 top-[38%] font-display text-[14vw] font-medium text-white md:right-10 md:text-[13vw]"
+        >
+          tu
+        </div>
+        <div
+          aria-hidden
+          className="hero-title absolute left-[18%] top-[58%] font-display text-[14vw] font-medium text-white md:left-[28%] md:text-[13vw]"
+        >
+          gimnasio<span className="text-nucleo-flame">.</span>
+        </div>
+
+        {/* Descripción */}
+        <p className="absolute left-6 top-[46%] max-w-[240px] text-[15px] leading-snug text-white/90 md:left-10">
+          administramos, cobramos y retenemos por ti — y a cada atleta le damos una identidad
+          portátil entre boxes, clubes y eventos.
         </p>
 
-        <div className="mt-9 flex flex-col items-center gap-4 sm:flex-row">
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-2 rounded-full bg-nucleo-flame px-8 py-3.5 text-sm font-bold uppercase tracking-wide text-white transition-transform hover:scale-105"
-          >
-            Portal Admin
-            <ArrowRight size={18} />
-          </Link>
-          <a
-            href="#contacto"
-            className="liquid-glass rounded-full px-8 py-3.5 text-sm font-medium text-white transition-colors hover:bg-white/5"
-          >
-            Solicitar demo
-          </a>
+        {/* Stat arriba-derecha */}
+        <div className="absolute right-6 top-[16%] md:right-24 md:top-[14%]">
+          <div className="flex items-center justify-end gap-3">
+            <span aria-hidden className="hidden h-px w-24 rotate-[20deg] bg-white/40 md:block" />
+            <span className="font-display text-4xl font-medium tracking-tight text-white md:text-5xl">3 en 1</span>
+          </div>
+          <p className="mt-1 text-right text-xs text-white/70 md:text-sm">admin · cobro · comunidad</p>
+        </div>
+
+        {/* Gradiente inferior (antes de las stats de abajo para que queden nítidas) */}
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-b from-transparent to-black" />
+
+        {/* Stat abajo-izquierda */}
+        <div className="absolute bottom-20 left-6 md:bottom-24 md:left-20">
+          <div className="flex items-center gap-3">
+            <span className="font-display text-4xl font-medium tracking-tight text-white md:text-5xl">1</span>
+            <span aria-hidden className="hidden h-px w-24 rotate-[-20deg] bg-white/40 md:block" />
+          </div>
+          <p className="mt-1 text-xs text-white/70 md:text-sm">identidad portátil por atleta</p>
+        </div>
+
+        {/* Stat abajo-derecha */}
+        <div className="absolute bottom-16 right-6 md:bottom-20 md:right-20">
+          <div className="flex items-center justify-end gap-3">
+            <span aria-hidden className="hidden h-px w-24 rotate-[-20deg] bg-white/40 md:block" />
+            <span className="font-display text-4xl font-medium tracking-tight text-white md:text-5xl">24/7</span>
+          </div>
+          <p className="mt-1 text-right text-xs text-white/70 md:text-sm">tu gimnasio en el bolsillo</p>
         </div>
       </div>
     </section>
