@@ -7,6 +7,7 @@ import {
   Group,
   NumberInput,
   Select,
+  Switch,
   Table,
   Text,
   Title,
@@ -185,6 +186,119 @@ export function CoachPayrollPage() {
           Coach por clase: se le acumula la tarifa por cada clase que imparte. Coach fijo: solo se le paga
           extra en las clases marcadas como “pagar extra”.
         </Text>
+      </Card>
+
+      <Card mb="lg">
+        <Title order={3} mb={4}>
+          Personal trainer
+        </Title>
+        <Text c="dimmed" size="sm" mb="sm">
+          Habilita el servicio 1‑a‑1 por coach, su precio y la comisión del trainer. El cobro completo
+          es ingreso del gym y la comisión entra a la liquidación del coach (el gym se queda el resto).
+        </Text>
+        {coaches.isLoading ? (
+          <PageLoading />
+        ) : !(coaches.data ?? []).length ? (
+          <EmptyState
+            title="Sin coaches"
+            description="Da de alta coaches en Operación → Coaches; aquí habilitas su personal trainer."
+          />
+        ) : (
+          <Table.ScrollContainer minWidth={680}>
+            <Table verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Coach</Table.Th>
+                  <Table.Th>Ofrece PT</Table.Th>
+                  <Table.Th>Precio</Table.Th>
+                  <Table.Th>Comisión del trainer</Table.Th>
+                  <Table.Th>Se queda el gym</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {(coaches.data ?? []).map((c) => {
+                  const pct = Math.round(Number(c.pt_commission_pct) * 100);
+                  const trainerCut = (Number(c.pt_price) * Number(c.pt_commission_pct)).toFixed(2);
+                  const gymCut = (Number(c.pt_price) * (1 - Number(c.pt_commission_pct))).toFixed(2);
+                  return (
+                    <Table.Tr key={c.staff_role}>
+                      <Table.Td>
+                        <Group gap="sm" wrap="nowrap">
+                          <Avatar src={c.photo} radius="xl" size={38} color="flame">
+                            {(c.name || c.email).slice(0, 1).toUpperCase()}
+                          </Avatar>
+                          <Text fw={600} size="sm">
+                            {c.name || c.email}
+                          </Text>
+                        </Group>
+                      </Table.Td>
+                      <Table.Td>
+                        <Switch
+                          checked={c.offers_pt}
+                          onChange={(e) =>
+                            updateCoach.mutate({
+                              staffId: c.staff_role,
+                              body: { offers_pt: e.currentTarget.checked },
+                            })
+                          }
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <NumberInput
+                          w={120}
+                          prefix="Q"
+                          min={0}
+                          decimalScale={2}
+                          disabled={!c.offers_pt}
+                          defaultValue={Number(c.pt_price)}
+                          onBlur={(e) =>
+                            updateCoach.mutate({
+                              staffId: c.staff_role,
+                              body: { pt_price: e.currentTarget.value.replace(/[^\d.]/g, "") || 0 },
+                            })
+                          }
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <Group gap="xs" wrap="nowrap">
+                          <NumberInput
+                            w={100}
+                            suffix="%"
+                            min={0}
+                            max={100}
+                            disabled={!c.offers_pt}
+                            defaultValue={pct}
+                            onBlur={(e) => {
+                              const v = Number(e.currentTarget.value.replace(/[^\d.]/g, "")) || 0;
+                              updateCoach.mutate({
+                                staffId: c.staff_role,
+                                body: { pt_commission_pct: Math.min(Math.max(v, 0), 100) / 100 },
+                              });
+                            }}
+                          />
+                          {c.offers_pt && (
+                            <Text c="dimmed" size="xs">
+                              {money(trainerCut)}
+                            </Text>
+                          )}
+                        </Group>
+                      </Table.Td>
+                      <Table.Td>
+                        {c.offers_pt ? (
+                          <Text size="sm" fw={600}>
+                            {money(gymCut)}
+                          </Text>
+                        ) : (
+                          <Text c="dimmed" size="sm">—</Text>
+                        )}
+                      </Table.Td>
+                    </Table.Tr>
+                  );
+                })}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        )}
       </Card>
 
       <Card>

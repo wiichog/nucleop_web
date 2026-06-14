@@ -29,6 +29,7 @@ import {
   CoachRequest,
   ServiceType,
   ClassSchedule,
+  DropinProduct,
   Wod,
   WodResult,
 } from "./types";
@@ -526,6 +527,42 @@ export function useDeleteServiceType(gymId: string) {
   });
 }
 
+// --- Drop-ins / pases (gestionados por cada gym desde su panel) ---
+export function useGymDropinProducts(gymId: string) {
+  return useQuery({
+    queryKey: ["dropin-products", gymId],
+    queryFn: () => getList<DropinProduct>(`/gym/${gymId}/dropin-products`),
+    enabled: !!gymId,
+  });
+}
+
+export function useCreateDropinProduct(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: Partial<DropinProduct>) =>
+      (await api.post<DropinProduct>(`/gym/${gymId}/dropin-products`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["dropin-products", gymId] }),
+  });
+}
+
+export function useUpdateDropinProduct(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: Partial<DropinProduct> }) =>
+      (await api.patch<DropinProduct>(`/gym/${gymId}/dropin-products/${id}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["dropin-products", gymId] }),
+  });
+}
+
+export function useDeactivateDropinProduct(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      (await api.delete(`/gym/${gymId}/dropin-products/${id}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["dropin-products", gymId] }),
+  });
+}
+
 // --- Horario semanal (plantillas) ---
 export function useSchedules(gymId: string) {
   return useQuery({
@@ -662,6 +699,9 @@ export function useUpdateCoach(gymId: string) {
         per_class_rate: string | number;
         fixed_amount: string | number;
         is_active: boolean;
+        offers_pt: boolean;
+        pt_price: string | number;
+        pt_commission_pct: string | number;
       }>;
     }) => (await api.patch(`/gym/${gymId}/coaches/${staffId}`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-coaches", gymId] }),

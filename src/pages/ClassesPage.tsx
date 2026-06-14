@@ -30,12 +30,15 @@ import {
   useCancelClass,
   useClassCheckins,
   useClassQr,
+  useCreateDropinProduct,
   useCreateSchedule,
   useCreateServiceType,
   useCreateWod,
+  useDeactivateDropinProduct,
   useDeleteClass,
   useDeleteSchedule,
   useDeleteServiceType,
+  useGymDropinProducts,
   useDeleteWod,
   useGymCoaches,
   useGymClasses,
@@ -47,6 +50,7 @@ import {
   useSchedules,
   useServiceTypes,
   useUpdateClass,
+  useUpdateDropinProduct,
   useUpdateGymConfig,
   useUpdateSchedule,
   useUpdateServiceType,
@@ -58,6 +62,8 @@ import {
 import type {
   ClassCoachFields,
   ClassSchedule,
+  DropinProduct,
+  DropinType,
   GymClass,
   ScoreType,
   ServiceType,
@@ -121,6 +127,7 @@ export function ClassesPage() {
           <Tabs.Tab value="schedule">Horario semanal</Tabs.Tab>
           <Tabs.Tab value="classes">Clases</Tabs.Tab>
           <Tabs.Tab value="wod">Rutina</Tabs.Tab>
+          <Tabs.Tab value="dropins">Drop-ins / Pases</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="services">
@@ -135,7 +142,147 @@ export function ClassesPage() {
         <Tabs.Panel value="wod">
           <WodTab gymId={gymId} />
         </Tabs.Panel>
+        <Tabs.Panel value="dropins">
+          <DropinsTab gymId={gymId} />
+        </Tabs.Panel>
       </Tabs>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Drop-ins / Pases (gestionados por el gym)
+// ---------------------------------------------------------------------------
+const DROPIN_TYPES: { value: DropinType; label: string }[] = [
+  { value: "one_class", label: "Una clase" },
+  { value: "day", label: "Un día" },
+  { value: "week", label: "Una semana" },
+  { value: "open_gym", label: "Open gym" },
+  { value: "special", label: "Clase especial" },
+  { value: "free_trial", label: "Prueba gratuita" },
+];
+const dropinTypeLabel = (t: string) => DROPIN_TYPES.find((o) => o.value === t)?.label ?? t;
+
+function DropinsTab({ gymId }: { gymId: string }) {
+  const products = useGymDropinProducts(gymId);
+  const create = useCreateDropinProduct(gymId);
+  const update = useUpdateDropinProduct(gymId);
+  const deactivate = useDeactivateDropinProduct(gymId);
+
+  const [type, setType] = useState<DropinType>("one_class");
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState<number | "">("");
+  const [error, setError] = useState("");
+
+  const rows = (products.data ?? []) as DropinProduct[];
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (price === "" || Number(price) < 0) {
+      setError("Ingresa un precio válido.");
+      return;
+    }
+    try {
+      await create.mutateAsync({ type, name: name.trim(), price: String(price) });
+      setName("");
+      setPrice("");
+    } catch {
+      setError("No se pudo crear el pase.");
+    }
+  };
+
+  if (products.isLoading) return <PageLoading />;
+  if (products.isError) return <PageError onRetry={() => products.refetch()} />;
+
+  return (
+    <div>
+      <Card withBorder mb="lg">
+        <Title order={4} mb={4}>
+          Nuevo pase
+        </Title>
+        <Text size="sm" c="dimmed" mb="md">
+          Define los pases que ofreces. El acceso es de una entrada dentro de su ventana
+          (una clase ≈ 24 h, un día, una semana). Nucleo suma su recargo al precio en el cobro.
+        </Text>
+        <form onSubmit={submit}>
+          <SimpleGrid cols={{ base: 1, sm: 4 }}>
+            <Select
+              label="Tipo"
+              data={DROPIN_TYPES}
+              value={type}
+              onChange={(v) => setType((v ?? "one_class") as DropinType)}
+              allowDeselect={false}
+            />
+            <TextInput
+              label="Nombre (opcional)"
+              placeholder="Pase de día"
+              value={name}
+              onChange={(e) => setName(e.currentTarget.value)}
+            />
+            <NumberInput
+              label="Precio (Q)"
+              min={0}
+              value={price}
+              onChange={(v) => setPrice(typeof v === "number" ? v : "")}
+            />
+            <Button type="submit" mt={{ base: 0, sm: 25 }} loading={create.isPending}>
+              Agregar
+            </Button>
+          </SimpleGrid>
+          {error ? (
+            <Alert color="red" mt="sm">
+              {error}
+            </Alert>
+          ) : null}
+        </form>
+      </Card>
+
+      {rows.length === 0 ? (
+        <Text c="dimmed">Aún no ofreces pases drop-in. Crea uno arriba.</Text>
+      ) : (
+        <Table striped highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Tipo</Table.Th>
+              <Table.Th>Nombre</Table.Th>
+              <Table.Th>Precio</Table.Th>
+              <Table.Th>Activo</Table.Th>
+              <Table.Th />
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {rows.map((p) => (
+              <Table.Tr key={p.id}>
+                <Table.Td>{p.type_label ?? dropinTypeLabel(p.type)}</Table.Td>
+                <Table.Td>{p.name || "—"}</Table.Td>
+                <Table.Td>Q{p.price}</Table.Td>
+                <Table.Td>
+                  <Switch
+                    checked={p.is_active}
+                    onChange={(e) =>
+                      update.mutate({ id: p.id, body: { is_active: e.currentTarget.checked } })
+                    }
+                  />
+                </Table.Td>
+                <Table.Td>
+                  {p.is_active ? (
+                    <Button
+                      variant="subtle"
+                      color="red"
+                      size="xs"
+                      onClick={() => deactivate.mutate(p.id)}
+                      loading={deactivate.isPending}
+                    >
+                      Desactivar
+                    </Button>
+                  ) : null}
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
     </div>
   );
 }

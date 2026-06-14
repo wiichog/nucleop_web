@@ -34,6 +34,27 @@ export type GymCheckin = components["schemas"]["GymCheckin"];
 export type AuditLog = components["schemas"]["AuditLog"];
 export type GymAdmin = components["schemas"]["GymAdmin"];
 
+export type DropinType =
+  | "one_class"
+  | "day"
+  | "week"
+  | "open_gym"
+  | "special"
+  | "free_trial";
+
+// Pase drop-in que ofrece el gym (gestionado desde su panel). Aún no en el schema
+// generado; tipado a mano hasta el próximo `npm run gen:api`.
+export interface DropinProduct {
+  id: string;
+  gym: string;
+  type: DropinType;
+  type_label?: string;
+  name?: string;
+  description?: string;
+  price: string;
+  is_active: boolean;
+}
+
 export interface Paginated<T> {
   results: T[];
   next: string | null;
@@ -310,6 +331,10 @@ export interface Coach {
   per_class_rate: string;
   fixed_amount: string;
   is_active: boolean;
+  /** Personal trainer: ofrece el servicio, su precio y la comisión del trainer (0-1). */
+  offers_pt: boolean;
+  pt_price: string;
+  pt_commission_pct: string;
   rating: number | null;
   rating_count: number;
 }
