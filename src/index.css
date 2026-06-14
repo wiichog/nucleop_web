@@ -58,7 +58,7 @@
     line-height: 0.95;
   }
   .text-glow-flame {
-    text-shadow: 0 0 18px rgba(252, 76, 2, 0.6), 0 0 42px rgba(252, 76, 2, 0.3);
+    text-shadow: 0 0 14px rgba(252, 76, 2, 0.35);
   }
   .neon-divider {
     background: linear-gradient(
@@ -69,11 +69,10 @@
       transparent
     );
   }
-  /* Brillo incandescente para la marca del átomo (fuego/energía). */
+  /* Brillo cálido y contenido para la marca del átomo (acento, no neón). */
   .glow-radioactive {
-    filter: drop-shadow(0 0 6px rgba(255, 122, 61, 0.95))
-      drop-shadow(0 0 22px rgba(252, 76, 2, 0.6))
-      drop-shadow(0 0 48px rgba(252, 76, 2, 0.35));
+    filter: drop-shadow(0 0 4px rgba(255, 122, 61, 0.5))
+      drop-shadow(0 0 14px rgba(252, 76, 2, 0.28));
   }
 }
 

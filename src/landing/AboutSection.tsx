@@ -11,8 +11,8 @@ export function AboutSection() {
       ref={ref}
       className="relative overflow-hidden bg-black px-6 pb-10 pt-32 md:pb-14 md:pt-44"
     >
-      {/* Halo flame sutil arriba (mismo del hero) */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.12),_transparent_55%)]" />
+      {/* Halo cálido apenas perceptible */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.05),_transparent_55%)]" />
 
       <div className="relative z-10 mx-auto max-w-5xl">
         <motion.div

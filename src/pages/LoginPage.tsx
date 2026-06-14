@@ -66,7 +66,7 @@ export function LoginPage() {
         style={{
           position: "absolute",
           inset: 0,
-          background: "radial-gradient(ellipse at top, rgba(252,76,2,0.18), transparent 60%)",
+          background: "radial-gradient(ellipse at top, rgba(252,76,2,0.10), transparent 60%)",
           zIndex: 0,
           pointerEvents: "none",
         }}

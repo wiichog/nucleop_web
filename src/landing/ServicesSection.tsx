@@ -10,7 +10,6 @@ const MOTORES = [
     description:
       "Atletas, membresías, planes y cuotas, pagos con tarjeta o manuales, clases y check-in. El panel donde el dueño opera su gimnasio completo.",
     Icon: LayoutDashboard,
-    color: "#FC4C02",
   },
   {
     tag: "Comunidad",
@@ -18,7 +17,6 @@ const MOTORES = [
     description:
       "Puntos, badges, rachas, PRs y alertas de riesgo de abandono. El gancho real: dejar de perder alumnos, no solo cobrar mejor.",
     Icon: HeartPulse,
-    color: "#FF2D55",
   },
   {
     tag: "Red",
@@ -26,7 +24,6 @@ const MOTORES = [
     description:
       "Athlete Passport portátil, drop-ins entre boxes, clubes deportivos y marketplace. Gimnasios aislados se vuelven una red con efecto de red.",
     Icon: Share2,
-    color: "#FF9F1C",
   },
 ];
 
@@ -36,7 +33,7 @@ export function ServicesSection() {
 
   return (
     <section id="servicios" className="relative overflow-hidden bg-black px-6 py-28 md:py-40">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.10),_transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.05),_transparent_55%)]" />
       <div ref={ref} className="relative z-10 mx-auto max-w-6xl">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -63,7 +60,8 @@ export function ServicesSection() {
                 <div
                   className="absolute inset-0 transition-transform duration-700 group-hover:scale-105"
                   style={{
-                    background: `radial-gradient(circle at 50% 60%, ${m.color}55, transparent 65%)`,
+                    background:
+                      "radial-gradient(circle at 50% 60%, rgba(252,76,2,0.14), transparent 65%)",
                   }}
                 />
                 {/* Índice + divisor diagonal (motivo stat del hero) */}
@@ -74,8 +72,8 @@ export function ServicesSection() {
                 <m.Icon
                   size={56}
                   strokeWidth={1.3}
-                  style={{ color: m.color, filter: `drop-shadow(0 0 16px ${m.color})` }}
-                  className="relative z-10"
+                  style={{ filter: "drop-shadow(0 0 14px rgba(252,76,2,0.30))" }}
+                  className="relative z-10 text-white/90"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
               </div>

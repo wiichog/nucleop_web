@@ -89,7 +89,7 @@ export function ContactSection() {
 
   return (
     <section id="contacto" className="relative overflow-hidden bg-black px-6 pb-12 pt-28 md:pt-40">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.12),_transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.05),_transparent_55%)]" />
       <div ref={ref} className="relative z-10 mx-auto max-w-5xl">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -202,7 +202,7 @@ export function ContactSection() {
             href="mailto:jgarcia@devpackgroup.com"
             className="liquid-glass flex items-center gap-4 rounded-2xl px-6 py-5 text-white transition-colors hover:bg-white/5"
           >
-            <span className="liquid-glass rounded-full p-3 text-nucleo-coral">
+            <span className="liquid-glass rounded-full p-3 text-nucleo-flame">
               <Mail size={20} />
             </span>
             <span>

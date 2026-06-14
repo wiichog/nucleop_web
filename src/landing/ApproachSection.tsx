@@ -30,7 +30,7 @@ export function ApproachSection() {
 
         {/* Contenido inferior */}
         <div className="absolute bottom-0 left-0 right-0 flex flex-col gap-4 p-6 md:flex-row md:items-end md:justify-between md:p-10">
-          <div className="liquid-glass liquid-glass--core max-w-md rounded-2xl p-6 md:p-8">
+          <div className="liquid-glass max-w-md rounded-2xl p-6 md:p-8">
             <Eyebrow>Nuestro enfoque</Eyebrow>
             <p className="mt-4 text-sm leading-relaxed text-white md:text-base">
               No vendemos un software de cobro: construimos retención. Puntos, rachas, PRs y

@@ -31,9 +31,9 @@ export function HeroSection() {
         playsInline
         src={BRAND_VIDEO_URL}
       />
-      {/* Velos de marca: oscurecer para legibilidad + tinte flame superior */}
+      {/* Velos de marca: oscurecer para legibilidad + tinte flame superior muy sutil */}
       <div className="absolute inset-0 bg-black/45" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.18),_transparent_60%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.10),_transparent_60%)]" />
 
       {/* ===== Navbar de pastillas flotantes ===== */}
       <nav className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between gap-4 px-6 pt-6 md:px-10">
