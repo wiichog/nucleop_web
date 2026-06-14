@@ -316,6 +316,17 @@ function ServicesTab({ gymId }: { gymId: string }) {
               render: (s) => `${s.completion_points ?? 5} pts`,
             },
             {
+              accessor: "rating",
+              title: "Calificación",
+              sortable: true,
+              render: (s) =>
+                s.rating != null ? (
+                  <Text size="sm">⭐ {s.rating.toFixed(1)} <Text span c="dimmed" size="xs">({s.rating_count})</Text></Text>
+                ) : (
+                  <Text c="dimmed" size="sm">—</Text>
+                ),
+            },
+            {
               accessor: "status",
               title: "Publicación",
               sortable: true,
@@ -913,6 +924,16 @@ function ClassesTab({ gymId }: { gymId: string }) {
               render: (gymClass) => `${gymClass.reserved_count}/${gymClass.capacity}`,
             },
             {
+              accessor: "rating",
+              title: "Calificación",
+              render: (gymClass) =>
+                gymClass.rating != null ? (
+                  <Text size="sm">⭐ {gymClass.rating.toFixed(1)} <Text span c="dimmed" size="xs">({gymClass.rating_count})</Text></Text>
+                ) : (
+                  <Text c="dimmed" size="sm">—</Text>
+                ),
+            },
+            {
               accessor: "status",
               title: "Estado",
               sortable: true,
@@ -1155,6 +1176,7 @@ function WodTab({ gymId }: { gymId: string }) {
   const [scoreType, setScoreType] = useState<ScoreType>("for_time");
   const [description, setDescription] = useState("");
   const [isBenchmark, setIsBenchmark] = useState(false);
+  const [published, setPublished] = useState(true);
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<Wod>>({
     columnAccessor: "title",
     direction: "asc",
@@ -1177,10 +1199,12 @@ function WodTab({ gymId }: { gymId: string }) {
       score_type: scoreType,
       description,
       is_benchmark: isBenchmark,
+      published,
     });
     setTitle("");
     setDescription("");
     setIsBenchmark(false);
+    setPublished(true);
   };
 
   const rows = (wods.data ?? []) as Wod[];
@@ -1192,7 +1216,8 @@ function WodTab({ gymId }: { gymId: string }) {
           Rutina del día
         </Title>
         <Text c="dimmed" size="sm" mb="md">
-          Una rutina por servicio y fecha; la comparten todas las clases de ese día. Publícala para que los atletas la vean.
+          Una rutina por servicio y fecha; la comparten todas las clases de ese día. Se crea
+          publicada (visible para los atletas); desactiva el switch si la quieres dejar como borrador.
         </Text>
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
           <DateInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" popoverProps={{ withinPortal: true }} />
@@ -1226,11 +1251,18 @@ function WodTab({ gymId }: { gymId: string }) {
           minRows={2}
         />
         <Group justify="space-between" mt="md">
-          <Switch
-            label="Benchmark (mejorar la marca genera un PR al feed)"
-            checked={isBenchmark}
-            onChange={(e) => setIsBenchmark(e.currentTarget.checked)}
-          />
+          <Group gap="lg">
+            <Switch
+              label="Publicar al crear"
+              checked={published}
+              onChange={(e) => setPublished(e.currentTarget.checked)}
+            />
+            <Switch
+              label="Benchmark (mejorar la marca genera un PR al feed)"
+              checked={isBenchmark}
+              onChange={(e) => setIsBenchmark(e.currentTarget.checked)}
+            />
+          </Group>
           <Button type="submit" loading={create.isPending}>
             Crear rutina
           </Button>

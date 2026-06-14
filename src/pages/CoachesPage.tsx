@@ -220,6 +220,22 @@ export function CoachesPage() {
               ),
             },
             {
+              accessor: "rating",
+              title: "Calificación",
+              sortable: true,
+              render: (c) =>
+                c.rating != null ? (
+                  <Text size="sm">
+                    ⭐ {c.rating.toFixed(1)}{" "}
+                    <Text span c="dimmed" size="xs">
+                      ({c.rating_count})
+                    </Text>
+                  </Text>
+                ) : (
+                  <Text c="dimmed" size="sm">—</Text>
+                ),
+            },
+            {
               accessor: "is_active",
               title: "Estado",
               sortable: true,

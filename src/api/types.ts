@@ -308,6 +308,8 @@ export interface Coach {
   per_class_rate: string;
   fixed_amount: string;
   is_active: boolean;
+  rating: number | null;
+  rating_count: number;
 }
 
 export interface CoachRequest {
@@ -352,6 +354,9 @@ export interface ClassCoachFields {
   color: string;
   schedule: string | null;
   needs_wod: boolean;
+  // Calificación promedio de la clase (1-5★) + cuántas la calificaron.
+  rating: number | null;
+  rating_count: number;
 }
 
 export type ScoreType =
@@ -377,6 +382,8 @@ export interface ServiceType {
   default_capacity: number;
   default_level: string;
   included_in_plan: boolean;
+  rating: number | null;
+  rating_count: number;
   default_cost: string;
   completion_points: number;
   // Estado y cobro (fusión): el servicio nace "draft" y se activa al configurar
