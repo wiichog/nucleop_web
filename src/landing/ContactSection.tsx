@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, useInView } from "framer-motion";
 import { Phone, Mail, ArrowRight, Send, CheckCircle2 } from "lucide-react";
-import { AtomLogo } from "./AtomLogo";
 import { Eyebrow } from "./ui";
 import { api } from "../api/client";
 
@@ -211,18 +210,6 @@ export function ContactSection() {
             </span>
           </a>
         </div>
-
-        {/* Pie */}
-        <div className="mt-20 flex flex-col items-center gap-4 border-t border-white/10 pt-10 md:flex-row md:justify-between">
-          <div className="flex items-center gap-2">
-            <AtomLogo size={26} pulse={false} />
-            <span className="font-display text-lg font-semibold lowercase tracking-tight text-white">nucleo</span>
-          </div>
-          <span className="text-xs text-white/40">El núcleo de tu vida deportiva.</span>
-        </div>
-        <p className="mt-8 text-center text-xs text-white/30">
-          © {new Date().getFullYear()} Nucleo · Devpack Group. Todos los derechos reservados.
-        </p>
       </div>
     </section>
   );

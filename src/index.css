@@ -4,6 +4,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Scroll suave al navegar por anclas del menú. */
+html {
+  scroll-behavior: smooth;
+}
+
 @layer components {
   /* Liquid glass — borde luminoso interior sobre fondo casi transparente. */
   .liquid-glass {

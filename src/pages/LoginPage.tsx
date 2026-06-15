@@ -17,7 +17,7 @@ import { BRAND_VIDEO_URL } from "../lib/brand";
 function AuthBrand({ subtitle }: { subtitle: string }) {
   return (
     <Stack align="center" gap={6} mb="lg">
-      <AtomLogo size={64} />
+      <AtomLogo size={64} glow={false} />
       <Text fw={700} size="30px" ff='"Space Grotesk", sans-serif' style={{ letterSpacing: 0.5 }}>
         Nucleo
       </Text>

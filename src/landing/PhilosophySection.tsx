@@ -24,10 +24,9 @@ export function PhilosophySection() {
             initial={{ opacity: 0, x: -40 }}
             animate={inView ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.8 }}
-            className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-3xl bg-nucleo-carbon"
+            className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-3xl border border-white/5 bg-black"
           >
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(252,76,2,0.08),_transparent_60%)]" />
-            <AtomLogo size={170} className="opacity-90 drop-shadow-[0_0_18px_rgba(252,76,2,0.2)]" />
+            <AtomLogo size={170} glow={false} className="opacity-90" />
           </motion.div>
 
           <motion.div

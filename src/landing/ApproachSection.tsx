@@ -2,7 +2,6 @@ import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import { Eyebrow } from "./ui";
-import { BRAND_VIDEO_URL } from "../lib/brand";
 
 export function ApproachSection() {
   const ref = useRef(null);
@@ -16,14 +15,10 @@ export function ApproachSection() {
         transition={{ duration: 0.9 }}
         className="relative mx-auto aspect-video max-w-6xl overflow-hidden rounded-3xl bg-nucleo-carbon"
       >
-        {/* Mismo video del hero/logins → identidad coherente */}
-        <video
-          className="absolute inset-0 h-full w-full object-cover"
-          autoPlay
-          loop
-          muted
-          playsInline
-          src={BRAND_VIDEO_URL}
+        {/* Foto del gimnasio (reemplaza el video). Si falta el archivo, queda el fondo oscuro. */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: "url('/landing/approach-gym.jpg')" }}
         />
         <div className="absolute inset-0 bg-black/45" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />

@@ -3,7 +3,9 @@ import { AboutSection } from "./AboutSection";
 import { ApproachSection } from "./ApproachSection";
 import { PhilosophySection } from "./PhilosophySection";
 import { ServicesSection } from "./ServicesSection";
+import { FeaturesSection } from "./FeaturesSection";
 import { ContactSection } from "./ContactSection";
+import { Footer } from "./Footer";
 import { ParticleSnow } from "./ParticleSnow";
 
 export function LandingPage() {
@@ -19,7 +21,9 @@ export function LandingPage() {
       </div>
       <PhilosophySection />
       <ServicesSection />
+      <FeaturesSection />
       <ContactSection />
+      <Footer />
     </div>
   );
 }

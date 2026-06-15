@@ -4,13 +4,16 @@ interface AtomLogoProps {
   className?: string;
   /** Si el halo radiactivo late suavemente (el átomo nunca rota). */
   pulse?: boolean;
+  /** Si lleva el brillo naranja (halo + glow). false = marca limpia sobre negro. */
+  glow?: boolean;
 }
 
 /**
- * Marca de Nucleo: un átomo FIJO (no gira) que brilla como un material
- * radiactivo. Representa el "núcleo" de la red deportiva (§9).
+ * Marca de Nucleo: un átomo FIJO (no gira). Con `glow` lleva un halo cálido
+ * contenido; sin él queda como una marca limpia. Representa el "núcleo" (§9).
  */
-export function AtomLogo({ size = 28, className = "", pulse = true }: AtomLogoProps) {
+export function AtomLogo({ size = 28, className = "", pulse = true, glow = true }: AtomLogoProps) {
+  const glowClass = glow ? "glow-radioactive" : "";
   return (
     <svg
       viewBox="0 0 100 100"
@@ -42,18 +45,20 @@ export function AtomLogo({ size = 28, className = "", pulse = true }: AtomLogoPr
       </defs>
 
       {/* Halo radiactivo (lo único que puede latir) */}
-      <circle
-        cx="50"
-        cy="50"
-        r="34"
-        fill="url(#atom-halo)"
-        filter="url(#atom-soft)"
-        className={pulse ? "animate-radio-pulse" : ""}
-        style={{ transformOrigin: "50px 50px" }}
-      />
+      {glow && (
+        <circle
+          cx="50"
+          cy="50"
+          r="34"
+          fill="url(#atom-halo)"
+          filter="url(#atom-soft)"
+          className={pulse ? "animate-radio-pulse" : ""}
+          style={{ transformOrigin: "50px 50px" }}
+        />
+      )}
 
       {/* Órbitas fijas (tres elipses cruzadas) */}
-      <g className="glow-radioactive" fill="none" stroke="url(#orbit-a)">
+      <g className={glowClass} fill="none" stroke="url(#orbit-a)">
         <ellipse cx="50" cy="50" rx="42" ry="16" strokeWidth="2" opacity="0.85" />
         <ellipse
           cx="50"
@@ -76,14 +81,14 @@ export function AtomLogo({ size = 28, className = "", pulse = true }: AtomLogoPr
       </g>
 
       {/* Electrones fijos sobre las órbitas */}
-      <g className="glow-radioactive">
+      <g className={glowClass}>
         <circle cx="92" cy="50" r="3.6" fill="#FFB07A" />
         <circle cx="29" cy="13.6" r="3.2" fill="#FF9F1C" />
         <circle cx="29" cy="86.4" r="3.2" fill="#FF7A3D" />
       </g>
 
       {/* Núcleo */}
-      <g className="glow-radioactive">
+      <g className={glowClass}>
         <circle cx="50" cy="50" r="9" fill="url(#atom-core)" />
         <circle cx="50" cy="50" r="9" fill="none" stroke="#fff4ec" strokeWidth="0.7" opacity="0.85" />
       </g>

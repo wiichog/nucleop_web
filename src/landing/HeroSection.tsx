@@ -6,7 +6,7 @@ import { BRAND_VIDEO_URL } from "../lib/brand";
 
 const NAV_LINKS = [
   { label: "plataforma", href: "#servicios" },
-  { label: "comunidad", href: "#enfoque" },
+  { label: "comunidad", href: "#funciones" },
   { label: "nosotros", href: "#nosotros" },
   { label: "contacto", href: "#contacto" },
 ];
@@ -42,7 +42,7 @@ export function HeroSection() {
           to="/"
           className="flex items-center gap-2 rounded-full border border-white/10 bg-nucleo-carbon/80 py-3 pl-3 pr-5 backdrop-blur"
         >
-          <AtomLogo size={22} pulse={false} />
+          <AtomLogo size={22} pulse={false} glow={false} />
           <span className="font-display text-sm font-semibold tracking-tight text-white">nucleo</span>
         </Link>
 
@@ -83,7 +83,7 @@ export function HeroSection() {
         <div className="fixed inset-0 z-50 flex flex-col bg-nucleo-ink/98 px-6 py-6 backdrop-blur-md md:hidden">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <AtomLogo size={30} pulse={false} />
+              <AtomLogo size={30} pulse={false} glow={false} />
               <span className="font-display text-xl font-bold tracking-tight text-white">nucleo</span>
             </div>
             <button type="button" aria-label="Cerrar menú" onClick={() => setMenuOpen(false)} className="text-white">
@@ -141,40 +141,13 @@ export function HeroSection() {
         </div>
 
         {/* Descripción */}
-        <p className="absolute left-6 top-[46%] max-w-[240px] text-[15px] leading-snug text-white/90 md:left-10">
-          administramos, cobramos y retenemos por ti — y a cada atleta le damos una identidad
+        <p className="absolute left-6 top-[46%] max-w-[260px] text-[15px] leading-snug text-white/90 md:left-10">
+          Administramos, cobramos y retenemos por ti — y a cada atleta le damos una identidad
           portátil entre boxes, clubes y eventos.
         </p>
 
-        {/* Stat arriba-derecha */}
-        <div className="absolute right-6 top-[16%] md:right-24 md:top-[14%]">
-          <div className="flex items-center justify-end gap-3">
-            <span aria-hidden className="hidden h-px w-24 rotate-[20deg] bg-white/40 md:block" />
-            <span className="font-display text-4xl font-medium tracking-tight text-white md:text-5xl">3 en 1</span>
-          </div>
-          <p className="mt-1 text-right text-xs text-white/70 md:text-sm">admin · cobro · comunidad</p>
-        </div>
-
-        {/* Gradiente inferior (antes de las stats de abajo para que queden nítidas) */}
+        {/* Gradiente inferior */}
         <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-b from-transparent to-black" />
-
-        {/* Stat abajo-izquierda */}
-        <div className="absolute bottom-20 left-6 md:bottom-24 md:left-20">
-          <div className="flex items-center gap-3">
-            <span className="font-display text-4xl font-medium tracking-tight text-white md:text-5xl">1</span>
-            <span aria-hidden className="hidden h-px w-24 rotate-[-20deg] bg-white/40 md:block" />
-          </div>
-          <p className="mt-1 text-xs text-white/70 md:text-sm">identidad portátil por atleta</p>
-        </div>
-
-        {/* Stat abajo-derecha */}
-        <div className="absolute bottom-16 right-6 md:bottom-20 md:right-20">
-          <div className="flex items-center justify-end gap-3">
-            <span aria-hidden className="hidden h-px w-24 rotate-[-20deg] bg-white/40 md:block" />
-            <span className="font-display text-4xl font-medium tracking-tight text-white md:text-5xl">24/7</span>
-          </div>
-          <p className="mt-1 text-right text-xs text-white/70 md:text-sm">tu gimnasio en el bolsillo</p>
-        </div>
       </div>
     </section>
   );
