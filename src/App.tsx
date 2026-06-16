@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { LandingPage } from "./landing/LandingPage";
+import { PrivacyPage } from "./landing/PrivacyPage";
 import { initAnalytics, trackPageview } from "./lib/analytics";
 
 // El panel (Mantine + todas las páginas) se carga solo al salir de la landing.
@@ -27,6 +28,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      {/* Política de privacidad pública (requisito de App Store y Google Play). */}
+      <Route path="/privacidad" element={<PrivacyPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
       <Route
         path="/*"
         element={
