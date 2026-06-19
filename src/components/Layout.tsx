@@ -1,19 +1,27 @@
 import { NavLink as RouterNavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
+  ActionIcon,
   AppShell,
   Avatar,
+  Badge,
   Box,
   Burger,
   Group,
+  Indicator,
+  Menu,
   NavLink,
   ScrollArea,
   Select,
+  Stack,
   Text,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
   BarChart3,
+  Bell,
+  BellRing,
   CalendarDays,
+  CheckCircle2,
   CreditCard,
   Dumbbell,
   Globe,
@@ -30,9 +38,71 @@ import {
   UserCog,
   Wallet,
 } from "lucide-react";
+import { usePendingSummary } from "../api/hooks";
+import type { PendingSummary } from "../api/types";
+import { NAV_BADGE, PENDING_ITEMS } from "../lib/pending";
 import { useAuth } from "../lib/auth";
 import { AtomLogo } from "../landing/AtomLogo";
 import { ParticleSnow } from "../landing/ParticleSnow";
+
+function NotificationsBell({ summary }: { summary?: PendingSummary }) {
+  const navigate = useNavigate();
+  const total = summary?.total ?? 0;
+  const pendientes = PENDING_ITEMS.filter((i) => (summary?.[i.key] ?? 0) > 0);
+
+  return (
+    <Menu shadow="md" width={300} position="bottom-end" withinPortal>
+      <Menu.Target>
+        <Indicator
+          color="flame"
+          size={16}
+          label={total > 99 ? "99+" : total}
+          disabled={total === 0}
+          offset={6}
+          styles={{ indicator: { fontSize: 10, fontWeight: 700, padding: "0 4px" } }}
+        >
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            size="lg"
+            radius="xl"
+            aria-label={`Pendientes${total ? ` (${total})` : ""}`}
+          >
+            {total > 0 ? <BellRing size={20} /> : <Bell size={20} />}
+          </ActionIcon>
+        </Indicator>
+      </Menu.Target>
+
+      <Menu.Dropdown>
+        <Menu.Label>
+          {total > 0 ? `Pendientes (${total})` : "Pendientes"}
+        </Menu.Label>
+        {pendientes.length === 0 ? (
+          <Stack align="center" gap={4} py="md" px="sm">
+            <CheckCircle2 size={22} color="var(--mantine-color-teal-5)" />
+            <Text size="sm" c="dimmed" ta="center">
+              Todo al día. No hay nada por aprobar.
+            </Text>
+          </Stack>
+        ) : (
+          pendientes.map((item) => (
+            <Menu.Item
+              key={item.key}
+              onClick={() => navigate(item.to)}
+              rightSection={
+                <Badge color="flame" variant="filled" size="sm" circle>
+                  {summary?.[item.key]}
+                </Badge>
+              }
+            >
+              {item.label}
+            </Menu.Item>
+          ))
+        )}
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
 
 interface NavItem {
   to: string;
@@ -88,6 +158,8 @@ export function Layout() {
   const [opened, { toggle, close }] = useDisclosure();
   const location = useLocation();
   const navigate = useNavigate();
+  const pending = usePendingSummary(primaryGymId ?? "");
+  const counts = pending.data;
 
   const showGymNav = isSuperuser || roles.some((r) => ["gym_admin", "coach"].includes(r.role));
   const groups: NavGroup[] = [];
@@ -123,6 +195,7 @@ export function Layout() {
               Nucleo
             </Text>
           </Group>
+          {showGymNav && <NotificationsBell summary={counts} />}
         </Group>
       </AppShell.Header>
 
@@ -135,6 +208,8 @@ export function Layout() {
               </Text>
               {group.items.map((item) => {
                 const Icon = item.icon;
+                const badgeKey = NAV_BADGE[item.to];
+                const badgeCount = badgeKey ? counts?.[badgeKey] ?? 0 : 0;
                 return (
                   <NavLink
                     key={item.to}
@@ -143,6 +218,13 @@ export function Layout() {
                     end={item.end}
                     label={item.label}
                     leftSection={<Icon size={18} />}
+                    rightSection={
+                      badgeCount > 0 ? (
+                        <Badge color="flame" variant="filled" size="sm" circle>
+                          {badgeCount > 99 ? "99+" : badgeCount}
+                        </Badge>
+                      ) : undefined
+                    }
                     active={isActive(item)}
                     onClick={close}
                     variant="filled"

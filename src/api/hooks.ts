@@ -3,6 +3,7 @@ import { api, tokenStore } from "./client";
 import {
   AuditLog,
   Dashboard,
+  PendingSummary,
   GymClass,
   GymCheckin,
   GymAdmin,
@@ -93,6 +94,21 @@ export function useDashboard(gymId: string, from?: string, to?: string) {
     queryKey: ["dashboard", gymId, from ?? "", to ?? ""],
     queryFn: async () => (await api.get<Dashboard>(`/gym/${gymId}/dashboard${q}`)).data,
     enabled: !!gymId,
+  });
+}
+
+/**
+ * Resumen de pendientes del gym (badge de notificaciones + dashboard).
+ * Se refresca solo cada 60s para mantener el badge vivo sin saturar la API.
+ */
+export function usePendingSummary(gymId: string) {
+  return useQuery({
+    queryKey: ["pending-summary", gymId],
+    queryFn: async () =>
+      (await api.get<PendingSummary>(`/gym/${gymId}/pending-summary`)).data,
+    enabled: !!gymId,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 }
 

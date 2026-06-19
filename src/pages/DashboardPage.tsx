@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { Card, Group, SimpleGrid, Table, Text, Title } from "@mantine/core";
+import { useNavigate } from "react-router-dom";
+import { Badge, Card, Group, SimpleGrid, Table, Text, Title, UnstyledButton } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
-import { useDashboard } from "../api/hooks";
+import { BellRing, CheckCircle2 } from "lucide-react";
+import { useDashboard, usePendingSummary } from "../api/hooks";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
+import { PENDING_ITEMS } from "../lib/pending";
 import { useAuth } from "../lib/auth";
 
 function firstOfMonth() {
@@ -36,6 +39,68 @@ function Kpi({
   );
 }
 
+function PendingPanel({ gymId }: { gymId: string }) {
+  const navigate = useNavigate();
+  const pending = usePendingSummary(gymId);
+  const counts = pending.data;
+  if (!counts) return null;
+
+  const activos = PENDING_ITEMS.filter((i) => (counts[i.key] ?? 0) > 0);
+
+  if (activos.length === 0) {
+    return (
+      <Card mb="lg" withBorder>
+        <Group gap="xs">
+          <CheckCircle2 size={20} color="var(--mantine-color-teal-5)" />
+          <Text fw={600}>Todo al día</Text>
+          <Text c="dimmed" size="sm">
+            No hay pendientes por aprobar.
+          </Text>
+        </Group>
+      </Card>
+    );
+  }
+
+  return (
+    <Card mb="lg" withBorder>
+      <Group mb="md" gap="xs">
+        <BellRing size={18} color="var(--mantine-color-flame-5)" />
+        <Text fw={700} ff='"Space Grotesk", sans-serif'>
+          Pendientes por resolver
+        </Text>
+        <Badge color="flame" variant="filled" ml={4}>
+          {counts.total}
+        </Badge>
+      </Group>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
+        {activos.map((item) => (
+          <UnstyledButton
+            key={item.key}
+            onClick={() => navigate(item.to)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              padding: "12px 14px",
+              borderRadius: 10,
+              border: "1px solid var(--mantine-color-default-border)",
+              background: "var(--mantine-color-body)",
+            }}
+          >
+            <Text size="sm" style={{ lineHeight: 1.2 }}>
+              {item.label}
+            </Text>
+            <Badge color="flame" variant="filled" size="lg" circle>
+              {counts[item.key]}
+            </Badge>
+          </UnstyledButton>
+        ))}
+      </SimpleGrid>
+    </Card>
+  );
+}
+
 export function DashboardPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
@@ -51,6 +116,8 @@ export function DashboardPage() {
   return (
     <div>
       <PageHeader title="Dashboard del gimnasio" subtitle="Ingresos y actividad del periodo" />
+
+      <PendingPanel gymId={gymId} />
 
       <Card mb="lg">
         <Group>

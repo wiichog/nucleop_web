@@ -172,6 +172,19 @@ export interface Dashboard {
   clases_mas_demandadas: { class_type: string; horario: string; reservas: number }[];
 }
 
+/** Conteo de pendientes operativos del gym (badge de notificaciones del panel). */
+export interface PendingSummary {
+  solicitudes: number;
+  coaches: number;
+  posts: number;
+  tickets: number;
+  clases_sin_wod: number;
+  pedidos: number;
+  clubes: number;
+  morosos: number;
+  total: number;
+}
+
 export interface PlanOffer {
   id: string;
   gym: string;
