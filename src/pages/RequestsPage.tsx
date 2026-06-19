@@ -11,6 +11,7 @@ import {
   Title,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
+import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useAssignPlan,
@@ -28,6 +29,10 @@ import { sortRecords } from "../lib/sortRecords";
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
 
+// Estados que siguen requiriendo gestión en la bandeja de Solicitudes. Al asignar un
+// plan la membresía pasa a "active" y la solicitud desaparece de aquí (ya es miembro).
+const ACTIONABLE_STATUSES = ["requested", "invited", "pending_approval", "approved_no_plan", "trial"];
+
 function RequestActions({ request, gymId }: { request: JoinRequest; gymId: string }) {
   const decide = useDecideJoinRequest(gymId);
   const assign = useAssignPlan(gymId);
@@ -40,6 +45,36 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
   const status = request.status ?? "";
   const membershipId = request.membership;
   const canDecide = ["requested", "invited", "pending_approval"].includes(status);
+
+  const ok = (m: string) => notifications.show({ color: "teal", message: m });
+  const fail = (m: string) => notifications.show({ color: "red", message: m });
+
+  const DECISION_MSG: Record<string, string> = {
+    approve: "Solicitud aprobada. Asígnale un plan para activar la membresía.",
+    offer_trial: "Prueba ofrecida al atleta.",
+    request_info: "Se solicitó más información al atleta.",
+    reject: "Solicitud rechazada.",
+  };
+
+  const onDecide = (decision: "approve" | "reject" | "offer_trial" | "request_info") =>
+    decide.mutate(
+      { requestId: request.id, decision, comment },
+      {
+        onSuccess: () => ok(DECISION_MSG[decision]),
+        onError: () => fail("No se pudo completar la acción. Inténtalo de nuevo."),
+      },
+    );
+
+  const onAssign = () =>
+    planId &&
+    membershipId &&
+    assign.mutate(
+      { membershipId, planId, customFee, offerId: offerId ?? undefined },
+      {
+        onSuccess: () => ok("Plan asignado: el atleta ya es miembro activo."),
+        onError: () => fail("No se pudo asignar el plan. Inténtalo de nuevo."),
+      },
+    );
 
   return (
     <Stack gap="xs">
@@ -54,18 +89,18 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
       <Group gap="xs">
         {canDecide && (
           <>
-            <Button size="xs" onClick={() => decide.mutate({ requestId: request.id, decision: "approve", comment })}>
+            <Button size="xs" loading={decide.isPending} onClick={() => onDecide("approve")}>
               Aprobar
             </Button>
             {status !== "invited" && (
-              <Button size="xs" variant="light" onClick={() => decide.mutate({ requestId: request.id, decision: "offer_trial", comment })}>
+              <Button size="xs" variant="light" onClick={() => onDecide("offer_trial")}>
                 Ofrecer prueba
               </Button>
             )}
-            <Button size="xs" variant="default" onClick={() => decide.mutate({ requestId: request.id, decision: "request_info", comment })}>
+            <Button size="xs" variant="default" onClick={() => onDecide("request_info")}>
               Pedir información
             </Button>
-            <Button size="xs" color="red" variant="light" onClick={() => decide.mutate({ requestId: request.id, decision: "reject", comment })}>
+            <Button size="xs" color="red" variant="light" onClick={() => onDecide("reject")}>
               Rechazar
             </Button>
           </>
@@ -93,14 +128,7 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
                   label: `${o.name} (${o.offer_type === "percent" ? `${o.value}%` : `${o.value} meses`})`,
                 }))}
             />
-            <Button
-              size="xs"
-              disabled={!planId}
-              loading={assign.isPending}
-              onClick={() =>
-                planId && assign.mutate({ membershipId, planId, customFee, offerId: offerId ?? undefined })
-              }
-            >
+            <Button size="xs" disabled={!planId} loading={assign.isPending} onClick={onAssign}>
               Asignar plan
             </Button>
           </>
@@ -186,7 +214,11 @@ export function RequestsPage() {
           idAccessor="id"
           records={sortRecords(
             (requests.data ?? []).filter(
-              (r) => !search.trim() || (r.athlete_name ?? "").toLowerCase().includes(search.trim().toLowerCase()),
+              (r) =>
+                // Solo solicitudes accionables: las ya resueltas (activa, rechazada,
+                // baja) salen de la bandeja y viven en "Atletas".
+                ACTIONABLE_STATUSES.includes(r.status ?? "") &&
+                (!search.trim() || (r.athlete_name ?? "").toLowerCase().includes(search.trim().toLowerCase())),
             ),
             sortStatus,
           )}
