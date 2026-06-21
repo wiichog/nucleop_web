@@ -20,6 +20,7 @@ import {
   BarChart3,
   Bell,
   BellRing,
+  Bug,
   CalendarDays,
   CheckCircle2,
   CreditCard,
@@ -44,6 +45,7 @@ import { NAV_BADGE, PENDING_ITEMS } from "../lib/pending";
 import { useAuth } from "../lib/auth";
 import { AtomLogo } from "../landing/AtomLogo";
 import { ParticleSnow } from "../landing/ParticleSnow";
+import { ReportIssueButton } from "./ReportIssueModal";
 
 function NotificationsBell({ summary }: { summary?: PendingSummary }) {
   const navigate = useNavigate();
@@ -173,7 +175,10 @@ export function Layout() {
   if (isSuperuser) {
     groups.push({
       title: "Plataforma",
-      items: [{ to: "/panel/plataforma/gyms", label: "Gimnasios", icon: Globe }],
+      items: [
+        { to: "/panel/plataforma/gyms", label: "Gimnasios", icon: Globe },
+        { to: "/panel/plataforma/tickets", label: "Soporte / Reportes", icon: Bug },
+      ],
     });
   }
 
@@ -195,7 +200,10 @@ export function Layout() {
               Nucleo
             </Text>
           </Group>
-          {showGymNav && <NotificationsBell summary={counts} />}
+          <Group gap="xs">
+            <ReportIssueButton />
+            {showGymNav && <NotificationsBell summary={counts} />}
+          </Group>
         </Group>
       </AppShell.Header>
 

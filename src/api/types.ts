@@ -602,3 +602,60 @@ export interface GymService {
   is_active: boolean;
   created_at: string;
 }
+
+// --- Reportes de error del software (apps.bugreports) ---
+// OJO: distinto de GymTicket (soporte atleta↔gym). Esto es el bug-reporting del
+// software, gestionado por el superadmin en la consola de Plataforma.
+export type ReportStatus = "new" | "triaged" | "in_pr" | "resolved" | "closed" | "discarded";
+
+export interface BugReport {
+  id: string;
+  description: string;
+  attachment: string | null;
+  surface: string;
+  surface_display: string;
+  app_version: string;
+  build: string;
+  os_name: string;
+  os_version: string;
+  device_model: string;
+  user_agent: string;
+  screen: string;
+  locale: string;
+  timezone: string;
+  stack_trace: string;
+  extra: Record<string, unknown>;
+  reporter: string | null;
+  reporter_email: string;
+  reporter_role: string;
+  gym: string | null;
+  gym_name: string;
+  kind: string;
+  kind_display: string;
+  severity: string;
+  severity_display: string;
+  status: ReportStatus;
+  status_display: string;
+  duplicate_of: string | null;
+  operator_notes: string;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BugReportConfig {
+  web_enabled: boolean;
+  mobile_enabled: boolean;
+  updated_at?: string;
+}
+
+export interface BugReportSummary {
+  total: number;
+  open: number;
+  by_status: { status: string; count: number }[];
+  by_surface: { surface: string; count: number }[];
+  by_kind: { kind: string; count: number }[];
+  by_severity: { severity: string; count: number }[];
+  by_app_version: { app_version: string; count: number }[];
+  by_screen: { screen: string; count: number }[];
+}

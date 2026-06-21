@@ -33,6 +33,9 @@ import {
   DropinProduct,
   Wod,
   WodResult,
+  BugReport,
+  BugReportConfig,
+  BugReportSummary,
 } from "./types";
 
 export interface Role {
@@ -1483,3 +1486,140 @@ export function useGymLeaveDecision(gymId: string) {
 // El CRUD de servicios se fusionó en classes.ServiceType: el catálogo se crea en
 // Clases (useServiceTypes/useCreateServiceType/useUpdateServiceType) y su cobro +
 // activación se configuran en Planes. Los hooks de /services/manage se retiraron.
+
+// --- Reporte de errores del software (apps.bugreports) ---
+// Reporter: cualquier usuario del panel envía un reporte. Consola: el superadmin
+// gestiona triage/estado/prompt de fix bajo /platform/reports. Distinto de GymTicket.
+export interface ReportInput {
+  description: string;
+  surface: string;
+  app_version?: string;
+  build?: string;
+  os_name?: string;
+  os_version?: string;
+  device_model?: string;
+  user_agent?: string;
+  screen?: string;
+  locale?: string;
+  timezone?: string;
+  stack_trace?: string;
+  gym?: string | null;
+  attachment?: File | null;
+}
+
+/** Estado del kill-switch para la superficie (oculta el reporter si está apagado). */
+export function useReportConfig() {
+  return useQuery({
+    queryKey: ["report-config"],
+    queryFn: async () => (await api.get<BugReportConfig>("/reports/config")).data,
+    enabled: !!tokenStore.access,
+    staleTime: 60_000,
+  });
+}
+
+/** Envía un reporte desde el admin web (multipart por el adjunto opcional). */
+export function useSubmitReport() {
+  return useMutation({
+    mutationFn: async (input: ReportInput) => {
+      const form = new FormData();
+      Object.entries(input).forEach(([key, value]) => {
+        if (key === "attachment" || value === undefined || value === null || value === "") return;
+        form.append(key, String(value));
+      });
+      if (input.attachment) form.append("attachment", input.attachment);
+      return (await api.post("/reports", form)).data;
+    },
+  });
+}
+
+export interface ReportFilters {
+  status?: string;
+  severity?: string;
+  surface?: string;
+  kind?: string;
+  search?: string;
+}
+
+export function usePlatformReports(enabled: boolean, filters: ReportFilters) {
+  const qs = new URLSearchParams();
+  Object.entries(filters).forEach(([k, v]) => {
+    if (v) qs.append(k, v);
+  });
+  const query = qs.toString();
+  return useQuery({
+    queryKey: ["platform-reports", query],
+    queryFn: () => getList<BugReport>(`/platform/reports${query ? `?${query}` : ""}`),
+    enabled,
+  });
+}
+
+export function usePlatformReportSummary(enabled: boolean) {
+  return useQuery({
+    queryKey: ["platform-report-summary"],
+    queryFn: async () => (await api.get<BugReportSummary>("/platform/reports/summary")).data,
+    enabled,
+  });
+}
+
+export function useTriageReport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      body,
+    }: {
+      id: string;
+      body: Partial<{
+        kind: string;
+        severity: string;
+        status: string;
+        duplicate_of: string | null;
+        operator_notes: string;
+      }>;
+    }) => (await api.patch<BugReport>(`/platform/reports/${id}`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform-reports"] });
+      qc.invalidateQueries({ queryKey: ["platform-report-summary"] });
+    },
+  });
+}
+
+export function useBulkReports() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: string }) =>
+      (await api.post<{ updated: number }>("/platform/reports/bulk", { ids, status })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform-reports"] });
+      qc.invalidateQueries({ queryKey: ["platform-report-summary"] });
+    },
+  });
+}
+
+/** Genera el prompt de fix on-demand (la página lo copia al portapapeles). */
+export function useReportFixPrompt() {
+  return useMutation({
+    mutationFn: async (id: string) =>
+      (await api.get<{ prompt: string }>(`/platform/reports/${id}/fix-prompt`)).data.prompt,
+  });
+}
+
+export function usePlatformReportConfig(enabled: boolean) {
+  return useQuery({
+    queryKey: ["platform-report-config"],
+    queryFn: async () => (await api.get<BugReportConfig>("/platform/reports/config")).data,
+    enabled,
+  });
+}
+
+export function useUpdateReportConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: Partial<BugReportConfig>) =>
+      (await api.patch<BugReportConfig>("/platform/reports/config", body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform-report-config"] });
+      qc.invalidateQueries({ queryKey: ["report-config"] });
+    },
+  });
+}
