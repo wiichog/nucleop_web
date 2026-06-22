@@ -33,9 +33,7 @@ import {
   DropinProduct,
   Wod,
   WodResult,
-  BugReport,
   BugReportConfig,
-  BugReportSummary,
 } from "./types";
 
 export interface Role {
@@ -1532,94 +1530,5 @@ export function useSubmitReport() {
   });
 }
 
-export interface ReportFilters {
-  status?: string;
-  severity?: string;
-  surface?: string;
-  kind?: string;
-  search?: string;
-}
-
-export function usePlatformReports(enabled: boolean, filters: ReportFilters) {
-  const qs = new URLSearchParams();
-  Object.entries(filters).forEach(([k, v]) => {
-    if (v) qs.append(k, v);
-  });
-  const query = qs.toString();
-  return useQuery({
-    queryKey: ["platform-reports", query],
-    queryFn: () => getList<BugReport>(`/platform/reports${query ? `?${query}` : ""}`),
-    enabled,
-  });
-}
-
-export function usePlatformReportSummary(enabled: boolean) {
-  return useQuery({
-    queryKey: ["platform-report-summary"],
-    queryFn: async () => (await api.get<BugReportSummary>("/platform/reports/summary")).data,
-    enabled,
-  });
-}
-
-export function useTriageReport() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      id,
-      body,
-    }: {
-      id: string;
-      body: Partial<{
-        kind: string;
-        severity: string;
-        status: string;
-        duplicate_of: string | null;
-        operator_notes: string;
-      }>;
-    }) => (await api.patch<BugReport>(`/platform/reports/${id}`, body)).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["platform-reports"] });
-      qc.invalidateQueries({ queryKey: ["platform-report-summary"] });
-    },
-  });
-}
-
-export function useBulkReports() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ ids, status }: { ids: string[]; status: string }) =>
-      (await api.post<{ updated: number }>("/platform/reports/bulk", { ids, status })).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["platform-reports"] });
-      qc.invalidateQueries({ queryKey: ["platform-report-summary"] });
-    },
-  });
-}
-
-/** Genera el prompt de fix on-demand (la página lo copia al portapapeles). */
-export function useReportFixPrompt() {
-  return useMutation({
-    mutationFn: async (id: string) =>
-      (await api.get<{ prompt: string }>(`/platform/reports/${id}/fix-prompt`)).data.prompt,
-  });
-}
-
-export function usePlatformReportConfig(enabled: boolean) {
-  return useQuery({
-    queryKey: ["platform-report-config"],
-    queryFn: async () => (await api.get<BugReportConfig>("/platform/reports/config")).data,
-    enabled,
-  });
-}
-
-export function useUpdateReportConfig() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (body: Partial<BugReportConfig>) =>
-      (await api.patch<BugReportConfig>("/platform/reports/config", body)).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["platform-report-config"] });
-      qc.invalidateQueries({ queryKey: ["report-config"] });
-    },
-  });
-}
+// La gestión de reportes (triage / estado / lote / prompt de fix / kill-switch) vive
+// SOLO en el Django admin; el admin web únicamente REPORTA (useReportConfig + useSubmitReport).

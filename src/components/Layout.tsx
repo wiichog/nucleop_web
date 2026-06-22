@@ -20,7 +20,6 @@ import {
   BarChart3,
   Bell,
   BellRing,
-  Bug,
   CalendarDays,
   CheckCircle2,
   CreditCard,
@@ -175,10 +174,7 @@ export function Layout() {
   if (isSuperuser) {
     groups.push({
       title: "Plataforma",
-      items: [
-        { to: "/panel/plataforma/gyms", label: "Gimnasios", icon: Globe },
-        { to: "/panel/plataforma/tickets", label: "Soporte / Reportes", icon: Bug },
-      ],
+      items: [{ to: "/panel/plataforma/gyms", label: "Gimnasios", icon: Globe }],
     });
   }
 
