@@ -22,7 +22,23 @@ export type MembershipDetail = Omit<
     athlete_profile: components["schemas"]["MembershipDetailAdmin"]["athlete_profile"] &
       AthleteProfileExtra;
   };
-export type Payment = components["schemas"]["Payment"];
+export type PaymentAttempt = {
+  id: string;
+  attempt_number: number;
+  status: string;
+  gateway_code: string;
+  message: string;
+  created_at: string;
+};
+// Campos nuevos del backend (motivo de rechazo + reintentos) aún no regenerados en el
+// schema; se intersectan aquí hasta el próximo `npm run gen:api`.
+export type Payment = components["schemas"]["Payment"] & {
+  failure_code?: string | null;
+  failure_message?: string | null;
+  attempts_count?: number;
+  can_retry?: boolean;
+  attempts?: PaymentAttempt[];
+};
 export type Plan = components["schemas"]["Plan"] & {
   // Servicios del catálogo incluidos en la suscripción (aún no en el schema generado).
   service_types?: string[];

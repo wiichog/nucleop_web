@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import {
+  Badge,
   Button,
   Card,
   FileInput,
@@ -13,7 +14,7 @@ import {
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import { Download, Paperclip } from "lucide-react";
 import { useGymPayments, useMemberships, useRegisterManualPayment } from "../api/hooks";
-import type { Payment } from "../api/types";
+import type { Membership, Payment } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
@@ -72,9 +73,49 @@ export function PaymentsPage() {
     sortStatus,
   );
 
+  // Morosos: membresías con la cuota vencida (las marca el job actualizar_estado_pago).
+  const morosos = (memberships.data ?? []).filter((m) => m.payment_status === "overdue");
+
   return (
     <div>
       <PageHeader title="Membresías" subtitle="Registra pagos de membresía y revisa el historial." />
+      {morosos.length > 0 && (
+        <Card withBorder mb="lg">
+          <Group justify="space-between" mb="sm">
+            <Group gap="xs">
+              <Title order={3}>Morosos</Title>
+              <Badge color="red" variant="light">
+                {morosos.length}
+              </Badge>
+            </Group>
+            <Text c="dimmed" size="sm">
+              Cuotas vencidas — da seguimiento o registra el pago.
+            </Text>
+          </Group>
+          <DataTable<Membership>
+            minHeight={80}
+            highlightOnHover
+            records={morosos}
+            idAccessor="id"
+            noRecordsText="Sin morosos."
+            columns={[
+              { accessor: "athlete_name", title: "Atleta" },
+              { accessor: "plan_name", title: "Plan", render: (m) => m.plan_name ?? "—" },
+              {
+                accessor: "renewal_date",
+                title: "Venció",
+                render: (m) =>
+                  m.renewal_date ? new Date(m.renewal_date).toLocaleDateString("es-GT") : "—",
+              },
+              {
+                accessor: "effective_fee",
+                title: "Cuota",
+                render: (m) => (m.effective_fee ? `Q${m.effective_fee}` : "—"),
+              },
+            ]}
+          />
+        </Card>
+      )}
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Card component="form" onSubmit={onSubmit}>
@@ -198,6 +239,21 @@ export function PaymentsPage() {
                   title: "Estado",
                   sortable: true,
                   render: (p) => label(PAYMENT_TX_STATUS, p.status),
+                },
+                {
+                  accessor: "failure_message",
+                  title: "Motivo",
+                  render: (p) =>
+                    p.status === "failed" && p.failure_message ? (
+                      <Text size="xs" c="red" lineClamp={2} title={p.failure_message}>
+                        {p.failure_message}
+                        {p.attempts_count && p.attempts_count > 1
+                          ? ` (${p.attempts_count} intentos)`
+                          : ""}
+                      </Text>
+                    ) : (
+                      ""
+                    ),
                 },
                 {
                   accessor: "fel_status",
