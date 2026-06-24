@@ -6,6 +6,7 @@ import {
   Card,
   Grid,
   Group,
+  Modal,
   SegmentedControl,
   Select,
   Stack,
@@ -28,6 +29,25 @@ const STATUS_COLOR: Record<string, string> = {
   resolved: "teal",
 };
 
+/** Adjunto: miniatura clicable que abre la imagen completa en un modal (antes la
+ *  imagen salía a tamaño completo y se veía gigante — ticket bb66e7e7). */
+function TicketImage({ src }: { src: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <img
+        src={src}
+        alt="adjunto"
+        onClick={() => setOpen(true)}
+        style={{ height: 88, width: 88, objectFit: "cover", borderRadius: 8, marginTop: 8, cursor: "zoom-in" }}
+      />
+      <Modal opened={open} onClose={() => setOpen(false)} size="lg" centered title="Adjunto">
+        <img src={src} alt="adjunto" style={{ width: "100%", borderRadius: 8 }} />
+      </Modal>
+    </>
+  );
+}
+
 export function TicketsPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
@@ -43,6 +63,29 @@ export function TicketsPage() {
 
   const rows = tickets.data ?? [];
   const selected: GymTicket | undefined = rows.find((t) => t.id === selectedId);
+
+  // Cierre riguroso (ticket bb66e7e7): resolver notifica al atleta → se avisa
+  // antes; reabrir un resuelto también se confirma.
+  const onChangeStatus = (next: string) => {
+    if (!selected || next === selected.status) return;
+    if (next === "resolved") {
+      if (!window.confirm("Se notificará al atleta que marcaste su reporte como RESUELTO. ¿Continuar?"))
+        return;
+    } else if (selected.status === "resolved") {
+      if (!window.confirm("Este ticket estaba resuelto. ¿Reabrirlo?")) return;
+    }
+    setStatus.mutate(
+      { ticketId: selected.id, status: next },
+      {
+        onSuccess: () =>
+          notifications.show({
+            color: "teal",
+            message: next === "resolved" ? "Ticket resuelto; se notificó al atleta." : "Estado actualizado.",
+          }),
+        onError: () => notifications.show({ color: "red", message: "No se pudo cambiar el estado." }),
+      },
+    );
+  };
 
   const onReply = async () => {
     if (!selected || !replyText.trim()) return;
@@ -127,7 +170,7 @@ export function TicketsPage() {
               <SegmentedControl
                 size="xs"
                 value={selected.status}
-                onChange={(v) => setStatus.mutate({ ticketId: selected.id, status: v })}
+                onChange={onChangeStatus}
                 data={[
                   { value: "open", label: "Abierto" },
                   { value: "in_progress", label: "En progreso" },
@@ -142,9 +185,7 @@ export function TicketsPage() {
                   {selected.athlete_name} · {new Date(selected.created_at).toLocaleString("es-GT")}
                 </Text>
                 <Text size="sm">{selected.body}</Text>
-                {selected.photo && (
-                  <img src={selected.photo} alt="adjunto" style={{ maxWidth: "100%", borderRadius: 8, marginTop: 8 }} />
-                )}
+                {selected.photo && <TicketImage src={selected.photo} />}
               </Box>
               {selected.messages.map((m) => (
                 <Box
@@ -161,7 +202,7 @@ export function TicketsPage() {
                     {m.author_name} · {new Date(m.created_at).toLocaleString("es-GT")}
                   </Text>
                   <Text size="sm">{m.body}</Text>
-                  {m.photo && <img src={m.photo} alt="adjunto" style={{ maxWidth: "100%", borderRadius: 8, marginTop: 8 }} />}
+                  {m.photo && <TicketImage src={m.photo} />}
                 </Box>
               ))}
             </Stack>
