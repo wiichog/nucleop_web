@@ -29,6 +29,7 @@ import {
   useSendReminder,
 } from "../api/hooks";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
+import { PhoneInput } from "../components/PhoneInput";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
@@ -514,7 +515,7 @@ export function AthletesPage() {
                     onChange={(d) => setEdit({ ...edit, birth_date: d ? d.toLocaleDateString("en-CA") : "" })}
                   />
                   <TextInput label="Contacto (nombre)" value={edit.ec_name} onChange={(e) => setEdit({ ...edit, ec_name: e.currentTarget.value })} />
-                  <TextInput label="Contacto (teléfono)" value={edit.ec_phone} onChange={(e) => setEdit({ ...edit, ec_phone: e.currentTarget.value })} />
+                  <PhoneInput label="Contacto (teléfono)" value={edit.ec_phone} onChange={(ec_phone) => setEdit({ ...edit, ec_phone })} />
                   <TextInput label="Parentesco" value={edit.ec_relation} onChange={(e) => setEdit({ ...edit, ec_relation: e.currentTarget.value })} />
                 </SimpleGrid>
                 <Button mt="sm" loading={editProfile.isPending} onClick={onSaveProfile}>

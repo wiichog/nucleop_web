@@ -23,6 +23,7 @@ import {
 } from "../api/hooks";
 import { JoinRequest } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
+import { PhoneInput } from "../components/PhoneInput";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { sortRecords } from "../lib/sortRecords";
@@ -193,7 +194,7 @@ export function RequestsPage() {
           <TextInput label="Correo electrónico" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.currentTarget.value })} />
           <TextInput label="Nombre" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.currentTarget.value })} />
           <TextInput label="Apellido" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.currentTarget.value })} />
-          <TextInput label="Teléfono (opcional)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.currentTarget.value })} />
+          <PhoneInput label="Teléfono (opcional)" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
         </SimpleGrid>
         <Text c="dimmed" size="sm" mt="md" mb={4}>
           Periodo temporal (opcional): al aceptar la invitación, el atleta queda como <strong>temporal (prueba)</strong> entre estas fechas.
