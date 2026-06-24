@@ -5,7 +5,7 @@ import { DatePickerInput } from "@mantine/dates";
 import { BellRing, CheckCircle2 } from "lucide-react";
 import { useDashboard, usePendingSummary } from "../api/hooks";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { PageHeader } from "../components/ui";
+import { CountBadge, PageHeader } from "../components/ui";
 import { PENDING_ITEMS } from "../lib/pending";
 import { useAuth } from "../lib/auth";
 
@@ -91,9 +91,7 @@ function PendingPanel({ gymId }: { gymId: string }) {
             <Text size="sm" style={{ lineHeight: 1.2 }}>
               {item.label}
             </Text>
-            <Badge color="flame" variant="filled" size="lg" circle>
-              {counts[item.key]}
-            </Badge>
+            <CountBadge count={counts[item.key] ?? 0} size="lg" />
           </UnstyledButton>
         ))}
       </SimpleGrid>

@@ -3,7 +3,6 @@ import {
   ActionIcon,
   AppShell,
   Avatar,
-  Badge,
   Box,
   Burger,
   Group,
@@ -45,6 +44,7 @@ import { useAuth } from "../lib/auth";
 import { AtomLogo } from "../landing/AtomLogo";
 import { ParticleSnow } from "../landing/ParticleSnow";
 import { ReportIssueButton } from "./ReportIssueModal";
+import { CountBadge } from "./ui";
 
 function NotificationsBell({ summary }: { summary?: PendingSummary }) {
   const navigate = useNavigate();
@@ -90,11 +90,7 @@ function NotificationsBell({ summary }: { summary?: PendingSummary }) {
             <Menu.Item
               key={item.key}
               onClick={() => navigate(item.to)}
-              rightSection={
-                <Badge color="flame" variant="filled" size="sm" circle>
-                  {summary?.[item.key]}
-                </Badge>
-              }
+              rightSection={<CountBadge count={summary?.[item.key] ?? 0} />}
             >
               {item.label}
             </Menu.Item>
@@ -223,11 +219,7 @@ export function Layout() {
                     label={item.label}
                     leftSection={<Icon size={18} />}
                     rightSection={
-                      badgeCount > 0 ? (
-                        <Badge color="flame" variant="filled" size="sm" circle>
-                          {badgeCount > 99 ? "99+" : badgeCount}
-                        </Badge>
-                      ) : undefined
+                      badgeCount > 0 ? <CountBadge count={badgeCount} /> : undefined
                     }
                     active={isActive(item)}
                     onClick={close}
