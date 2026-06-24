@@ -26,6 +26,7 @@ import {
   useDeleteProductImage,
   useErpProducts,
   useGymProductOrders,
+  useRefundProductOrder,
   useUpdateErpProduct,
   useUpdateProductOrder,
   useUploadProductImages,
@@ -33,7 +34,7 @@ import {
 } from "../api/hooks";
 import type { ErpProduct, ProductOrder } from "../api/types";
 import { NoGymAssigned } from "../components/PageStatus";
-import { RowActions } from "../components/RowActions";
+import { RowActions, type RowAction } from "../components/RowActions";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { sortRecords } from "../lib/sortRecords";
@@ -88,6 +89,21 @@ export function InventoryPage() {
   const uploadPhoto = useUploadProductPhoto(gymId);
   const orders = useGymProductOrders(gymId);
   const updateOrder = useUpdateProductOrder(gymId);
+  const refundOrder = useRefundProductOrder(gymId);
+
+  const onRefund = (o: ProductOrder) => {
+    if (
+      !window.confirm(
+        `Devolver el pedido de ${o.athlete_name}. Se reembolsa Q${o.total} (precio del gym); el recargo de Nucleo NO se reembolsa. El dinero se entrega por fuera. ¿Continuar?`,
+      )
+    )
+      return;
+    refundOrder.mutate(o.id, {
+      onSuccess: () =>
+        notifications.show({ color: "teal", message: "Pedido devuelto; se registró el reembolso." }),
+      onError: () => notifications.show({ color: "red", message: "No se pudo devolver el pedido." }),
+    });
+  };
   const [editing, setEditing] = useState<ErpProduct | null>(null);
   const [search, setSearch] = useState("");
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ErpProduct>>({
@@ -437,25 +453,34 @@ export function InventoryPage() {
             {
               accessor: "actions",
               title: "",
-              render: (o) =>
-                ["paid", "reserved"].includes(o.status) ? (
-                  <RowActions
-                    actions={[
-                      {
-                        label: "Entregado",
-                        variant: "filled",
-                        loading: updateOrder.isPending && updateOrder.variables?.id === o.id,
-                        onClick: () => updateOrder.mutate({ id: o.id, status: "delivered" }),
-                      },
-                      {
-                        label: "Cancelar",
-                        variant: "subtle",
-                        color: "red",
-                        onClick: () => updateOrder.mutate({ id: o.id, status: "cancelled" }),
-                      },
-                    ]}
-                  />
-                ) : null,
+              render: (o) => {
+                const actions: RowAction[] = [];
+                if (["paid", "reserved"].includes(o.status)) {
+                  actions.push({
+                    label: "Entregado",
+                    variant: "filled" as const,
+                    loading: updateOrder.isPending && updateOrder.variables?.id === o.id,
+                    onClick: () => updateOrder.mutate({ id: o.id, status: "delivered" as const }),
+                  });
+                  actions.push({
+                    label: "Cancelar",
+                    variant: "subtle" as const,
+                    color: "red",
+                    onClick: () => updateOrder.mutate({ id: o.id, status: "cancelled" as const }),
+                  });
+                }
+                // Devolución solo para pedidos pagados (incluye ya entregados).
+                if (["paid", "delivered"].includes(o.status)) {
+                  actions.push({
+                    label: "Devolver",
+                    variant: "subtle" as const,
+                    color: "orange",
+                    loading: refundOrder.isPending && refundOrder.variables === o.id,
+                    onClick: () => onRefund(o),
+                  });
+                }
+                return actions.length ? <RowActions actions={actions} /> : null;
+              },
             },
           ]}
         />

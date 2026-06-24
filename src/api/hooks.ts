@@ -1314,6 +1314,19 @@ export function useUpdateProductOrder(gymId: string) {
   });
 }
 
+// Devuelve un pedido pagado: reembolsa la base (sin el recargo de Nucleo) y lo cancela.
+export function useRefundProductOrder(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (orderId: string) =>
+      (await api.post<ProductOrder>(`/gym/${gymId}/marketplace-orders/${orderId}/refund`)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["marketplace-orders", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
+    },
+  });
+}
+
 export function useCreateErpMovement(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
