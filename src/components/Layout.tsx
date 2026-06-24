@@ -231,8 +231,8 @@ export function Layout() {
                     }
                     active={isActive(item)}
                     onClick={close}
-                    variant="filled"
-                    style={{ borderRadius: 8 }}
+                    variant="light"
+                    style={{ borderRadius: 10 }}
                   />
                 );
               })}
@@ -267,7 +267,7 @@ export function Layout() {
                 {(email[0] ?? "?").toUpperCase()}
               </Avatar>
             }
-            variant="filled"
+            variant="light"
             style={{ borderRadius: 10 }}
           />
         </AppShell.Section>

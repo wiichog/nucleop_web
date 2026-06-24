@@ -34,13 +34,24 @@ export const mantineTheme = createTheme({
   colors: { flame, dark },
   fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
   fontFamilyMonospace: "ui-monospace, SFMono-Regular, monospace",
-  headings: { fontFamily: '"Space Grotesk", Inter, sans-serif', fontWeight: "700" },
-  defaultRadius: "md",
+  headings: { fontFamily: '"Space Grotesk", Inter, sans-serif', fontWeight: "600" },
+  defaultRadius: "lg",
   cursorType: "pointer",
   components: {
-    Card: { defaultProps: { withBorder: true, radius: "md", padding: "lg" } },
-    Paper: { defaultProps: { radius: "md" } },
-    Button: { defaultProps: { radius: "md" } },
+    Card: {
+      defaultProps: { withBorder: true, radius: "lg", padding: "lg" },
+      // Tarjeta translúcida con borde tenue (mismo lenguaje white-dominant de la
+      // landing: superficies casi-blancas muy sutiles sobre negro premium).
+      styles: {
+        root: {
+          backgroundColor: "rgba(255,255,255,0.025)",
+          borderColor: "var(--nucleo-hairline)",
+        },
+      },
+    },
+    Paper: { defaultProps: { radius: "lg" } },
+    // CTA tipo pastilla (rounded-full) como los botones de la landing.
+    Button: { defaultProps: { radius: "xl" } },
     TextInput: { defaultProps: { radius: "md" } },
     PasswordInput: { defaultProps: { radius: "md" } },
     Select: { defaultProps: { radius: "md", checkIconPosition: "right" } },
