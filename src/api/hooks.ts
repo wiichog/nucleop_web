@@ -801,6 +801,16 @@ export function useDecideClub(gymId: string) {
   });
 }
 
+// El admin crea un club propio (queda aprobado de una vez).
+export function useCreateGymClub(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { name: string; club_type: string }) =>
+      (await api.post<GymClub>(`/gym/${gymId}/clubs/create`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-clubs", gymId] }),
+  });
+}
+
 export function useCreateClass(gymId: string) {
   const qc = useQueryClient();
   return useMutation({

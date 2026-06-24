@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Badge, Button, Card, Group, Table, Text, Title } from "@mantine/core";
+import { FormEvent, useState } from "react";
+import { Badge, Button, Card, Group, SimpleGrid, Table, Text, TextInput, Title } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
-import { useGymClubs, useDecideClub } from "../api/hooks";
+import { useGymClubs, useDecideClub, useCreateGymClub } from "../api/hooks";
 import type { GymClub } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
@@ -20,6 +21,8 @@ export function ClubsPage() {
   const gymId = primaryGymId ?? "";
   const clubs = useGymClubs(gymId);
   const decide = useDecideClub(gymId);
+  const createClub = useCreateGymClub(gymId);
+  const [form, setForm] = useState({ name: "", club_type: "" });
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<GymClub>>({
     columnAccessor: "name",
     direction: "asc",
@@ -29,6 +32,17 @@ export function ClubsPage() {
   if (!gymId) return <NoGymAssigned />;
   if (clubs.isError) return <PageError onRetry={() => clubs.refetch()} />;
 
+  const onCreate = async (e: FormEvent) => {
+    e.preventDefault();
+    try {
+      await createClub.mutateAsync({ name: form.name.trim(), club_type: form.club_type.trim() });
+      notifications.show({ color: "teal", message: `Club "${form.name.trim()}" creado y aprobado.` });
+      setForm({ name: "", club_type: "" });
+    } catch {
+      notifications.show({ color: "red", message: "No se pudo crear el club." });
+    }
+  };
+
   const rows = clubs.data ?? [];
   const pending = rows.filter((c) => c.status === "pending");
 
@@ -36,8 +50,31 @@ export function ClubsPage() {
     <div>
       <PageHeader
         title="Clubes del gimnasio"
-        subtitle="Tus atletas pueden crear clubes; aquí apruebas o rechazas las solicitudes."
+        subtitle="Crea tus propios clubes o aprueba/rechaza los que proponen tus atletas."
       />
+
+      <Card mb="lg" component="form" onSubmit={onCreate}>
+        <Title order={3} mb="sm">
+          Crear club
+        </Title>
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+          <TextInput
+            label="Nombre del club"
+            placeholder="Runners 1821"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Tipo"
+            placeholder="running, cycling, rowing…"
+            value={form.club_type}
+            onChange={(e) => setForm({ ...form, club_type: e.currentTarget.value })}
+          />
+        </SimpleGrid>
+        <Button type="submit" mt="md" loading={createClub.isPending} disabled={!form.name.trim() || !form.club_type.trim()}>
+          Crear club
+        </Button>
+      </Card>
 
       {pending.length > 0 && (
         <Card mb="lg">
