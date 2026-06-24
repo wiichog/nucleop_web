@@ -29,6 +29,24 @@ import { sortRecords } from "../lib/sortRecords";
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
 
+// Extrae el mensaje real de la API (detail o error de campo) para no esconder la causa.
+function inviteErrorMessage(err: unknown): string | null {
+  const data = (err as { response?: { data?: unknown } } | undefined)?.response?.data;
+  if (!data || typeof data !== "object") return null;
+  const obj = data as Record<string, unknown>;
+  // `detail` puede ser string (errores de negocio) u objeto de errores de campo.
+  if (typeof obj.detail === "string") return obj.detail;
+  const bag = (
+    obj.detail && typeof obj.detail === "object" ? obj.detail : obj
+  ) as Record<string, unknown>;
+  for (const key of ["trial_start", "trial_end", "phone", "email"]) {
+    const v = bag[key];
+    if (Array.isArray(v) && typeof v[0] === "string") return v[0];
+    if (typeof v === "string") return v;
+  }
+  return null;
+}
+
 // Estados que siguen requiriendo gestión en la bandeja de Solicitudes. Al asignar un
 // plan la membresía pasa a "active" y la solicitud desaparece de aquí (ya es miembro).
 const ACTIONABLE_STATUSES = ["requested", "invited", "pending_approval", "approved_no_plan", "trial"];
@@ -181,12 +199,27 @@ export function RequestsPage() {
           Periodo temporal (opcional): al aceptar la invitación, el atleta queda como <strong>temporal (prueba)</strong> entre estas fechas.
         </Text>
         <Group align="flex-end">
-          <DateInput label="Desde" value={trialStart} onChange={setTrialStart} valueFormat="YYYY-MM-DD" clearable />
-          <DateInput label="Hasta" value={trialEnd} onChange={setTrialEnd} valueFormat="YYYY-MM-DD" clearable />
+          {/* No se permiten fechas en el pasado (el backend lo revalida). */}
+          <DateInput
+            label="Desde"
+            value={trialStart}
+            onChange={setTrialStart}
+            valueFormat="YYYY-MM-DD"
+            minDate={new Date()}
+            clearable
+          />
+          <DateInput
+            label="Hasta"
+            value={trialEnd}
+            onChange={setTrialEnd}
+            valueFormat="YYYY-MM-DD"
+            minDate={trialStart ?? new Date()}
+            clearable
+          />
         </Group>
         {invite.isError && (
           <Text c="red" size="sm" mt="sm">
-            No se pudo enviar la invitación. Verifica el correo.
+            {inviteErrorMessage(invite.error) ?? "No se pudo enviar la invitación. Verifica los datos."}
           </Text>
         )}
         <Button

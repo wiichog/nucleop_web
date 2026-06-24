@@ -18,7 +18,7 @@ import {
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
-import { Bell, Download, Eye, KeyRound, Mail, MoreVertical, Smartphone } from "lucide-react";
+import { Bell, Download, Eye, KeyRound, LogOut, Mail, MoreVertical, Smartphone } from "lucide-react";
 import {
   useAtRisk,
   useEditAthleteProfile,
@@ -43,6 +43,22 @@ const STATUS_COLOR: Record<string, string> = {
   expired: "yellow",
   pending_leave: "orange",
 };
+
+// Orden por defecto del padrón: morosos arriba, luego por vencer, luego el resto.
+const paymentPriority = (m: Membership) =>
+  m.payment_status === "overdue" ? 0 : m.payment_status === "due_soon" ? 1 : 2;
+
+// Estados de relación "viva" donde desligar pasa por el handoff de baja (la baja
+// queda pendiente hasta que el atleta la confirme). Para invitados/solicitudes la
+// baja se maneja en la bandeja de Solicitudes (rechazar), no aquí.
+const LEAVE_ELIGIBLE = new Set([
+  "active",
+  "trial",
+  "paused",
+  "expired",
+  "approved_no_plan",
+  "drop_in",
+]);
 
 function DueBadge({ days, date }: { days?: number | null; date?: string | null }) {
   if (days == null) return <Text c="dimmed">—</Text>;
@@ -82,7 +98,9 @@ export function AthletesPage() {
   const [filtro, setFiltro] = useState("todos");
   const [search, setSearch] = useState("");
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<Membership>>({
-    columnAccessor: "athlete_name",
+    // Por defecto: morosos primero (orden de prioridad de pago). Al tocar una
+    // columna, mantine-datatable cambia el accessor y manda el orden normal.
+    columnAccessor: "payment_priority",
     direction: "asc",
   });
 
@@ -129,6 +147,22 @@ export function AthletesPage() {
     }
   };
 
+  const onDesligar = (m: Membership) => {
+    if (
+      !window.confirm(
+        `¿Desligar a ${m.athlete_name}? Se enviará una solicitud de baja (handoff) que el atleta debe confirmar en su app antes de cerrar la relación.`,
+      )
+    )
+      return;
+    leaveDecision.mutate(
+      { membershipId: m.id, action: "request" },
+      {
+        onSuccess: () => ok(`Baja solicitada a ${m.athlete_name}. Queda pendiente de su confirmación.`),
+        onError: () => fail("No se pudo solicitar la baja."),
+      },
+    );
+  };
+
   const onSaveProfile = async () => {
     try {
       await editProfile.mutateAsync({
@@ -161,7 +195,14 @@ export function AthletesPage() {
       return false;
     return true;
   });
-  const rows = sortRecords(filtered, sortStatus);
+  const rows =
+    sortStatus.columnAccessor === "payment_priority"
+      ? [...filtered].sort(
+          (a, b) =>
+            paymentPriority(a) - paymentPriority(b) ||
+            (a.athlete_name ?? "").localeCompare(b.athlete_name ?? ""),
+        )
+      : sortRecords(filtered, sortStatus);
 
   return (
     <div>
@@ -300,6 +341,17 @@ export function AthletesPage() {
                           </Menu.Item>
                         </Menu.Dropdown>
                       </Menu>
+                      {LEAVE_ELIGIBLE.has(m.status as string) && !pendingLeave && (
+                        <Button
+                          size="xs"
+                          variant="default"
+                          color="red"
+                          loading={leaveDecision.isPending}
+                          onClick={() => onDesligar(m)}
+                        >
+                          Desligar
+                        </Button>
+                      )}
                       {pendingLeave &&
                         (fromAthlete ? (
                           <>
@@ -338,6 +390,14 @@ export function AthletesPage() {
                         <Menu.Item leftSection={<Bell size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "both")}>
                           Ambos
                         </Menu.Item>
+                        {LEAVE_ELIGIBLE.has(m.status as string) && !pendingLeave && (
+                          <>
+                            <Menu.Divider />
+                            <Menu.Item color="red" leftSection={<LogOut size={14} />} onClick={() => onDesligar(m)}>
+                              Desligar atleta
+                            </Menu.Item>
+                          </>
+                        )}
                         {pendingLeave && <Menu.Divider />}
                         {pendingLeave &&
                           (fromAthlete ? (
