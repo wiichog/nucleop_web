@@ -40,6 +40,7 @@ export function AuditPage() {
   return (
     <div>
       <PageHeader
+        kicker="Operación · Bitácora"
         title="Actividad del gimnasio"
         subtitle="Quién hizo qué y cuándo, dentro de este gimnasio."
         action={

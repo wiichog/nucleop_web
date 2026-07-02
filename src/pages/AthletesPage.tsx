@@ -28,22 +28,15 @@ import {
   useResetAthletePassword,
   useSendReminder,
 } from "../api/hooks";
-import { NoGymAssigned, PageError } from "../components/PageStatus";
+import { DetailSheet } from "../components/DetailSheet";
+import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PhoneInput } from "../components/PhoneInput";
-import { PageHeader } from "../components/ui";
+import { Money, PageHeader, StatusBadge } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
-import { MEMBERSHIP_STATUS, PAYMENT_STATUS, label } from "../lib/labels";
+import { MEMBERSHIP_STATUS, PAYMENT_METHOD, PAYMENT_STATUS, label } from "../lib/labels";
 import { sortRecords } from "../lib/sortRecords";
 import type { Membership } from "../api/types";
-
-const STATUS_COLOR: Record<string, string> = {
-  active: "teal",
-  trial: "teal",
-  overdue: "red",
-  expired: "yellow",
-  pending_leave: "orange",
-};
 
 // Orden por defecto del padrón: morosos arriba, luego por vencer, luego el resto.
 const paymentPriority = (m: Membership) =>
@@ -208,6 +201,7 @@ export function AthletesPage() {
   return (
     <div>
       <PageHeader
+        kicker="Usuarios · Padrón"
         title="Atletas del gimnasio"
         subtitle="Solo se muestra la relación con ESTE gym (visibilidad por relación)."
         action={
@@ -290,11 +284,7 @@ export function AthletesPage() {
               accessor: "status",
               title: "Estado",
               sortable: true,
-              render: (m) => (
-                <Badge color={STATUS_COLOR[m.status ?? ""] ?? "gray"} variant="light">
-                  {label(MEMBERSHIP_STATUS, m.status)}
-                </Badge>
-              ),
+              render: (m) => <StatusBadge kind="membership" status={m.status} />,
             },
             { accessor: "plan_name", title: "Plan", sortable: true, render: (m) => m.plan_name ?? "—" },
             {
@@ -425,9 +415,17 @@ export function AthletesPage() {
         />
       </Card>
 
-      {detail.data && (
-        <Card mt="lg">
-          <Group justify="space-between" align="flex-start">
+      <DetailSheet
+        opened={!!selectedMembershipId}
+        onClose={() => setSelectedMembershipId("")}
+        title="Ficha del atleta"
+        size={580}
+      >
+        {!detail.data ? (
+          <PageLoading label="Cargando ficha…" />
+        ) : (
+        <>
+          <Group justify="space-between" align="flex-start" wrap="wrap">
             <Group>
               <Avatar src={detail.data.athlete_profile.photo} color="flame" radius="xl" size={56}>
                 {detail.data.athlete_name?.[0]?.toUpperCase()}
@@ -536,7 +534,7 @@ export function AthletesPage() {
                 <Table.Tr>
                   <Table.Th>Fecha</Table.Th>
                   <Table.Th>Método</Table.Th>
-                  <Table.Th>Monto</Table.Th>
+                  <Table.Th ta="right">Monto</Table.Th>
                   <Table.Th>Estado</Table.Th>
                 </Table.Tr>
               </Table.Thead>
@@ -544,9 +542,13 @@ export function AthletesPage() {
                 {detail.data.payments.map((payment) => (
                   <Table.Tr key={payment.id}>
                     <Table.Td>{new Date(payment.created_at).toLocaleDateString("es-GT")}</Table.Td>
-                    <Table.Td>{payment.method}</Table.Td>
-                    <Table.Td>Q{payment.amount}</Table.Td>
-                    <Table.Td>{payment.status}</Table.Td>
+                    <Table.Td>{label(PAYMENT_METHOD, payment.method)}</Table.Td>
+                    <Table.Td ta="right">
+                      <Money value={payment.amount} decimals={2} />
+                    </Table.Td>
+                    <Table.Td>
+                      <StatusBadge kind="paymentTx" status={payment.status} size="sm" />
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -578,8 +580,9 @@ export function AthletesPage() {
               </Table.Tbody>
             </Table>
           )}
-        </Card>
-      )}
+        </>
+        )}
+      </DetailSheet>
     </div>
   );
 }

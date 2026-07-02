@@ -6,13 +6,13 @@ import {
   Card,
   Divider,
   Group,
-  Modal,
   SimpleGrid,
   Table,
   Text,
   TextInput,
   Title,
 } from "@mantine/core";
+import { DetailSheet } from "../components/DetailSheet";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useCoachRequests,
@@ -23,10 +23,11 @@ import {
 import type { Coach } from "../api/types";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
+import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
 import { sortRecords } from "../lib/sortRecords";
 
-const money = (v: string | number) => `Q${Number(v).toFixed(2)}`;
+const money = (v: string | number) => fmtQ(v, { decimals: 2 });
 
 /** Catálogo de coaches del gimnasio: invitación, solicitudes y roster (Operación).
  *  La forma de pago y las liquidaciones viven en Negocio → Pagos a coaches. */
@@ -69,6 +70,7 @@ export function CoachesPage() {
   return (
     <div>
       <PageHeader
+        kicker="Operación · Equipo"
         title="Coaches"
         subtitle="Invita coaches y gestiona el equipo del gimnasio. La nómina y liquidaciones están en Negocio → Pagos a coaches."
       />
@@ -252,14 +254,14 @@ export function CoachesPage() {
         </Text>
       </Card>
 
-      <CoachProfileModal coach={selectedCoach} onClose={() => setSelectedCoach(null)} />
+      <CoachProfileSheet coach={selectedCoach} onClose={() => setSelectedCoach(null)} />
     </div>
   );
 }
 
-function CoachProfileModal({ coach, onClose }: { coach: Coach | null; onClose: () => void }) {
+function CoachProfileSheet({ coach, onClose }: { coach: Coach | null; onClose: () => void }) {
   return (
-    <Modal opened={!!coach} onClose={onClose} title="Perfil del coach" centered>
+    <DetailSheet opened={!!coach} onClose={onClose} title="Perfil del coach">
       {coach && (
         <>
           <Group gap="md" mb="md">
@@ -298,13 +300,8 @@ function CoachProfileModal({ coach, onClose }: { coach: Coach | null; onClose: (
           <Text c="dimmed" size="xs" mt="md">
             La tarifa y las liquidaciones se editan en Negocio → Pagos a coaches.
           </Text>
-          <Group justify="flex-end" mt="lg">
-            <Button variant="default" onClick={onClose}>
-              Cerrar
-            </Button>
-          </Group>
         </>
       )}
-    </Modal>
+    </DetailSheet>
   );
 }

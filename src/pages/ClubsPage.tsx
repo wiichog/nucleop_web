@@ -49,6 +49,7 @@ export function ClubsPage() {
   return (
     <div>
       <PageHeader
+        kicker="Comunidad · Clubes"
         title="Clubes del gimnasio"
         subtitle="Crea tus propios clubes o aprueba/rechaza los que proponen tus atletas."
       />

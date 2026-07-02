@@ -56,6 +56,39 @@ export const mantineTheme = createTheme({
     PasswordInput: { defaultProps: { radius: "md" } },
     Select: { defaultProps: { radius: "md", checkIconPosition: "right" } },
     NumberInput: { defaultProps: { radius: "md" } },
+
+    // ── Material glass ÚNICO para todos los popups ──────────────────────────
+    // Cada superficie flotante hereda `.nucleo-glass` (theme.css) por classNames:
+    // una sola fuente de verdad. El overlay lleva el velo que "congela" el fondo
+    // (blur + oscurecido) para el efecto vibrancy tipo iOS.
+    Modal: {
+      defaultProps: {
+        centered: true,
+        radius: "lg",
+        overlayProps: { color: "#060607", backgroundOpacity: 0.55, blur: 6 },
+        transitionProps: { transition: "pop", duration: 200, timingFunction: "ease" },
+      },
+      classNames: { content: "nucleo-glass" },
+      styles: {
+        header: { background: "transparent" },
+        title: { fontFamily: '"Space Grotesk", Inter, sans-serif', fontWeight: 600 },
+      },
+    },
+    Drawer: {
+      defaultProps: {
+        overlayProps: { color: "#060607", backgroundOpacity: 0.55, blur: 6 },
+      },
+      classNames: { content: "nucleo-glass" },
+      styles: {
+        header: { background: "transparent" },
+        title: { fontFamily: '"Space Grotesk", Inter, sans-serif', fontWeight: 600 },
+      },
+    },
+    Menu: { classNames: { dropdown: "nucleo-glass" } },
+    Popover: { classNames: { dropdown: "nucleo-glass" } },
+    HoverCard: { classNames: { dropdown: "nucleo-glass" } },
+    // Cubre el dropdown de Select/MultiSelect/Autocomplete (usan Combobox debajo).
+    Combobox: { classNames: { dropdown: "nucleo-glass" } },
     Table: {
       defaultProps: { verticalSpacing: "sm", highlightOnHover: true },
       // Estilo de marca aplicado SOLO al componente <Table> (antes era un

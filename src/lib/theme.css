@@ -12,6 +12,18 @@
   --nucleo-radius: 14px;
   --nucleo-hairline: rgba(255, 255, 255, 0.09); /* borde tenue tipo landing */
   --nucleo-font: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* Escala de radios de 3 pasos (única fuente de verdad): pastilla / tarjeta / control. */
+  --radius-pill: 999px;
+  --radius-card: 14px;
+  --radius-control: 10px;
+
+  /* Material glass único para TODOS los popups (ver .nucleo-glass). Neutros
+     derivados de la familia carbón/superficie-2, solo con alfa — sin hex nuevos. */
+  --nucleo-glass: rgba(29, 29, 34, 0.72);         /* superficie-2 translúcida */
+  --nucleo-glass-hairline: rgba(255, 255, 255, 0.12);
+  --nucleo-glass-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  --nucleo-scrim: rgba(6, 6, 7, 0.55);            /* velo que congela el fondo */
 }
 
 * { box-sizing: border-box; }
@@ -55,6 +67,30 @@ a { color: var(--nucleo-accent); }
   border: 1px solid rgba(255, 255, 255, 0.10);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+}
+
+/* ── Material glass ÚNICO ──────────────────────────────────────────────────
+   Todos los popups (modales, drawers, menús, popovers, hovercards y el dropdown
+   de los Select) heredan ESTE material vía `classNames` en mantineTheme.ts.
+   Una sola fuente de verdad para el "frosted glass" tipo iOS: translúcido +
+   blur fuerte + saturación (vibrancy) + hairline claro + sombra difusa. */
+.nucleo-glass {
+  background: var(--nucleo-glass) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--nucleo-glass-hairline) !important;
+  box-shadow: var(--nucleo-glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Cifras/dinero: dígitos de ancho fijo para que las columnas no "bailen". */
+.nucleo-tabular { font-variant-numeric: tabular-nums; }
+
+/* Grabber del sheet de detalle (drawer estilo iPhone). */
+.nucleo-grabber {
+  width: 40px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.22);
 }
 .nucleo-card--glow {
   border-color: rgba(252, 76, 2, 0.25);

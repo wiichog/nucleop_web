@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Badge, Card, Group, SimpleGrid, Table, Text, Title, UnstyledButton } from "@mantine/core";
+import { Badge, Card, Divider, Group, SimpleGrid, Table, Text, Title, UnstyledButton } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { BellRing, CheckCircle2 } from "lucide-react";
 import { useDashboard, usePendingSummary } from "../api/hooks";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { CountBadge, PageHeader } from "../components/ui";
+import { CountBadge, Kicker, Money, PageHeader, SectionLabel } from "../components/ui";
+import { fmtQ } from "../lib/money";
 import { PENDING_ITEMS } from "../lib/pending";
 import { useAuth } from "../lib/auth";
+
+const DISPLAY_FONT = '"Space Grotesk", sans-serif';
 
 function firstOfMonth() {
   const d = new Date();
@@ -32,9 +35,65 @@ function Kpi({
       <Text c="dimmed" size="sm" mb={4}>
         {label}
       </Text>
-      <Text fw={700} fz={{ base: 22, sm: 28 }} c={tone} ff='"Space Grotesk", sans-serif'>
+      <Text
+        fw={700}
+        fz={{ base: 22, sm: 28 }}
+        c={tone}
+        ff={DISPLAY_FONT}
+        style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}
+      >
         {value}
       </Text>
+    </Card>
+  );
+}
+
+/**
+ * Momento "hero" del dashboard: la cifra que el dueño más mira (ingresos del
+ * periodo) a escala editorial, con su desglose tarjeta/manual como ledger. Antes
+ * competía en igualdad con "check-ins" en una retícula de 6 tarjetas idénticas.
+ */
+function RevenueHero({
+  total,
+  card,
+  manual,
+}: {
+  total: number | string | null;
+  card: number | string | null;
+  manual: number | string | null;
+}) {
+  return (
+    <Card mb="lg" padding="xl">
+      <Group justify="space-between" align="flex-end" wrap="wrap" gap="xl">
+        <div style={{ minWidth: 0 }}>
+          <Kicker>Ingresos del periodo</Kicker>
+          <Text
+            className="text-glow-flame"
+            ff={DISPLAY_FONT}
+            fw={700}
+            style={{
+              color: "var(--nucleo-white)",
+              fontVariantNumeric: "tabular-nums",
+              letterSpacing: "-0.03em",
+              lineHeight: 1,
+              fontSize: "clamp(40px, 6vw, 58px)",
+            }}
+          >
+            {fmtQ(total)}
+          </Text>
+        </div>
+        <Group gap="lg" align="stretch">
+          <div>
+            <SectionLabel mb={4}>Tarjeta</SectionLabel>
+            <Money value={card} fw={700} />
+          </div>
+          <Divider orientation="vertical" />
+          <div>
+            <SectionLabel mb={4}>Manual</SectionLabel>
+            <Money value={manual} fw={700} />
+          </div>
+        </Group>
+      </Group>
     </Card>
   );
 }
@@ -113,7 +172,7 @@ export function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title="Dashboard del gimnasio" subtitle="Ingresos y actividad del periodo" />
+      <PageHeader kicker="Operación" title="Dashboard del gimnasio" subtitle="Ingresos y actividad del periodo" />
 
       <PendingPanel gymId={gymId} />
 
@@ -131,18 +190,20 @@ export function DashboardPage() {
         <PageLoading label="Cargando KPIs…" />
       ) : (
         <>
-          <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="md" mb="lg">
-            <Kpi label="Ingresos del periodo" value={`Q${d.ingresos_total ?? 0}`} tone="flame" />
-            <Kpi label="Ingresos tarjeta" value={`Q${d.ingresos_tarjeta ?? 0}`} />
-            <Kpi label="Ingresos manuales" value={`Q${d.ingresos_manual ?? 0}`} />
+          <RevenueHero
+            total={d.ingresos_total}
+            card={d.ingresos_tarjeta}
+            manual={d.ingresos_manual}
+          />
+
+          <SectionLabel>Actividad del periodo</SectionLabel>
+          <SimpleGrid cols={{ base: 3 }} spacing="md" mb="lg">
             <Kpi label="Pagos" value={d.pagos ?? 0} />
             <Kpi label="Nuevos atletas" value={d.nuevos_atletas ?? 0} />
             <Kpi label="Check-ins" value={d.checkins ?? 0} />
           </SimpleGrid>
 
-          <Text c="dimmed" mb="xs">
-            Entrenamiento (periodo)
-          </Text>
+          <SectionLabel>Entrenamiento (periodo)</SectionLabel>
           <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md" mb="lg">
             <Kpi label="WODs publicados" value={d.wods_publicados ?? 0} tone="flame" />
             <Kpi label="Resultados de WOD" value={d.resultados_wod ?? 0} />
@@ -150,9 +211,7 @@ export function DashboardPage() {
             <Kpi label="Servicios activos" value={d.servicios_activos ?? 0} />
           </SimpleGrid>
 
-          <Text c="dimmed" mb="xs">
-            Estado actual del gimnasio
-          </Text>
+          <SectionLabel>Estado actual del gimnasio</SectionLabel>
           <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mb="lg">
             <Kpi label="Atletas activos" value={d.atletas_activos ?? 0} />
             <Kpi label="Morosos" value={d.morosos ?? 0} tone="red" />

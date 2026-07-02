@@ -4,7 +4,8 @@ import { DatePickerInput } from "@mantine/dates";
 import { useBranches, useErpPnl } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { PageHeader } from "../components/ui";
+import { Money, PageHeader } from "../components/ui";
+import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
 
 function firstOfMonth() {
@@ -39,7 +40,13 @@ function Metric({
       <Text c="dimmed" size="sm">
         {label}
       </Text>
-      <Text fw={700} fz={{ base: 20, sm: 24 }} c={accent ? "flame" : undefined} ff='"Space Grotesk", sans-serif'>
+      <Text
+        fw={700}
+        fz={{ base: 20, sm: 24 }}
+        c={accent ? "flame" : undefined}
+        ff='"Space Grotesk", sans-serif'
+        style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}
+      >
         {value}
       </Text>
       {sub && <div style={{ marginTop: 4 }}>{sub}</div>}
@@ -60,7 +67,7 @@ export function BusinessReportPage() {
 
   return (
     <div>
-      <PageHeader title="Reportes de negocio" subtitle="Rentabilidad, márgenes y líneas de ingreso." />
+      <PageHeader kicker="Negocio · Reportes" title="Reportes de negocio" subtitle="Rentabilidad, márgenes y líneas de ingreso." />
 
       <Card mb="lg">
         <Group align="flex-end" gap="md">
@@ -88,18 +95,18 @@ export function BusinessReportPage() {
       ) : (
         <>
           <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="md" mb="lg">
-            <Metric label="Ingresos totales" value={`Q${data.gross_revenue}`} sub={<Delta value={data.delta_revenue_pct} />} />
-            <Metric label="Costo directo (COGS)" value={`Q${data.direct_cost}`} />
+            <Metric label="Ingresos totales" value={fmtQ(data.gross_revenue)} sub={<Delta value={data.delta_revenue_pct} />} />
+            <Metric label="Costo directo (COGS)" value={fmtQ(data.direct_cost)} />
             <Metric
               label="Margen bruto"
-              value={`Q${data.gross_margin}`}
+              value={fmtQ(data.gross_margin)}
               sub={<Text span size="xs" c="dimmed">{data.gross_margin_pct}%</Text>}
             />
-            <Metric label="Pérdidas (mermas)" value={`Q${data.losses}`} />
-            <Metric label="Gastos operativos" value={`Q${data.expenses}`} />
+            <Metric label="Pérdidas (mermas)" value={fmtQ(data.losses)} />
+            <Metric label="Gastos operativos" value={fmtQ(data.expenses)} />
             <Metric
               label="Utilidad neta"
-              value={`Q${data.net_profit}`}
+              value={fmtQ(data.net_profit)}
               accent
               sub={
                 <>
@@ -125,8 +132,8 @@ export function BusinessReportPage() {
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Línea</Table.Th>
-                    <Table.Th>Ingreso</Table.Th>
-                    <Table.Th>% del total</Table.Th>
+                    <Table.Th ta="right">Ingreso</Table.Th>
+                    <Table.Th ta="right">% del total</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -136,8 +143,8 @@ export function BusinessReportPage() {
                     return (
                       <Table.Tr key={l.line}>
                         <Table.Td>{l.label}</Table.Td>
-                        <Table.Td>Q{l.revenue}</Table.Td>
-                        <Table.Td>{pct}%</Table.Td>
+                        <Table.Td ta="right"><Money value={l.revenue} decimals={2} /></Table.Td>
+                        <Table.Td ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>{pct}%</Table.Td>
                       </Table.Tr>
                     );
                   })}
@@ -156,14 +163,14 @@ export function BusinessReportPage() {
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>Producto</Table.Th>
-                      <Table.Th>Unidades</Table.Th>
+                      <Table.Th ta="right">Unidades</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
                     {data.top_products.map((p) => (
                       <Table.Tr key={p.name}>
                         <Table.Td>{p.name}</Table.Td>
-                        <Table.Td>{p.units}</Table.Td>
+                        <Table.Td ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>{p.units}</Table.Td>
                       </Table.Tr>
                     ))}
                   </Table.Tbody>
@@ -187,18 +194,18 @@ export function BusinessReportPage() {
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>Categoría</Table.Th>
-                      <Table.Th>Uds.</Table.Th>
-                      <Table.Th>Ingreso</Table.Th>
-                      <Table.Th>Margen</Table.Th>
+                      <Table.Th ta="right">Uds.</Table.Th>
+                      <Table.Th ta="right">Ingreso</Table.Th>
+                      <Table.Th ta="right">Margen</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
                     {data.revenue_by_category.map((c) => (
                       <Table.Tr key={c.category}>
                         <Table.Td>{c.label}</Table.Td>
-                        <Table.Td>{c.units}</Table.Td>
-                        <Table.Td>Q{c.revenue}</Table.Td>
-                        <Table.Td>Q{(Number(c.revenue) - Number(c.cogs)).toFixed(2)}</Table.Td>
+                        <Table.Td ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>{c.units}</Table.Td>
+                        <Table.Td ta="right"><Money value={c.revenue} decimals={2} /></Table.Td>
+                        <Table.Td ta="right"><Money value={Number(c.revenue) - Number(c.cogs)} decimals={2} /></Table.Td>
                       </Table.Tr>
                     ))}
                   </Table.Tbody>
@@ -217,14 +224,14 @@ export function BusinessReportPage() {
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>Método</Table.Th>
-                      <Table.Th>Total</Table.Th>
+                      <Table.Th ta="right">Total</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
                     {data.revenue_by_method.map((m) => (
                       <Table.Tr key={m.method}>
                         <Table.Td>{m.label}</Table.Td>
-                        <Table.Td>Q{m.revenue}</Table.Td>
+                        <Table.Td ta="right"><Money value={m.revenue} decimals={2} /></Table.Td>
                       </Table.Tr>
                     ))}
                   </Table.Tbody>
@@ -240,14 +247,14 @@ export function BusinessReportPage() {
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>Categoría</Table.Th>
-                      <Table.Th>Monto</Table.Th>
+                      <Table.Th ta="right">Monto</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
                     {data.expenses_by_category.map((e) => (
                       <Table.Tr key={e.category}>
                         <Table.Td>{e.label}</Table.Td>
-                        <Table.Td>Q{e.amount}</Table.Td>
+                        <Table.Td ta="right"><Money value={e.amount} decimals={2} /></Table.Td>
                       </Table.Tr>
                     ))}
                   </Table.Tbody>

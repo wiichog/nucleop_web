@@ -24,7 +24,7 @@ import {
 import { JoinRequest } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { PhoneInput } from "../components/PhoneInput";
-import { PageHeader } from "../components/ui";
+import { PageHeader, StatusBadge } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { sortRecords } from "../lib/sortRecords";
 
@@ -184,7 +184,7 @@ export function RequestsPage() {
 
   return (
     <div>
-      <PageHeader title="Solicitudes e invitaciones" subtitle="Resuelve solicitudes e invita atletas al gym." />
+      <PageHeader kicker="Usuarios · Bandeja" title="Solicitudes e invitaciones" subtitle="Resuelve solicitudes e invita atletas al gym." />
 
       <Card mb="lg" component="form" onSubmit={onInvite}>
         <Title order={3} mb="sm">
@@ -262,7 +262,12 @@ export function RequestsPage() {
           onSortStatusChange={setSortStatus}
           columns={[
             { accessor: "athlete_name", title: "Atleta", sortable: true },
-            { accessor: "status", title: "Estado", sortable: true },
+            {
+              accessor: "status",
+              title: "Estado",
+              sortable: true,
+              render: (r) => <StatusBadge kind="membership" status={r.status} />,
+            },
             { accessor: "goal", title: "Objetivo", render: (r) => r.goal || "—" },
             {
               accessor: "actions",

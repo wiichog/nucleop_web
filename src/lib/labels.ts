@@ -22,6 +22,38 @@ export const PAYMENT_STATUS: Record<string, string> = {
   overdue: "Vencido",
 };
 
+// Colores de estado centralizados (antes cada página tenía su propio mapa suelto).
+// Se consumen desde <StatusBadge>. Paleta Mantine curada hacia el semáforo de marca.
+export const MEMBERSHIP_STATUS_COLOR: Record<string, string> = {
+  active: "teal",
+  trial: "teal",
+  approved_no_plan: "teal",
+  drop_in: "cyan",
+  requested: "gray",
+  invited: "blue",
+  pending_approval: "yellow",
+  paused: "gray",
+  expired: "yellow",
+  overdue: "red",
+  rejected: "gray",
+  pending_leave: "orange",
+  former_member: "gray",
+  blocked: "red",
+};
+
+export const PAYMENT_STATUS_COLOR: Record<string, string> = {
+  up_to_date: "teal",
+  due_soon: "yellow",
+  overdue: "red",
+};
+
+export const PAYMENT_TX_STATUS_COLOR: Record<string, string> = {
+  succeeded: "teal",
+  pending: "yellow",
+  failed: "red",
+  refunded: "gray",
+};
+
 export const PAYMENT_TX_STATUS: Record<string, string> = {
   pending: "Pendiente",
   succeeded: "Exitoso",

@@ -142,6 +142,7 @@ export function CommunityPage() {
   return (
     <div>
       <PageHeader
+        kicker="Comunidad · Feed"
         title="Comunidad del gym"
         subtitle="Feed de PRs, badges, puntos, anuncios y destacados de tu comunidad."
       />

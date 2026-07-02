@@ -16,7 +16,7 @@ import { Download, Paperclip } from "lucide-react";
 import { useGymPayments, useMemberships, useRegisterManualPayment } from "../api/hooks";
 import type { Membership, Payment } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
-import { PageHeader } from "../components/ui";
+import { Money, PageHeader, StatusBadge } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
 import { sortRecords } from "../lib/sortRecords";
@@ -78,7 +78,7 @@ export function PaymentsPage() {
 
   return (
     <div>
-      <PageHeader title="Membresías" subtitle="Registra pagos de membresía y revisa el historial." />
+      <PageHeader kicker="Negocio · ERP" title="Membresías" subtitle="Registra pagos de membresía y revisa el historial." />
       {morosos.length > 0 && (
         <Card withBorder mb="lg">
           <Group justify="space-between" mb="sm">
@@ -110,7 +110,9 @@ export function PaymentsPage() {
               {
                 accessor: "effective_fee",
                 title: "Cuota",
-                render: (m) => (m.effective_fee ? `Q${m.effective_fee}` : "—"),
+                textAlign: "right",
+                render: (m) =>
+                  m.effective_fee ? <Money value={m.effective_fee} decimals={2} block /> : "—",
               },
             ]}
           />
@@ -227,7 +229,13 @@ export function PaymentsPage() {
                   render: (p) => new Date(p.created_at).toLocaleDateString("es-GT"),
                 },
                 { accessor: "concept", title: "Concepto", sortable: true },
-                { accessor: "amount", title: "Monto", sortable: true, render: (p) => `Q${p.amount}` },
+                {
+                  accessor: "amount",
+                  title: "Monto",
+                  sortable: true,
+                  textAlign: "right",
+                  render: (p) => <Money value={p.amount} decimals={2} block />,
+                },
                 {
                   accessor: "method",
                   title: "Método",
@@ -238,7 +246,7 @@ export function PaymentsPage() {
                   accessor: "status",
                   title: "Estado",
                   sortable: true,
-                  render: (p) => label(PAYMENT_TX_STATUS, p.status),
+                  render: (p) => <StatusBadge kind="paymentTx" status={p.status} size="sm" />,
                 },
                 {
                   accessor: "failure_message",

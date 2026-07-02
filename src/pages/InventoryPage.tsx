@@ -35,7 +35,8 @@ import {
 import type { ErpProduct, ProductOrder } from "../api/types";
 import { NoGymAssigned } from "../components/PageStatus";
 import { RowActions, type RowAction } from "../components/RowActions";
-import { PageHeader } from "../components/ui";
+import { Money, PageHeader } from "../components/ui";
+import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
 import { sortRecords } from "../lib/sortRecords";
 
@@ -94,7 +95,7 @@ export function InventoryPage() {
   const onRefund = (o: ProductOrder) => {
     if (
       !window.confirm(
-        `Devolver el pedido de ${o.athlete_name}. Se reembolsa Q${o.total} (precio del gym); el recargo de Nucleo NO se reembolsa. El dinero se entrega por fuera. ¿Continuar?`,
+        `Devolver el pedido de ${o.athlete_name}. Se reembolsa ${fmtQ(o.total, { decimals: 2 })} (precio del gym); el recargo de Nucleo NO se reembolsa. El dinero se entrega por fuera. ¿Continuar?`,
       )
     )
       return;
@@ -184,7 +185,7 @@ export function InventoryPage() {
 
   return (
     <div>
-      <PageHeader title="Inventario" subtitle="Productos para venta en recepción y su stock." />
+      <PageHeader kicker="Negocio · ERP" title="Inventario" subtitle="Productos para venta en recepción y su stock." />
       <Card mb="lg" component="form" onSubmit={onCreate}>
         <Title order={3} mb="sm">
           Nuevo producto
@@ -347,15 +348,33 @@ export function InventoryPage() {
               sortable: true,
               render: (p) => marketplaceBadge(p),
             },
-            { accessor: "sale_price", title: "Precio", sortable: true, render: (p) => `Q${p.sale_price}` },
-            { accessor: "cost_price", title: "Costo", sortable: true, render: (p) => `Q${p.cost_price}` },
-            { accessor: "margin_unit", title: "Margen", render: (p) => `Q${p.margin_unit}` },
+            {
+              accessor: "sale_price",
+              title: "Precio",
+              sortable: true,
+              textAlign: "right",
+              render: (p) => <Money value={p.sale_price} decimals={2} block />,
+            },
+            {
+              accessor: "cost_price",
+              title: "Costo",
+              sortable: true,
+              textAlign: "right",
+              render: (p) => <Money value={p.cost_price} decimals={2} block />,
+            },
+            {
+              accessor: "margin_unit",
+              title: "Margen",
+              textAlign: "right",
+              render: (p) => <Money value={p.margin_unit} decimals={2} block />,
+            },
             {
               accessor: "stock_qty",
               title: "Stock",
               sortable: true,
+              textAlign: "right",
               render: (p) => (
-                <Text c={p.needs_reorder ? "red" : undefined} size="sm">
+                <Text c={p.needs_reorder ? "red" : undefined} size="sm" style={{ fontVariantNumeric: "tabular-nums" }}>
                   {p.stock_qty}
                   {p.needs_reorder ? " ⚠" : ""}
                 </Text>
@@ -427,7 +446,7 @@ export function InventoryPage() {
                 </div>
               ),
             },
-            { accessor: "total", title: "Total", render: (o) => `Q${o.total}` },
+            { accessor: "total", title: "Total", textAlign: "right", render: (o) => <Money value={o.total} decimals={2} block /> },
             {
               accessor: "kind",
               title: "Tipo",

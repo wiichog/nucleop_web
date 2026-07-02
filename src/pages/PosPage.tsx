@@ -23,7 +23,8 @@ import {
 import type { ErpSale } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageLoading } from "../components/PageStatus";
-import { PageHeader } from "../components/ui";
+import { Money, PageHeader } from "../components/ui";
+import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
 
 interface CartLine {
@@ -44,7 +45,7 @@ export function PosPage() {
   const returnSale = useReturnErpSale(gymId);
 
   const onReturn = (s: ErpSale) => {
-    if (!window.confirm(`¿Devolver la venta por Q${s.total}? Regresa el stock al inventario.`)) return;
+    if (!window.confirm(`¿Devolver la venta por ${fmtQ(s.total, { decimals: 2 })}? Regresa el stock al inventario.`)) return;
     returnSale
       .mutateAsync({ id: s.id })
       .then(() => notifications.show({ color: "teal", message: "Devolución registrada." }))
@@ -124,7 +125,7 @@ export function PosPage() {
 
   return (
     <div>
-      <PageHeader title="Punto de venta (recepción)" subtitle="Registra ventas de productos y servicios." />
+      <PageHeader kicker="Negocio · ERP" title="Punto de venta (recepción)" subtitle="Registra ventas de productos y servicios." />
 
       <Card mb="lg">
         <Title order={3} mb="sm">
@@ -140,7 +141,7 @@ export function PosPage() {
             style={{ flex: 1, minWidth: 200 }}
             data={(products ?? [])
               .filter((p) => p.is_active)
-              .map((p) => ({ value: p.id, label: `${p.name} — Q${p.sale_price} (stock ${p.stock_qty})` }))}
+              .map((p) => ({ value: p.id, label: `${p.name} — ${fmtQ(p.sale_price)} (stock ${p.stock_qty})` }))}
           />
           <NumberInput label="Cantidad" value={qty} onChange={setQty} w={100} min={1} />
           <Button variant="default" onClick={addLine} disabled={!productId}>
@@ -156,9 +157,9 @@ export function PosPage() {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Producto</Table.Th>
-                <Table.Th>Cant.</Table.Th>
-                <Table.Th>Precio</Table.Th>
-                <Table.Th>Subtotal</Table.Th>
+                <Table.Th ta="right">Cant.</Table.Th>
+                <Table.Th ta="right">Precio</Table.Th>
+                <Table.Th ta="right">Subtotal</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
@@ -166,9 +167,9 @@ export function PosPage() {
               {cart.map((l, i) => (
                 <Table.Tr key={`${l.product_id}-${i}`}>
                   <Table.Td>{l.name}</Table.Td>
-                  <Table.Td>{l.qty}</Table.Td>
-                  <Table.Td>Q{l.unit_price}</Table.Td>
-                  <Table.Td>Q{(Number(l.unit_price) * l.qty).toFixed(2)}</Table.Td>
+                  <Table.Td ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>{l.qty}</Table.Td>
+                  <Table.Td ta="right"><Money value={l.unit_price} decimals={2} /></Table.Td>
+                  <Table.Td ta="right"><Money value={Number(l.unit_price) * l.qty} decimals={2} /></Table.Td>
                   <Table.Td>
                     <Button variant="subtle" color="red" size="xs" onClick={() => setCart((prev) => prev.filter((_, idx) => idx !== i))}>
                       Quitar
@@ -215,8 +216,8 @@ export function PosPage() {
             />
           </SimpleGrid>
           <Group justify="space-between" align="center" wrap="wrap">
-            <Text fw={700} fz="lg" ff='"Space Grotesk", sans-serif'>
-              Total: Q{total.toFixed(2)}
+            <Text fw={700} fz="lg" ff='"Space Grotesk", sans-serif' style={{ fontVariantNumeric: "tabular-nums" }}>
+              Total: {fmtQ(total, { decimals: 2 })}
             </Text>
             <Button onClick={submit} disabled={cart.length === 0} loading={createSale.isPending}>
               Registrar venta
@@ -243,8 +244,8 @@ export function PosPage() {
                 <Table.Tr>
                   <Table.Th>Fecha</Table.Th>
                   <Table.Th>Productos</Table.Th>
-                  <Table.Th>Total</Table.Th>
-                  <Table.Th>Margen</Table.Th>
+                  <Table.Th ta="right">Total</Table.Th>
+                  <Table.Th ta="right">Margen</Table.Th>
                   <Table.Th />
                 </Table.Tr>
               </Table.Thead>
@@ -262,8 +263,8 @@ export function PosPage() {
                         )}
                         {s.lines.map((l) => `${l.product_name} ×${Math.abs(l.qty)}`).join(", ")}
                       </Table.Td>
-                      <Table.Td>Q{s.total}</Table.Td>
-                      <Table.Td>Q{s.margin}</Table.Td>
+                      <Table.Td ta="right"><Money value={s.total} decimals={2} c={esDevolucion ? "orange" : undefined} /></Table.Td>
+                      <Table.Td ta="right"><Money value={s.margin} decimals={2} /></Table.Td>
                       <Table.Td>
                         {!esDevolucion && (
                           <Button

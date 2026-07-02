@@ -26,12 +26,13 @@ import {
 import type { CoachPayout } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { PageHeader } from "../components/ui";
+import { Money, PageHeader } from "../components/ui";
+import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
 import { sortRecords } from "../lib/sortRecords";
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : "");
-const money = (v: string | number) => `Q${Number(v).toFixed(2)}`;
+const money = (v: string | number) => fmtQ(v, { decimals: 2 });
 
 /** Nómina de coaches: forma de pago por coach + liquidaciones del periodo (Negocio/ERP). */
 export function CoachPayrollPage() {
@@ -87,6 +88,7 @@ export function CoachPayrollPage() {
   return (
     <div>
       <PageHeader
+        kicker="Negocio · Nómina"
         title="Pagos a coaches"
         subtitle="Define cómo se le paga a cada coach y genera las liquidaciones por periodo (registra la nómina como gasto)."
       />
@@ -333,8 +335,14 @@ export function CoachPayrollPage() {
           columns={[
             { accessor: "coach_email", title: "Coach", sortable: true },
             { accessor: "period_start", title: "Periodo", sortable: true, render: (p) => `${p.period_start} → ${p.period_end}` },
-            { accessor: "earnings_count", title: "Clases", sortable: true },
-            { accessor: "total", title: "Total", sortable: true, render: (p) => money(p.total) },
+            { accessor: "earnings_count", title: "Clases", sortable: true, textAlign: "right" },
+            {
+              accessor: "total",
+              title: "Total",
+              sortable: true,
+              textAlign: "right",
+              render: (p) => <Money value={p.total} decimals={2} block />,
+            },
             {
               accessor: "status",
               title: "Estado",

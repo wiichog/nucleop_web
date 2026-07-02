@@ -5,7 +5,7 @@ import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import { useCreateErpExpense, useErpExpenses } from "../api/hooks";
 import type { ErpExpense } from "../api/types";
 import { NoGymAssigned } from "../components/PageStatus";
-import { PageHeader } from "../components/ui";
+import { Money, PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { sortRecords } from "../lib/sortRecords";
 
@@ -51,7 +51,7 @@ export function ExpensesPage() {
 
   return (
     <div>
-      <PageHeader title="Gastos" subtitle="Registra los costos del gym para ver tu utilidad real." />
+      <PageHeader kicker="Negocio · ERP" title="Gastos" subtitle="Registra los costos del gym para ver tu utilidad real." />
       <Card mb="lg" component="form" onSubmit={onSubmit}>
         <Title order={3} mb="sm">
           Registrar gasto
@@ -103,7 +103,13 @@ export function ExpensesPage() {
             { accessor: "incurred_on", title: "Fecha", sortable: true },
             { accessor: "category", title: "Categoría", sortable: true },
             { accessor: "description", title: "Descripción", sortable: true, render: (e) => e.description || "—" },
-            { accessor: "amount", title: "Monto", sortable: true, render: (e) => `Q${e.amount}` },
+            {
+              accessor: "amount",
+              title: "Monto",
+              sortable: true,
+              textAlign: "right",
+              render: (e) => <Money value={e.amount} decimals={2} block />,
+            },
           ]}
         />
       </Card>

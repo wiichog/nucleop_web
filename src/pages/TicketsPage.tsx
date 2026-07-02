@@ -101,6 +101,7 @@ export function TicketsPage() {
   return (
     <div>
       <PageHeader
+        kicker="Operación · Soporte"
         title="Reportes / tickets"
         subtitle="Lo que reportan tus atletas; respóndelo y gestiónalo hasta resolver."
         action={

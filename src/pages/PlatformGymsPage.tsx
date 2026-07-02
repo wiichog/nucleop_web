@@ -21,6 +21,7 @@ import {
 import type { GymAdmin } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { PageHeader } from "../components/ui";
+import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
 import { sortRecords } from "../lib/sortRecords";
 
@@ -92,7 +93,7 @@ export function PlatformGymsPage() {
 
   return (
     <div>
-      <PageHeader title="Plataforma: gimnasios" subtitle="Alta y revisión de gimnasios conectados a Nucleo." />
+      <PageHeader kicker="Plataforma" title="Plataforma: gimnasios" subtitle="Alta y revisión de gimnasios conectados a Nucleo." />
 
       <Card mb="lg" component="form" onSubmit={submit}>
         <Title order={3} mb="sm">
@@ -172,9 +173,19 @@ export function PlatformGymsPage() {
             {
               accessor: "subscription",
               title: "Suscripción",
-              render: (g) => (g.subscription ? `Q${g.subscription.monthly_price} (${g.subscription.status})` : "—"),
+              render: (g) =>
+                g.subscription ? `${fmtQ(g.subscription.monthly_price)} (${g.subscription.status})` : "—",
             },
-            { accessor: "platform_commission_pct", title: "Comisión", sortable: true },
+            {
+              accessor: "platform_commission_pct",
+              title: "Comisión",
+              sortable: true,
+              textAlign: "right",
+              render: (g) =>
+                g.platform_commission_pct
+                  ? `${(Number(g.platform_commission_pct) * 100).toFixed(2)}%`
+                  : "—",
+            },
             { accessor: "fixed_fee", title: "Fee fijo", render: (g) => g.fixed_fee ?? "—" },
             { accessor: "is_public", title: "Público", sortable: true, render: (g) => (g.is_public ? "sí" : "no") },
             {

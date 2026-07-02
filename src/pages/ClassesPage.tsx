@@ -71,7 +71,7 @@ import type {
 } from "../api/types";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { RowActions } from "../components/RowActions";
-import { PageHeader } from "../components/ui";
+import { Money, PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { CLASS_STATUS, label } from "../lib/labels";
 import { sortRecords } from "../lib/sortRecords";
@@ -118,6 +118,7 @@ export function ClassesPage() {
   return (
     <div>
       <PageHeader
+        kicker="Operación · Programación"
         title="Clases y rutinas"
         subtitle="Define servicios, arma el horario semanal, registra asistencia y publica la rutina del día."
       />
@@ -246,7 +247,7 @@ function DropinsTab({ gymId }: { gymId: string }) {
             <Table.Tr>
               <Table.Th>Tipo</Table.Th>
               <Table.Th>Nombre</Table.Th>
-              <Table.Th>Precio</Table.Th>
+              <Table.Th ta="right">Precio</Table.Th>
               <Table.Th>Activo</Table.Th>
               <Table.Th />
             </Table.Tr>
@@ -256,7 +257,7 @@ function DropinsTab({ gymId }: { gymId: string }) {
               <Table.Tr key={p.id}>
                 <Table.Td>{p.type_label ?? dropinTypeLabel(p.type)}</Table.Td>
                 <Table.Td>{p.name || "—"}</Table.Td>
-                <Table.Td>Q{p.price}</Table.Td>
+                <Table.Td ta="right"><Money value={p.price} decimals={2} /></Table.Td>
                 <Table.Td>
                   <Switch
                     checked={p.is_active}

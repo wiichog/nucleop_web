@@ -33,7 +33,7 @@ import {
 } from "../api/hooks";
 import type { Plan, PlanOffer, ServiceType } from "../api/types";
 import { NoGymAssigned } from "../components/PageStatus";
-import { PageHeader } from "../components/ui";
+import { Money, PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { sortRecords } from "../lib/sortRecords";
 
@@ -143,7 +143,7 @@ export function PlansPage() {
 
   return (
     <div>
-      <PageHeader title="Planes y cuotas" subtitle="Crea planes, promociones y aplícalas al asignar." />
+      <PageHeader kicker="Usuarios · Cobro" title="Planes y cuotas" subtitle="Crea planes, promociones y aplícalas al asignar." />
 
       <Card mb="lg" component="form" onSubmit={onSubmit}>
         <Title order={3} mb="sm">
@@ -334,7 +334,13 @@ export function PlansPage() {
           onSortStatusChange={setSortPlans}
           columns={[
             { accessor: "name", title: "Plan", sortable: true },
-            { accessor: "price", title: "Precio", sortable: true, render: (p) => `Q${p.price}` },
+            {
+              accessor: "price",
+              title: "Precio",
+              sortable: true,
+              textAlign: "right",
+              render: (p) => <Money value={p.price} decimals={2} block />,
+            },
             { accessor: "duration_days", title: "Duración (días)", sortable: true },
             {
               accessor: "service_type_names",

@@ -45,7 +45,7 @@ export function ProfilePage() {
 
   return (
     <div>
-      <PageHeader title="Mi perfil" />
+      <PageHeader kicker="Cuenta" title="Mi perfil" />
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
         <Card>
           <Title order={3} mb="sm">

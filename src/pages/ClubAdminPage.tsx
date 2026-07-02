@@ -97,6 +97,7 @@ export function ClubAdminPage() {
   return (
     <div>
       <PageHeader
+        kicker="Mi club"
         title="Administrar club"
         subtitle={`Crea actividades, revisa RSVPs y confirma asistencia.${clubIds.length > 1 ? ` Club activo: ${clubId}` : ""}`}
       />
