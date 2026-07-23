@@ -81,6 +81,16 @@ export function useLogin() {
   });
 }
 
+export function useSocialLogin() {
+  return useMutation({
+    mutationFn: async (payload: { provider: "google" | "facebook"; token: string }) => {
+      const { data } = await api.post("/auth/social", payload);
+      tokenStore.set(data.access, data.refresh);
+      return data;
+    },
+  });
+}
+
 export function useMe() {
   return useQuery({
     queryKey: ["me"],

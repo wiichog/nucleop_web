@@ -4,15 +4,74 @@ import {
   Box,
   Button,
   Center,
+  Divider,
   Paper,
   PasswordInput,
   Stack,
   Text,
   TextInput,
 } from "@mantine/core";
-import { useLogin, usePasswordResetRequest } from "../api/hooks";
+import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
+import { useLogin, usePasswordResetRequest, useSocialLogin } from "../api/hooks";
 import { AtomLogo } from "../landing/AtomLogo";
 import { BRAND_VIDEO_URL } from "../lib/brand";
+import { loginWithFacebook } from "../lib/facebookAuth";
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID ?? "";
+
+function SocialLoginButtons({ onDone }: { onDone: () => void }) {
+  const socialLogin = useSocialLogin();
+  const [error, setError] = useState("");
+
+  const handleFacebook = async () => {
+    setError("");
+    try {
+      const token = await loginWithFacebook(FACEBOOK_APP_ID);
+      await socialLogin.mutateAsync({ provider: "facebook", token });
+      onDone();
+    } catch {
+      setError("No se pudo iniciar sesión con Facebook.");
+    }
+  };
+
+  if (!GOOGLE_CLIENT_ID && !FACEBOOK_APP_ID) return null;
+
+  return (
+    <Stack gap="sm" mt="md">
+      <Divider label="o continúa con" labelPosition="center" />
+      {GOOGLE_CLIENT_ID && (
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+          <Center>
+            <GoogleLogin
+              onSuccess={async (cred) => {
+                setError("");
+                if (!cred.credential) return;
+                try {
+                  await socialLogin.mutateAsync({ provider: "google", token: cred.credential });
+                  onDone();
+                } catch {
+                  setError("No se pudo iniciar sesión con Google.");
+                }
+              }}
+              onError={() => setError("No se pudo iniciar sesión con Google.")}
+            />
+          </Center>
+        </GoogleOAuthProvider>
+      )}
+      {FACEBOOK_APP_ID && (
+        <Button fullWidth variant="outline" color="blue" onClick={handleFacebook} loading={socialLogin.isPending}>
+          Continuar con Facebook
+        </Button>
+      )}
+      {error && (
+        <Text c="red" size="sm" ta="center">
+          {error}
+        </Text>
+      )}
+    </Stack>
+  );
+}
 
 function AuthBrand({ subtitle }: { subtitle: string }) {
   return (
@@ -144,6 +203,7 @@ export function LoginPage() {
                 Olvidé mi contraseña
               </Anchor>
             </Stack>
+            <SocialLoginButtons onDone={() => window.location.assign("/panel")} />
           </>
         )}
       </Paper>
