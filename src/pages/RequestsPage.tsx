@@ -26,6 +26,7 @@ import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { PhoneInput } from "../components/PhoneInput";
 import { PageHeader, StatusBadge } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { errMsg } from "../lib/errors";
 import { sortRecords } from "../lib/sortRecords";
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
@@ -80,7 +81,7 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
       { requestId: request.id, decision, comment },
       {
         onSuccess: () => ok(DECISION_MSG[decision]),
-        onError: () => fail("No se pudo completar la acción. Inténtalo de nuevo."),
+        onError: (error) => fail(errMsg(error, "No se pudo completar la acción. Inténtalo de nuevo.")),
       },
     );
 
@@ -91,7 +92,7 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
       { membershipId, planId, customFee, offerId: offerId ?? undefined },
       {
         onSuccess: () => ok("Plan asignado: el atleta ya es miembro activo."),
-        onError: () => fail("No se pudo asignar el plan. Inténtalo de nuevo."),
+        onError: (error) => fail(errMsg(error, "No se pudo asignar el plan. Inténtalo de nuevo.")),
       },
     );
 
@@ -131,6 +132,9 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
               placeholder="Selecciona plan"
               value={planId}
               onChange={setPlanId}
+              // Sin el catálogo el selector queda vacío y parece que el gym no
+              // tiene planes: hay que decir que la carga falló.
+              error={plans.isError ? "No se pudieron cargar los planes." : undefined}
               data={(plans.data ?? []).map((plan) => ({ value: plan.id, label: plan.name }))}
             />
             <TextInput size="xs" placeholder="Cuota personalizada" value={customFee} onChange={(e) => setCustomFee(e.currentTarget.value)} w={140} />
@@ -176,10 +180,16 @@ export function RequestsPage() {
 
   const onInvite = async (event: FormEvent) => {
     event.preventDefault();
-    await invite.mutateAsync({ ...form, trial_start: iso(trialStart), trial_end: iso(trialEnd) });
-    setForm({ email: "", first_name: "", last_name: "", phone: "" });
-    setTrialStart(null);
-    setTrialEnd(null);
+    // El error lo pinta `invite.isError` debajo del formulario; el catch existe
+    // para que el rechazo no quede sin dueño (promesa colgada en consola).
+    try {
+      await invite.mutateAsync({ ...form, trial_start: iso(trialStart), trial_end: iso(trialEnd) });
+      setForm({ email: "", first_name: "", last_name: "", phone: "" });
+      setTrialStart(null);
+      setTrialEnd(null);
+    } catch {
+      /* mensaje ya visible en el formulario */
+    }
   };
 
   return (

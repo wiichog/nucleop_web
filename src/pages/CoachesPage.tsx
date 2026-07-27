@@ -12,6 +12,7 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { DetailSheet } from "../components/DetailSheet";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
@@ -25,6 +26,7 @@ import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus"
 import { PageHeader } from "../components/ui";
 import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
+import { errMsg } from "../lib/errors";
 import { sortRecords } from "../lib/sortRecords";
 
 const money = (v: string | number) => fmtQ(v, { decimals: 2 });
@@ -62,6 +64,31 @@ export function CoachesPage() {
     } catch {
       setInvMsg("No se pudo invitar (¿correo ya activo como coach?).");
     }
+  };
+
+  /**
+   * Aprueba o rechaza que un coach se una al gym. Sin feedback, el admin tocaba
+   * "Aprobar", nada se movía y no sabía si había fallado o si el listado tardaba.
+   */
+  const onDecidir = (requestId: string, email: string, action: "approve" | "reject") => {
+    decideRequest.mutate(
+      { requestId, action },
+      {
+        onSuccess: () =>
+          notifications.show({
+            color: "teal",
+            message:
+              action === "approve"
+                ? `${email} ya es coach de tu gimnasio.`
+                : `Solicitud de ${email} rechazada.`,
+          }),
+        onError: (error) =>
+          notifications.show({
+            color: "red",
+            message: errMsg(error, "No se pudo resolver la solicitud del coach."),
+          }),
+      },
+    );
   };
 
   if (!gymId) return <NoGymAssigned />;
@@ -105,7 +132,14 @@ export function CoachesPage() {
         <Title order={4} mt="lg" mb="xs">
           Solicitudes de coaches
         </Title>
-        {requests.isLoading ? (
+        {/* Un fallo aquí decía "no hay solicitudes": el coach que aplicó se
+            quedaba esperando y el gym creía que nadie había pedido unirse. */}
+        {requests.isError ? (
+          <PageError
+            message="No se pudieron cargar las solicitudes de coaches."
+            onRetry={() => requests.refetch()}
+          />
+        ) : requests.isLoading ? (
           <PageLoading />
         ) : !(requests.data ?? []).length ? (
           <Text c="dimmed" size="sm">
@@ -135,7 +169,7 @@ export function CoachesPage() {
                         <Button
                           size="xs"
                           loading={decideRequest.isPending}
-                          onClick={() => decideRequest.mutate({ requestId: r.id, action: "approve" })}
+                          onClick={() => onDecidir(r.id, r.user_email, "approve")}
                         >
                           Aprobar
                         </Button>
@@ -144,7 +178,7 @@ export function CoachesPage() {
                           variant="default"
                           color="red"
                           loading={decideRequest.isPending}
-                          onClick={() => decideRequest.mutate({ requestId: r.id, action: "reject" })}
+                          onClick={() => onDecidir(r.id, r.user_email, "reject")}
                         >
                           Rechazar
                         </Button>

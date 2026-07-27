@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import { usePendingSummary } from "../api/hooks";
 import type { PendingSummary } from "../api/types";
-import { NAV_BADGE, PENDING_ITEMS } from "../lib/pending";
+import { PENDING_ITEMS, navBadgeCount } from "../lib/pending";
 import { useAuth } from "../lib/auth";
 import { AtomLogo } from "../landing/AtomLogo";
 import { ParticleSnow } from "../landing/ParticleSnow";
@@ -151,7 +151,17 @@ const GROUPS: NavGroup[] = [
 ];
 
 export function Layout() {
-  const { gymIds, clubIds, isSuperuser, email, primaryGymId, roles, setPrimaryGymId } = useAuth();
+  const {
+    gyms,
+    clubIds,
+    isSuperuser,
+    email,
+    primaryGymId,
+    primaryClubId,
+    roles,
+    setPrimaryGymId,
+    setPrimaryClubId,
+  } = useAuth();
   const [opened, { toggle, close }] = useDisclosure();
   const location = useLocation();
   const navigate = useNavigate();
@@ -208,8 +218,7 @@ export function Layout() {
               </Text>
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const badgeKey = NAV_BADGE[item.to];
-                const badgeCount = badgeKey ? counts?.[badgeKey] ?? 0 : 0;
+                const badgeCount = navBadgeCount(item.to, counts);
                 return (
                   <NavLink
                     key={item.to}
@@ -233,14 +242,26 @@ export function Layout() {
         </AppShell.Section>
 
         <AppShell.Section>
-          {gymIds.length > 1 && (
+          {(gyms.length > 1 || (isSuperuser && gyms.length > 0)) && (
             <Select
               mb="sm"
               size="sm"
+              searchable={gyms.length > 8}
               label="Gimnasio activo"
               value={primaryGymId ?? ""}
               onChange={(v) => v && setPrimaryGymId(v)}
-              data={gymIds.map((id) => ({ value: id, label: `Gym ${id.slice(0, 8)}` }))}
+              data={gyms.map((gym) => ({ value: gym.id, label: gym.name }))}
+              comboboxProps={{ withinPortal: true }}
+            />
+          )}
+          {clubIds.length > 1 && (
+            <Select
+              mb="sm"
+              size="sm"
+              label="Club activo"
+              value={primaryClubId ?? ""}
+              onChange={(v) => v && setPrimaryClubId(v)}
+              data={clubIds.map((id) => ({ value: id, label: `Club ${id.slice(0, 8)}` }))}
               comboboxProps={{ withinPortal: true }}
             />
           )}

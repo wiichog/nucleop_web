@@ -32,9 +32,10 @@ import {
   useUpdateServiceType,
 } from "../api/hooks";
 import type { Plan, PlanOffer, ServiceType } from "../api/types";
-import { NoGymAssigned } from "../components/PageStatus";
+import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { Money, PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { errMsg } from "../lib/errors";
 import { sortRecords } from "../lib/sortRecords";
 
 const OFFER_LABEL: Record<string, string> = { percent: "Descuento %", free_months: "Meses gratis" };
@@ -43,7 +44,8 @@ const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
 export function PlansPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
-  const { data, isLoading } = usePlans(gymId);
+  const plansQuery = usePlans(gymId);
+  const { data, isLoading } = plansQuery;
   const serviceTypes = useServiceTypes(gymId);
   const serviceOptions = useMemo(
     () => (serviceTypes.data ?? []).map((s) => ({ value: s.id, label: s.name })),
@@ -106,37 +108,49 @@ export function PlansPage() {
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const points = Number(noshowPoints);
-    await createPlan.mutateAsync({
-      name,
-      price,
-      duration_days: Number(durationDays) || 30,
-      class_limit: classLimit ? Number(classLimit) : null,
-      special_classes_access: specialAccess,
-      open_gym_access: openGym,
-      service_types: planServices,
-      noshow_penalty:
-        Number.isFinite(points) && points !== 0
-          ? { community_points: points, notify: true, message: "Penalización por no asistir a clase reservada." }
-          : null,
-    });
-    setName("");
-    setPrice("");
-    setClassLimit("");
-    setPlanServices([]);
+    // Sin catch, un rechazo del backend (precio inválido, nombre repetido) dejaba
+    // la promesa sin dueño: el formulario no se limpiaba y nadie decía por qué.
+    try {
+      await createPlan.mutateAsync({
+        name,
+        price,
+        duration_days: Number(durationDays) || 30,
+        class_limit: classLimit ? Number(classLimit) : null,
+        special_classes_access: specialAccess,
+        open_gym_access: openGym,
+        service_types: planServices,
+        noshow_penalty:
+          Number.isFinite(points) && points !== 0
+            ? { community_points: points, notify: true, message: "Penalización por no asistir a clase reservada." }
+            : null,
+      });
+      notifications.show({ color: "teal", message: `Plan "${name}" creado.` });
+      setName("");
+      setPrice("");
+      setClassLimit("");
+      setPlanServices([]);
+    } catch (error) {
+      notifications.show({ color: "red", message: errMsg(error, "No se pudo crear el plan.") });
+    }
   };
 
   const onCreateOffer = async (event: FormEvent) => {
     event.preventDefault();
-    await createOffer.mutateAsync({
-      name: offerName,
-      offer_type: offerType,
-      value: offerValue,
-      plan: offerPlan || null,
-      valid_from: iso(offerFrom),
-      valid_to: iso(offerTo),
-    });
-    setOfferName("");
-    setOfferValue("");
+    try {
+      await createOffer.mutateAsync({
+        name: offerName,
+        offer_type: offerType,
+        value: offerValue,
+        plan: offerPlan || null,
+        valid_from: iso(offerFrom),
+        valid_to: iso(offerTo),
+      });
+      notifications.show({ color: "teal", message: `Oferta "${offerName}" creada.` });
+      setOfferName("");
+      setOfferValue("");
+    } catch (error) {
+      notifications.show({ color: "red", message: errMsg(error, "No se pudo crear la oferta.") });
+    }
   };
 
   if (!gymId) return <NoGymAssigned />;
@@ -144,6 +158,15 @@ export function PlansPage() {
   return (
     <div>
       <PageHeader kicker="Usuarios · Cobro" title="Planes y cuotas" subtitle="Crea planes, promociones y aplícalas al asignar." />
+
+      {/* Sin esto, un fallo de carga se veía igual que "todavía no tienes planes"
+          y el gym creaba duplicados encima de los que ya existían. */}
+      {plansQuery.isError && (
+        <PageError
+          message="No se pudieron cargar los planes del gimnasio."
+          onRetry={() => plansQuery.refetch()}
+        />
+      )}
 
       <Card mb="lg" component="form" onSubmit={onSubmit}>
         <Title order={3} mb="sm">
@@ -185,7 +208,12 @@ export function PlansPage() {
           <b>pendientes</b>. Defínele su cobro (incluido o pago extra), asígnalo a uno o más planes
           y actívalo para poder agendarlo y mostrarlo a tus atletas.
         </Text>
-        {serviceTypes.isLoading ? (
+        {serviceTypes.isError ? (
+          <PageError
+            message="No se pudieron cargar los servicios del catálogo."
+            onRetry={() => serviceTypes.refetch()}
+          />
+        ) : serviceTypes.isLoading ? (
           <Text c="dimmed" size="sm">Cargando servicios…</Text>
         ) : !(serviceTypes.data ?? []).length ? (
           <Text c="dimmed" size="sm">
@@ -272,6 +300,12 @@ export function PlansPage() {
         <Title order={3} mb="sm">
           Ofertas
         </Title>
+        {offers.isError && (
+          <PageError
+            message="No se pudieron cargar las ofertas."
+            onRetry={() => offers.refetch()}
+          />
+        )}
         <DataTable<PlanOffer>
           minHeight={140}
           highlightOnHover

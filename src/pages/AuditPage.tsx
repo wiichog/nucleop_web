@@ -1,9 +1,11 @@
 import { Button, Card, Table, Text } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { Download } from "lucide-react";
 import { useAuditLogs, useExportAudit } from "../api/hooks";
-import { NoGymAssigned } from "../components/PageStatus";
+import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { errMsg } from "../lib/errors";
 import { AUDIT_ACTION, AUDIT_ENTITY, AUDIT_ROLE, label } from "../lib/labels";
 
 function describe(log: { action: string; entity: string }): string {
@@ -48,14 +50,31 @@ export function AuditPage() {
             variant="default"
             leftSection={<Download size={16} />}
             loading={exportAudit.isPending}
-            onClick={() => exportAudit.mutate()}
+            onClick={() =>
+              exportAudit.mutate(undefined, {
+                onError: (error) =>
+                  notifications.show({
+                    color: "red",
+                    message: errMsg(error, "No se pudo exportar la bitácora."),
+                  }),
+              })
+            }
           >
             Exportar CSV
           </Button>
         }
       />
       <Card>
-        {(logs.data ?? []).length === 0 ? (
+        {/* La bitácora es la prueba de quién hizo qué: decir "sin actividad"
+            cuando en realidad falló la carga es peor que no mostrarla. */}
+        {logs.isError ? (
+          <PageError
+            message="No se pudo cargar la bitácora del gimnasio."
+            onRetry={() => logs.refetch()}
+          />
+        ) : logs.isLoading ? (
+          <PageLoading label="Cargando la bitácora…" />
+        ) : (logs.data ?? []).length === 0 ? (
           <Text c="dimmed" size="sm">
             Sin actividad registrada.
           </Text>

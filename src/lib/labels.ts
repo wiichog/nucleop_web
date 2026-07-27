@@ -80,6 +80,13 @@ export const CLASS_STATUS: Record<string, string> = {
   completed: "Finalizada",
 };
 
+export const CHECKIN_METHOD: Record<string, string> = {
+  athlete_qr: "QR del atleta",
+  class_qr: "QR de la clase",
+  manual: "Validación del coach",
+  reception: "Recepción",
+};
+
 export const CLUB_STATUS: Record<string, string> = {
   pending: "Pendiente",
   approved: "Aprobado",

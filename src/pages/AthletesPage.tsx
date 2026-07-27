@@ -8,32 +8,57 @@ import {
   Card,
   Group,
   Menu,
+  Modal,
+  NumberInput,
+  Popover,
   SegmentedControl,
+  Select,
   SimpleGrid,
+  Switch,
   Table,
   Text,
+  Textarea,
   TextInput,
   Title,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
-import { Bell, Download, Eye, KeyRound, LogOut, Mail, MoreVertical, Smartphone } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import {
+  Bell,
+  Download,
+  Eye,
+  KeyRound,
+  LogOut,
+  Mail,
+  MoreVertical,
+  Pause,
+  Play,
+  Settings2,
+  Smartphone,
+} from "lucide-react";
 import {
   useAtRisk,
   useEditAthleteProfile,
+  useGymConfig,
   useGymLeaveDecision,
   useMembershipDetail,
   useMemberships,
+  usePauseMembership,
   useResetAthletePassword,
+  useResumeMembership,
   useSendReminder,
+  useUpdateGymConfig,
+  useUpdateMembershipBilling,
 } from "../api/hooks";
 import { DetailSheet } from "../components/DetailSheet";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PhoneInput } from "../components/PhoneInput";
-import { Money, PageHeader, StatusBadge } from "../components/ui";
+import { Money, PageHeader, SectionLabel, StatusBadge } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
+import { errMsg } from "../lib/errors";
 import { MEMBERSHIP_STATUS, PAYMENT_METHOD, PAYMENT_STATUS, label } from "../lib/labels";
 import { sortRecords } from "../lib/sortRecords";
 import type { Membership } from "../api/types";
@@ -87,9 +112,19 @@ export function AthletesPage() {
   const resetPassword = useResetAthletePassword(gymId);
   const sendReminder = useSendReminder(gymId);
   const editProfile = useEditAthleteProfile(gymId);
+  const updateBilling = useUpdateMembershipBilling(gymId);
   const leaveDecision = useGymLeaveDecision(gymId);
   const atRisk = useAtRisk(gymId);
-  const [filtro, setFiltro] = useState("todos");
+  const pause = usePauseMembership(gymId);
+  const resume = useResumeMembership(gymId);
+  const gymConfig = useGymConfig(gymId);
+  const updateGymConfig = useUpdateGymConfig(gymId);
+  // El filtro vive en la URL: así los pendientes ("bajas por confirmar",
+  // "morosos") abren el padrón YA filtrado en vez de dejar al admin buscando.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filtro = searchParams.get("filtro") ?? "todos";
+  const setFiltro = (v: string) =>
+    setSearchParams(v && v !== "todos" ? { filtro: v } : {}, { replace: true });
   const [search, setSearch] = useState("");
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<Membership>>({
     // Por defecto: morosos primero (orden de prioridad de pago). Al tocar una
@@ -113,8 +148,152 @@ export function AthletesPage() {
     });
   }, [detail.data?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cobro de la relación: el plan trae `auto_renew_default`, pero el gym necesita
+  // corregirlo por atleta (el que sí quiere cobro automático, el que paga en caja).
+  type MetodoCobro = "card" | "cash" | "bank_transfer";
+  const [billing, setBilling] = useState<{ auto_renew: boolean; payment_method_pref: MetodoCobro }>({
+    auto_renew: false,
+    payment_method_pref: "cash",
+  });
+  useEffect(() => {
+    const m = detail.data;
+    if (!m) return;
+    setBilling({
+      auto_renew: !!m.auto_renew,
+      payment_method_pref: (m.payment_method_pref as MetodoCobro) ?? "cash",
+    });
+  }, [detail.data?.id, detail.data?.auto_renew, detail.data?.payment_method_pref]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Congelamiento: el motivo es nota INTERNA del gym (no viaja al atleta) y la
+  // fecha de retorno es opcional (muchas veces no se sabe cuándo vuelve).
+  const [pauseOpen, setPauseOpen] = useState(false);
+  const [pauseForm, setPauseForm] = useState({ reason: "", return_date: "" });
+
+  // Umbral de riesgo del gym: días sin asistir A ESTE gym para marcar "en riesgo".
+  // Vive junto al filtro porque es el número que define quién sale en esa lista.
+  const [riesgoOpen, setRiesgoOpen] = useState(false);
+  const [riesgoDias, setRiesgoDias] = useState<number | string>(10);
+  useEffect(() => {
+    if (gymConfig.data?.risk_inactivity_days) setRiesgoDias(gymConfig.data.risk_inactivity_days);
+  }, [gymConfig.data?.risk_inactivity_days]);
+  // Gracia de morosidad: días de mora que el gym tolera antes del corte. Define
+  // quién cae en el filtro "Morosos", así que se configura en el mismo lugar.
+  const [graciaDias, setGraciaDias] = useState<number | string>(30);
+  useEffect(() => {
+    if (gymConfig.data?.overdue_grace_days) setGraciaDias(gymConfig.data.overdue_grace_days);
+  }, [gymConfig.data?.overdue_grace_days]);
+
   const ok = (m: string) => notifications.show({ color: "teal", message: m });
   const fail = (m: string) => notifications.show({ color: "red", message: m });
+
+  /**
+   * Congela la relación (viaje, ausencia prolongada). El vencimiento NO se mueve
+   * al pausar: el backend lo corre al reanudar por los días exactos que duró la
+   * pausa, así el atleta no pierde lo que ya pagó. Solo aplica a membresías
+   * ACTIVAS (es la única transición legal hacia "pausada").
+   */
+  const onPausar = async (nombre: string) => {
+    try {
+      await pause.mutateAsync({
+        membershipId: selectedMembershipId,
+        reason: pauseForm.reason.trim(),
+        return_date: pauseForm.return_date || null,
+      });
+      setPauseOpen(false);
+      ok(`Membresía de ${nombre} congelada. Al reanudar se le devuelven los días pausados.`);
+    } catch (error) {
+      fail(errMsg(error, "No se pudo congelar la membresía."));
+    }
+  };
+
+  const onReanudar = async (nombre: string) => {
+    if (
+      !window.confirm(
+        `¿Reanudar la membresía de ${nombre}? El vencimiento se correrá los días que estuvo congelada.`,
+      )
+    )
+      return;
+    try {
+      await resume.mutateAsync(selectedMembershipId);
+      ok("Membresía reanudada. El vencimiento se corrió los días de la pausa.");
+    } catch (error) {
+      fail(errMsg(error, "No se pudo reanudar la membresía."));
+    }
+  };
+
+  /**
+   * Guarda el umbral de riesgo y VERIFICA contra la respuesta: si la API no lo
+   * aplicó, no se canta éxito (mismo criterio que la preferencia de cobro).
+   */
+  const onGuardarRiesgo = async () => {
+    const dias = Number(riesgoDias);
+    if (!Number.isFinite(dias) || dias < 1 || dias > 365) {
+      fail("El umbral debe estar entre 1 y 365 días.");
+      return;
+    }
+    try {
+      const saved = await updateGymConfig.mutateAsync({ risk_inactivity_days: dias });
+      if (saved.risk_inactivity_days !== dias) {
+        setRiesgoDias(saved.risk_inactivity_days ?? dias);
+        fail("La API no guardó el umbral de riesgo. Avisa a soporte de Nucleo.");
+        return;
+      }
+      setRiesgoOpen(false);
+      ok(`Umbral de riesgo actualizado: ${dias} días sin asistir.`);
+    } catch (error) {
+      fail(errMsg(error, "No se pudo guardar el umbral de riesgo."));
+    }
+  };
+
+  /**
+   * Guarda la gracia de morosidad (días de mora tolerados antes del corte) y
+   * VERIFICA contra la respuesta, igual que el umbral de riesgo.
+   */
+  const onGuardarGracia = async () => {
+    const dias = Number(graciaDias);
+    if (!Number.isFinite(dias) || dias < 1 || dias > 365) {
+      fail("La gracia debe estar entre 1 y 365 días.");
+      return;
+    }
+    try {
+      const saved = await updateGymConfig.mutateAsync({ overdue_grace_days: dias });
+      if (saved.overdue_grace_days !== dias) {
+        setGraciaDias(saved.overdue_grace_days ?? dias);
+        fail("La API no guardó la gracia de morosidad. Avisa a soporte de Nucleo.");
+        return;
+      }
+      setRiesgoOpen(false);
+      ok(`Gracia de morosidad actualizada: ${dias} días.`);
+    } catch (error) {
+      fail(errMsg(error, "No se pudo guardar la gracia de morosidad."));
+    }
+  };
+
+  /**
+   * Guarda la preferencia de cobro y VERIFICA contra la respuesta del servidor:
+   * si la API ignoró el campo, se revierte el switch en vez de cantar un éxito
+   * falso (el error clásico de "parece hecho pero no lo está").
+   */
+  const onBillingChange = async (patch: Partial<typeof billing>) => {
+    const anterior = billing;
+    setBilling({ ...billing, ...patch });
+    try {
+      const saved = await updateBilling.mutateAsync({ membershipId: selectedMembershipId, ...patch });
+      const aplicado =
+        (patch.auto_renew === undefined || !!saved.auto_renew === patch.auto_renew) &&
+        (patch.payment_method_pref === undefined ||
+          saved.payment_method_pref === patch.payment_method_pref);
+      if (!aplicado) {
+        setBilling(anterior);
+        fail("La API no guardó la preferencia de cobro. Avisa a soporte de Nucleo.");
+        return;
+      }
+      ok("Preferencia de cobro actualizada.");
+    } catch (error) {
+      setBilling(anterior);
+      fail(errMsg(error, "No se pudo actualizar la preferencia de cobro."));
+    }
+  };
 
   const onResetPassword = async (membershipId: string, name: string) => {
     if (!window.confirm(`¿Enviar restablecimiento de contraseña a ${name}? Se le pedirá cambiarla al ingresar.`))
@@ -122,8 +301,8 @@ export function AthletesPage() {
     try {
       await resetPassword.mutateAsync(membershipId);
       ok(`Se envió el restablecimiento a ${name}.`);
-    } catch {
-      fail("No se pudo enviar el restablecimiento.");
+    } catch (error) {
+      fail(errMsg(error, "No se pudo enviar el restablecimiento."));
     }
   };
 
@@ -136,9 +315,35 @@ export function AthletesPage() {
     try {
       await sendReminder.mutateAsync({ membershipId, channel });
       ok(`Recordatorio enviado a ${name} ${medio}.`);
-    } catch {
-      fail("No se pudo enviar el recordatorio.");
+    } catch (error) {
+      fail(errMsg(error, "No se pudo enviar el recordatorio."));
     }
+  };
+
+  /**
+   * Handoff de baja (aprobar / cancelar). Antes se disparaba con `mutate` pelado:
+   * si el backend rechazaba la transición, la fila no cambiaba y el admin no veía
+   * nada — el clásico "parece hecho pero no lo está".
+   */
+  const onLeave = (m: Membership, action: "approve" | "cancel") => {
+    leaveDecision.mutate(
+      { membershipId: m.id, action },
+      {
+        onSuccess: () =>
+          ok(
+            action === "approve"
+              ? `Baja confirmada. ${m.athlete_name} ya no es miembro del gimnasio.`
+              : `Baja cancelada. ${m.athlete_name} sigue siendo miembro.`,
+          ),
+        onError: (error) =>
+          fail(
+            errMsg(
+              error,
+              action === "approve" ? "No se pudo confirmar la baja." : "No se pudo cancelar la baja.",
+            ),
+          ),
+      },
+    );
   };
 
   const onDesligar = (m: Membership) => {
@@ -152,7 +357,7 @@ export function AthletesPage() {
       { membershipId: m.id, action: "request" },
       {
         onSuccess: () => ok(`Baja solicitada a ${m.athlete_name}. Queda pendiente de su confirmación.`),
-        onError: () => fail("No se pudo solicitar la baja."),
+        onError: (error) => fail(errMsg(error, "No se pudo solicitar la baja.")),
       },
     );
   };
@@ -170,8 +375,8 @@ export function AthletesPage() {
             : null,
       });
       ok("Perfil del atleta actualizado.");
-    } catch {
-      fail("No se pudo actualizar el perfil.");
+    } catch (error) {
+      fail(errMsg(error, "No se pudo actualizar el perfil."));
     }
   };
 
@@ -185,6 +390,9 @@ export function AthletesPage() {
     if (filtro === "morosos" && m.payment_status !== "overdue") return false;
     if (filtro === "por_vencer" && m.payment_status !== "due_soon") return false;
     if (filtro === "en_riesgo" && !atRiskIds.has(m.id)) return false;
+    if (filtro === "pausadas" && m.status !== "paused") return false;
+    // Baja pedida por el atleta: espera que el gym la confirme o la cancele.
+    if (filtro === "bajas" && (m.status as string) !== "pending_leave") return false;
     if (q && !(m.athlete_name ?? "").toLowerCase().includes(q) && !(m.plan_name ?? "").toLowerCase().includes(q))
       return false;
     return true;
@@ -239,8 +447,85 @@ export function AthletesPage() {
               { label: `Morosos`, value: "morosos" },
               { label: "Por vencer", value: "por_vencer" },
               { label: "En riesgo", value: "en_riesgo" },
+              { label: "Bajas", value: "bajas" },
+              { label: "Congeladas", value: "pausadas" },
             ]}
           />
+          {/* Riesgo y mora definen QUIÉN cae en esos filtros: se configuran aquí
+              mismo, no en una pantalla aparte donde nadie lo relacionaría. */}
+          <Popover opened={riesgoOpen} onChange={setRiesgoOpen} position="bottom-start" withArrow withinPortal>
+            <Popover.Target>
+              <Button
+                variant="default"
+                size="sm"
+                leftSection={<Settings2 size={15} />}
+                onClick={() => setRiesgoOpen((v) => !v)}
+              >
+                Riesgo {gymConfig.data?.risk_inactivity_days ?? 10} d · mora{" "}
+                {gymConfig.data?.overdue_grace_days ?? 30} d
+              </Button>
+            </Popover.Target>
+            <Popover.Dropdown>
+              <Text size="sm" fw={600} mb={4}>
+                Umbral de riesgo del gimnasio
+              </Text>
+              <Text size="xs" c="dimmed" mb="sm" maw={280}>
+                Días sin asistir <strong>a este gimnasio</strong> para marcar a un atleta activo
+                como “en riesgo”. Un box diario detecta la fuga antes que un estudio de dos
+                sesiones por semana.
+              </Text>
+              <Group gap="xs" align="flex-end" wrap="nowrap">
+                <NumberInput
+                  label="Días"
+                  min={1}
+                  max={365}
+                  clampBehavior="strict"
+                  value={riesgoDias}
+                  onChange={setRiesgoDias}
+                  disabled={gymConfig.isLoading || updateGymConfig.isPending}
+                  w={110}
+                />
+                <Button loading={updateGymConfig.isPending} onClick={onGuardarRiesgo}>
+                  Guardar
+                </Button>
+              </Group>
+
+              {/* La otra política que define una de estas listas: cuántos días de
+                  mora se toleran antes de que la membresía quede morosa. */}
+              <Text size="sm" fw={600} mt="lg" mb={4}>
+                Gracia de morosidad
+              </Text>
+              <Text size="xs" c="dimmed" mb="sm" maw={280}>
+                Días de atraso que tolera el gimnasio antes de cortar el acceso y marcar la
+                membresía como morosa.
+              </Text>
+              <Group gap="xs" align="flex-end" wrap="nowrap">
+                <NumberInput
+                  label="Días"
+                  min={1}
+                  max={365}
+                  clampBehavior="strict"
+                  value={graciaDias}
+                  onChange={setGraciaDias}
+                  disabled={gymConfig.isLoading || updateGymConfig.isPending}
+                  w={110}
+                />
+                <Button
+                  variant="default"
+                  loading={updateGymConfig.isPending}
+                  onClick={onGuardarGracia}
+                >
+                  Guardar
+                </Button>
+              </Group>
+              {gymConfig.isError && (
+                <Text size="xs" c="red" mt="xs" maw={280}>
+                  No se pudo leer la configuración del gimnasio; se muestran los valores por
+                  defecto.
+                </Text>
+              )}
+            </Popover.Dropdown>
+          </Popover>
           <TextInput
             placeholder="Buscar atleta o plan…"
             value={search}
@@ -252,6 +537,17 @@ export function AthletesPage() {
           {rows.length} {rows.length === 1 ? "atleta" : "atletas"}
         </Text>
       </Group>
+
+      {/* Sin la lista de riesgo el filtro "En riesgo" sale vacío y parece que no hay
+          nadie en riesgo: hay que decir que es un fallo de carga, no un dato. */}
+      {filtro === "en_riesgo" && atRisk.isError && (
+        <Card mb="md">
+          <PageError
+            message="No se pudo cargar la lista de atletas en riesgo."
+            onRetry={() => atRisk.refetch()}
+          />
+        </Card>
+      )}
 
       <Card>
         <DataTable<Membership>
@@ -346,15 +642,15 @@ export function AthletesPage() {
                       {pendingLeave &&
                         (fromAthlete ? (
                           <>
-                            <Button size="xs" color="red" loading={leaveDecision.isPending} onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "approve" })}>
+                            <Button size="xs" color="red" loading={leaveDecision.isPending} onClick={() => onLeave(m, "approve")}>
                               Confirmar baja
                             </Button>
-                            <Button size="xs" variant="default" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
+                            <Button size="xs" variant="default" onClick={() => onLeave(m, "cancel")}>
                               Cancelar
                             </Button>
                           </>
                         ) : (
-                          <Button size="xs" variant="default" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
+                          <Button size="xs" variant="default" onClick={() => onLeave(m, "cancel")}>
                             Cancelar baja propuesta
                           </Button>
                         ))}
@@ -393,15 +689,15 @@ export function AthletesPage() {
                         {pendingLeave &&
                           (fromAthlete ? (
                             <>
-                              <Menu.Item color="red" onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "approve" })}>
+                              <Menu.Item color="red" onClick={() => onLeave(m, "approve")}>
                                 Confirmar baja
                               </Menu.Item>
-                              <Menu.Item onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
+                              <Menu.Item onClick={() => onLeave(m, "cancel")}>
                                 Cancelar baja
                               </Menu.Item>
                             </>
                           ) : (
-                            <Menu.Item onClick={() => leaveDecision.mutate({ membershipId: m.id, action: "cancel" })}>
+                            <Menu.Item onClick={() => onLeave(m, "cancel")}>
                               Cancelar baja propuesta
                             </Menu.Item>
                           ))}
@@ -421,7 +717,13 @@ export function AthletesPage() {
         title="Ficha del atleta"
         size={580}
       >
-        {!detail.data ? (
+        {detail.isError ? (
+          // Antes un fallo de la ficha dejaba el loader girando para siempre.
+          <PageError
+            message={errMsg(detail.error, "No se pudo cargar la ficha del atleta.")}
+            onRetry={() => detail.refetch()}
+          />
+        ) : !detail.data ? (
           <PageLoading label="Cargando ficha…" />
         ) : (
         <>
@@ -498,6 +800,94 @@ export function AthletesPage() {
               <strong>Notas internas:</strong> {detail.data.internal_notes || "Sin notas"}
             </Text>
           </SimpleGrid>
+
+          <SectionLabel mt="lg">Cobro y renovación</SectionLabel>
+          <Card withBorder padding="sm">
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+              <Switch
+                label="Renovación automática"
+                description={
+                  billing.auto_renew
+                    ? "Genera el cobro del siguiente ciclo 3 días antes de vencer."
+                    : "Al vencer no se genera cobro: hay que registrarlo a mano."
+                }
+                checked={billing.auto_renew}
+                disabled={updateBilling.isPending}
+                onChange={(e) => onBillingChange({ auto_renew: e.currentTarget.checked })}
+              />
+              <Select
+                label="Método de cobro preferido"
+                description="Con tarjeta el cobro va por Pagalo: el atleta paga la cuota + el recargo."
+                value={billing.payment_method_pref}
+                disabled={updateBilling.isPending}
+                onChange={(v) =>
+                  v && onBillingChange({ payment_method_pref: v as typeof billing.payment_method_pref })
+                }
+                data={[
+                  { value: "card", label: "Tarjeta" },
+                  { value: "cash", label: "Efectivo" },
+                  { value: "bank_transfer", label: "Transferencia" },
+                ]}
+                comboboxProps={{ withinPortal: true }}
+              />
+            </SimpleGrid>
+          </Card>
+
+          <SectionLabel mt="lg">Congelamiento</SectionLabel>
+          <Card withBorder padding="sm">
+            {detail.data.status === "paused" ? (
+              <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <Text size="sm" fw={600}>
+                    Congelada
+                    {detail.data.paused_at ? ` desde el ${detail.data.paused_at}` : ""}.
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    {detail.data.pause_until
+                      ? `Retorno previsto: ${detail.data.pause_until}.`
+                      : "Sin fecha de retorno prevista."}{" "}
+                    {detail.data.pause_reason
+                      ? `Motivo: ${detail.data.pause_reason}`
+                      : "Sin motivo registrado."}
+                  </Text>
+                  <Text size="xs" c="dimmed" mt={4}>
+                    Congelada no reserva clases ni genera cobros. Al reanudar, el vencimiento se
+                    corre los días que duró la pausa.
+                  </Text>
+                </div>
+                <Button
+                  leftSection={<Play size={16} />}
+                  loading={resume.isPending}
+                  onClick={() => onReanudar(detail.data!.athlete_name)}
+                >
+                  Reanudar membresía
+                </Button>
+              </Group>
+            ) : detail.data.status === "active" ? (
+              <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
+                <Text size="sm" c="dimmed" style={{ flex: 1, minWidth: 220 }}>
+                  Congela la relación por viaje o ausencia prolongada: deja de reservar clases y de
+                  generar cobros, y al reanudar recupera exactamente los días de plan que le
+                  quedaban.
+                </Text>
+                <Button
+                  variant="default"
+                  leftSection={<Pause size={16} />}
+                  onClick={() => {
+                    setPauseForm({ reason: "", return_date: "" });
+                    setPauseOpen(true);
+                  }}
+                >
+                  Congelar membresía
+                </Button>
+              </Group>
+            ) : (
+              <Text size="sm" c="dimmed">
+                Solo se puede congelar una membresía activa. Esta está{" "}
+                {label(MEMBERSHIP_STATUS, detail.data.status).toLowerCase()}.
+              </Text>
+            )}
+          </Card>
 
           <Accordion variant="separated" mt="md">
             <Accordion.Item value="edit">
@@ -583,6 +973,59 @@ export function AthletesPage() {
         </>
         )}
       </DetailSheet>
+
+      {/* Congelar: motivo + retorno previsto y confirmación explícita. Vive fuera
+          del sheet para que el modal quede por encima del drawer. */}
+      <Modal
+        opened={pauseOpen}
+        onClose={() => setPauseOpen(false)}
+        title={`Congelar la membresía de ${detail.data?.athlete_name ?? "este atleta"}`}
+        centered
+        /* Por encima del drawer de la ficha (z-index 200 por defecto). */
+        zIndex={400}
+      >
+        <Text size="sm" c="dimmed" mb="md">
+          Mientras esté congelada no podrá reservar clases ni se le generarán cobros. Al reanudar,
+          el vencimiento se corre exactamente los días que duró la pausa: no pierde lo que ya pagó.
+        </Text>
+        <Textarea
+          label="Motivo (nota interna)"
+          description="Solo lo ve tu equipo: no se le muestra al atleta."
+          placeholder="Viaje de dos semanas, acuerdo con el atleta…"
+          maxLength={200}
+          autosize
+          minRows={2}
+          value={pauseForm.reason}
+          onChange={(e) => setPauseForm({ ...pauseForm, reason: e.currentTarget.value })}
+          mb="sm"
+        />
+        <DateInput
+          label="Retorno previsto (opcional)"
+          description="Debe ser posterior a hoy. Déjalo vacío si aún no se sabe."
+          valueFormat="YYYY-MM-DD"
+          clearable
+          minDate={new Date(Date.now() + 24 * 60 * 60 * 1000)}
+          value={pauseForm.return_date ? new Date(`${pauseForm.return_date}T00:00:00`) : null}
+          onChange={(d) =>
+            setPauseForm({ ...pauseForm, return_date: d ? d.toLocaleDateString("en-CA") : "" })
+          }
+          popoverProps={{ withinPortal: true }}
+          mb="lg"
+        />
+        <Group justify="flex-end" gap="sm">
+          <Button variant="default" onClick={() => setPauseOpen(false)}>
+            Cancelar
+          </Button>
+          <Button
+            color="flame"
+            leftSection={<Pause size={16} />}
+            loading={pause.isPending}
+            onClick={() => onPausar(detail.data?.athlete_name ?? "el atleta")}
+          >
+            Congelar membresía
+          </Button>
+        </Group>
+      </Modal>
     </div>
   );
 }

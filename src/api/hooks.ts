@@ -1,12 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, tokenStore } from "./client";
 import {
+  AltaGimnasio,
   AuditLog,
   Dashboard,
   PendingSummary,
   GymClass,
   GymCheckin,
   GymAdmin,
+  GymCreado,
+  GymStaffAdmin,
   InvitationInput,
   JoinRequest,
   Membership,
@@ -34,6 +37,19 @@ import {
   Wod,
   WodResult,
   BugReportConfig,
+  ClubAnnouncement,
+  ClubProfileEditable,
+  ErpPurchaseOrder,
+  ErpSupplier,
+  ExpenseCategoryInput,
+  GymStatement,
+  InventoryValuation,
+  Payout,
+  PlatformStatements,
+  ProductOrderStatus,
+  PurchaseOrderStatus,
+  ReturnStatus,
+  ShippingInfo,
 } from "./types";
 
 export interface Role {
@@ -69,6 +85,17 @@ async function getList<T>(url: string): Promise<T[]> {
     if (!cursor) break;
   }
   return out;
+}
+
+/**
+ * Invalida el resumen de pendientes del gym (badge del menú lateral + campana).
+ * Toda acción que RESUELVE un pendiente (aprobar solicitud, moderar un post,
+ * cobrar a un moroso, entregar un pedido, publicar el WOD…) tiene que llamarla:
+ * si no, el contador se queda mintiendo hasta el refetch automático de 60 s y el
+ * admin vuelve a entrar a una bandeja ya vacía.
+ */
+function invalidarPendientes(qc: QueryClient, gymId: string) {
+  qc.invalidateQueries({ queryKey: ["pending-summary", gymId] });
 }
 
 export function useLogin() {
@@ -186,10 +213,16 @@ export function useRegisterManualPayment(gymId: string) {
       if (body.proof_file) form.append("proof_file", body.proof_file);
       return (await api.post<Payment>(`/gym/${gymId}/payments/manual`, form)).data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["payments", gymId] });
       qc.invalidateQueries({ queryKey: ["memberships", gymId] });
       qc.invalidateQueries({ queryKey: ["overdue", gymId] });
+      // Un pago manual activa la membresía y saca al atleta de morosos: la ficha,
+      // el riesgo, el dashboard y el badge tienen que reflejarlo al instante.
+      qc.invalidateQueries({ queryKey: ["membership-detail", gymId, vars.membership_id] });
+      qc.invalidateQueries({ queryKey: ["at-risk", gymId] });
+      qc.invalidateQueries({ queryKey: ["dashboard", gymId] });
+      invalidarPendientes(qc, gymId);
     },
   });
 }
@@ -202,6 +235,11 @@ export function useRefundPayment(gymId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["payments", gymId] });
       qc.invalidateQueries({ queryKey: ["audit", gymId] });
+      // El reembolso es un registro NUEVO (histórico inmutable): la ficha del
+      // atleta y el dashboard lo tienen que ver sin recargar la página.
+      qc.invalidateQueries({ queryKey: ["membership-detail", gymId] });
+      qc.invalidateQueries({ queryKey: ["memberships", gymId] });
+      qc.invalidateQueries({ queryKey: ["dashboard", gymId] });
     },
   });
 }
@@ -267,6 +305,7 @@ export function useDecideJoinRequest(gymId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["join-requests", gymId] });
       qc.invalidateQueries({ queryKey: ["memberships", gymId] });
+      invalidarPendientes(qc, gymId);
     },
   });
 }
@@ -335,9 +374,198 @@ export function useAssignPlan(gymId: string) {
           offer_id: offerId || null,
         })
       ).data,
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["join-requests", gymId] });
       qc.invalidateQueries({ queryKey: ["memberships", gymId] });
+      // Asignar plan ACTIVA la membresía (decisión del dueño): la ficha abierta, la
+      // morosidad y el badge de solicitudes quedaban desfasados.
+      qc.invalidateQueries({ queryKey: ["membership-detail", gymId, vars.membershipId] });
+      qc.invalidateQueries({ queryKey: ["overdue", gymId] });
+      qc.invalidateQueries({ queryKey: ["at-risk", gymId] });
+      qc.invalidateQueries({ queryKey: ["dashboard", gymId] });
+      invalidarPendientes(qc, gymId);
+    },
+  });
+}
+
+/**
+ * Renovación automática y método de cobro preferido de UNA membresía.
+ *
+ * Viaja por `assign-plan`, que es el único endpoint de escritura de la relación,
+ * y se manda a propósito SIN `plan_id`: mandarlo re-activaría una membresía
+ * pausada o vencida (ver AssignPlanView), y aquí solo se corrige la preferencia
+ * de cobro. La página compara la respuesta con lo pedido antes de cantar éxito.
+ */
+export function useUpdateMembershipBilling(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      membershipId,
+      ...body
+    }: {
+      membershipId: string;
+      auto_renew?: boolean;
+      payment_method_pref?: "card" | "cash" | "bank_transfer";
+    }) =>
+      (await api.post<Membership>(`/gym/${gymId}/memberships/${membershipId}/assign-plan`, body))
+        .data,
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["membership-detail", gymId, vars.membershipId] });
+      qc.invalidateQueries({ queryKey: ["memberships", gymId] });
+    },
+  });
+}
+
+/** Invalida todo lo que depende del ESTADO de una membresía (ficha, listas, badges). */
+function invalidarMembresia(qc: QueryClient, gymId: string, membershipId?: string) {
+  qc.invalidateQueries({ queryKey: ["memberships", gymId] });
+  qc.invalidateQueries({
+    queryKey: membershipId
+      ? ["membership-detail", gymId, membershipId]
+      : ["membership-detail", gymId],
+  });
+  qc.invalidateQueries({ queryKey: ["overdue", gymId] });
+  qc.invalidateQueries({ queryKey: ["at-risk", gymId] });
+  qc.invalidateQueries({ queryKey: ["dashboard", gymId] });
+  invalidarPendientes(qc, gymId);
+}
+
+/**
+ * Congela la membresía (viaje, lesión). Al reanudar, el vencimiento se corre los
+ * días que duró la pausa: el atleta no pierde lo que ya pagó. La transición pasa
+ * por `transicionar()` en el backend, nunca se toca el estado a mano.
+ *
+ * 400 `pause_invalid` si la fecha de retorno no es futura o la transición no es
+ * válida; 404 si la membresía no es de ESTE gym; 403 si no es gym_admin de él.
+ */
+export function usePauseMembership(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      membershipId,
+      reason,
+      return_date,
+    }: {
+      membershipId: string;
+      /** Nota interna del gym (≤200). NO viaja al atleta. */
+      reason?: string;
+      /** "YYYY-MM-DD" futura, o null si no se sabe cuándo vuelve. */
+      return_date?: string | null;
+    }) =>
+      (
+        await api.post<Membership>(`/gym/${gymId}/memberships/${membershipId}/pause`, {
+          reason: reason ?? "",
+          return_date: return_date ?? null,
+        })
+      ).data,
+    onSuccess: (_d, vars) => invalidarMembresia(qc, gymId, vars.membershipId),
+  });
+}
+
+/** Reanuda una membresía pausada. 400 `resume_invalid` si no estaba pausada. */
+export function useResumeMembership(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (membershipId: string) =>
+      (await api.post<Membership>(`/gym/${gymId}/memberships/${membershipId}/resume`, {})).data,
+    onSuccess: (_d, membershipId) => invalidarMembresia(qc, gymId, membershipId),
+  });
+}
+
+// --- Cobranza: estado de cuenta del gym y depósitos de la plataforma ---
+
+/**
+ * Estado de cuenta del gym con Nucleo (`?period=YYYY-MM`; por defecto el mes en
+ * curso). Solo cuenta el dinero que pasó por la PASARELA: los pagos manuales ya
+ * los cobró el gym. 400 `period_invalid` si el periodo no es YYYY-MM.
+ */
+export function useGymStatement(gymId: string, period?: string) {
+  const q = period ? `?period=${period}` : "";
+  return useQuery({
+    queryKey: ["billing-statement", gymId, period ?? "actual"],
+    queryFn: async () =>
+      (await api.get<GymStatement>(`/gym/${gymId}/billing/statement${q}`)).data,
+    enabled: !!gymId,
+  });
+}
+
+/** Liquidación de TODOS los gyms del periodo + lo que ganó Nucleo (superadmin). */
+export function usePlatformStatements(period: string | undefined, enabled: boolean) {
+  const q = period ? `?period=${period}` : "";
+  return useQuery({
+    queryKey: ["platform-statements", period ?? "actual"],
+    queryFn: async () =>
+      (await api.get<PlatformStatements>(`/platform/billing/statements${q}`)).data,
+    enabled,
+  });
+}
+
+/** Depósitos de la red (superadmin). Ambos filtros son opcionales. Sin paginar. */
+export function usePlatformPayouts(
+  filtro: { period?: string; gymId?: string },
+  enabled: boolean,
+) {
+  const qs = new URLSearchParams();
+  if (filtro.period) qs.set("period", filtro.period);
+  if (filtro.gymId) qs.set("gym_id", filtro.gymId);
+  const query = qs.toString();
+  return useQuery({
+    queryKey: ["platform-payouts", filtro.period ?? "", filtro.gymId ?? ""],
+    queryFn: async () =>
+      (await api.get<Payout[]>(`/platform/billing/payouts${query ? `?${query}` : ""}`)).data,
+    enabled,
+  });
+}
+
+/**
+ * Genera (o refresca) el payout de un gym para un periodo. Es IDEMPOTENTE: el
+ * mismo gym+periodo devuelve el mismo registro actualizado, no crea otro.
+ * 400 `payout_invalid`.
+ */
+export function useGeneratePlatformPayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { gym_id: string; period: string }) =>
+      (await api.post<Payout>("/platform/billing/payouts", body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform-payouts"] });
+      // El statement del gym y el de la red muestran el payout del periodo.
+      qc.invalidateQueries({ queryKey: ["platform-statements"] });
+      qc.invalidateQueries({ queryKey: ["billing-statement"] });
+    },
+  });
+}
+
+/**
+ * Marca el depósito como ejecutado. `reference` (la referencia bancaria) es
+ * OBLIGATORIA: sin ella no hay rastro de que el dinero salió.
+ * 400 `payout_invalid` si falta o si ya estaba depositado.
+ */
+export function usePayPlatformPayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      payoutId,
+      reference,
+      executed_at,
+      notes,
+    }: {
+      payoutId: string;
+      reference: string;
+      executed_at?: string;
+      notes?: string;
+    }) =>
+      (
+        await api.post<Payout>(`/platform/billing/payouts/${payoutId}/pay`, {
+          reference,
+          executed_at,
+          notes,
+        })
+      ).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform-payouts"] });
+      qc.invalidateQueries({ queryKey: ["platform-statements"] });
+      qc.invalidateQueries({ queryKey: ["billing-statement"] });
     },
   });
 }
@@ -659,7 +887,11 @@ export function useCreateWod(gymId: string) {
   return useMutation({
     mutationFn: async (body: Partial<Wod>) =>
       (await api.post<Wod>(`/gym/${gymId}/wods`, body)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["wods", gymId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["wods", gymId] });
+      // El pendiente "clases sin rutina (próx. 48h)" baja al publicar el WOD.
+      invalidarPendientes(qc, gymId);
+    },
   });
 }
 
@@ -676,7 +908,10 @@ export function useDeleteWod(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/gym/${gymId}/wods/${id}`)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["wods", gymId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["wods", gymId] });
+      invalidarPendientes(qc, gymId);
+    },
   });
 }
 
@@ -770,6 +1005,7 @@ export function useInviteCoach(gymId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["coach-requests", gymId] });
       qc.invalidateQueries({ queryKey: ["gym-coaches", gymId] });
+      invalidarPendientes(qc, gymId);
     },
   });
 }
@@ -790,6 +1026,10 @@ export function useDecideCoachRequest(gymId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["coach-requests", gymId] });
       qc.invalidateQueries({ queryKey: ["gym-coaches", gymId] });
+      // Aprobar/rechazar un coach baja el pendiente "coaches por aprobar".
+      invalidarPendientes(qc, gymId);
+      // Un coach nuevo puede cubrir clases sin coach → refresca la agenda.
+      qc.invalidateQueries({ queryKey: ["gym-classes", gymId] });
     },
   });
 }
@@ -802,12 +1042,30 @@ export function useGymClubs(gymId: string) {
   });
 }
 
+/**
+ * Aprueba o rechaza la solicitud de club. `note` (≤255) es OPCIONAL: si va vacía
+ * el atleta igual recibe un motivo legible en `/me/club-requests`.
+ */
 export function useDecideClub(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ clubId, decision }: { clubId: string; decision: "approve" | "reject" }) =>
-      (await api.post(`/gym/${gymId}/clubs/${clubId}/decide`, { decision })).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-clubs", gymId] }),
+    mutationFn: async ({
+      clubId,
+      decision,
+      note,
+    }: {
+      clubId: string;
+      decision: "approve" | "reject";
+      note?: string;
+    }) =>
+      (await api.post<GymClub>(`/gym/${gymId}/clubs/${clubId}/decide`, { decision, note })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-clubs", gymId] });
+      invalidarPendientes(qc, gymId);
+      // Aprobar un club puede darle el rol club_admin al solicitante: relee /me
+      // para que el menú "Mi club" aparezca sin volver a iniciar sesión.
+      qc.invalidateQueries({ queryKey: ["me"] });
+    },
   });
 }
 
@@ -817,7 +1075,13 @@ export function useCreateGymClub(gymId: string) {
   return useMutation({
     mutationFn: async (body: { name: string; club_type: string }) =>
       (await api.post<GymClub>(`/gym/${gymId}/clubs/create`, body)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-clubs", gymId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-clubs", gymId] });
+      invalidarPendientes(qc, gymId);
+      // El creador queda como admin del club: relee /me para que aparezca el
+      // menú "Mi club" en cuanto el backend cree su rol club_admin.
+      qc.invalidateQueries({ queryKey: ["me"] });
+    },
   });
 }
 
@@ -860,15 +1124,27 @@ export function useClassQr(gymId: string, classId: string) {
   });
 }
 
+/**
+ * Credencial con la que recepción marca presente a alguien: EXACTAMENTE una.
+ * `membershipId` = socio del gym; `dropinPurchaseId` = visitante con pase drop-in
+ * (antes no había forma de anotarlo: el gym le cobraba y no le quedaba registro
+ * de que entró). Mandar las dos, o ninguna, es 400 `checkin_invalid`. Qué pase se
+ * consume lo decide el backend, nunca el panel.
+ */
+export type CredencialCheckin = { membershipId?: string; dropinPurchaseId?: string };
+
 export function useReceptionCheckin(gymId: string, classId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (membershipId: string) =>
-      (
-        await api.post<GymCheckin>(`/gym/${gymId}/classes/${classId}/checkins`, {
-          membership_id: membershipId,
-        })
-      ).data,
+    mutationFn: async (credencial: string | CredencialCheckin) => {
+      const body =
+        typeof credencial === "string"
+          ? { membership_id: credencial }
+          : credencial.dropinPurchaseId
+            ? { dropin_purchase_id: credencial.dropinPurchaseId }
+            : { membership_id: credencial.membershipId };
+      return (await api.post<GymCheckin>(`/gym/${gymId}/classes/${classId}/checkins`, body)).data;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["class-checkins", gymId, classId] });
       qc.invalidateQueries({ queryKey: ["membership-detail", gymId] });
@@ -908,12 +1184,62 @@ export function usePlatformGyms(enabled: boolean) {
   });
 }
 
-export function useCreatePlatformGym() {
+/**
+ * Alta COMPLETA de un gimnasio: crea el gym, su suscripción SaaS, un plan
+ * vendible y (si se manda correo) su `gym_admin`. Sustituyó al alta a medias
+ * `POST /platform/gyms {name, location_text}`, que dejaba un gimnasio sin
+ * suscripción, sin plan que vender y sin nadie que pudiera entrar a su panel.
+ * La respuesta trae el gym más el resumen de lo que se creó a su alrededor.
+ */
+export function useCrearGimnasioCompleto() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: { name: string; location_text: string }) =>
-      (await api.post<GymAdmin>("/platform/gyms", body)).data,
+    mutationFn: async (body: AltaGimnasio) =>
+      (await api.post<GymCreado>("/platform/gyms", body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-gyms"] }),
+  });
+}
+
+/**
+ * Suspende o reactiva el gimnasio. `is_active` solo lo mueve PLATAFORMA: el
+ * serializer lo pone read-only para cualquiera que no sea superadmin, así que un
+ * PATCH del propio gym lo ignora en silencio.
+ */
+export function useSetGymActivo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ gymId, is_active }: { gymId: string; is_active: boolean }) =>
+      (await api.patch<GymAdmin>(`/gym/${gymId}`, { is_active })).data,
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["platform-gyms"] });
+      qc.invalidateQueries({ queryKey: ["gym-config", vars.gymId] });
+    },
+  });
+}
+
+/** Administradores (`gym_admin`) del gimnasio. Solo los de ESE gym. */
+export function useGymAdmins(gymId: string) {
+  return useQuery({
+    queryKey: ["gym-admins", gymId],
+    queryFn: async () => (await api.get<GymStaffAdmin[]>(`/gym/${gymId}/admins`)).data,
+    enabled: !!gymId,
+  });
+}
+
+/**
+ * Invita (o reactiva) a un `gym_admin`. Idempotente por identidad: si el correo
+ * ya existe reutiliza la persona en vez de duplicar el atleta.
+ */
+export function useInviteGymAdmin(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      email: string;
+      first_name?: string;
+      last_name?: string;
+      phone?: string;
+    }) => (await api.post<GymStaffAdmin>(`/gym/${gymId}/admins`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-admins", gymId] }),
   });
 }
 
@@ -937,7 +1263,7 @@ export function useUpdatePlatformGym() {
 }
 
 /** Config editable del gym por su propio admin (ej. reservas de clases futuras). */
-type GymConfig = GymAdmin & { allow_future_reservations?: boolean };
+type GymConfig = GymAdmin;
 
 export function useGymConfig(gymId: string) {
   return useQuery({
@@ -947,12 +1273,34 @@ export function useGymConfig(gymId: string) {
   });
 }
 
+/**
+ * Config editable por el ADMIN DEL GYM. `platform_commission_pct`, `fixed_fee` y
+ * `saas_plan` NO están aquí a propósito: son de plataforma y un PATCH del gym los
+ * ignora en silencio (para eso está `useUpdatePlatformGym`).
+ */
 export function useUpdateGymConfig(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: { allow_future_reservations: boolean }) =>
-      (await api.patch<GymConfig>(`/gym/${gymId}`, body)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-config", gymId] }),
+    mutationFn: async (body: {
+      allow_future_reservations?: boolean;
+      /** Días sin asistir a ESTE gym para marcar "en riesgo" (1..365). */
+      risk_inactivity_days?: number;
+      /**
+       * Días de mora tolerados antes del corte automático (1..365, def. 30).
+       * Fuera de rango el backend responde 400 `{detail, code, message}`.
+       */
+      overdue_grace_days?: number;
+    }) => (await api.patch<GymConfig>(`/gym/${gymId}`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-config", gymId] });
+      // El umbral de riesgo redefine quién sale en retención y en el badge.
+      qc.invalidateQueries({ queryKey: ["at-risk", gymId] });
+      // La gracia de morosidad redefine QUIÉN está moroso: cambia la bandeja de
+      // morosos, el listado de membresías que lo pinta y el contador del badge.
+      qc.invalidateQueries({ queryKey: ["overdue", gymId] });
+      qc.invalidateQueries({ queryKey: ["memberships", gymId] });
+      invalidarPendientes(qc, gymId);
+    },
   });
 }
 
@@ -1047,6 +1395,87 @@ export function usePostAnnouncement(gymId: string) {
       return (await api.post(`/gym/${gymId}/announcements`, form)).data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-feed", gymId] }),
+  });
+}
+
+// --- Perfil y anuncios del propio club (rol club_admin) ---
+
+/** Ficha editable del club. `is_public`/`status` los decide el gym, no el club. */
+export function useClubAdminProfile(clubId: string) {
+  return useQuery({
+    queryKey: ["club-admin-profile", clubId],
+    queryFn: async () => (await api.get<ClubProfileEditable>(`/club/${clubId}/profile`)).data,
+    enabled: !!clubId,
+  });
+}
+
+export function useUpdateClubAdminProfile(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      name?: string;
+      club_type?: string;
+      description?: string;
+      photo?: File | null;
+    }) => {
+      if (input.photo) {
+        const form = new FormData();
+        if (input.name) form.append("name", input.name);
+        if (input.club_type) form.append("club_type", input.club_type);
+        if (input.description != null) form.append("description", input.description);
+        form.append("photo", input.photo);
+        return (
+          await api.patch<ClubProfileEditable>(`/club/${clubId}/profile`, form, {
+            headers: { "Content-Type": "multipart/form-data" },
+          })
+        ).data;
+      }
+      const { photo: _sin, ...body } = input;
+      return (await api.patch<ClubProfileEditable>(`/club/${clubId}/profile`, body)).data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["club-admin-profile", clubId] });
+      // El nombre del club aparece también en el listado del gym.
+      qc.invalidateQueries({ queryKey: ["gym-clubs"] });
+    },
+  });
+}
+
+export function useClubAdminAnnouncements(clubId: string) {
+  return useQuery({
+    queryKey: ["club-admin-announcements", clubId],
+    queryFn: () => getList<ClubAnnouncement>(`/club/${clubId}/announcements`),
+    enabled: !!clubId,
+  });
+}
+
+/** Publica un anuncio del club y NOTIFICA a sus miembros. */
+export function useClubAdminCreateAnnouncement(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { title: string; body: string; photo?: File | null }) => {
+      const form = new FormData();
+      form.append("title", input.title);
+      form.append("body", input.body);
+      if (input.photo) form.append("photo", input.photo);
+      return (
+        await api.post<ClubAnnouncement>(`/club/${clubId}/announcements`, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data;
+    },
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["club-admin-announcements", clubId] }),
+  });
+}
+
+export function useClubAdminDeleteAnnouncement(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      (await api.delete(`/club/${clubId}/announcements/${id}`)).data,
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["club-admin-announcements", clubId] }),
   });
 }
 
@@ -1304,36 +1733,144 @@ export function useDeleteProductImage(gymId: string) {
 }
 
 // --- Pedidos de la tienda (marketplace de la app) ---
-export function useGymProductOrders(gymId: string) {
+
+/**
+ * Pedidos del gym. Sin paginación (tope 300, `-created_at`).
+ * `return_status` convierte la lista en la BANDEJA DE DEVOLUCIONES.
+ */
+export function useGymProductOrders(
+  gymId: string,
+  filtro?: { status?: ProductOrderStatus; return_status?: Exclude<ReturnStatus, ""> },
+) {
+  const qs = new URLSearchParams();
+  if (filtro?.status) qs.set("status", filtro.status);
+  if (filtro?.return_status) qs.set("return_status", filtro.return_status);
+  const query = qs.toString();
   return useQuery({
-    queryKey: ["marketplace-orders", gymId],
-    queryFn: async () => (await api.get<ProductOrder[]>(`/gym/${gymId}/marketplace-orders`)).data,
+    queryKey: ["marketplace-orders", gymId, filtro?.status ?? "", filtro?.return_status ?? ""],
+    queryFn: async () =>
+      (
+        await api.get<ProductOrder[]>(
+          `/gym/${gymId}/marketplace-orders${query ? `?${query}` : ""}`,
+        )
+      ).data,
     enabled: !!gymId,
   });
 }
 
+/** Invalida todo lo que toca un pedido: bandejas, stock y badge de pendientes. */
+function invalidarPedidos(qc: QueryClient, gymId: string) {
+  qc.invalidateQueries({ queryKey: ["marketplace-orders", gymId] });
+  qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
+  qc.invalidateQueries({ queryKey: ["erp-valuation", gymId] });
+  invalidarPendientes(qc, gymId);
+}
+
+/**
+ * Avanza el seguimiento del pedido (preparar → enviar → entregar) o lo cancela.
+ * `tracking_code` acompaña al envío. 400 `order_transition_invalid` si la
+ * transición no es válida (p. ej. shipped → preparing): la máquina de estados
+ * vive en el backend; el panel solo la pide.
+ */
 export function useUpdateProductOrder(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "delivered" | "cancelled" }) =>
-      (await api.patch<ProductOrder>(`/gym/${gymId}/marketplace-orders/${id}`, { status })).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["marketplace-orders", gymId] });
-      qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
-    },
+    mutationFn: async ({
+      id,
+      status,
+      tracking_code,
+      note,
+    }: {
+      id: string;
+      status: "preparing" | "shipped" | "delivered" | "cancelled";
+      /** Guía/rastreo del envío (≤60). */
+      tracking_code?: string;
+      /** Nota del hito, visible en la línea de tiempo del atleta (≤255). */
+      note?: string;
+    }) =>
+      (
+        await api.patch<ProductOrder>(`/gym/${gymId}/marketplace-orders/${id}`, {
+          status,
+          tracking_code,
+          note,
+        })
+      ).data,
+    onSuccess: () => invalidarPedidos(qc, gymId),
   });
 }
 
-// Devuelve un pedido pagado: reembolsa la base (sin el recargo de Nucleo) y lo cancela.
+// Devuelve un pedido pagado: reembolsa la base (sin el recargo de Nucleo), REGRESA
+// EL STOCK al inventario y lo deja en "cancelled".
 export function useRefundProductOrder(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (orderId: string) =>
       (await api.post<ProductOrder>(`/gym/${gymId}/marketplace-orders/${orderId}/refund`)).data,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["marketplace-orders", gymId] });
-      qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
+      invalidarPedidos(qc, gymId);
+      qc.invalidateQueries({ queryKey: ["erp-pnl", gymId] });
+      qc.invalidateQueries({ queryKey: ["payments", gymId] });
     },
+  });
+}
+
+/**
+ * Aprueba la devolución que pidió el atleta: reembolso + stock de vuelta y el
+ * pedido queda en "returned". 400 `return_invalid` si no hay una pendiente.
+ */
+export function useApproveOrderReturn(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) =>
+      (
+        await api.post<ProductOrder>(`/gym/${gymId}/marketplace-orders/${id}/return/approve`, {
+          reason: reason ?? "",
+        })
+      ).data,
+    onSuccess: () => {
+      invalidarPedidos(qc, gymId);
+      qc.invalidateQueries({ queryKey: ["erp-pnl", gymId] });
+      qc.invalidateQueries({ queryKey: ["payments", gymId] });
+    },
+  });
+}
+
+/** Rechaza la devolución. El pedido CONSERVA su estado de entrega. */
+export function useRejectOrderReturn(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) =>
+      (
+        await api.post<ProductOrder>(`/gym/${gymId}/marketplace-orders/${id}/return/reject`, {
+          reason: reason ?? "",
+        })
+      ).data,
+    onSuccess: () => invalidarPedidos(qc, gymId),
+  });
+}
+
+/** Condiciones de envío de la tienda (panel: cualquier rol del gym las lee). */
+export function useGymShippingConfig(gymId: string) {
+  return useQuery({
+    queryKey: ["marketplace-shipping", gymId],
+    queryFn: async () =>
+      (await api.get<ShippingInfo>(`/gym/${gymId}/marketplace/shipping`)).data,
+    enabled: !!gymId,
+  });
+}
+
+/** Guarda las condiciones de envío (solo gym_admin; si no, 403 `forbidden`). */
+export function useUpdateGymShippingConfig(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      enabled: boolean;
+      cost: string;
+      free_over: string | null;
+      eta_days: number;
+      note: string;
+    }) => (await api.put<ShippingInfo>(`/gym/${gymId}/marketplace/shipping`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["marketplace-shipping", gymId] }),
   });
 }
 
@@ -1350,6 +1887,8 @@ export function useCreateErpMovement(gymId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
       qc.invalidateQueries({ queryKey: ["erp-pnl", gymId] });
+      // Mover el ledger de inventario cambia el valor del stock.
+      qc.invalidateQueries({ queryKey: ["erp-valuation", gymId] });
     },
   });
 }
@@ -1376,6 +1915,8 @@ export function useCreateErpSale(gymId: string) {
       qc.invalidateQueries({ queryKey: ["erp-sales", gymId] });
       qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
       qc.invalidateQueries({ queryKey: ["erp-pnl", gymId] });
+      // Mover el ledger de inventario cambia el valor del stock.
+      qc.invalidateQueries({ queryKey: ["erp-valuation", gymId] });
     },
   });
 }
@@ -1394,31 +1935,321 @@ export function useReturnErpSale(gymId: string) {
       qc.invalidateQueries({ queryKey: ["erp-sales", gymId] });
       qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
       qc.invalidateQueries({ queryKey: ["erp-pnl", gymId] });
+      // Mover el ledger de inventario cambia el valor del stock.
+      qc.invalidateQueries({ queryKey: ["erp-valuation", gymId] });
     },
   });
 }
 
-export function useErpExpenses(gymId: string) {
+// --- Gastos (histórico inmutable: se anulan o se corrigen, NUNCA se editan) ---
+
+/** Filtros del listado. `voided` sin valor = vienen todos (anulados incluidos). */
+export type FiltroGastos = { voided?: boolean; category?: ExpenseCategoryInput };
+
+export function useErpExpenses(gymId: string, filtro?: FiltroGastos) {
+  const qs = new URLSearchParams();
+  if (filtro?.voided != null) qs.set("voided", String(filtro.voided));
+  if (filtro?.category) qs.set("category", filtro.category);
+  const query = qs.toString();
   return useQuery({
-    queryKey: ["erp-expenses", gymId],
-    queryFn: () => getList<ErpExpense>(`/gym/${gymId}/erp/expenses`),
+    queryKey: ["erp-expenses", gymId, filtro?.voided ?? "todos", filtro?.category ?? ""],
+    queryFn: () =>
+      getList<ErpExpense>(`/gym/${gymId}/erp/expenses${query ? `?${query}` : ""}`),
     enabled: !!gymId,
   });
 }
 
+/** Ficha de un gasto. No hay PUT/PATCH/DELETE: son 405 a propósito. */
+export function useErpExpense(gymId: string, expenseId: string) {
+  return useQuery({
+    queryKey: ["erp-expense", gymId, expenseId],
+    queryFn: async () =>
+      (await api.get<ErpExpense>(`/gym/${gymId}/erp/expenses/${expenseId}`)).data,
+    enabled: !!gymId && !!expenseId,
+  });
+}
+
+/** Un gasto mueve el OPEX y por tanto la utilidad: siempre refresca el P&L. */
+function invalidarGastos(qc: QueryClient, gymId: string) {
+  qc.invalidateQueries({ queryKey: ["erp-expenses", gymId] });
+  qc.invalidateQueries({ queryKey: ["erp-expense", gymId] });
+  qc.invalidateQueries({ queryKey: ["erp-pnl", gymId] });
+}
+
+/** Registra un gasto. Con `proof_file` viaja multipart. `amount<=0` es 400. */
 export function useCreateErpExpense(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: {
-      category: string;
+      branch?: string | null;
+      category: ExpenseCategoryInput;
       amount: string;
       description?: string;
       incurred_on: string;
-    }) => (await api.post<ErpExpense>(`/gym/${gymId}/erp/expenses`, body)).data,
+      proof_url?: string;
+      proof_file?: File;
+    }) => {
+      if (!body.proof_file) {
+        const { proof_file: _sin, ...json } = body;
+        return (await api.post<ErpExpense>(`/gym/${gymId}/erp/expenses`, json)).data;
+      }
+      const form = new FormData();
+      form.append("category", body.category);
+      form.append("amount", body.amount);
+      form.append("incurred_on", body.incurred_on);
+      if (body.branch) form.append("branch", body.branch);
+      if (body.description) form.append("description", body.description);
+      if (body.proof_url) form.append("proof_url", body.proof_url);
+      form.append("proof_file", body.proof_file);
+      return (
+        await api.post<ErpExpense>(`/gym/${gymId}/erp/expenses`, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data;
+    },
+    onSuccess: () => invalidarGastos(qc, gymId),
+  });
+}
+
+/** Anula un gasto mal capturado (no se borra: queda con motivo y fecha). */
+export function useVoidErpExpense(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) =>
+      (
+        await api.post<ErpExpense>(`/gym/${gymId}/erp/expenses/${id}/void`, {
+          reason: reason ?? "",
+        })
+      ).data,
+    onSuccess: () => invalidarGastos(qc, gymId),
+  });
+}
+
+/**
+ * Corrige un gasto: anula el original y devuelve el gasto NUEVO que lo sustituye
+ * (`replaces` apunta al viejo). Solo se mandan los campos que cambian; el resto
+ * se hereda. 400 si el gasto ya está anulado o ya fue corregido.
+ */
+export function useCorrectErpExpense(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...cambios
+    }: {
+      id: string;
+      category?: ExpenseCategoryInput;
+      amount?: string;
+      description?: string;
+      incurred_on?: string;
+      branch?: string | null;
+      proof_url?: string;
+      proof_file?: File;
+    }) => {
+      if (!cambios.proof_file) {
+        const { proof_file: _sin, ...json } = cambios;
+        return (await api.post<ErpExpense>(`/gym/${gymId}/erp/expenses/${id}/correct`, json))
+          .data;
+      }
+      const form = new FormData();
+      if (cambios.category) form.append("category", cambios.category);
+      if (cambios.amount) form.append("amount", cambios.amount);
+      if (cambios.description != null) form.append("description", cambios.description);
+      if (cambios.incurred_on) form.append("incurred_on", cambios.incurred_on);
+      if (cambios.branch) form.append("branch", cambios.branch);
+      if (cambios.proof_url) form.append("proof_url", cambios.proof_url);
+      form.append("proof_file", cambios.proof_file);
+      return (
+        await api.post<ErpExpense>(`/gym/${gymId}/erp/expenses/${id}/correct`, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data;
+    },
+    onSuccess: () => invalidarGastos(qc, gymId),
+  });
+}
+
+/** Adjunta el comprobante (factura/recibo) de un gasto ya registrado. */
+export function useUploadExpenseProof(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+      const form = new FormData();
+      form.append("proof_file", file);
+      return (
+        await api.post<ErpExpense>(`/gym/${gymId}/erp/expenses/${id}/proof`, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data;
+    },
+    onSuccess: () => invalidarGastos(qc, gymId),
+  });
+}
+
+// --- Proveedores ---
+export function useErpSuppliers(
+  gymId: string,
+  filtro?: { is_active?: boolean; search?: string },
+) {
+  const qs = new URLSearchParams();
+  if (filtro?.is_active != null) qs.set("is_active", String(filtro.is_active));
+  if (filtro?.search) qs.set("search", filtro.search);
+  const query = qs.toString();
+  return useQuery({
+    queryKey: ["erp-suppliers", gymId, filtro?.is_active ?? "", filtro?.search ?? ""],
+    queryFn: () =>
+      getList<ErpSupplier>(`/gym/${gymId}/erp/suppliers${query ? `?${query}` : ""}`),
+    enabled: !!gymId,
+  });
+}
+
+export function useCreateErpSupplier(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      name: string;
+      contact_name?: string;
+      phone?: string;
+      email?: string;
+      tax_id?: string;
+      notes?: string;
+    }) => (await api.post<ErpSupplier>(`/gym/${gymId}/erp/suppliers`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["erp-suppliers", gymId] }),
+  });
+}
+
+export function useUpdateErpSupplier(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: Partial<ErpSupplier> }) =>
+      (await api.patch<ErpSupplier>(`/gym/${gymId}/erp/suppliers/${id}`, body)).data,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["erp-expenses", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-suppliers", gymId] });
+      // El nombre del proveedor viaja denormalizado en cada orden de compra.
+      qc.invalidateQueries({ queryKey: ["erp-purchase-orders", gymId] });
+    },
+  });
+}
+
+/** Baja del proveedor (soft-delete: sale del listado, sus órdenes se conservan). */
+export function useDeleteErpSupplier(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      (await api.delete(`/gym/${gymId}/erp/suppliers/${id}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["erp-suppliers", gymId] }),
+  });
+}
+
+// --- Órdenes de compra ---
+export function useErpPurchaseOrders(
+  gymId: string,
+  filtro?: { status?: PurchaseOrderStatus; supplier?: string },
+) {
+  const qs = new URLSearchParams();
+  if (filtro?.status) qs.set("status", filtro.status);
+  if (filtro?.supplier) qs.set("supplier", filtro.supplier);
+  const query = qs.toString();
+  return useQuery({
+    queryKey: ["erp-purchase-orders", gymId, filtro?.status ?? "", filtro?.supplier ?? ""],
+    queryFn: () =>
+      getList<ErpPurchaseOrder>(`/gym/${gymId}/erp/purchase-orders${query ? `?${query}` : ""}`),
+    enabled: !!gymId,
+  });
+}
+
+export function useErpPurchaseOrder(gymId: string, orderId: string) {
+  return useQuery({
+    queryKey: ["erp-purchase-order", gymId, orderId],
+    queryFn: async () =>
+      (await api.get<ErpPurchaseOrder>(`/gym/${gymId}/erp/purchase-orders/${orderId}`)).data,
+    enabled: !!gymId && !!orderId,
+  });
+}
+
+/** Crea la orden. Un proveedor de OTRO gym es 404 (aislamiento por gym). */
+export function useCreateErpPurchaseOrder(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      supplier_id: string;
+      branch_id?: string | null;
+      status?: "draft" | "ordered";
+      reference?: string;
+      expected_on?: string;
+      ordered_on?: string;
+      note?: string;
+      lines: { product_id: string; qty: number; unit_cost?: string }[];
+    }) => (await api.post<ErpPurchaseOrder>(`/gym/${gymId}/erp/purchase-orders`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["erp-purchase-orders", gymId] }),
+  });
+}
+
+/**
+ * Recibe la orden (total o parcial): CARGA EL STOCK con su costo real. `items`
+ * vacío = todo lo pendiente. 400 si la orden está cerrada/anulada o si se pide
+ * más de lo ordenado.
+ */
+export function useReceiveErpPurchaseOrder(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      items,
+      update_cost,
+      note,
+    }: {
+      id: string;
+      items?: { line_id: string; qty: number }[];
+      update_cost?: boolean;
+      note?: string;
+    }) =>
+      (
+        await api.post<ErpPurchaseOrder>(`/gym/${gymId}/erp/purchase-orders/${id}/receive`, {
+          items: items ?? [],
+          update_cost: update_cost ?? true,
+          note: note ?? "",
+        })
+      ).data,
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["erp-purchase-orders", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-purchase-order", gymId, vars.id] });
+      // Recibir mueve el ledger de inventario: stock, valuación y P&L.
+      qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-valuation", gymId] });
       qc.invalidateQueries({ queryKey: ["erp-pnl", gymId] });
     },
+  });
+}
+
+/** Anula la orden (o su pendiente). Lo ya recibido NO se revierte aquí. */
+export function useCancelErpPurchaseOrder(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) =>
+      (
+        await api.post<ErpPurchaseOrder>(`/gym/${gymId}/erp/purchase-orders/${id}/cancel`, {
+          reason: reason ?? "",
+        })
+      ).data,
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["erp-purchase-orders", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-purchase-order", gymId, vars.id] });
+    },
+  });
+}
+
+/** Valuación del inventario (valor, capital dormido, rotación). No paginada. */
+export function useErpInventoryValuation(gymId: string, days = 90) {
+  return useQuery({
+    queryKey: ["erp-valuation", gymId, days],
+    queryFn: async () =>
+      (
+        await api.get<InventoryValuation>(
+          `/gym/${gymId}/erp/reports/inventory-valuation?days=${days}`,
+        )
+      ).data,
+    enabled: !!gymId,
   });
 }
 
@@ -1468,7 +2299,10 @@ export function useTicketReply(gymId: string) {
   return useMutation({
     mutationFn: async ({ ticketId, body }: { ticketId: string; body: string }) =>
       (await api.post(`/gym/${gymId}/tickets/${ticketId}/messages`, { body })).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-tickets", gymId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-tickets", gymId] });
+      invalidarPendientes(qc, gymId);
+    },
   });
 }
 
@@ -1477,7 +2311,11 @@ export function useTicketStatus(gymId: string) {
   return useMutation({
     mutationFn: async ({ ticketId, status }: { ticketId: string; status: string }) =>
       (await api.patch(`/gym/${gymId}/tickets/${ticketId}`, { status })).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-tickets", gymId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-tickets", gymId] });
+      // Cerrar un ticket baja el pendiente "reportes abiertos".
+      invalidarPendientes(qc, gymId);
+    },
   });
 }
 
@@ -1497,6 +2335,8 @@ export function useDecidePost(gymId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["gym-posts", gymId] });
       qc.invalidateQueries({ queryKey: ["gym-feed", gymId] });
+      // Moderar baja el pendiente "posts en moderación".
+      invalidarPendientes(qc, gymId);
     },
   });
 }
@@ -1509,6 +2349,9 @@ export function useGymLeaveDecision(gymId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["memberships", gymId] });
       qc.invalidateQueries({ queryKey: ["membership-detail", gymId] });
+      qc.invalidateQueries({ queryKey: ["overdue", gymId] });
+      qc.invalidateQueries({ queryKey: ["at-risk", gymId] });
+      invalidarPendientes(qc, gymId);
     },
   });
 }

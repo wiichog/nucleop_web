@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import {
   Badge,
   Button,
@@ -7,18 +7,27 @@ import {
   Grid,
   Group,
   Select,
+  SimpleGrid,
   Text,
   TextInput,
   Title,
+  Tooltip,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
-import { Download, Paperclip } from "lucide-react";
-import { useGymPayments, useMemberships, useRegisterManualPayment } from "../api/hooks";
+import { Download, Landmark, Paperclip } from "lucide-react";
+import {
+  useGymPayments,
+  useGymStatement,
+  useMemberships,
+  useRegisterManualPayment,
+} from "../api/hooks";
 import type { Membership, Payment } from "../api/types";
-import { NoGymAssigned, PageError } from "../components/PageStatus";
-import { Money, PageHeader, StatusBadge } from "../components/ui";
+import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
+import { Money, PageHeader, SectionLabel, StatusBadge } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
+import { errMsg } from "../lib/errors";
 import { sortRecords } from "../lib/sortRecords";
 import {
   FEL_STATUS,
@@ -27,6 +36,156 @@ import {
   PAYMENT_TX_STATUS,
   label,
 } from "../lib/labels";
+
+/** Últimos 12 periodos ("YYYY-MM") para el selector del estado de cuenta. */
+function periodosRecientes(): { value: string; label: string }[] {
+  const hoy = new Date();
+  return Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const nombre = d.toLocaleDateString("es-GT", { month: "long", year: "numeric" });
+    return { value, label: nombre.charAt(0).toUpperCase() + nombre.slice(1) };
+  });
+}
+
+/** Cifra del estado de cuenta con su explicación (el gym tiene que poder auditarla). */
+function Cifra({
+  label: titulo,
+  value,
+  hint,
+  c,
+}: {
+  label: string;
+  value: string | number | null | undefined;
+  hint: string;
+  c?: string;
+}) {
+  return (
+    <Tooltip label={hint} multiline w={260} withArrow position="top">
+      <div>
+        <Text size="xs" c="dimmed" tt="uppercase" style={{ letterSpacing: "0.08em" }}>
+          {titulo}
+        </Text>
+        <Text fz={22} fw={700} c={c} style={{ fontVariantNumeric: "tabular-nums" }}>
+          <Money value={value} decimals={2} fw={700} />
+        </Text>
+      </div>
+    </Tooltip>
+  );
+}
+
+/**
+ * Estado de cuenta del gym con Nucleo: qué se cobró por la pasarela, cuánto fue
+ * recargo de la plataforma y cuánto está pendiente de depósito o ya depositado.
+ * Es la cifra que hoy el gimnasio no puede ver y que le genera desconfianza.
+ */
+function EstadoDeCuenta({ gymId }: { gymId: string }) {
+  const periodos = useMemo(periodosRecientes, []);
+  const [period, setPeriod] = useState(periodos[0].value);
+  const statement = useGymStatement(gymId, period);
+  const st = statement.data;
+  const payout = st?.payout ?? null;
+
+  return (
+    <Card mb="lg">
+      <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm" mb="sm">
+        <div>
+          <SectionLabel mb={2}>Cobranza · Nucleo</SectionLabel>
+          <Title order={3}>Estado de cuenta</Title>
+          <Text c="dimmed" size="sm">
+            Solo el dinero que pasó por la pasarela (tarjeta). Los pagos manuales ya los cobraste
+            vos y no entran aquí.
+          </Text>
+        </div>
+        <Select
+          aria-label="Periodo del estado de cuenta"
+          value={period}
+          onChange={(v) => v && setPeriod(v)}
+          data={periodos}
+          w={{ base: "100%", sm: 200 }}
+          comboboxProps={{ withinPortal: true }}
+        />
+      </Group>
+
+      {statement.isError ? (
+        <PageError
+          message={errMsg(statement.error, "No se pudo cargar el estado de cuenta.")}
+          onRetry={() => statement.refetch()}
+        />
+      ) : statement.isLoading || !st ? (
+        <PageLoading label="Calculando el periodo…" />
+      ) : (
+        <>
+          <SimpleGrid cols={{ base: 2, md: 5 }} spacing="lg">
+            <Cifra
+              label="Cobrado por tarjeta"
+              value={st.gross_charged}
+              hint="Total que se le cobró a tus atletas con tarjeta en el periodo: tu cuota + el recargo de Nucleo."
+            />
+            <Cifra
+              label="Tu ingreso"
+              value={st.gym_revenue}
+              hint="La parte que es tuya (el precio de tus planes, servicios y productos). El recargo de Nucleo nunca sale de aquí."
+            />
+            <Cifra
+              label="Recargo Nucleo"
+              value={st.platform_surcharge}
+              hint="Recargo de plataforma SUMADO encima de tu precio y pagado por el atleta. Nunca se deposita ni se te descuenta."
+              c="dimmed"
+            />
+            <Cifra
+              label="Reembolsos"
+              value={st.refunds_total}
+              hint="Devoluciones del periodo (registradas como movimientos negativos). Se restan de lo que se te deposita."
+              c={Number(st.refunds_total) < 0 ? "red" : undefined}
+            />
+            <Cifra
+              label={payout?.status === "executed" ? "Depositado" : "Pendiente de depósito"}
+              value={st.net_to_deposit}
+              hint="Neto que Nucleo te transfiere por el periodo: tu ingreso menos reembolsos."
+              c={payout?.status === "executed" ? "teal" : "flame"}
+            />
+          </SimpleGrid>
+
+          <Group gap="xs" mt="md" wrap="wrap">
+            <Landmark size={16} />
+            {payout?.status === "executed" ? (
+              <Text size="sm">
+                <Badge color="teal" variant="light" mr={6}>
+                  Depositado
+                </Badge>
+                {payout.executed_at
+                  ? `El ${new Date(payout.executed_at).toLocaleDateString("es-GT")}`
+                  : "Ejecutado"}
+                {payout.reference ? ` · Referencia: ${payout.reference}` : ""}
+              </Text>
+            ) : payout ? (
+              <Text size="sm">
+                <Badge color="yellow" variant="light" mr={6}>
+                  Depósito generado
+                </Badge>
+                Nucleo ya calculó tu liquidación del periodo; la transferencia está en camino.
+              </Text>
+            ) : (
+              <Text size="sm">
+                <Badge color="gray" variant="light" mr={6}>
+                  Sin depósito aún
+                </Badge>
+                El depósito se genera al cerrar el periodo.
+              </Text>
+            )}
+            <Text size="sm" c="dimmed">
+              · {st.payments_count} {st.payments_count === 1 ? "cobro" : "cobros"}
+              {st.refunds_count > 0
+                ? ` · ${st.refunds_count} ${st.refunds_count === 1 ? "reembolso" : "reembolsos"}`
+                : ""}
+            </Text>
+          </Group>
+        </>
+      )}
+    </Card>
+  );
+}
 
 export function PaymentsPage() {
   const { primaryGymId } = useAuth();
@@ -48,14 +207,24 @@ export function PaymentsPage() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!membershipId) return;
-    await registerManual.mutateAsync({
-      membership_id: membershipId,
-      amount,
-      method,
-      proof_file: proofFile ?? undefined,
-    });
-    setAmount("");
-    setProofFile(null);
+    try {
+      await registerManual.mutateAsync({
+        membership_id: membershipId,
+        amount,
+        method,
+        proof_file: proofFile ?? undefined,
+      });
+      notifications.show({ color: "teal", message: "Pago registrado. La membresía queda al día." });
+      setAmount("");
+      setProofFile(null);
+    } catch (error) {
+      // Sin este catch la promesa quedaba rechazada sin dueño y el gym solo veía
+      // un texto genérico: el backend manda el motivo real en `detail`.
+      notifications.show({
+        color: "red",
+        message: errMsg(error, "No se pudo registrar el pago. Verifica los datos."),
+      });
+    }
   };
 
   if (!gymId) return <NoGymAssigned />;
@@ -79,6 +248,9 @@ export function PaymentsPage() {
   return (
     <div>
       <PageHeader kicker="Negocio · ERP" title="Membresías" subtitle="Registra pagos de membresía y revisa el historial." />
+
+      <EstadoDeCuenta gymId={gymId} />
+
       {morosos.length > 0 && (
         <Card withBorder mb="lg">
           <Group justify="space-between" mb="sm">
@@ -118,6 +290,17 @@ export function PaymentsPage() {
           />
         </Card>
       )}
+      {/* Sin el padrón el selector de membresía queda vacío y el gym no entiende
+          por qué no puede registrar un pago: hay que decírselo. */}
+      {memberships.isError && (
+        <Card mb="lg">
+          <PageError
+            message="No se pudo cargar el padrón de atletas: el selector de membresía quedó vacío."
+            onRetry={() => memberships.refetch()}
+          />
+        </Card>
+      )}
+
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Card component="form" onSubmit={onSubmit}>
@@ -169,7 +352,7 @@ export function PaymentsPage() {
             />
             {registerManual.isError && (
               <Text c="red" size="sm" mb="sm">
-                No se pudo registrar el pago. Verifica los datos.
+                {errMsg(registerManual.error, "No se pudo registrar el pago. Verifica los datos.")}
               </Text>
             )}
             <Button type="submit" fullWidth disabled={!membershipId || !amount} loading={registerManual.isPending}>

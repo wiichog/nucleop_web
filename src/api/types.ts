@@ -7,6 +7,12 @@ export type Membership = components["schemas"]["MembershipAdmin"] & {
   athlete_photo?: string | null;
   days_to_due?: number | null;
   leave_initiated_by?: string;
+  // Pausa / congelamiento (viaje, lesión). `paused_at` es el ancla del corrimiento
+  // del vencimiento al reanudar; `pause_reason` es nota INTERNA del gym: no viaja
+  // al atleta (mismo criterio que `internal_notes`).
+  paused_at?: string | null;
+  pause_reason?: string;
+  pause_until?: string | null;
 };
 type AthleteProfileExtra = {
   full_name?: string;
@@ -30,12 +36,28 @@ export type PaymentAttempt = {
   message: string;
   created_at: string;
 };
-// Campos nuevos del backend (motivo de rechazo + reintentos) aún no regenerados en el
-// schema; se intersectan aquí hasta el próximo `npm run gen:api`.
+/**
+ * Pago del panel (`PaymentSerializer`). Campos que el backend YA manda y el schema
+ * generado todavía no declara (correr `npm run gen:api` con la API arriba los
+ * incorpora); se intersectan aquí mientras tanto.
+ *
+ * Ojo con la aritmética del recargo: `amount` es la BASE (el ingreso del gym) y
+ * `surcharge` (= `platform_commission`) el recargo de Nucleo SUMADO encima, así
+ * que lo que se le cobró a la tarjeta es `total_charged`, no `amount`. Sumar
+ * `amount` para "lo cobrado" subestima el cargo real del atleta.
+ */
 export type Payment = components["schemas"]["Payment"] & {
+  /** Alias de `platform_commission`: el recargo de Nucleo (0 si no fue tarjeta). */
+  surcharge?: string;
+  /** `amount` + `surcharge`: lo que efectivamente pasó por la pasarela. */
+  total_charged?: string;
+  /** De quién es el pago (el panel lista los de todos sus atletas). */
+  athlete_name?: string;
+  gym_name?: string;
   failure_code?: string | null;
   failure_message?: string | null;
   attempts_count?: number;
+  last_attempt_at?: string | null;
   can_retry?: boolean;
   attempts?: PaymentAttempt[];
 };
@@ -47,8 +69,85 @@ export type Plan = components["schemas"]["Plan"] & {
 export type JoinRequest = components["schemas"]["JoinRequest"];
 export type GymClass = components["schemas"]["GymClass"];
 export type GymCheckin = components["schemas"]["GymCheckin"];
-export type AuditLog = components["schemas"]["AuditLog"];
-export type GymAdmin = components["schemas"]["GymAdmin"];
+/**
+ * Fila de la bitácora (`GET /gym/{id}/audit`). El backend ya la manda LEGIBLE:
+ * `descripcion` es la frase en español de la acción (la misma que sale en la
+ * columna «descripción» del CSV) y `actor_rol` el rol traducido —"Sistema/atleta"
+ * cuando no hubo un rol de staff detrás—. Ninguno de los dos está todavía en el
+ * schema generado (`npm run gen:api`), por eso la intersección.
+ *
+ * Ojo: `actor_id`/`actor_role` los declara el schema viejo pero el serializer YA
+ * NO los envía; se leen de `actor_rol`, no de ellos.
+ */
+export type AuditLog = components["schemas"]["AuditLog"] & {
+  descripcion: string;
+  actor_rol: string;
+};
+export type GymAdmin = components["schemas"]["GymAdmin"] & {
+  allow_future_reservations?: boolean;
+  /**
+   * Días sin asistir a ESTE gym para marcar al atleta "en riesgo" (1..365, def. 10).
+   * Editable por gym_admin. Aún no en el schema generado (`npm run gen:api`).
+   */
+  risk_inactivity_days?: number;
+  /**
+   * Días de mora que ESTE gimnasio tolera antes del corte automático (1..365,
+   * def. 30). Es política de COBRO del gym (no de plataforma), así que la editan
+   * `gym_admin` y superadmin desde el panel. Nunca sale en la ficha pública del
+   * gimnasio (hay test de no-fuga en el backend). Aún no en el schema generado.
+   */
+  overdue_grace_days?: number;
+  is_active?: boolean;
+};
+
+// --- Alta y administración de gimnasios (plataforma) ---------------------------
+// Vivían dentro de `pages/PlatformGymsPage.tsx`; el contrato de una ruta no puede
+// vivir en una pantalla (nadie más lo encuentra y se reescribe a mano en la
+// siguiente). Aquí está la única definición.
+
+/** Cuerpo del alta COMPLETA: gym + suscripción SaaS + plan vendible + admin. */
+export interface AltaGimnasio {
+  name: string;
+  location_text?: string;
+  address?: string;
+  is_public?: boolean;
+  saas_plan?: string;
+  /** Cuota mensual que el gym le paga a Nucleo. */
+  monthly_price?: string;
+  /** Recargo de Nucleo en tarjeta (0.03 = 3%). Vacío = tasa por defecto. */
+  commission_pct?: string | null;
+  plan_name?: string;
+  /** Precio del plan VENDIBLE que se crea para el gym. */
+  plan_price?: string;
+  admin_email?: string;
+  admin_first_name?: string;
+  admin_last_name?: string;
+  admin_phone?: string;
+}
+
+/**
+ * Respuesta del alta: el gym (misma forma que `GymAdmin`) + qué se creó a su
+ * alrededor, para no tener que pedirlo con una segunda llamada.
+ */
+export type GymCreado = GymAdmin & {
+  admin_email: string;
+  admin_created: boolean;
+  plan_id: string;
+  subscription_id: string;
+};
+
+/** Administrador (`gym_admin`) del gimnasio, como lo lista la plataforma. */
+export interface GymStaffAdmin {
+  id: string;
+  user_id: string;
+  email: string;
+  phone: string | null;
+  name: string;
+  is_active: boolean;
+  granted_at: string;
+  /** `true` si ya puso su contraseña y puede entrar al panel. */
+  claimed: boolean;
+}
 
 export type DropinType =
   | "one_class"
@@ -110,10 +209,25 @@ export interface ClubActivityAdmin {
   name: string;
   starts_at: string;
   location: string;
+  /** Ruta/recorrido de la actividad (running, ciclismo…). */
+  route?: string;
   is_free: boolean;
   capacity?: number | null;
   rsvp_count?: number;
   my_rsvp?: boolean;
+  created_at?: string;
+}
+
+/**
+ * Última revisión del atleta en el reto. `note` nunca viene vacío cuando
+ * `status === "rejected"`: el atleta tiene que poder leer por qué se lo rechazaron.
+ */
+export interface ClubChallengeReview {
+  submission_id: string;
+  status: "approved" | "rejected" | "pending";
+  delta: string;
+  note: string;
+  reviewed_at: string;
 }
 
 export interface ClubChallenge {
@@ -126,8 +240,18 @@ export interface ClubChallenge {
   ends_at: string;
   points_reward: number;
   participant_count?: number;
+  is_active?: boolean;
+  /** Solo llega con contexto de atleta; en el panel del club es `null`. */
+  my_last_review?: ClubChallengeReview | null;
+  created_at?: string;
 }
 
+/**
+ * Envío de progreso de un reto a revisión. El motivo de la decisión viaja en
+ * `review_note` y el sello en `reviewed_at` (ola 2/3 de clubes: "el motivo llega
+ * SIEMPRE"); sin tiparlos, la bandeja de revisión no podía mostrar por qué se
+ * rechazó ni cuándo se resolvió.
+ */
 export interface ClubChallengeSubmission {
   id: string;
   challenge: string;
@@ -136,9 +260,14 @@ export interface ClubChallengeSubmission {
   delta: string;
   source: string;
   status: string;
+  /** Actividad del club que respalda el envío (`null` si se subió a mano). */
+  activity?: string | null;
+  review_note?: string;
+  reviewed_at?: string | null;
   created_at: string;
 }
 
+/** Fila del leaderboard = `ClubChallengeEntry` (la inscripción), no el envío. */
 export interface ClubChallengeLeaderboardRow {
   id: string;
   athlete: string;
@@ -146,6 +275,8 @@ export interface ClubChallengeLeaderboardRow {
   progress: string;
   status: string;
   rank: number;
+  joined_at?: string;
+  completed_at?: string | null;
 }
 
 export interface ClubActivityRsvpRow {
@@ -195,10 +326,94 @@ export interface PendingSummary {
   posts: number;
   tickets: number;
   clases_sin_wod: number;
+  /** Clases de hoy sin coach (cobertura). Falta si el backend es viejo. */
+  clases_sin_coach?: number;
   pedidos: number;
   clubes: number;
+  /**
+   * Bajas que pidió el ATLETA y el gimnasio todavía no confirma (`pending_leave`
+   * con `leave_initiated_by = "athlete"`). Suma a `total`: es una decisión
+   * pendiente del admin, no una watchlist. Las bajas que propuso el propio gym no
+   * entran — ahí la pelota la tiene el atleta.
+   */
+  bajas?: number;
   morosos: number;
+  /** Atletas en riesgo de abandono (usa `Gym.risk_inactivity_days`). */
+  en_riesgo?: number;
   total: number;
+}
+
+// --- Cobranza: estado de cuenta gym ↔ Nucleo y depósitos (Payout) ---
+
+/**
+ * Depósito de Nucleo al gimnasio por un periodo. `amount` = neto a depositar; el
+ * desglose queda CONGELADO al generarlo (no se recalcula al leerlo).
+ */
+export interface Payout {
+  id: string;
+  gym: string;
+  gym_name: string;
+  /** "YYYY-MM". */
+  period: string;
+  period_start: string | null;
+  period_end: string | null;
+  amount: string;
+  gross_charged: string;
+  platform_surcharge: string;
+  refunds_total: string;
+  payments_count: number;
+  refunds_count: number;
+  status: "pending" | "executed";
+  reference: string;
+  notes: string;
+  executed_at: string | null;
+  created_at: string;
+}
+
+/**
+ * Estado de cuenta del gym con Nucleo en un periodo. Solo el dinero que pasó por
+ * la PASARELA (lo que Nucleo tiene en custodia): los pagos manuales ya los cobró
+ * el gym. `platform_surcharge` es el recargo de Nucleo y NUNCA se deposita.
+ */
+export interface GymStatement {
+  gym_id: string;
+  gym_name: string;
+  period: string;
+  period_start: string;
+  period_end: string;
+  currency: string;
+  gross_charged: string;
+  gym_revenue: string;
+  platform_surcharge: string;
+  /** Negativo o cero. */
+  refunds_total: string;
+  refunds_surcharge: string;
+  net_to_deposit: string;
+  platform_earned: string;
+  payments_count: number;
+  refunds_count: number;
+  payout: Payout | null;
+}
+
+/** Totales de la red en el periodo (incluye lo que ganó Nucleo). */
+export interface PlatformBillingTotals {
+  gross_charged: string;
+  gym_revenue: string;
+  refunds_total: string;
+  platform_earned: string;
+  net_to_deposit: string;
+  gyms_count: number;
+}
+
+/** Liquidación de TODOS los gyms del periodo (solo superadmin). */
+export interface PlatformStatements {
+  period: string;
+  period_start: string;
+  period_end: string;
+  currency: string;
+  /** Solo gyms con movimiento por pasarela o con payout del periodo. */
+  gyms: GymStatement[];
+  totals: PlatformBillingTotals;
 }
 
 export interface PlanOffer {
@@ -261,7 +476,50 @@ export interface ErpProduct {
   created_at: string;
 }
 
-/** Pedido/apartado de la tienda del gym (marketplace de la app). */
+export type ProductOrderStatus =
+  | "pending_payment"
+  | "reserved"
+  | "paid"
+  | "preparing"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "returned";
+
+/** Estado de la devolución. `""` = el pedido no tiene ninguna en curso. */
+export type ReturnStatus = "" | "requested" | "approved" | "rejected";
+
+export type DeliveryMethod = "pickup" | "shipping";
+
+/** Línea del pedido (el carrito puede llevar varios productos en UN solo cobro). */
+export interface ProductOrderLine {
+  id: string;
+  product: string;
+  product_name: string;
+  product_photo: string | null;
+  qty: number;
+  size: string;
+  color: string;
+  unit_price: string;
+  subtotal: string;
+  delivery_days: number;
+}
+
+/** Hito de la línea de tiempo del pedido (pagado → preparando → enviado → …). */
+export interface ProductOrderEvent {
+  id: string;
+  status: ProductOrderStatus;
+  status_label: string;
+  note: string;
+  created_at: string;
+}
+
+/**
+ * Pedido/apartado de la tienda del gym. TODOS los montos son STRING decimal.
+ * `total` = subtotal + envío (lo que factura el gym); `total_charged` = lo que se
+ * le cobró a la tarjeta (total + recargo de Nucleo). El reembolso devuelve la
+ * BASE, nunca el recargo.
+ */
 export interface ProductOrder {
   id: string;
   gym: string;
@@ -275,12 +533,42 @@ export interface ProductOrder {
   size: string;
   color: string;
   unit_price: string;
+  subtotal: string;
+  shipping_cost: string;
   total: string;
+  surcharge: string;
+  total_charged: string;
   kind: "purchase" | "preorder";
-  status: "pending_payment" | "reserved" | "paid" | "delivered" | "cancelled";
+  status: ProductOrderStatus;
   payment: string | null;
   delivery_days: number;
+  delivery_method: DeliveryMethod;
+  shipping_recipient: string;
+  shipping_phone: string;
+  shipping_address: string;
+  shipping_city: string;
+  shipping_notes: string;
+  tracking_code: string;
+  return_status: ReturnStatus;
+  return_reason: string;
+  return_requested_at: string | null;
+  return_resolved_at: string | null;
+  return_resolution_note: string;
+  can_request_return: boolean;
+  items_count: number;
+  lines: ProductOrderLine[];
+  events: ProductOrderEvent[];
   created_at: string;
+}
+
+/** Condiciones de envío de la tienda del gym. */
+export interface ShippingInfo {
+  enabled: boolean;
+  cost: string;
+  /** Envío gratis a partir de este monto (`null` = nunca). */
+  free_over: string | null;
+  eta_days: number;
+  note: string;
 }
 
 export interface ErpMovement {
@@ -318,20 +606,162 @@ export interface ErpSale {
   created_at: string;
 }
 
+export type ExpenseCategory =
+  | "rent"
+  | "utilities"
+  | "equipment"
+  | "marketing"
+  | "payroll"
+  | "inventory"
+  | "other";
+
+/**
+ * Categoría al ESCRIBIR. El `& {}` conserva el autocompletado de las categorías
+ * reales sin romper a las páginas que la llevan en un `useState<string | null>`.
+ */
+export type ExpenseCategoryInput = ExpenseCategory | (string & {});
+
+/**
+ * Gasto del gym. Histórico inmutable: NO se edita ni se borra. Para corregirlo
+ * está `/correct` (anula el original y crea uno nuevo que lo reemplaza) y para
+ * darlo de baja `/void`. Un gasto anulado SIGUE en la lista, marcado `is_void`.
+ */
 export interface ErpExpense {
   id: string;
-  category: string;
+  branch: string | null;
+  category: ExpenseCategory;
   amount: string;
   description: string;
   incurred_on: string;
   proof_url: string;
+  /** URL del comprobante subido (archivo privado). "" si no hay. */
+  proof_file: string;
+  is_void: boolean;
+  voided_at: string | null;
+  void_reason: string;
+  /** Gasto ORIGINAL al que corrige este (si nació de un `/correct`). */
+  replaces: string | null;
+  /** Gasto que corrigió a este (si fue corregido). */
+  replaced_by: string | null;
   created_at: string;
+}
+
+/** Proveedor del gym (compras de inventario). DELETE = soft-delete. */
+export interface ErpSupplier {
+  id: string;
+  name: string;
+  contact_name: string;
+  phone: string;
+  email: string;
+  tax_id: string;
+  notes: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export type PurchaseOrderStatus =
+  | "draft"
+  | "ordered"
+  | "partial"
+  | "received"
+  | "cancelled";
+
+export interface ErpPurchaseOrderLine {
+  id: string;
+  product: string;
+  product_name: string;
+  qty: number;
+  unit_cost: string;
+  received_qty: number;
+  pending_qty: number;
+  subtotal: string;
+}
+
+/** Orden de compra a un proveedor. Recibirla CARGA el stock con su costo real. */
+export interface ErpPurchaseOrder {
+  id: string;
+  supplier: string;
+  supplier_name: string;
+  branch: string | null;
+  status: PurchaseOrderStatus;
+  reference: string;
+  expected_on: string | null;
+  ordered_on: string | null;
+  received_at: string | null;
+  note: string;
+  total: string;
+  received_total: string;
+  cancel_reason: string;
+  lines: ErpPurchaseOrderLine[];
+  created_at: string;
+}
+
+/**
+ * Montos de los reportes ERP en crudo (`/erp/reports/*`): el backend devuelve el
+ * diccionario tal cual, así que los Decimal viajan como NÚMERO JSON y no como
+ * string decimal. Pásalos por `fmtQ`/`toNumber` (aceptan ambos).
+ */
+export type ErpMonto = string | number;
+
+/** Fila de la valuación de inventario (una por producto vivo del gym). */
+export interface InventoryValuationRow {
+  product: string;
+  name: string;
+  sku: string;
+  category: string;
+  category_label: string;
+  stock_qty: number;
+  cost_price: ErpMonto;
+  /** Costo promedio ponderado de las compras del ledger (o `cost_price`). */
+  avg_cost: ErpMonto;
+  stock_value: ErpMonto;
+  sale_price: ErpMonto;
+  retail_value: ErpMonto;
+  units_purchased: number;
+  units_sold: number;
+  daily_velocity: number;
+  /** Días que dura el stock al ritmo actual (`null` = sin ventas en la ventana). */
+  days_of_inventory: number | null;
+  turnover: number | null;
+  last_purchase_at: string | null;
+  days_since_purchase: number | null;
+  last_sale_at: string | null;
+  days_since_sale: number | null;
+  /** Con stock y CERO ventas en la ventana: capital dormido. */
+  is_dead_stock: boolean;
+  needs_reorder: boolean;
+}
+
+export interface InventoryValuationCategory {
+  category: string;
+  label: string;
+  units: number;
+  value: ErpMonto;
+}
+
+/** Valuación del inventario a costo, antigüedad y rotación. NO viene paginada. */
+export interface InventoryValuation {
+  as_of: string;
+  days: number;
+  total_units: number;
+  total_value: ErpMonto;
+  total_retail_value: ErpMonto;
+  potential_margin: ErpMonto;
+  products_count: number;
+  dead_stock_count: number;
+  dead_stock_value: ErpMonto;
+  reorder_count: number;
+  by_category: InventoryValuationCategory[];
+  /** Ordenados por `stock_value` descendente. */
+  products: InventoryValuationRow[];
 }
 
 export interface GymClub {
   id: string;
   name: string;
   club_type: string;
+  /** Descripción del club (nueva en el ClubSerializer; `plan` ya no se expone). */
+  description?: string;
   gym: string | null;
   gym_name: string | null;
   status: string;
@@ -339,6 +769,25 @@ export interface GymClub {
   is_public: boolean;
   member_count?: number;
   created_at: string;
+}
+
+/** Anuncio del club a sus miembros (mismo contrato que el anuncio del gym). */
+export interface ClubAnnouncement {
+  id: string;
+  club: string;
+  title: string;
+  body: string;
+  photo: string | null;
+  created_at: string;
+}
+
+/** Lo que el club_admin puede editar de su ficha (`is_public`/`status` no). */
+export interface ClubProfileEditable {
+  id: string;
+  name: string;
+  club_type: string;
+  description: string;
+  photo: string | null;
 }
 
 export interface ErpBranch {
@@ -558,6 +1007,17 @@ export interface ErpPnl {
   active_members: number;
   new_members: number;
   inventory_purchases_units: number;
+  /**
+   * Costo de las entradas `type=purchase` de la ventana. INFORMATIVO: no resta en
+   * el P&L (su costo entra como COGS al vender).
+   */
+  inventory_purchases_cost: ErpMonto;
+  /**
+   * Gastos con `category=inventory` EXCLUIDOS del OPEX para no duplicar el COGS.
+   * `expenses`/`expenses_by_category` ya vienen sin ellos y sin anulados, y
+   * `expenses_by_category` suma exacto `expenses`.
+   */
+  inventory_expensed_excluded: ErpMonto;
   top_products: { name: string; units: number }[];
 }
 

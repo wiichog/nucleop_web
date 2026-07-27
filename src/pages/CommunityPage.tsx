@@ -16,7 +16,6 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { AxiosError } from "axios";
 import {
   useAthletesOfMonth,
   useAthletesOfMonthHistory,
@@ -32,6 +31,7 @@ import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { errMsg } from "../lib/errors";
 
 const REACTION_EMOJI: Record<string, string> = {
   like: "👍",
@@ -108,30 +108,67 @@ export function CommunityPage() {
       });
       return true;
     } catch (e) {
-      const detail = (e as AxiosError<{ detail?: string }>).response?.data?.detail;
       notifications.show({
         color: "red",
         title: "No se pudo publicar el atleta del mes",
-        message: detail ?? "Revisa que el atleta siga activo en el gimnasio e intenta de nuevo.",
+        message: errMsg(e, "Revisa que el atleta siga activo en el gimnasio e intenta de nuevo."),
       });
       return false;
     }
   };
 
+  /**
+   * Publica el anuncio en el feed. Antes se disparaba con `mutateAsync` SIN catch:
+   * si el backend lo rechazaba (archivo muy pesado, segmento inválido) la promesa
+   * quedaba rechazada sin dueño, el formulario no se limpiaba y el admin no veía
+   * absolutamente nada — creía haber publicado.
+   */
   const onPost = async (event: FormEvent) => {
     event.preventDefault();
-    await postAnnouncement.mutateAsync({
-      title: annTitle,
-      body: annBody,
-      class_type: annClass || undefined,
-      photo: annPhoto,
-      video: annVideo,
-    });
-    setAnnTitle("");
-    setAnnBody("");
-    setAnnClass("");
-    setAnnPhoto(null);
-    setAnnVideo(null);
+    try {
+      await postAnnouncement.mutateAsync({
+        title: annTitle,
+        body: annBody,
+        class_type: annClass || undefined,
+        photo: annPhoto,
+        video: annVideo,
+      });
+      notifications.show({
+        color: "teal",
+        message: annClass
+          ? `Anuncio publicado para ${annClass}. Ya está en el feed de esos atletas.`
+          : "Anuncio publicado. Ya está en el feed de todo el gimnasio.",
+      });
+      setAnnTitle("");
+      setAnnBody("");
+      setAnnClass("");
+      setAnnPhoto(null);
+      setAnnVideo(null);
+    } catch (e) {
+      notifications.show({
+        color: "red",
+        message: errMsg(e, "No se pudo publicar el anuncio. Intenta de nuevo."),
+      });
+    }
+  };
+
+  /** Modera un post pendiente avisando el resultado (antes fallaba en silencio). */
+  const decidirPost = (postId: string, action: "approve" | "reject") => {
+    decidePost.mutate(
+      { postId, action },
+      {
+        onSuccess: () =>
+          notifications.show({
+            color: "teal",
+            message: action === "approve" ? "Publicación aprobada: ya está en el feed." : "Publicación rechazada.",
+          }),
+        onError: (e) =>
+          notifications.show({
+            color: "red",
+            message: errMsg(e, "No se pudo moderar la publicación."),
+          }),
+      },
+    );
   };
 
   if (!gymId) return <NoGymAssigned />;
@@ -157,7 +194,16 @@ export function CommunityPage() {
               Elige un atleta por clase y confirma con “Publicar”: el anuncio sale al feed con una
               imagen enmarcada con su foto.
             </Text>
-            {memberships.isLoading || awards.isLoading ? (
+            {memberships.isError || awards.isError ? (
+              // Sin padrón el selector queda vacío y parece que no hay atletas.
+              <PageError
+                message="No se pudo cargar el padrón o los destacados publicados."
+                onRetry={() => {
+                  if (memberships.isError) memberships.refetch();
+                  if (awards.isError) awards.refetch();
+                }}
+              />
+            ) : memberships.isLoading || awards.isLoading ? (
               <PageLoading />
             ) : (
               <Table>
@@ -294,7 +340,12 @@ export function CommunityPage() {
         <Text c="dimmed" size="sm" mb="md">
           Todos los destacados publicados, del mes más reciente al más antiguo.
         </Text>
-        {aomHistory.isLoading ? (
+        {aomHistory.isError ? (
+          <PageError
+            message="No se pudo cargar el histórico de atletas del mes."
+            onRetry={() => aomHistory.refetch()}
+          />
+        ) : aomHistory.isLoading ? (
           <PageLoading />
         ) : !(aomHistory.data ?? []).length ? (
           <Text c="dimmed" size="sm">
@@ -356,7 +407,14 @@ export function CommunityPage() {
             </Badge>
           )}
         </Group>
-        {pendingPosts.isLoading ? (
+        {/* Un fallo aquí decía "no hay nada que moderar": el peor error posible en
+            una bandeja de moderación (posts reportados quedan invisibles). */}
+        {pendingPosts.isError ? (
+          <PageError
+            message="No se pudo cargar la bandeja de moderación. Puede haber publicaciones esperando."
+            onRetry={() => pendingPosts.refetch()}
+          />
+        ) : pendingPosts.isLoading ? (
           <PageLoading />
         ) : !(pendingPosts.data ?? []).length ? (
           <Text c="dimmed" size="sm">
@@ -400,10 +458,10 @@ export function CommunityPage() {
                   )}
                 </Group>
                 <Group gap="xs" mt="sm">
-                  <Button size="xs" loading={decidePost.isPending} onClick={() => decidePost.mutate({ postId: p.id, action: "approve" })}>
+                  <Button size="xs" loading={decidePost.isPending} onClick={() => decidirPost(p.id, "approve")}>
                     Aprobar
                   </Button>
-                  <Button size="xs" variant="default" color="red" loading={decidePost.isPending} onClick={() => decidePost.mutate({ postId: p.id, action: "reject" })}>
+                  <Button size="xs" variant="default" color="red" loading={decidePost.isPending} onClick={() => decidirPost(p.id, "reject")}>
                     Rechazar
                   </Button>
                 </Group>

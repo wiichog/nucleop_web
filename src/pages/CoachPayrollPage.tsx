@@ -14,7 +14,6 @@ import {
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { AxiosError } from "axios";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useCoachPayouts,
@@ -29,6 +28,7 @@ import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus"
 import { Money, PageHeader } from "../components/ui";
 import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
+import { errMsg } from "../lib/errors";
 import { sortRecords } from "../lib/sortRecords";
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : "");
@@ -51,6 +51,43 @@ export function CoachPayrollPage() {
     columnAccessor: "period_start",
     direction: "desc",
   });
+
+  /**
+   * Guarda un cambio de nómina del coach. Antes se llamaba a `mutate` sin
+   * callbacks: si el backend rechazaba la tarifa, el input se quedaba con el
+   * número nuevo, nadie avisaba, y la liquidación salía con el valor viejo.
+   * Solo avisa en el error: el guardado va en cada `blur` y un toast de éxito
+   * por campo sería ruido.
+   */
+  const guardarCoach = (
+    staffId: string,
+    body: Parameters<typeof updateCoach.mutate>[0]["body"],
+  ) =>
+    updateCoach.mutate(
+      { staffId, body },
+      {
+        onError: (error) =>
+          notifications.show({
+            color: "red",
+            message: errMsg(error, "No se pudo guardar el cambio de nómina del coach."),
+          }),
+      },
+    );
+
+  /** Marca la liquidación como pagada (sale como gasto de nómina). */
+  const onPagar = (p: CoachPayout) =>
+    payPayout.mutate(p.id, {
+      onSuccess: () =>
+        notifications.show({
+          color: "teal",
+          message: `Liquidación de ${p.coach_email} marcada como pagada.`,
+        }),
+      onError: (error) =>
+        notifications.show({
+          color: "red",
+          message: errMsg(error, "No se pudo marcar la liquidación como pagada."),
+        }),
+    });
 
   if (!gymId) return <NoGymAssigned />;
   if (coaches.isError) return <PageError onRetry={() => coaches.refetch()} />;
@@ -76,11 +113,10 @@ export function CoachPayrollPage() {
         });
       }
     } catch (err) {
-      const detail = (err as AxiosError<{ detail?: string }>).response?.data?.detail;
       notifications.show({
         color: "red",
         title: "No se pudo generar la liquidación",
-        message: detail ?? "Revisa las fechas e intenta de nuevo.",
+        message: errMsg(err, "Revisa las fechas e intenta de nuevo."),
       });
     }
   };
@@ -138,7 +174,7 @@ export function CoachPayrollPage() {
                         w={150}
                         value={c.pay_type}
                         onChange={(v) =>
-                          v && updateCoach.mutate({ staffId: c.staff_role, body: { pay_type: v as "per_class" | "fixed" } })
+                          v && guardarCoach(c.staff_role, { pay_type: v as "per_class" | "fixed" })
                         }
                         data={[
                           { value: "per_class", label: "Por clase" },
@@ -155,9 +191,8 @@ export function CoachPayrollPage() {
                         disabled={c.pay_type !== "per_class"}
                         defaultValue={Number(c.per_class_rate)}
                         onBlur={(e) =>
-                          updateCoach.mutate({
-                            staffId: c.staff_role,
-                            body: { per_class_rate: e.currentTarget.value.replace(/[^\d.]/g, "") || 0 },
+                          guardarCoach(c.staff_role, {
+                            per_class_rate: e.currentTarget.value.replace(/[^\d.]/g, "") || 0,
                           })
                         }
                       />
@@ -171,9 +206,8 @@ export function CoachPayrollPage() {
                         disabled={c.pay_type !== "fixed"}
                         defaultValue={Number(c.fixed_amount)}
                         onBlur={(e) =>
-                          updateCoach.mutate({
-                            staffId: c.staff_role,
-                            body: { fixed_amount: e.currentTarget.value.replace(/[^\d.]/g, "") || 0 },
+                          guardarCoach(c.staff_role, {
+                            fixed_amount: e.currentTarget.value.replace(/[^\d.]/g, "") || 0,
                           })
                         }
                       />
@@ -238,10 +272,7 @@ export function CoachPayrollPage() {
                         <Switch
                           checked={c.offers_pt}
                           onChange={(e) =>
-                            updateCoach.mutate({
-                              staffId: c.staff_role,
-                              body: { offers_pt: e.currentTarget.checked },
-                            })
+                            guardarCoach(c.staff_role, { offers_pt: e.currentTarget.checked })
                           }
                         />
                       </Table.Td>
@@ -254,9 +285,8 @@ export function CoachPayrollPage() {
                           disabled={!c.offers_pt}
                           defaultValue={Number(c.pt_price)}
                           onBlur={(e) =>
-                            updateCoach.mutate({
-                              staffId: c.staff_role,
-                              body: { pt_price: e.currentTarget.value.replace(/[^\d.]/g, "") || 0 },
+                            guardarCoach(c.staff_role, {
+                              pt_price: e.currentTarget.value.replace(/[^\d.]/g, "") || 0,
                             })
                           }
                         />
@@ -272,9 +302,8 @@ export function CoachPayrollPage() {
                             defaultValue={pct}
                             onBlur={(e) => {
                               const v = Number(e.currentTarget.value.replace(/[^\d.]/g, "")) || 0;
-                              updateCoach.mutate({
-                                staffId: c.staff_role,
-                                body: { pt_commission_pct: Math.min(Math.max(v, 0), 100) / 100 },
+                              guardarCoach(c.staff_role, {
+                                pt_commission_pct: Math.min(Math.max(v, 0), 100) / 100,
                               });
                             }}
                           />
@@ -322,6 +351,14 @@ export function CoachPayrollPage() {
           </Group>
         </Group>
 
+        {/* Sin esto, un fallo de carga se leía como "todavía no has liquidado
+            nada" y el gym generaba la liquidación del periodo otra vez. */}
+        {payouts.isError && (
+          <PageError
+            message="No se pudieron cargar las liquidaciones."
+            onRetry={() => payouts.refetch()}
+          />
+        )}
         <DataTable<CoachPayout>
           minHeight={140}
           highlightOnHover
@@ -361,7 +398,7 @@ export function CoachPayrollPage() {
                   <Button
                     size="xs"
                     loading={payPayout.isPending && payPayout.variables === p.id}
-                    onClick={() => payPayout.mutate(p.id)}
+                    onClick={() => onPagar(p)}
                   >
                     Marcar pagada
                   </Button>

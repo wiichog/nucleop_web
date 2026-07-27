@@ -22,8 +22,9 @@ import {
 } from "../api/hooks";
 import type { ErpSale } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
-import { NoGymAssigned, PageLoading } from "../components/PageStatus";
+import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { Money, PageHeader } from "../components/ui";
+import { errMsg } from "../lib/errors";
 import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
 
@@ -37,8 +38,11 @@ interface CartLine {
 export function PosPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
-  const { data: products, isLoading } = useErpProducts(gymId);
-  const { data: sales } = useErpSales(gymId);
+  const productsQuery = useErpProducts(gymId);
+  const products = productsQuery.data;
+  const isLoading = productsQuery.isLoading;
+  const salesQuery = useErpSales(gymId);
+  const sales = salesQuery.data;
   const { data: branches } = useBranches(gymId);
   const { data: members } = useMemberships(gymId);
   const createSale = useCreateErpSale(gymId);
@@ -50,11 +54,10 @@ export function PosPage() {
       .mutateAsync({ id: s.id })
       .then(() => notifications.show({ color: "teal", message: "Devolución registrada." }))
       .catch((e: unknown) => {
-        const detail =
-          typeof e === "object" && e !== null && "response" in e
-            ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-            : undefined;
-        notifications.show({ color: "red", message: detail ?? "No se pudo registrar la devolución." });
+        notifications.show({
+          color: "red",
+          message: errMsg(e, "No se pudo registrar la devolución."),
+        });
       });
   };
 
@@ -101,26 +104,22 @@ export function PosPage() {
       setCart([]);
       setAthleteId("");
     } catch (e: unknown) {
-      const data =
-        typeof e === "object" && e !== null && "response" in e
-          ? (e as { response?: { data?: unknown } }).response?.data
-          : undefined;
-      // El mensaje SIEMPRE debe ser string (renderizar un objeto tronaba el panel).
-      let msg = "No se pudo registrar la venta.";
-      if (typeof data === "string") {
-        msg = data;
-      } else if (data && typeof data === "object") {
-        const d = data as Record<string, unknown>;
-        if (typeof d.detail === "string") msg = d.detail;
-        else if (Array.isArray(d.detail) && typeof d.detail[0] === "string") msg = d.detail[0];
-        else if (typeof d.qty === "string") msg = d.qty;
-        else if (Array.isArray(d.qty) && typeof d.qty[0] === "string") msg = d.qty[0];
-      }
-      setError(msg);
+      // errMsg lee `detail` y también los errores de campo de DRF (p. ej. `qty`),
+      // y SIEMPRE devuelve string (renderizar un objeto tronaba el panel).
+      setError(errMsg(e, "No se pudo registrar la venta."));
     }
   };
 
   if (!gymId) return <NoGymAssigned />;
+  // Sin catálogo no hay venta posible: antes el selector quedaba vacío y recepción
+  // creía que el gym no tenía productos en vez de ver que la carga falló.
+  if (productsQuery.isError)
+    return (
+      <PageError
+        message="No se pudo cargar el catálogo de productos: no se puede cobrar hasta que vuelva."
+        onRetry={() => productsQuery.refetch()}
+      />
+    );
   if (isLoading) return <PageLoading />;
 
   return (
@@ -235,7 +234,12 @@ export function PosPage() {
         <Title order={3} mb="sm">
           Ventas recientes
         </Title>
-        {!(sales ?? []).length ? (
+        {salesQuery.isError ? (
+          <PageError
+            message="No se pudieron cargar las ventas recientes."
+            onRetry={() => salesQuery.refetch()}
+          />
+        ) : !(sales ?? []).length ? (
           <EmptyState title="Aún no hay ventas" description="Las ventas POS aparecerán aquí." />
         ) : (
           <Table.ScrollContainer minWidth={620}>

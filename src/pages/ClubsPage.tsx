@@ -1,5 +1,17 @@
 import { FormEvent, useState } from "react";
-import { Badge, Button, Card, Group, SimpleGrid, Table, Text, TextInput, Title } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Card,
+  Group,
+  Modal,
+  SimpleGrid,
+  Table,
+  Text,
+  Textarea,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import { useGymClubs, useDecideClub, useCreateGymClub } from "../api/hooks";
@@ -7,6 +19,7 @@ import type { GymClub } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { errMsg } from "../lib/errors";
 import { sortRecords } from "../lib/sortRecords";
 import { CLUB_STATUS, label } from "../lib/labels";
 
@@ -28,6 +41,10 @@ export function ClubsPage() {
     direction: "asc",
   });
   const deciding = (clubId: string) => decide.isPending && decide.variables?.clubId === clubId;
+  // Rechazo con motivo: el atleta solicitante LEE esta nota en su app, así que un
+  // rechazo mudo es lo peor que puede pasarle a alguien que propuso un club.
+  const [rechazando, setRechazando] = useState<GymClub | null>(null);
+  const [motivo, setMotivo] = useState("");
 
   if (!gymId) return <NoGymAssigned />;
   if (clubs.isError) return <PageError onRetry={() => clubs.refetch()} />;
@@ -38,9 +55,33 @@ export function ClubsPage() {
       await createClub.mutateAsync({ name: form.name.trim(), club_type: form.club_type.trim() });
       notifications.show({ color: "teal", message: `Club "${form.name.trim()}" creado y aprobado.` });
       setForm({ name: "", club_type: "" });
-    } catch {
-      notifications.show({ color: "red", message: "No se pudo crear el club." });
+    } catch (error) {
+      notifications.show({ color: "red", message: errMsg(error, "No se pudo crear el club.") });
     }
+  };
+
+  const onDecidir = (club: GymClub, decision: "approve" | "reject", note?: string) => {
+    decide.mutate(
+      { clubId: club.id, decision, note },
+      {
+        onSuccess: () => {
+          setRechazando(null);
+          setMotivo("");
+          notifications.show({
+            color: decision === "approve" ? "teal" : "gray",
+            message:
+              decision === "approve"
+                ? `Club "${club.name}" aprobado. Su creador ya puede administrarlo.`
+                : `Club "${club.name}" rechazado. Se le avisó al solicitante.`,
+          });
+        },
+        onError: (error) =>
+          notifications.show({
+            color: "red",
+            message: errMsg(error, "No se pudo registrar la decisión sobre el club."),
+          }),
+      },
+    );
   };
 
   const rows = clubs.data ?? [];
@@ -97,18 +138,17 @@ export function ClubsPage() {
                   <Table.Td>{c.club_type}</Table.Td>
                   <Table.Td>
                     <Group gap="xs">
-                      <Button
-                        size="xs"
-                        loading={deciding(c.id)}
-                        onClick={() => decide.mutate({ clubId: c.id, decision: "approve" })}
-                      >
+                      <Button size="xs" loading={deciding(c.id)} onClick={() => onDecidir(c, "approve")}>
                         Aprobar
                       </Button>
                       <Button
                         size="xs"
                         variant="default"
                         loading={deciding(c.id)}
-                        onClick={() => decide.mutate({ clubId: c.id, decision: "reject" })}
+                        onClick={() => {
+                          setMotivo("");
+                          setRechazando(c);
+                        }}
                       >
                         Rechazar
                       </Button>
@@ -152,6 +192,40 @@ export function ClubsPage() {
           ]}
         />
       </Card>
+
+      <Modal
+        opened={!!rechazando}
+        onClose={() => setRechazando(null)}
+        title={`Rechazar "${rechazando?.name ?? ""}"`}
+        centered
+      >
+        <Text size="sm" c="dimmed" mb="sm">
+          El atleta que lo propuso verá este motivo en su app. Si lo dejas vacío se le envía un
+          mensaje genérico.
+        </Text>
+        <Textarea
+          label="Motivo del rechazo"
+          placeholder="Ya existe un club de running en el gimnasio…"
+          maxLength={255}
+          autosize
+          minRows={3}
+          value={motivo}
+          onChange={(e) => setMotivo(e.currentTarget.value)}
+          mb="lg"
+        />
+        <Group justify="flex-end" gap="sm">
+          <Button variant="default" onClick={() => setRechazando(null)}>
+            Cancelar
+          </Button>
+          <Button
+            color="red"
+            loading={decide.isPending}
+            onClick={() => rechazando && onDecidir(rechazando, "reject", motivo.trim())}
+          >
+            Rechazar club
+          </Button>
+        </Group>
+      </Modal>
     </div>
   );
 }

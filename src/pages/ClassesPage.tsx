@@ -69,12 +69,21 @@ import type {
   ServiceType,
   Wod,
 } from "../api/types";
+import { notifications } from "@mantine/notifications";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { RowActions } from "../components/RowActions";
 import { Money, PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
-import { CLASS_STATUS, label } from "../lib/labels";
+import { errMsg } from "../lib/errors";
+import { CHECKIN_METHOD, CLASS_STATUS, label } from "../lib/labels";
 import { sortRecords } from "../lib/sortRecords";
+
+// Avisos de la página. Varias acciones de esta pantalla (crear servicio, crear el
+// horario, regenerar el calendario, asignar coach) se disparaban con `mutateAsync`
+// sin catch: si el backend rechazaba, el admin no veía absolutamente nada.
+const ok = (message: string) => notifications.show({ color: "teal", message });
+const fail = (error: unknown, porDefecto: string) =>
+  notifications.show({ color: "red", message: errMsg(error, porDefecto) });
 
 const WEEKDAYS = [
   { value: "0", label: "Lun" },
@@ -261,9 +270,18 @@ function DropinsTab({ gymId }: { gymId: string }) {
                 <Table.Td>
                   <Switch
                     checked={p.is_active}
-                    onChange={(e) =>
-                      update.mutate({ id: p.id, body: { is_active: e.currentTarget.checked } })
-                    }
+                    onChange={(e) => {
+                      // El valor se captura ANTES del callback: `currentTarget` ya
+                      // no es confiable cuando la mutación resuelve.
+                      const activo = e.currentTarget.checked;
+                      update.mutate(
+                        { id: p.id, body: { is_active: activo } },
+                        {
+                          onSuccess: () => ok(activo ? "Pase activado." : "Pase desactivado."),
+                          onError: (error) => fail(error, "No se pudo cambiar el estado del pase."),
+                        },
+                      );
+                    }}
                   />
                 </Table.Td>
                 <Table.Td>
@@ -272,7 +290,12 @@ function DropinsTab({ gymId }: { gymId: string }) {
                       variant="subtle"
                       color="red"
                       size="xs"
-                      onClick={() => deactivate.mutate(p.id)}
+                      onClick={() =>
+                        deactivate.mutate(p.id, {
+                          onSuccess: () => ok("Pase desactivado."),
+                          onError: (error) => fail(error, "No se pudo desactivar el pase."),
+                        })
+                      }
                       loading={deactivate.isPending}
                     >
                       Desactivar
@@ -301,7 +324,10 @@ function ServicesTab({ gymId }: { gymId: string }) {
 
   const onDelete = (id: string, sname: string) => {
     if (!window.confirm(`¿Eliminar el servicio "${sname}"? Sus horarios quedarán sin servicio.`)) return;
-    remove.mutate(id);
+    remove.mutate(id, {
+      onSuccess: () => ok(`Servicio "${sname}" eliminado.`),
+      onError: (error) => fail(error, "No se pudo eliminar el servicio."),
+    });
   };
 
   const [name, setName] = useState("");
@@ -323,23 +349,28 @@ function ServicesTab({ gymId }: { gymId: string }) {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    const created = await create.mutateAsync({
-      name: name.trim(),
-      color,
-      requires_wod: requiresWod,
-      description: description.trim(),
-      how_it_works: howItWorks.trim(),
-      // El tipo de score se elige al publicar cada rutina, no por servicio.
-      default_score_type: "none",
-      default_duration_min: Number(duration),
-      default_capacity: Number(capacity),
-      completion_points: Number(points),
-    });
-    if (photoFile) await uploadPhoto.mutateAsync({ id: created.id, file: photoFile });
-    setName("");
-    setDescription("");
-    setHowItWorks("");
-    setPhotoFile(null);
+    try {
+      const created = await create.mutateAsync({
+        name: name.trim(),
+        color,
+        requires_wod: requiresWod,
+        description: description.trim(),
+        how_it_works: howItWorks.trim(),
+        // El tipo de score se elige al publicar cada rutina, no por servicio.
+        default_score_type: "none",
+        default_duration_min: Number(duration),
+        default_capacity: Number(capacity),
+        completion_points: Number(points),
+      });
+      if (photoFile) await uploadPhoto.mutateAsync({ id: created.id, file: photoFile });
+      ok(`Servicio "${created.name}" creado.`);
+      setName("");
+      setDescription("");
+      setHowItWorks("");
+      setPhotoFile(null);
+    } catch (error) {
+      fail(error, "No se pudo crear el servicio.");
+    }
   };
 
   const rows = (services.data ?? []) as ServiceType[];
@@ -494,7 +525,17 @@ function ServicesTab({ gymId }: { gymId: string }) {
               render: (s) => (
                 <Switch
                   checked={s.is_active}
-                  onChange={(e) => update.mutate({ id: s.id, body: { is_active: e.currentTarget.checked } })}
+                  onChange={(e) => {
+                    const activo = e.currentTarget.checked;
+                    update.mutate(
+                      { id: s.id, body: { is_active: activo } },
+                      {
+                        onSuccess: () =>
+                          ok(activo ? `"${s.name}" activado.` : `"${s.name}" desactivado.`),
+                        onError: (error) => fail(error, "No se pudo cambiar el estado del servicio."),
+                      },
+                    );
+                  }}
                   size="sm"
                 />
               ),
@@ -521,9 +562,14 @@ function ServicesTab({ gymId }: { gymId: string }) {
         onClose={() => setEditing(null)}
         onSave={async (body, photo) => {
           if (!editing) return;
-          await update.mutateAsync({ id: editing.id, body });
-          if (photo) await uploadPhoto.mutateAsync({ id: editing.id, file: photo });
-          setEditing(null);
+          try {
+            await update.mutateAsync({ id: editing.id, body });
+            if (photo) await uploadPhoto.mutateAsync({ id: editing.id, file: photo });
+            ok("Servicio actualizado.");
+            setEditing(null);
+          } catch (error) {
+            fail(error, "No se pudo actualizar el servicio.");
+          }
         }}
       />
     </>
@@ -699,17 +745,41 @@ function ScheduleTab({ gymId }: { gymId: string }) {
     e.preventDefault();
     if (!serviceId || !weekdays.length) return;
     // Una fila por día seleccionado: cada celda de la cuadrícula es su propio horario.
-    for (const w of weekdays) {
-      await create.mutateAsync({
-        service_type: serviceId,
-        weekday: Number(w),
-        start_time: startTime,
-        duration_min: Number(duration),
-        capacity: Number(capacity),
-        default_coach: coachId,
-        valid_from: iso(fromDate),
-        valid_until: openEnded ? null : iso(toDate),
-      } as Partial<ClassSchedule>);
+    const creados: string[] = [];
+    try {
+      for (const w of weekdays) {
+        await create.mutateAsync({
+          service_type: serviceId,
+          weekday: Number(w),
+          start_time: startTime,
+          duration_min: Number(duration),
+          capacity: Number(capacity),
+          default_coach: coachId,
+          valid_from: iso(fromDate),
+          valid_until: openEnded ? null : iso(toDate),
+        } as Partial<ClassSchedule>);
+        creados.push(w);
+      }
+      ok(`${creados.length} ${creados.length === 1 ? "horario creado" : "horarios creados"}.`);
+    } catch (error) {
+      // El alta es día por día. Si falla a mitad hay que (1) decir cuántos entraron —
+      // NO como texto por defecto, porque el mensaje del backend lo taparía — y
+      // (2) sacar de la selección los días ya creados: `ClassSchedule` no tiene
+      // unicidad, así que reenviar el formulario completo crearía filas repetidas y
+      // el materializador genera una `GymClass` por horario ⇒ clases duplicadas.
+      if (creados.length) {
+        const dias = creados.map((w) => WEEKDAYS.find((d) => d.value === w)?.label ?? w);
+        setWeekdays(weekdays.filter((w) => !creados.includes(w)));
+        notifications.show({
+          color: "red",
+          message: `Se crearon ${creados.length} (${dias.join(", ")}) y el siguiente falló: ${errMsg(
+            error,
+            "error desconocido",
+          )} · Los días ya creados se quitaron de la selección para no duplicarlos.`,
+        });
+        return;
+      }
+      fail(error, "No se pudo crear el horario.");
     }
   };
 
@@ -778,8 +848,12 @@ function ScheduleTab({ gymId }: { gymId: string }) {
               variant="light"
               loading={materialize.isPending}
               onClick={async () => {
-                const res = await materialize.mutateAsync();
-                setMaterialized(res.materialized);
+                try {
+                  const res = await materialize.mutateAsync();
+                  setMaterialized(res.materialized);
+                } catch (error) {
+                  fail(error, "No se pudo regenerar el calendario.");
+                }
               }}
             >
               Regenerar calendario
@@ -829,7 +903,17 @@ function ScheduleTab({ gymId }: { gymId: string }) {
                 <RowActions
                   actions={[
                     { label: "Editar", onClick: () => setEditing(s) },
-                    { label: "Quitar del horario", color: "red", variant: "subtle", loading: remove.isPending, onClick: () => remove.mutate(s.id) },
+                    {
+                      label: "Quitar del horario",
+                      color: "red",
+                      variant: "subtle",
+                      loading: remove.isPending,
+                      onClick: () =>
+                        remove.mutate(s.id, {
+                          onSuccess: () => ok("Horario quitado."),
+                          onError: (error) => fail(error, "No se pudo quitar el horario."),
+                        }),
+                    },
                   ]}
                 />
               ),
@@ -845,8 +929,13 @@ function ScheduleTab({ gymId }: { gymId: string }) {
         onClose={() => setEditing(null)}
         onSave={async (body) => {
           if (!editing) return;
-          await update.mutateAsync({ id: editing.id, body });
-          setEditing(null);
+          try {
+            await update.mutateAsync({ id: editing.id, body });
+            ok("Horario actualizado.");
+            setEditing(null);
+          } catch (error) {
+            fail(error, "No se pudo actualizar el horario.");
+          }
         }}
       />
     </>
@@ -870,7 +959,10 @@ function ClassesTab({ gymId }: { gymId: string }) {
   const onDeleteClass = (gymClass: ClassRow) => {
     if (!window.confirm(`¿Eliminar la clase "${gymClass.class_type}" del ${new Date(gymClass.starts_at).toLocaleString("es-GT")}?`))
       return;
-    deleteClass.mutate(gymClass.id);
+    deleteClass.mutate(gymClass.id, {
+      onSuccess: () => ok("Clase eliminada."),
+      onError: (error) => fail(error, "No se pudo eliminar la clase."),
+    });
   };
   const updateConfig = useUpdateGymConfig(gymId);
   const allowFuture = config.data?.allow_future_reservations ?? true;
@@ -879,6 +971,11 @@ function ClassesTab({ gymId }: { gymId: string }) {
   const [editing, setEditing] = useState<ClassRow | null>(null);
   const checkins = useClassCheckins(gymId, selectedClassId);
   const reception = useReceptionCheckin(gymId, selectedClassId);
+  // Visitantes: check-ins sin membresía, o sea los que entraron con un pase drop-in.
+  const visitantes = useMemo(
+    () => (checkins.data ?? []).filter((c) => !c.membership).length,
+    [checkins.data],
+  );
 
   const coachOptions = useMemo(
     () => (coaches.data ?? []).map((c) => ({ value: c.staff_role, label: c.name || c.email })),
@@ -979,10 +1076,27 @@ function ClassesTab({ gymId }: { gymId: string }) {
           label="Permitir que los atletas reserven clases futuras"
           checked={allowFuture}
           disabled={config.isLoading || updateConfig.isPending}
-          onChange={(e) =>
-            updateConfig.mutate({ allow_future_reservations: e.currentTarget.checked })
-          }
+          onChange={(e) => {
+            const permitir = e.currentTarget.checked;
+            updateConfig.mutate(
+              { allow_future_reservations: permitir },
+              {
+                onSuccess: () =>
+                  ok(
+                    permitir
+                      ? "Los atletas ya pueden reservar clases futuras."
+                      : "Los atletas solo podrán reservar las clases de hoy.",
+                  ),
+                onError: (error) => fail(error, "No se pudo guardar la configuración de reservas."),
+              },
+            );
+          }}
         />
+        {config.isError && (
+          <Text c="red" size="xs" mt="xs">
+            No se pudo leer la configuración del gimnasio: se muestra el valor por defecto.
+          </Text>
+        )}
         {!allowFuture && (
           <Text c="dimmed" size="xs" mt="xs">
             Los atletas solo verán habilitada la reserva de las clases del día.
@@ -1104,7 +1218,11 @@ function ClassesTab({ gymId }: { gymId: string }) {
                         variant: "subtle",
                         color: "orange",
                         loading: cancelClass.isPending && cancelClass.variables === gymClass.id,
-                        onClick: () => cancelClass.mutate(gymClass.id),
+                        onClick: () =>
+                          cancelClass.mutate(gymClass.id, {
+                            onSuccess: () => ok("Clase cancelada. Se avisó a los atletas reservados."),
+                            onError: (error) => fail(error, "No se pudo cancelar la clase."),
+                          }),
                       },
                       !iniciada && {
                         label: "Eliminar",
@@ -1128,8 +1246,13 @@ function ClassesTab({ gymId }: { gymId: string }) {
         onClose={() => setEditing(null)}
         onSave={async (body) => {
           if (!editing) return;
-          await updateClass.mutateAsync({ classId: editing.id, body });
-          setEditing(null);
+          try {
+            await updateClass.mutateAsync({ classId: editing.id, body });
+            ok("Clase actualizada.");
+            setEditing(null);
+          } catch (error) {
+            fail(error, "No se pudo actualizar la clase.");
+          }
         }}
         saving={updateClass.isPending}
       />
@@ -1153,8 +1276,14 @@ function ClassesTab({ gymId }: { gymId: string }) {
               component="form"
               onSubmit={async (event: FormEvent) => {
                 event.preventDefault();
-                if (membershipId) await reception.mutateAsync(membershipId);
-                setMembershipId("");
+                if (!membershipId) return;
+                try {
+                  await reception.mutateAsync(membershipId);
+                  ok("Check-in registrado.");
+                  setMembershipId("");
+                } catch (error) {
+                  fail(error, "No se pudo registrar el check-in.");
+                }
               }}
             >
               <Select
@@ -1164,6 +1293,11 @@ function ClassesTab({ gymId }: { gymId: string }) {
                 onChange={setMembershipId}
                 searchable
                 style={{ flex: 1 }}
+                error={
+                  memberships.isError
+                    ? "No se pudo cargar el padrón: la lista quedó vacía."
+                    : undefined
+                }
                 data={(memberships.data ?? [])
                   .filter((m) => !!m.status && ["active", "trial"].includes(m.status))
                   .map((m) => ({ value: m.id, label: m.athlete_name }))}
@@ -1180,10 +1314,22 @@ function ClassesTab({ gymId }: { gymId: string }) {
               : "La ventana de asistencia de esta clase ya cerró; solo se muestra lo registrado."}
           </Alert>
         )}
-        <Title order={5} mt="md" mb="xs">
-          Asistencia registrada ({(checkins.data ?? []).length})
-        </Title>
-        {(checkins.data ?? []).length === 0 ? (
+        <Group mt="md" mb="xs" gap="xs" align="baseline" wrap="wrap">
+          <Title order={5}>Asistencia registrada ({(checkins.data ?? []).length})</Title>
+          {visitantes > 0 && (
+            <Badge color="cyan" variant="light">
+              {visitantes} {visitantes === 1 ? "visitante" : "visitantes"} con drop-in
+            </Badge>
+          )}
+        </Group>
+        {/* Un fallo de carga decía "sin check-ins": el gym asumía ausencias que sí
+            estaban registradas. */}
+        {checkins.isError ? (
+          <PageError
+            message="No se pudo cargar la asistencia de esta clase."
+            onRetry={() => checkins.refetch()}
+          />
+        ) : (checkins.data ?? []).length === 0 ? (
           <Text c="dimmed" size="sm">
             Sin check-ins registrados.
           </Text>
@@ -1192,6 +1338,7 @@ function ClassesTab({ gymId }: { gymId: string }) {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Atleta</Table.Th>
+                <Table.Th>Acceso</Table.Th>
                 <Table.Th>Hora</Table.Th>
                 <Table.Th>Método</Table.Th>
               </Table.Tr>
@@ -1200,8 +1347,24 @@ function ClassesTab({ gymId }: { gymId: string }) {
               {(checkins.data ?? []).map((checkin) => (
                 <Table.Tr key={checkin.id}>
                   <Table.Td>{checkin.athlete_name}</Table.Td>
+                  <Table.Td>
+                    {/* Sin membresía en el check-in = entró con un pase drop-in.
+                        El backend elige la credencial (`validar_acceso`): si hay
+                        membresía activa la deja escrita, si no, el acceso lo
+                        autorizó el pase. El gym necesita distinguir al visitante
+                        del socio en la propia lista de asistencia. */}
+                    {checkin.membership ? (
+                      <Badge color="gray" variant="light">
+                        Socio
+                      </Badge>
+                    ) : (
+                      <Badge color="cyan" variant="light">
+                        Drop-in
+                      </Badge>
+                    )}
+                  </Table.Td>
                   <Table.Td>{new Date(checkin.checked_in_at).toLocaleString("es-GT")}</Table.Td>
-                  <Table.Td>{checkin.method}</Table.Td>
+                  <Table.Td>{label(CHECKIN_METHOD, checkin.method)}</Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -1316,7 +1479,10 @@ function WodTab({ gymId }: { gymId: string }) {
 
   const onDeleteWod = (id: string, wtitle: string) => {
     if (!window.confirm(`¿Eliminar la rutina "${wtitle}"?`)) return;
-    remove.mutate(id);
+    remove.mutate(id, {
+      onSuccess: () => ok(`Rutina "${wtitle}" eliminada.`),
+      onError: (error) => fail(error, "No se pudo eliminar la rutina."),
+    });
   };
 
   const [serviceId, setServiceId] = useState<string | null>(null);
@@ -1340,19 +1506,24 @@ function WodTab({ gymId }: { gymId: string }) {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    await create.mutateAsync({
-      service_type: serviceId,
-      date: dateStr,
-      title: title.trim(),
-      score_type: scoreType,
-      description,
-      is_benchmark: isBenchmark,
-      published,
-    });
-    setTitle("");
-    setDescription("");
-    setIsBenchmark(false);
-    setPublished(true);
+    try {
+      await create.mutateAsync({
+        service_type: serviceId,
+        date: dateStr,
+        title: title.trim(),
+        score_type: scoreType,
+        description,
+        is_benchmark: isBenchmark,
+        published,
+      });
+      ok(published ? "Rutina publicada." : "Rutina guardada como borrador.");
+      setTitle("");
+      setDescription("");
+      setIsBenchmark(false);
+      setPublished(true);
+    } catch (error) {
+      fail(error, "No se pudo crear la rutina.");
+    }
   };
 
   const rows = (wods.data ?? []) as Wod[];
@@ -1478,12 +1649,34 @@ function WodTab({ gymId }: { gymId: string }) {
                       variant: w.is_benchmark ? "filled" : "default",
                       color: "grape",
                       loading: update.isPending,
-                      onClick: () => update.mutate({ id: w.id, body: { is_benchmark: !w.is_benchmark } }),
+                      onClick: () =>
+                        update.mutate(
+                          { id: w.id, body: { is_benchmark: !w.is_benchmark } },
+                          {
+                            onSuccess: () =>
+                              ok(w.is_benchmark ? "Ya no es benchmark." : "Marcada como benchmark."),
+                            onError: (error) => fail(error, "No se pudo marcar la rutina."),
+                          },
+                        ),
                     },
                     {
+                      // Publicar la rutina es lo que la hace visible en el app: si
+                      // fallaba en silencio, el gym creía haberla publicado.
                       label: w.published ? "Despublicar" : "Publicar",
                       loading: update.isPending,
-                      onClick: () => update.mutate({ id: w.id, body: { published: !w.published } }),
+                      onClick: () =>
+                        update.mutate(
+                          { id: w.id, body: { published: !w.published } },
+                          {
+                            onSuccess: () =>
+                              ok(
+                                w.published
+                                  ? "Rutina despublicada: ya no la ven los atletas."
+                                  : "Rutina publicada: ya la ven los atletas en el app.",
+                              ),
+                            onError: (error) => fail(error, "No se pudo cambiar la publicación."),
+                          },
+                        ),
                     },
                     { label: "Eliminar", variant: "light", color: "red", loading: remove.isPending, onClick: () => onDeleteWod(w.id, w.title) },
                   ]}

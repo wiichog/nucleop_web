@@ -10,6 +10,7 @@ import {
   Select,
   SimpleGrid,
   Switch,
+  Tabs,
   TagsInput,
   Text,
   Textarea,
@@ -19,25 +20,28 @@ import {
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
+import { useSearchParams } from "react-router-dom";
 import {
   useCreateErpMovement,
   useCreateErpProduct,
   useDeleteErpProduct,
   useDeleteProductImage,
   useErpProducts,
-  useGymProductOrders,
-  useRefundProductOrder,
+  usePendingSummary,
   useUpdateErpProduct,
-  useUpdateProductOrder,
   useUploadProductImages,
   useUploadProductPhoto,
 } from "../api/hooks";
-import type { ErpProduct, ProductOrder } from "../api/types";
-import { NoGymAssigned } from "../components/PageStatus";
-import { RowActions, type RowAction } from "../components/RowActions";
-import { Money, PageHeader } from "../components/ui";
-import { fmtQ } from "../lib/money";
+import type { ErpProduct } from "../api/types";
+import { InventoryValuationPanel } from "./InventoryValuationPanel";
+import { PurchaseOrdersPanel } from "./PurchaseOrdersPanel";
+import { StoreOrdersPanel } from "./StoreOrdersPanel";
+import { SuppliersPanel } from "./SuppliersPanel";
+import { NoGymAssigned, PageError } from "../components/PageStatus";
+import { RowActions } from "../components/RowActions";
+import { CountBadge, Money, PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
+import { errMsg } from "../lib/errors";
 import { sortRecords } from "../lib/sortRecords";
 
 const CATEGORIES = [
@@ -48,14 +52,6 @@ const CATEGORIES = [
   { value: "service", label: "Servicio" },
   { value: "other", label: "Otro" },
 ];
-
-const ORDER_STATUS: Record<string, { label: string; color: string }> = {
-  pending_payment: { label: "Pago pendiente", color: "yellow" },
-  reserved: { label: "Apartado", color: "grape" },
-  paid: { label: "Pagado", color: "teal" },
-  delivered: { label: "Entregado", color: "blue" },
-  cancelled: { label: "Cancelado", color: "gray" },
-};
 
 /** Cómo se anuncia el producto en la tienda de la app. */
 function marketplaceBadge(p: ErpProduct) {
@@ -82,29 +78,19 @@ function marketplaceBadge(p: ErpProduct) {
 export function InventoryPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
-  const { data, isLoading } = useErpProducts(gymId);
+  const productsQuery = useErpProducts(gymId);
+  const { data, isLoading } = productsQuery;
   const createProduct = useCreateErpProduct(gymId);
   const updateProduct = useUpdateErpProduct(gymId);
   const deleteProduct = useDeleteErpProduct(gymId);
   const createMovement = useCreateErpMovement(gymId);
   const uploadPhoto = useUploadProductPhoto(gymId);
-  const orders = useGymProductOrders(gymId);
-  const updateOrder = useUpdateProductOrder(gymId);
-  const refundOrder = useRefundProductOrder(gymId);
+  const pendientes = usePendingSummary(gymId);
+  // La pestaña vive en la URL: así el badge de «pedidos por entregar» y cualquier
+  // enlace pueden abrir directamente la vista que resuelve el pendiente.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") || "productos";
 
-  const onRefund = (o: ProductOrder) => {
-    if (
-      !window.confirm(
-        `Devolver el pedido de ${o.athlete_name}. Se reembolsa ${fmtQ(o.total, { decimals: 2 })} (precio del gym); el recargo de Nucleo NO se reembolsa. El dinero se entrega por fuera. ¿Continuar?`,
-      )
-    )
-      return;
-    refundOrder.mutate(o.id, {
-      onSuccess: () =>
-        notifications.show({ color: "teal", message: "Pedido devuelto; se registró el reembolso." }),
-      onError: () => notifications.show({ color: "red", message: "No se pudo devolver el pedido." }),
-    });
-  };
   const [editing, setEditing] = useState<ErpProduct | null>(null);
   const [search, setSearch] = useState("");
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ErpProduct>>({
@@ -141,51 +127,97 @@ export function InventoryPage() {
 
   const onCreate = async (event: FormEvent) => {
     event.preventDefault();
-    const created = await createProduct.mutateAsync({
-      name,
-      category: category ?? "other",
-      sale_price: salePrice,
-      cost_price: costPrice || "0",
-      reorder_level: Number(reorder) || 0,
-      show_in_marketplace: inMarketplace,
-      description: description.trim(),
-      sizes: category === "merch" ? sizes : [],
-      colors: category === "merch" ? colors : [],
-      delivery_days: Number(deliveryDays) || 0,
-      is_upcoming: isUpcoming,
-      launch_date: launchDate ? launchDate.toLocaleDateString("en-CA") : null,
-      components: prepared ? components : [],
-    });
-    if (photoFile) await uploadPhoto.mutateAsync({ id: created.id, file: photoFile });
-    setName("");
-    setSalePrice("");
-    setCostPrice("");
-    setReorder(0);
-    setInMarketplace(false);
-    setDescription("");
-    setSizes([]);
-    setColors([]);
-    setDeliveryDays(0);
-    setIsUpcoming(false);
-    setLaunchDate(null);
-    setPhotoFile(null);
-    setPrepared(false);
-    setComponents([]);
-    notifications.show({ color: "teal", message: "Producto creado." });
+    // Sin catch, un rechazo del backend (precio inválido, receta incompleta) se
+    // tragaba el error y el formulario se quedaba quieto sin decir nada.
+    try {
+      const created = await createProduct.mutateAsync({
+        name,
+        category: category ?? "other",
+        sale_price: salePrice,
+        cost_price: costPrice || "0",
+        reorder_level: Number(reorder) || 0,
+        show_in_marketplace: inMarketplace,
+        description: description.trim(),
+        sizes: category === "merch" ? sizes : [],
+        colors: category === "merch" ? colors : [],
+        delivery_days: Number(deliveryDays) || 0,
+        is_upcoming: isUpcoming,
+        launch_date: launchDate ? launchDate.toLocaleDateString("en-CA") : null,
+        components: prepared ? components : [],
+      });
+      if (photoFile) await uploadPhoto.mutateAsync({ id: created.id, file: photoFile });
+      setName("");
+      setSalePrice("");
+      setCostPrice("");
+      setReorder(0);
+      setInMarketplace(false);
+      setDescription("");
+      setSizes([]);
+      setColors([]);
+      setDeliveryDays(0);
+      setIsUpcoming(false);
+      setLaunchDate(null);
+      setPhotoFile(null);
+      setPrepared(false);
+      setComponents([]);
+      notifications.show({ color: "teal", message: "Producto creado." });
+    } catch (error) {
+      notifications.show({ color: "red", message: errMsg(error, "No se pudo crear el producto.") });
+    }
   };
 
   const onRestock = async (productId: string) => {
     const qty = parseInt(restock[productId] ?? "", 10);
     if (!Number.isFinite(qty) || qty <= 0) return;
-    await createMovement.mutateAsync({ product_id: productId, type: "purchase", qty });
-    setRestock((prev) => ({ ...prev, [productId]: "" }));
+    try {
+      await createMovement.mutateAsync({ product_id: productId, type: "purchase", qty });
+      setRestock((prev) => ({ ...prev, [productId]: "" }));
+      notifications.show({ color: "teal", message: "Entrada de inventario registrada." });
+    } catch (error) {
+      notifications.show({
+        color: "red",
+        message: errMsg(error, "No se pudo registrar la entrada de inventario."),
+      });
+    }
   };
 
   if (!gymId) return <NoGymAssigned />;
 
   return (
     <div>
-      <PageHeader kicker="Negocio · ERP" title="Inventario" subtitle="Productos para venta en recepción y su stock." />
+      <PageHeader
+        kicker="Negocio · ERP"
+        title="Inventario"
+        subtitle="Catálogo y stock, compras a proveedor y cuánto dinero tienes parado en bodega."
+      />
+      {/* `keepMounted={false}`: cada pestaña dispara sus queries solo al abrirla. */}
+      <Tabs
+        value={tab}
+        onChange={(v) => setSearchParams(v && v !== "productos" ? { tab: v } : {}, { replace: true })}
+        keepMounted={false}
+      >
+        <Tabs.List mb="lg">
+          <Tabs.Tab value="productos">Productos</Tabs.Tab>
+          <Tabs.Tab value="compras">Compras a proveedor</Tabs.Tab>
+          <Tabs.Tab value="proveedores">Proveedores</Tabs.Tab>
+          <Tabs.Tab value="valuacion">Valuación</Tabs.Tab>
+          <Tabs.Tab
+            value="pedidos"
+            rightSection={<CountBadge count={pendientes.data?.pedidos ?? 0} size="xs" />}
+          >
+            Pedidos de la tienda
+          </Tabs.Tab>
+        </Tabs.List>
+
+        <Tabs.Panel value="productos">
+      {/* Un fallo de carga se veía como "catálogo vacío": el gym volvía a crear
+          productos que ya existían y el stock quedaba duplicado. */}
+      {productsQuery.isError && (
+        <PageError
+          message="No se pudo cargar el catálogo de productos."
+          onRetry={() => productsQuery.refetch()}
+        />
+      )}
       <Card mb="lg" component="form" onSubmit={onCreate}>
         <Title order={3} mb="sm">
           Nuevo producto
@@ -412,98 +444,24 @@ export function InventoryPage() {
           ]}
         />
       </Card>
+        </Tabs.Panel>
 
-      <Card mt="lg">
-        <Title order={3} mb={4}>
-          Pedidos de la tienda
-        </Title>
-        <Text c="dimmed" size="sm" mb="md">
-          Compras y apartados que tus atletas hacen desde la app. Marca “Entregado” al despachar.
-        </Text>
-        <DataTable<ProductOrder>
-          minHeight={140}
-          highlightOnHover
-          striped
-          idAccessor="id"
-          records={orders.data ?? []}
-          fetching={orders.isLoading}
-          noRecordsText="Sin pedidos todavía. Activa productos en la tienda para que tus atletas compren desde la app."
-          columns={[
-            { accessor: "athlete_name", title: "Atleta" },
-            {
-              accessor: "product_name",
-              title: "Producto",
-              render: (o) => (
-                <div>
-                  <Text size="sm" fw={600}>
-                    {o.product_name} × {o.qty}
-                  </Text>
-                  {(o.size || o.color) && (
-                    <Text c="dimmed" size="xs">
-                      {[o.size && `Talla ${o.size}`, o.color].filter(Boolean).join(" · ")}
-                    </Text>
-                  )}
-                </div>
-              ),
-            },
-            { accessor: "total", title: "Total", textAlign: "right", render: (o) => <Money value={o.total} decimals={2} block /> },
-            {
-              accessor: "kind",
-              title: "Tipo",
-              render: (o) => (o.kind === "preorder" ? "Apartado" : "Compra"),
-            },
-            {
-              accessor: "status",
-              title: "Estado",
-              render: (o) => {
-                const s = ORDER_STATUS[o.status] ?? { label: o.status, color: "gray" };
-                return (
-                  <Badge color={s.color} variant="light">
-                    {s.label}
-                  </Badge>
-                );
-              },
-            },
-            {
-              accessor: "created_at",
-              title: "Fecha",
-              render: (o) => new Date(o.created_at).toLocaleString("es-GT"),
-            },
-            {
-              accessor: "actions",
-              title: "",
-              render: (o) => {
-                const actions: RowAction[] = [];
-                if (["paid", "reserved"].includes(o.status)) {
-                  actions.push({
-                    label: "Entregado",
-                    variant: "filled" as const,
-                    loading: updateOrder.isPending && updateOrder.variables?.id === o.id,
-                    onClick: () => updateOrder.mutate({ id: o.id, status: "delivered" as const }),
-                  });
-                  actions.push({
-                    label: "Cancelar",
-                    variant: "subtle" as const,
-                    color: "red",
-                    onClick: () => updateOrder.mutate({ id: o.id, status: "cancelled" as const }),
-                  });
-                }
-                // Devolución solo para pedidos pagados (incluye ya entregados).
-                if (["paid", "delivered"].includes(o.status)) {
-                  actions.push({
-                    label: "Devolver",
-                    variant: "subtle" as const,
-                    color: "orange",
-                    loading: refundOrder.isPending && refundOrder.variables === o.id,
-                    onClick: () => onRefund(o),
-                  });
-                }
-                return actions.length ? <RowActions actions={actions} /> : null;
-              },
-            },
-          ]}
-        />
-      </Card>
+        <Tabs.Panel value="compras">
+          <PurchaseOrdersPanel gymId={gymId} />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="proveedores">
+          <SuppliersPanel gymId={gymId} />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="valuacion">
+          <InventoryValuationPanel gymId={gymId} />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="pedidos">
+          <StoreOrdersPanel gymId={gymId} />
+        </Tabs.Panel>
+      </Tabs>
 
       <EditProductModal
         product={editing ? (data ?? []).find((p) => p.id === editing.id) ?? editing : null}
