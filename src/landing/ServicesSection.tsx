@@ -60,7 +60,9 @@ export function ServicesSection() {
                     Lo difícil no es cobrar: es saber quién viene, quién debe y quién está por
                     irse.
                   </p>
-                  <p className="hero-title mt-3 font-display text-5xl font-medium text-black sm:text-6xl">
+                  {/* Escala por breakpoint: en la retícula de 3 columnas la
+                      tarjeta es angosta y la palabra no cabe a 60px. */}
+                  <p className="hero-title mt-3 font-display text-5xl font-medium text-black lg:text-4xl xl:text-5xl 2xl:text-6xl">
                     Opera
                   </p>
                 </div>
@@ -70,7 +72,7 @@ export function ServicesSection() {
                   )}`}
                   style={{ animationDelay: "0.65s" }}
                 >
-                  <p className="hero-title font-display text-4xl font-medium text-black sm:text-5xl">
+                  <p className="hero-title font-display text-4xl font-medium text-black lg:text-2xl xl:text-3xl 2xl:text-4xl">
                     GT/01
                   </p>
                 </div>

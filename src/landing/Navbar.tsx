@@ -21,7 +21,8 @@ const NAV_LINE = 48;
  * invierten a negro.
  */
 export function Navbar() {
-  const [active, setActive] = useState("nosotros");
+  // Vacío en el hero: ningún enlace se marca hasta llegar a la primera sección.
+  const [active, setActive] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [onLight, setOnLight] = useState(false);
 
@@ -43,7 +44,7 @@ export function Navbar() {
 
       // Scroll-spy: la última sección cuyo inicio ya pasó el tercio superior.
       const line = window.innerHeight * 0.35;
-      let current = NAV_LINKS[0].id;
+      let current = "";
       for (const l of NAV_LINKS) {
         const el = document.getElementById(l.id);
         if (el && el.getBoundingClientRect().top <= line) current = l.id;
