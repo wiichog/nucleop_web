@@ -6,8 +6,10 @@ import { AtomLogo } from "./AtomLogo";
 function Col({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <p className="mb-4 text-xs uppercase tracking-widest text-white/40">{title}</p>
-      <ul className="flex flex-col gap-3 text-sm">{children}</ul>
+      <p className="mb-4 font-mono text-[11px] uppercase tracking-[0.25em] text-white/40">
+        {title}
+      </p>
+      <ul className="flex flex-col gap-3 font-mono text-sm">{children}</ul>
     </div>
   );
 }
@@ -32,28 +34,28 @@ function FLink({ href, to, children }: { href?: string; to?: string; children: R
 export function Footer() {
   const year = new Date().getFullYear();
   return (
-    <footer className="relative overflow-hidden border-t border-white/10 bg-black px-6 pb-10 pt-16 md:pt-20">
+    <footer className="relative overflow-hidden border-t border-white/10 bg-black px-4 pb-10 pt-16 sm:px-6 md:pt-20 lg:px-10">
       <div className="mx-auto max-w-6xl">
         <div className="grid grid-cols-2 gap-10 md:grid-cols-5">
           {/* Marca + pitch */}
           <div className="col-span-2">
             <div className="flex items-center gap-2">
-              <AtomLogo size={28} pulse={false} glow={false} />
+              <AtomLogo size={28} />
               <span className="font-display text-lg font-semibold tracking-tight text-white">
                 nucleo
               </span>
             </div>
-            <p className="mt-4 max-w-xs text-sm leading-relaxed text-white/50">
+            <p className="mt-4 max-w-xs font-mono text-xs leading-relaxed text-white/50">
               El núcleo de tu vida deportiva. Software y red para gimnasios y boxes de CrossFit en
               Guatemala.
             </p>
           </div>
 
           <Col title="Plataforma">
-            <FLink href="#servicios">Administración y cobro</FLink>
+            <FLink href="#plataforma">Administración y cobro</FLink>
+            <FLink href="#retencion">Retención</FLink>
             <FLink href="#funciones">Comunidad y feed</FLink>
             <FLink href="#funciones">Marketplace</FLink>
-            <FLink href="#servicios">Red y crecimiento</FLink>
           </Col>
 
           <Col title="Empresa">
@@ -87,7 +89,7 @@ export function Footer() {
         </div>
 
         {/* Barra inferior */}
-        <div className="mt-14 flex flex-col items-center gap-3 border-t border-white/10 pt-8 text-xs text-white/40 md:flex-row md:justify-between">
+        <div className="mt-14 flex flex-col items-center gap-3 border-t border-white/10 pt-8 font-mono text-[11px] text-white/40 md:flex-row md:justify-between">
           <span>© {year} Nucleo · Devpack Group. Todos los derechos reservados.</span>
           <span>Hecho en Guatemala 🇬🇹</span>
         </div>

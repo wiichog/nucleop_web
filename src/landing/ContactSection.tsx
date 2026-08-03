@@ -1,8 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { motion, useInView } from "framer-motion";
-import { Phone, Mail, ArrowRight, Send, CheckCircle2 } from "lucide-react";
-import { Eyebrow } from "./ui";
+import { Phone, Mail, CheckCircle2 } from "lucide-react";
+import { CtaButton, Eyebrow } from "./ui";
+import { useReveal } from "./useReveal";
 import { api } from "../api/client";
 
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined;
@@ -20,12 +19,12 @@ declare global {
 }
 
 const inputClass =
-  "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white " +
+  "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-mono text-sm text-white " +
   "placeholder-white/40 outline-none transition-colors focus:border-nucleo-flame/60";
 
 export function ContactSection() {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-100px" });
+  const { ref, visible } = useReveal<HTMLElement>(0.1);
+  const show = (cls: string) => (visible ? cls : "");
 
   const recaptchaRef = useRef<HTMLDivElement>(null);
   const widgetId = useRef<number | null>(null);
@@ -87,46 +86,42 @@ export function ContactSection() {
   };
 
   return (
-    <section id="contacto" className="relative overflow-hidden bg-black px-6 pb-12 pt-28 md:pt-40">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.05),_transparent_55%)]" />
-      <div ref={ref} className="relative z-10 mx-auto max-w-5xl">
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.8 }}
-          className="flex flex-col items-center text-center"
+    <section
+      id="contacto"
+      ref={ref}
+      className="relative w-full scroll-mt-20 overflow-hidden bg-black px-4 pb-12 pt-24 sm:px-6 md:pt-36 lg:px-10"
+    >
+      <div className="mx-auto max-w-5xl">
+        <div
+          className={`flex flex-col items-center text-center opacity-0 ${show("animate-fade-up")}`}
+          style={{ animationDelay: "0.1s" }}
         >
           <Eyebrow>Contacto</Eyebrow>
-          <h2 className="hero-title mt-6 font-display text-5xl font-medium text-white md:text-7xl">
-            Lleva tu gimnasio <span className="text-nucleo-flame">a la red</span>
-            <span className="text-nucleo-flame">.</span>
+          <h2 className="hero-title mt-6 max-w-3xl font-display text-4xl font-medium text-white sm:text-6xl">
+            Lleva tu gimnasio a la red<span className="text-nucleo-flame">.</span>
           </h2>
-          <p className="mx-auto mt-6 max-w-xl text-sm leading-relaxed text-white/60">
+          <p className="mx-auto mt-6 max-w-xl font-mono text-xs leading-relaxed text-white/60 sm:text-sm">
             Escríbenos para una demo o entra directo al panel de administración.
           </p>
 
-          <Link
-            to="/login"
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-nucleo-flame px-8 py-3 font-display text-sm font-medium text-white transition-colors hover:bg-nucleo-coral"
-          >
-            Portal Admin
-            <ArrowRight size={16} />
-          </Link>
-        </motion.div>
+          <div className="mt-8">
+            <CtaButton to="/login" label="Portal Admin" variant="ghost" />
+          </div>
+        </div>
 
         {/* Formulario de contacto → correo (Mailgun) protegido con reCAPTCHA */}
-        <motion.form
+        <form
           onSubmit={submit}
-          initial={{ opacity: 0, y: 30 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.8, delay: 0.15 }}
-          className="liquid-glass mx-auto mt-14 max-w-2xl rounded-3xl p-6 text-left md:p-8"
+          className={`mx-auto mt-14 max-w-2xl rounded-2xl border border-white/10 bg-white/[0.02] p-6 text-left opacity-0 md:p-8 ${show(
+            "animate-fade-up",
+          )}`}
+          style={{ animationDelay: "0.25s" }}
         >
           {status === "sent" ? (
             <div className="flex flex-col items-center gap-3 py-8 text-center">
               <CheckCircle2 className="text-nucleo-flame" size={40} />
               <p className="font-display text-xl text-white">¡Mensaje enviado!</p>
-              <p className="text-sm text-white/60">Te contactaremos muy pronto.</p>
+              <p className="font-mono text-sm text-white/60">Te contactaremos muy pronto.</p>
             </div>
           ) : (
             <>
@@ -168,45 +163,54 @@ export function ContactSection() {
               {RECAPTCHA_SITE_KEY ? <div ref={recaptchaRef} className="mt-4" /> : null}
 
               {status === "error" ? (
-                <p className="mt-3 text-sm text-red-400">{errorMsg}</p>
+                <p className="mt-3 font-mono text-sm text-red-400">{errorMsg}</p>
               ) : null}
 
-              <button
-                type="submit"
-                disabled={status === "sending"}
-                className="mt-5 inline-flex items-center gap-2 rounded-full bg-nucleo-flame px-7 py-3 font-display text-sm font-medium text-white transition-colors hover:bg-nucleo-coral disabled:opacity-60"
-              >
-                {status === "sending" ? "Enviando…" : "Enviar mensaje"}
-                <Send size={16} />
-              </button>
+              <div className="mt-6">
+                <CtaButton
+                  type="submit"
+                  disabled={status === "sending"}
+                  label={status === "sending" ? "Enviando…" : "Enviar mensaje"}
+                  variant="flame"
+                />
+              </div>
             </>
           )}
-        </motion.form>
+        </form>
 
         {/* Datos de contacto */}
-        <div className="mx-auto mt-10 grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+        <div
+          className={`mx-auto mt-3 grid max-w-2xl grid-cols-1 gap-3 opacity-0 sm:grid-cols-2 ${show(
+            "animate-fade-up",
+          )}`}
+          style={{ animationDelay: "0.4s" }}
+        >
           <a
             href="tel:+50249740808"
-            className="liquid-glass flex items-center gap-4 rounded-2xl px-6 py-5 text-white transition-colors hover:bg-white/5"
+            className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-5 text-white transition-colors hover:border-white/25 hover:bg-white/[0.04]"
           >
-            <span className="liquid-glass rounded-full p-3 text-nucleo-flame">
-              <Phone size={20} />
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/[0.04]">
+              <Phone size={19} strokeWidth={1.5} className="text-nucleo-flame" />
             </span>
             <span>
-              <span className="block text-xs uppercase tracking-widest text-white/40">Teléfono</span>
-              <span className="text-sm font-medium">+502 4974 0808</span>
+              <span className="block font-mono text-[11px] uppercase tracking-[0.25em] text-white/40">
+                Teléfono
+              </span>
+              <span className="font-mono text-sm">+502 4974 0808</span>
             </span>
           </a>
           <a
             href="mailto:jgarcia@devpackgroup.com"
-            className="liquid-glass flex items-center gap-4 rounded-2xl px-6 py-5 text-white transition-colors hover:bg-white/5"
+            className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-5 text-white transition-colors hover:border-white/25 hover:bg-white/[0.04]"
           >
-            <span className="liquid-glass rounded-full p-3 text-nucleo-flame">
-              <Mail size={20} />
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/[0.04]">
+              <Mail size={19} strokeWidth={1.5} className="text-nucleo-flame" />
             </span>
-            <span>
-              <span className="block text-xs uppercase tracking-widest text-white/40">Correo</span>
-              <span className="text-sm font-medium">jgarcia@devpackgroup.com</span>
+            <span className="min-w-0">
+              <span className="block font-mono text-[11px] uppercase tracking-[0.25em] text-white/40">
+                Correo
+              </span>
+              <span className="block truncate font-mono text-sm">jgarcia@devpackgroup.com</span>
             </span>
           </a>
         </div>

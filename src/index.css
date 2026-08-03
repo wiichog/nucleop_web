@@ -1,7 +1,8 @@
 /* Inter (texto) + Inter Tight (display del panel, lenguaje Aurora) + Space Grotesk
-   (wordmark y landing). Inter Tight 500 es la tipografía del titular de la
+   (wordmark y landing) + JetBrains Mono (capa técnica de la landing: eyebrows,
+   códigos y cifras). Inter Tight 500 es la tipografía del titular de la
    referencia `design/aurora-reference.html`. */
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@300;400;500;600&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -46,17 +47,8 @@ html {
     pointer-events: none;
   }
 
-  /* Variante con tinte cálido en el borde (para tarjetas destacadas). */
-  .liquid-glass--core::before {
-    background: linear-gradient(
-      180deg,
-      rgba(252, 76, 2, 0.6) 0%,
-      rgba(252, 76, 2, 0.18) 25%,
-      rgba(255, 255, 255, 0) 50%,
-      rgba(255, 122, 61, 0.18) 75%,
-      rgba(255, 122, 61, 0.6) 100%
-    );
-  }
+  /* `.liquid-glass--core` (borde con tinte naranja) se eliminó con el rediseño de
+     la landing: el naranja quedó reducido a acentos sólidos, sin resplandores. */
 }
 
 @layer utilities {
@@ -65,22 +57,9 @@ html {
     letter-spacing: -0.04em;
     line-height: 0.95;
   }
-  /* `.text-glow-flame` se eliminó con el rediseño Aurora: ya nadie la usaba y el
-     resplandor naranja quedó fuera del lenguaje. */
-  .neon-divider {
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(252, 76, 2, 0.7),
-      rgba(255, 122, 61, 0.7),
-      transparent
-    );
-  }
-  /* Brillo cálido y contenido para la marca del átomo (acento, no neón). */
-  .glow-radioactive {
-    filter: drop-shadow(0 0 4px rgba(255, 122, 61, 0.5))
-      drop-shadow(0 0 14px rgba(252, 76, 2, 0.28));
-  }
+  /* Resplandores naranja retirados del lenguaje visual (`.text-glow-flame`,
+     `.neon-divider`, `.glow-radioactive`): el naranja solo vive como acento
+     sólido (cuadros de CTA, puntos, íconos), nunca como halo. */
 }
 
 /* Loader de marca: el átomo de Nucleo respira (usado en PageLoading). */

@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import {
   Anchor,
   Button,
@@ -18,6 +18,60 @@ import { GlassChip, HeroTitle } from "../components/aurora";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
 const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID ?? "";
+
+/** Alto compartido por los dos botones sociales (el `size="large"` de Google). */
+const SOCIAL_H = 40;
+
+/**
+ * Botón de Google. Google lo dibuja DENTRO DE UN IFRAME, así que no se puede
+ * estilizar con CSS: lo único configurable son sus props. `filled_black` +
+ * `pill` es lo más cercano al lenguaje Aurora (el default es una caja blanca
+ * que sobre el vidrio oscuro se ve como un parche).
+ *
+ * El ancho de ese iframe es un número de píxeles fijo (Google lo topa en 400),
+ * así que se mide el contenedor para que quede EXACTAMENTE igual de ancho que
+ * el botón de Facebook en cualquier viewport.
+ *
+ * Se mantiene `<GoogleLogin>` y no un botón propio con `useGoogleLogin`:
+ * ese hook devuelve un access token, y el backend espera el ID token que llega
+ * en `credential`. Cambiarlo sería tocar el contrato de `/auth/social`.
+ */
+function GoogleButton({
+  onSuccess,
+  onError,
+}: {
+  onSuccess: (credential: string) => void;
+  onError: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(320);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = Math.round(entry.contentRect.width);
+      if (w > 0) setWidth(Math.min(400, w));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} className="a-gsi" style={{ width: "100%", minHeight: SOCIAL_H }}>
+      <GoogleLogin
+        onSuccess={(cred) => (cred.credential ? onSuccess(cred.credential) : onError())}
+        onError={onError}
+        theme="filled_black"
+        shape="pill"
+        size="large"
+        text="continue_with"
+        logo_alignment="left"
+        width={width}
+      />
+    </div>
+  );
+}
 
 function SocialLoginButtons({ onDone }: { onDone: () => void }) {
   const socialLogin = useSocialLogin();
@@ -41,25 +95,28 @@ function SocialLoginButtons({ onDone }: { onDone: () => void }) {
       <Divider label="o continúa con" labelPosition="center" />
       {GOOGLE_CLIENT_ID && (
         <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-          <Center>
-            <GoogleLogin
-              onSuccess={async (cred) => {
-                setError("");
-                if (!cred.credential) return;
-                try {
-                  await socialLogin.mutateAsync({ provider: "google", token: cred.credential });
-                  onDone();
-                } catch {
-                  setError("No se pudo iniciar sesión con Google.");
-                }
-              }}
-              onError={() => setError("No se pudo iniciar sesión con Google.")}
-            />
-          </Center>
+          <GoogleButton
+            onSuccess={async (credential) => {
+              setError("");
+              try {
+                await socialLogin.mutateAsync({ provider: "google", token: credential });
+                onDone();
+              } catch {
+                setError("No se pudo iniciar sesión con Google.");
+              }
+            }}
+            onError={() => setError("No se pudo iniciar sesión con Google.")}
+          />
         </GoogleOAuthProvider>
       )}
       {FACEBOOK_APP_ID && (
-        <Button fullWidth variant="default" onClick={handleFacebook} loading={socialLogin.isPending}>
+        <Button
+          fullWidth
+          variant="default"
+          h={SOCIAL_H}
+          onClick={handleFacebook}
+          loading={socialLogin.isPending}
+        >
           Continuar con Facebook
         </Button>
       )}

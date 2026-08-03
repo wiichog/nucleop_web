@@ -1,86 +1,169 @@
-import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
-import { Eyebrow } from "./ui";
+import { ChevronRight } from "lucide-react";
+import { AtomLogo } from "./AtomLogo";
+import { BentoBar } from "./ui";
+import { useReveal } from "./useReveal";
 
-const MOTORES = [
-  {
-    tag: "Operación",
-    title: "Administración y cobro",
-    description:
-      "Atletas, membresías, planes y cuotas, pagos con tarjeta o manuales, clases y check-in. El panel donde el dueño opera su gimnasio completo.",
-    img: "/landing/service-operacion.jpg",
-  },
-  {
-    tag: "Comunidad",
-    title: "Retención y comunidad",
-    description:
-      "Puntos, badges, rachas, PRs y alertas de riesgo de abandono. El gancho real: dejar de perder alumnos, no solo cobrar mejor.",
-    img: "/landing/service-comunidad.jpg",
-  },
-  {
-    tag: "Red",
-    title: "Red y crecimiento",
-    description:
-      "Athlete Passport portátil, drop-ins entre boxes, clubes deportivos y marketplace. Gimnasios aislados se vuelven una red con efecto de red.",
-    img: "/landing/service-red.jpg",
-  },
-];
-
+/**
+ * "Plataforma" — los tres motores de Nucleo en un bento de tres columnas
+ * (operación · retención · red). Columna central invertida en negro para anclar
+ * la retícula; el único naranja es el cuadro del CTA.
+ */
 export function ServicesSection() {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-100px" });
+  const { ref, visible } = useReveal<HTMLElement>(0.1);
+  const show = (cls: string) => (visible ? cls : "");
 
   return (
-    <section id="servicios" className="relative overflow-hidden bg-black px-6 py-28 md:py-40">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.05),_transparent_55%)]" />
-      <div ref={ref} className="relative z-10 mx-auto max-w-6xl">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.7 }}
-          className="mb-12 flex flex-col gap-4 md:mb-16 md:flex-row md:items-end md:justify-between"
+    <section
+      id="plataforma"
+      data-nav-light
+      ref={ref}
+      className="min-h-screen w-full scroll-mt-20 bg-[#E8E5E9] p-2 sm:p-3 lg:h-screen"
+    >
+      <div className="grid h-full grid-cols-1 gap-2 sm:gap-3 lg:grid-cols-3">
+        {/* ── 01 · Operación ─────────────────────────────────────────── */}
+        <div
+          className={`min-h-[500px] overflow-hidden rounded-2xl bg-white opacity-0 lg:min-h-0 ${show(
+            "animate-scale-in",
+          )}`}
+          style={{ animationDelay: "0.1s" }}
         >
-          <h2 className="hero-title font-display text-4xl font-medium text-white md:text-6xl">
-            Qué hacemos<span className="text-nucleo-flame">.</span>
-          </h2>
-          <Eyebrow>Tres motores · una red</Eyebrow>
-        </motion.div>
+          <div className="flex h-full flex-col justify-between p-5 sm:p-6">
+            <div className={`opacity-0 ${show("animate-fade-up")}`} style={{ animationDelay: "0.3s" }}>
+              <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-black/40">
+                Operación
+              </p>
+              <p className="hero-title mt-3 font-display text-5xl font-medium text-black/80 sm:text-6xl">
+                01
+              </p>
+              <p className="mt-4 font-mono text-xs leading-relaxed text-black/70 sm:text-sm">
+                Membresías, planes, cuotas, cobros con tarjeta o manuales, clases, reservas y
+                check-in. El panel donde se opera el gimnasio completo.
+              </p>
+            </div>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-8">
-          {MOTORES.map((m, i) => (
-            <motion.article
-              key={m.title}
-              initial={{ opacity: 0, y: 50 }}
-              animate={inView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.8, delay: i * 0.15 }}
-              className="liquid-glass group overflow-hidden rounded-3xl transition-transform duration-300 ease-out hover:-translate-y-1.5"
-            >
-              <div className="relative aspect-video overflow-hidden">
-                {/* Foto (si falta el archivo, queda el fondo oscuro). Zoom al hover. */}
+            <div className="flex flex-col gap-2">
+              <div
+                className={`opacity-0 ${show("animate-fade-up")}`}
+                style={{ animationDelay: "0.45s" }}
+              >
+                <BentoBar href="#funciones">De hojas sueltas a un solo sistema</BentoBar>
+              </div>
+
+              <div className="grid grid-cols-5 gap-2">
                 <div
-                  className="absolute inset-0 bg-nucleo-carbon bg-cover bg-center transition-transform duration-700 ease-out group-hover:scale-110"
-                  style={{ backgroundImage: `url('${m.img}')` }}
-                />
-                {/* Scrim para legibilidad del índice y fundido con la card */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/25" />
-                {/* Velo flame que aparece al hover */}
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_70%,_rgba(252,76,2,0.22),_transparent_60%)] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                {/* Índice + divisor diagonal (motivo stat del hero) */}
-                <span className="absolute left-5 top-5 z-10 flex items-center gap-2">
-                  <span className="font-display text-sm text-white/70">0{i + 1}</span>
-                  <span aria-hidden className="h-px w-8 rotate-[20deg] bg-white/40" />
-                </span>
+                  className={`col-span-3 flex flex-col justify-between rounded-xl bg-[#EBE8EB] p-4 opacity-0 ${show(
+                    "animate-fade-up",
+                  )}`}
+                  style={{ animationDelay: "0.55s" }}
+                >
+                  <p className="font-mono text-xs leading-relaxed text-black/70 sm:text-sm">
+                    Lo difícil no es cobrar: es saber quién viene, quién debe y quién está por
+                    irse.
+                  </p>
+                  <p className="hero-title mt-3 font-display text-5xl font-medium text-black sm:text-6xl">
+                    Opera
+                  </p>
+                </div>
+                <div
+                  className={`col-span-2 flex flex-col items-end justify-end rounded-xl bg-[#EBE8EB] p-4 opacity-0 ${show(
+                    "animate-fade-up",
+                  )}`}
+                  style={{ animationDelay: "0.65s" }}
+                >
+                  <p className="hero-title font-display text-4xl font-medium text-black sm:text-5xl">
+                    GT/01
+                  </p>
+                </div>
               </div>
+            </div>
+          </div>
+        </div>
 
-              <div className="p-6 md:p-8">
-                <Eyebrow>{m.tag}</Eyebrow>
-                <h3 className="mb-3 mt-4 font-display text-xl font-medium tracking-tight text-white md:text-2xl">
-                  {m.title}
-                </h3>
-                <p className="text-sm leading-relaxed text-white/50">{m.description}</p>
-              </div>
-            </motion.article>
-          ))}
+        {/* ── 02 · Retención (columna invertida) ─────────────────────── */}
+        <div
+          className={`min-h-[500px] overflow-hidden rounded-2xl bg-nucleo-ink opacity-0 lg:min-h-0 ${show(
+            "animate-scale-in",
+          )}`}
+          style={{ animationDelay: "0.25s" }}
+        >
+          <div className="flex h-full flex-col justify-between p-6 sm:p-8">
+            <div
+              className={`opacity-0 ${show("animate-fade-up")}`}
+              style={{ animationDelay: "0.45s" }}
+            >
+              <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-white/40">
+                Retención
+              </p>
+              <p className="mt-4 font-mono text-xs leading-relaxed text-white/70 sm:text-sm">
+                Puntos, rachas, badges, PRs, leaderboards y atleta del mes: la comunidad que
+                convierte volver al box en un hábito, no en una decisión.
+              </p>
+              <p className="mt-4 font-mono text-xs leading-relaxed text-white/70 sm:text-sm">
+                Nucleo detecta al alumno que se está apagando antes de que pida la baja y te avisa
+                a tiempo para recuperarlo.
+              </p>
+              <p className="hero-title mt-8 font-display text-5xl font-medium text-white sm:text-6xl">
+                02
+              </p>
+            </div>
+
+            <div
+              className={`opacity-0 ${show("animate-fade-up")}`}
+              style={{ animationDelay: "0.6s" }}
+            >
+              <a
+                href="#retencion"
+                aria-label="Ver cómo funciona la retención"
+                className="group inline-flex h-12 w-12 items-center justify-center rounded-xl bg-nucleo-flame"
+              >
+                <ChevronRight className="h-5 w-5 text-white transition-transform group-hover:translate-x-0.5" />
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 03 · Red ───────────────────────────────────────────────── */}
+        <div
+          className={`flex min-h-[500px] flex-col gap-2 rounded-2xl bg-white p-2 opacity-0 sm:gap-3 sm:p-3 lg:min-h-0 ${show(
+            "animate-scale-in",
+          )}`}
+          style={{ animationDelay: "0.4s" }}
+        >
+          <div className="flex flex-1 flex-col gap-2">
+            <div
+              className={`relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl bg-nucleo-ink opacity-0 ${show(
+                "animate-fade-in",
+              )}`}
+              style={{ animationDelay: "0.55s" }}
+            >
+              <AtomLogo size={132} className="opacity-90" />
+              <p className="absolute bottom-4 left-4 font-mono text-[11px] uppercase tracking-[0.3em] text-white/40">
+                Athlete Passport
+              </p>
+            </div>
+
+            <div
+              className={`opacity-0 ${show("animate-fade-up")}`}
+              style={{ animationDelay: "0.65s" }}
+            >
+              <BentoBar href="#funciones">Una identidad, todos sus gimnasios</BentoBar>
+            </div>
+          </div>
+
+          <div
+            className={`flex flex-1 flex-col justify-end rounded-xl bg-[#EBE8EB] p-5 opacity-0 sm:p-6 ${show(
+              "animate-fade-up",
+            )}`}
+            style={{ animationDelay: "0.75s" }}
+          >
+            <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-black/40">Red</p>
+            <p className="hero-title mt-3 font-display text-5xl font-medium text-black sm:text-6xl">
+              03
+            </p>
+            <p className="mt-2 font-display text-xl font-medium leading-snug text-black sm:text-2xl">
+              Drop-ins, clubes y tienda entre boxes
+            </p>
+          </div>
         </div>
       </div>
     </section>

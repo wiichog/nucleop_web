@@ -1,51 +1,75 @@
-import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
-import { Eyebrow, DiagonalDivider } from "./ui";
+import { CtaButton } from "./ui";
+import { useReveal } from "./useReveal";
+import { BRAND_VIDEO_URL } from "../lib/brand";
 
+/**
+ * "Nosotros" — primera sección clara. El video de marca queda debajo de un velo
+ * casi opaco del mismo color del fondo: aporta movimiento sin robarle contraste
+ * al texto negro.
+ */
 export function AboutSection() {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-100px" });
+  const { ref, visible } = useReveal<HTMLElement>(0.1);
 
   return (
     <section
+      id="nosotros"
+      data-nav-light
       ref={ref}
-      className="relative overflow-hidden bg-black px-6 pb-10 pt-32 md:pb-14 md:pt-44"
+      className="relative min-h-screen w-full scroll-mt-20 overflow-hidden bg-[#f0eded]"
     >
-      {/* Halo cálido apenas perceptible */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.05),_transparent_55%)]" />
+      <video
+        className="absolute inset-0 h-full w-full object-cover"
+        autoPlay
+        loop
+        muted
+        playsInline
+        src={BRAND_VIDEO_URL}
+      />
+      <div className="absolute inset-0 bg-[#f0eded]/[0.88]" />
 
-      <div className="relative z-10 mx-auto max-w-5xl">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6 }}
-        >
-          <Eyebrow>Nosotros</Eyebrow>
-        </motion.div>
+      <div className="relative z-10 flex min-h-screen flex-col justify-between px-4 pb-10 pt-28 sm:px-6 sm:pb-16 lg:px-10">
+        {/* Bloque superior izquierdo */}
+        <div className="max-w-xs sm:max-w-sm">
+          <p
+            className={`mb-6 font-mono text-xs leading-relaxed text-black/80 opacity-0 sm:text-sm ${
+              visible ? "animate-fade-up" : ""
+            }`}
+            style={{ animationDelay: "0.1s" }}
+          >
+            Una sola red que conecta gimnasios, atletas y coaches. El historial del atleta —PRs,
+            puntos y asistencia— viaja con él aunque cambie de box.
+          </p>
+          <div
+            className={`opacity-0 ${visible ? "animate-fade-up" : ""}`}
+            style={{ animationDelay: "0.25s" }}
+          >
+            <CtaButton href="#contacto" label="Pide una demo" variant="light" />
+          </div>
+        </div>
 
-        <motion.h2
-          initial={{ opacity: 0, y: 40 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.8, delay: 0.1 }}
-          className="hero-title mt-8 font-display text-4xl font-medium text-white md:text-6xl lg:text-7xl"
-        >
-          La red que <span className="text-nucleo-flame">conecta</span> gimnasios, atletas y
-          comunidades — para que ninguno{" "}
-          <span className="text-nucleo-flame">pierda a su gente</span>
-          <span className="text-nucleo-flame">.</span>
-        </motion.h2>
+        {/* Bloque inferior: titular y contra-titular */}
+        <div className="mt-auto flex flex-col items-start justify-between gap-8 pt-24 md:flex-row md:items-end md:gap-16">
+          <h2
+            className={`max-w-md font-display text-2xl font-medium leading-snug text-black opacity-0 sm:text-3xl lg:text-4xl ${
+              visible ? "animate-fade-up" : ""
+            }`}
+            style={{ animationDelay: "0.4s" }}
+          >
+            Conoce Nucleo. Hecho para <span className="text-black/40">conectar señales</span> y
+            evitar que tu gimnasio pierda gente
+          </h2>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={inView ? { opacity: 1 } : {}}
-          transition={{ duration: 0.8, delay: 0.3 }}
-          className="mt-10 flex items-center gap-4"
-        >
-          <DiagonalDivider force />
-          <span className="font-display text-sm tracking-wide text-white/50">
-            Una identidad · todos sus gimnasios
-          </span>
-        </motion.div>
+          <p
+            className={`max-w-lg font-display text-xl font-medium leading-snug text-black opacity-0 md:text-right sm:text-2xl lg:text-3xl ${
+              visible ? "animate-fade-up" : ""
+            }`}
+            style={{ animationDelay: "0.55s" }}
+          >
+            Detecta al atleta que se está apagando y entiende cómo{" "}
+            <span className="text-black/40">señales sueltas</span> terminan en{" "}
+            <span className="font-bold">bajas reales</span>
+          </p>
+        </div>
       </div>
     </section>
   );

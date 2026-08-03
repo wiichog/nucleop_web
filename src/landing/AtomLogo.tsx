@@ -2,23 +2,24 @@ interface AtomLogoProps {
   /** Lado en píxeles. */
   size?: number;
   className?: string;
-  /** Si el halo radiactivo late suavemente (el átomo nunca rota). */
+  /**
+   * @deprecated Sin efecto. El halo naranja (lo único que latía) se retiró del
+   * lenguaje visual; se mantiene la prop para no tocar los call sites.
+   */
   pulse?: boolean;
   /**
-   * Si lleva el brillo naranja (halo + glow). **Por defecto `false`**: el halo
-   * naranja se retiró del lenguaje Aurora y ningún consumidor lo enciende. Se
-   * mantiene la prop por compatibilidad, pero activarla vuelve a pintar el
-   * `drop-shadow` cálido de `.glow-radioactive`.
+   * @deprecated Sin efecto. El resplandor naranja se eliminó: el átomo se pinta
+   * con sus gradientes sólidos y nada más.
    */
   glow?: boolean;
 }
 
 /**
- * Marca de Nucleo: un átomo FIJO (no gira) y **sin halo**. Representa el
- * "núcleo" (§9).
+ * Marca de Nucleo: un átomo FIJO (no gira) y **sin halo ni glow**. Representa el
+ * "núcleo" (§9). El naranja vive en los gradientes del propio átomo, nunca como
+ * resplandor sobre el fondo.
  */
-export function AtomLogo({ size = 28, className = "", pulse = true, glow = false }: AtomLogoProps) {
-  const glowClass = glow ? "glow-radioactive" : "";
+export function AtomLogo({ size = 28, className = "" }: AtomLogoProps) {
   return (
     <svg
       viewBox="0 0 100 100"
@@ -35,35 +36,14 @@ export function AtomLogo({ size = 28, className = "", pulse = true, glow = false
           <stop offset="70%" stopColor="#FC4C02" />
           <stop offset="100%" stopColor="#9e2e00" />
         </radialGradient>
-        <radialGradient id="atom-halo" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#FF7A3D" stopOpacity="0.9" />
-          <stop offset="60%" stopColor="#FC4C02" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="#FC4C02" stopOpacity="0" />
-        </radialGradient>
-        <filter id="atom-soft" x="-80%" y="-80%" width="260%" height="260%">
-          <feGaussianBlur stdDeviation="4" />
-        </filter>
         <linearGradient id="orbit-a" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="#FF9F1C" />
           <stop offset="100%" stopColor="#FC4C02" />
         </linearGradient>
       </defs>
 
-      {/* Halo radiactivo (lo único que puede latir) */}
-      {glow && (
-        <circle
-          cx="50"
-          cy="50"
-          r="34"
-          fill="url(#atom-halo)"
-          filter="url(#atom-soft)"
-          className={pulse ? "animate-radio-pulse" : ""}
-          style={{ transformOrigin: "50px 50px" }}
-        />
-      )}
-
       {/* Órbitas fijas (tres elipses cruzadas) */}
-      <g className={glowClass} fill="none" stroke="url(#orbit-a)">
+      <g fill="none" stroke="url(#orbit-a)">
         <ellipse cx="50" cy="50" rx="42" ry="16" strokeWidth="2" opacity="0.85" />
         <ellipse
           cx="50"
@@ -86,14 +66,14 @@ export function AtomLogo({ size = 28, className = "", pulse = true, glow = false
       </g>
 
       {/* Electrones fijos sobre las órbitas */}
-      <g className={glowClass}>
+      <g>
         <circle cx="92" cy="50" r="3.6" fill="#FFB07A" />
         <circle cx="29" cy="13.6" r="3.2" fill="#FF9F1C" />
         <circle cx="29" cy="86.4" r="3.2" fill="#FF7A3D" />
       </g>
 
       {/* Núcleo */}
-      <g className={glowClass}>
+      <g>
         <circle cx="50" cy="50" r="9" fill="url(#atom-core)" />
         <circle cx="50" cy="50" r="9" fill="none" stroke="#fff4ec" strokeWidth="0.7" opacity="0.85" />
       </g>

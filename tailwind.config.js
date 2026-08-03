@@ -4,9 +4,11 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // Sistema tipográfico en sintonía: Space Grotesk (display) + Inter (texto).
+        // Sistema tipográfico en sintonía: Space Grotesk (display) + Inter (texto)
+        // + JetBrains Mono (capa técnica de la landing: eyebrows, códigos, cifras).
         display: ['"Space Grotesk"', '"Inter"', "system-ui", "sans-serif"],
         sans: ['"Inter"', "system-ui", "-apple-system", "sans-serif"],
+        mono: ['"JetBrains Mono"', "ui-monospace", "SFMono-Regular", "monospace"],
       },
       colors: {
         // Paleta Nucleo — negro profundo + naranja incendiario (energía fitness/Strava).
@@ -34,9 +36,18 @@ export default {
           "0%, 100%": { opacity: "0.55", transform: "scale(1)" },
           "50%": { opacity: "1", transform: "scale(1.08)" },
         },
-        "radio-pulse": {
-          "0%, 100%": { opacity: "0.5", transform: "scale(1)" },
-          "50%": { opacity: "0.95", transform: "scale(1.12)" },
+        // Entradas de la landing (lenguaje "ease-out-expo").
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(30px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        "scale-in": {
+          from: { opacity: "0", transform: "scale(0.95)" },
+          to: { opacity: "1", transform: "scale(1)" },
         },
         float: {
           "0%, 100%": { transform: "translateY(0)" },
@@ -50,23 +61,21 @@ export default {
           "0%, 100%": { transform: "translate(0, 0) scale(1)" },
           "50%": { transform: "translate(-5%, 5%) scale(1.1)" },
         },
-        "snow-fall": {
-          "0%": { transform: "translateY(-8vh) translateX(0)", opacity: "0" },
-          "12%": { opacity: "1" },
-          "88%": { opacity: "1" },
-          "100%": { transform: "translateY(108vh) translateX(24px)", opacity: "0" },
-        },
       },
       animation: {
         "orbit-spin": "orbit-spin 18s linear infinite",
         "orbit-spin-slow": "orbit-spin 32s linear infinite",
         "orbit-spin-rev": "orbit-spin-rev 24s linear infinite",
         "pulse-glow": "pulse-glow 4s ease-in-out infinite",
-        "radio-pulse": "radio-pulse 3.5s ease-in-out infinite",
         float: "float 7s ease-in-out infinite",
         "drift-1": "drift-1 16s ease-in-out infinite",
         "drift-2": "drift-2 20s ease-in-out infinite",
-        "snow-fall": "snow-fall linear infinite",
+        "fade-up": "fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        "fade-in": "fade-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        "scale-in": "scale-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+      },
+      transitionTimingFunction: {
+        expo: "cubic-bezier(0.16, 1, 0.3, 1)",
       },
     },
   },

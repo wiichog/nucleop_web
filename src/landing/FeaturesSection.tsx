@@ -1,7 +1,6 @@
-import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
 import { ShoppingBag, Users, MapPin, Trophy, Dumbbell, CalendarCheck } from "lucide-react";
 import { Eyebrow } from "./ui";
+import { useReveal } from "./useReveal";
 
 const FEATURES = [
   {
@@ -42,45 +41,54 @@ const FEATURES = [
   },
 ];
 
+/** "Funciones" — retícula de capacidades sobre negro plano, sin halos. */
 export function FeaturesSection() {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-100px" });
+  const { ref, visible } = useReveal<HTMLElement>(0.1);
+  const show = (cls: string) => (visible ? cls : "");
 
   return (
-    <section id="funciones" className="relative overflow-hidden bg-black px-6 py-28 md:py-40">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(252,76,2,0.05),_transparent_55%)]" />
-      <div ref={ref} className="relative z-10 mx-auto max-w-6xl">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.7 }}
-          className="mb-12 flex flex-col gap-4 md:mb-16 md:flex-row md:items-end md:justify-between"
+    <section
+      id="funciones"
+      ref={ref}
+      className="relative w-full scroll-mt-20 overflow-hidden bg-black px-4 py-24 sm:px-6 md:py-36 lg:px-10"
+    >
+      <div className="mx-auto max-w-6xl">
+        <div
+          className={`mb-12 flex flex-col gap-4 opacity-0 md:mb-16 md:flex-row md:items-end md:justify-between ${show(
+            "animate-fade-up",
+          )}`}
+          style={{ animationDelay: "0.1s" }}
         >
-          <h2 className="hero-title max-w-2xl font-display text-4xl font-medium text-white md:text-6xl">
+          <h2 className="hero-title max-w-2xl font-display text-3xl font-medium text-white sm:text-5xl">
             Mucho más que administrar<span className="text-nucleo-flame">.</span>
           </h2>
           <Eyebrow>Todo incluido</Eyebrow>
-        </motion.div>
+        </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
           {FEATURES.map((f, i) => (
-            <motion.div
+            <div
               key={f.title}
-              initial={{ opacity: 0, y: 30 }}
-              animate={inView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.6, delay: i * 0.08 }}
-              className="group rounded-2xl border border-white/10 bg-white/[0.02] p-6 transition-colors duration-300 hover:border-white/25 hover:bg-white/[0.04]"
+              className={`group rounded-2xl border border-white/10 bg-white/[0.02] p-6 opacity-0 transition-colors duration-300 hover:border-white/25 hover:bg-white/[0.04] ${show(
+                "animate-fade-up",
+              )}`}
+              style={{ animationDelay: `${0.2 + i * 0.08}s` }}
             >
-              <f.Icon
-                size={22}
-                strokeWidth={1.5}
-                className="text-white/70 transition-colors duration-300 group-hover:text-nucleo-flame"
-              />
-              <h3 className="mb-2 mt-5 font-display text-lg font-medium tracking-tight text-white">
+              <div className="flex items-start justify-between">
+                <f.Icon
+                  size={22}
+                  strokeWidth={1.5}
+                  className="text-white/70 transition-colors duration-300 group-hover:text-nucleo-flame"
+                />
+                <span className="font-mono text-[11px] tracking-[0.2em] text-white/25">
+                  0{i + 1}
+                </span>
+              </div>
+              <h3 className="mb-2 mt-6 font-display text-lg font-medium tracking-tight text-white">
                 {f.title}
               </h3>
-              <p className="text-sm leading-relaxed text-white/50">{f.description}</p>
-            </motion.div>
+              <p className="font-mono text-xs leading-relaxed text-white/50">{f.description}</p>
+            </div>
           ))}
         </div>
       </div>

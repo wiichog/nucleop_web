@@ -942,6 +942,17 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
 }
 
+/* Botón de "Continuar con Google". GSI lo inyecta en el DOM claro con clases
+   ofuscadas (`.nsm7Bb-HzV7m-LgbsSe`…), que cambian sin aviso; el único gancho
+   estable es `[role="button"]`. Aun pasándole el ancho medido por su prop
+   `width`, GSI lo dibuja ~23px más angosto que el contenedor, así que queda
+   descuadrado contra el botón de Facebook: aquí se estira al 100%. */
+.a-gsi > div,
+.a-gsi div[role="button"] {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
 /* Alertas y estados: vidrio teñido del color semántico. */
 .mantine-Alert-root {
   backdrop-filter: blur(calc(18 * var(--u))) saturate(140%);
