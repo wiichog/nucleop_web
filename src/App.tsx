@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
+import { DeleteAccountPage } from "./landing/DeleteAccountPage";
 import { LandingPage } from "./landing/LandingPage";
 import { PrivacyPage } from "./landing/PrivacyPage";
 import { initAnalytics, trackPageview } from "./lib/analytics";
@@ -31,6 +32,10 @@ export default function App() {
       {/* Política de privacidad pública (requisito de App Store y Google Play). */}
       <Route path="/privacidad" element={<PrivacyPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
+      {/* Eliminación de cuenta: Google Play la exige como URL pública propia,
+          accesible sin login y distinta de la política de privacidad. */}
+      <Route path="/eliminar-cuenta" element={<DeleteAccountPage />} />
+      <Route path="/delete-account" element={<DeleteAccountPage />} />
       <Route
         path="/*"
         element={
