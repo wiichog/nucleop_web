@@ -975,8 +975,12 @@
   letter-spacing: 0;
   /* Ocupa todo lo que sobra a la derecha del logo y centra el texto ahí dentro,
      que es exactamente lo que hace GSI (su etiqueta no está centrada respecto
-     al botón, sino respecto al hueco posterior al logo). */
+     al botón, sino respecto al hueco posterior al logo).
+     OJO: Mantine hace de `.mantine-Button-label` un contenedor flex, así que
+     `text-align` NO centra nada — hace falta `justify-content`. Se dejan los
+     dos por si en otra versión el label deja de ser flex. */
   flex: 1;
+  justify-content: center;
   text-align: center;
   margin-left: 20px;
 }
