@@ -21,6 +21,24 @@ const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID ?? "";
 
 /** Alto compartido por los dos botones sociales (el `size="large"` de Google). */
 const SOCIAL_H = 40;
+/** Lado del logo dentro del botón, medido sobre el que dibuja GSI. */
+const SOCIAL_LOGO = 18;
+
+/** Marca de Facebook a todo color, al mismo tamaño que la "G" de Google. */
+function FacebookMark() {
+  return (
+    <svg width={SOCIAL_LOGO} height={SOCIAL_LOGO} viewBox="0 0 24 24" aria-hidden focusable="false">
+      <path
+        fill="#1877F2"
+        d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.96h-1.51c-1.49 0-1.96.93-1.96 1.89v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07Z"
+      />
+      <path
+        fill="#fff"
+        d="m16.67 15.56.53-3.49h-3.33V9.81c0-.96.47-1.89 1.96-1.89h1.51V4.96s-1.37-.24-2.68-.24c-2.74 0-4.53 1.67-4.53 4.69v2.66H7.08v3.49h3.05V24a12.1 12.1 0 0 0 3.74 0v-8.44h2.8Z"
+      />
+    </svg>
+  );
+}
 
 /**
  * Botón de Google. Google lo dibuja DENTRO DE UN IFRAME, así que no se puede
@@ -113,7 +131,14 @@ function SocialLoginButtons({ onDone }: { onDone: () => void }) {
         <Button
           fullWidth
           variant="default"
+          className="a-social-fb"
           h={SOCIAL_H}
+          radius={SOCIAL_H / 2}
+          /* GSI clava el logo a la izquierda y centra la etiqueta en el espacio
+             QUE SOBRA a su derecha, no en el botón entero. Eso se reproduce con
+             la etiqueta a `flex: 1` (ver `.a-social-fb` en aurora.css), no con
+             una sección derecha de contrapeso. */
+          leftSection={<FacebookMark />}
           onClick={handleFacebook}
           loading={socialLogin.isPending}
         >

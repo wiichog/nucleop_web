@@ -953,6 +953,37 @@
   max-width: 100% !important;
 }
 
+/* Botón de Facebook del login: espejo EXACTO del que dibuja GSI, medido sobre
+   el propio botón de Google (fondo #202124, sin borde ni sombra, radio 20px,
+   tinta #e8eaed, etiqueta 14/500, logo de 18px a 11px del borde). Así los dos
+   accesos sociales se leen como un par y no como dos componentes sueltos de
+   librerías distintas. */
+.a-social-fb.mantine-Button-root {
+  background: #202124;
+  border: none;
+  color: #e8eaed;
+  box-shadow: none;
+  padding-inline: 11px;
+}
+.a-social-fb.mantine-Button-root:hover {
+  background: #2c2d30;
+  box-shadow: none;
+}
+.a-social-fb .mantine-Button-label {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+  /* Ocupa todo lo que sobra a la derecha del logo y centra el texto ahí dentro,
+     que es exactamente lo que hace GSI (su etiqueta no está centrada respecto
+     al botón, sino respecto al hueco posterior al logo). */
+  flex: 1;
+  text-align: center;
+  margin-left: 20px;
+}
+.a-social-fb .mantine-Button-section {
+  margin: 0;
+}
+
 /* Alertas y estados: vidrio teñido del color semántico. */
 .mantine-Alert-root {
   backdrop-filter: blur(calc(18 * var(--u))) saturate(140%);
