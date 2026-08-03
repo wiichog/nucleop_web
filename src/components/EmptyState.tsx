@@ -1,6 +1,7 @@
-import { Paper, Stack, Text, ThemeIcon } from "@mantine/core";
+import { Stack, Text, ThemeIcon } from "@mantine/core";
 import { Inbox, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { GlassCard } from "./aurora";
 
 export function EmptyState({
   title,
@@ -15,12 +16,12 @@ export function EmptyState({
   icon?: LucideIcon;
 }) {
   return (
-    <Paper withBorder radius="md" p="xl" role="status" style={{ background: "rgba(255,255,255,0.015)" }}>
+    <GlassCard role="status" padding={30} className="a-rise">
       <Stack align="center" gap="xs">
-        <ThemeIcon variant="light" color="flame" size={46} radius="md">
-          <Icon size={22} />
+        <ThemeIcon variant="light" color="flame" size={46} radius="xl">
+          <Icon size={22} strokeWidth={1.8} />
         </ThemeIcon>
-        <Text fw={600} ff='"Space Grotesk", sans-serif' style={{ letterSpacing: "-0.01em" }}>
+        <Text fw={500} fz="lg" ff="var(--a-font-display)" style={{ letterSpacing: "-0.015em" }}>
           {title}
         </Text>
         {description && (
@@ -30,6 +31,6 @@ export function EmptyState({
         )}
         {action}
       </Stack>
-    </Paper>
+    </GlassCard>
   );
 }

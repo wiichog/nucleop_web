@@ -2,19 +2,19 @@ import { FormEvent, useEffect, useState } from "react";
 import {
   Box,
   Button,
-  Card,
   FileInput,
   Group,
   Image,
+  SimpleGrid,
   Stack,
   Tabs,
   Text,
   Textarea,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
+import { CalendarClock, UserCheck } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
@@ -36,9 +36,14 @@ import {
 } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { PageError, PageLoading } from "../components/PageStatus";
-import { PageHeader } from "../components/ui";
+import { PageHeader, SectionLabel } from "../components/ui";
+import { BigMetric, GlassCard, MetricTile, Stagger, cssVars } from "../components/aurora";
 
-const rowBorder = { borderBottom: "1px solid var(--mantine-color-dark-5)" };
+/** Hairline del material Aurora: separa filas sin dibujar una caja. */
+const rowBorder = { borderBottom: "1px solid var(--a-line)" };
+
+/** Separación estándar entre tarjetas de un panel. */
+const CARD_GAP = "calc(20 * var(--u))";
 
 export function ClubAdminPage() {
   const { primaryClubId, clubIds } = useAuth();
@@ -73,7 +78,7 @@ export function ClubAdminPage() {
         }
         keepMounted={false}
       >
-        <Tabs.List mb="lg">
+        <Tabs.List mb="lg" className="a-wipe-right" style={cssVars({ "--d": "0.52s" })}>
           <Tabs.Tab value="actividades">Actividades</Tabs.Tab>
           <Tabs.Tab value="retos">Retos</Tabs.Tab>
           <Tabs.Tab value="anuncios">Anuncios</Tabs.Tab>
@@ -129,26 +134,44 @@ function ActividadesPanel({ clubId }: { clubId: string }) {
     }
   };
 
+  // Retrato del panel: se deriva de las actividades que ya están en pantalla.
+  const lista = activities.data ?? [];
+  const rsvpsTotal = lista.reduce((total, a) => total + (a.rsvp_count ?? 0), 0);
+
   return (
     <>
-      <Card mb="lg" component="form" onSubmit={onCreate}>
-        <Title order={3} mb="sm">
-          Nueva actividad
-        </Title>
-        <Stack gap="sm" maw={460}>
-          <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
-          <DateTimePicker label="Fecha y hora" value={startsAt} onChange={setStartsAt} valueFormat="YYYY-MM-DD HH:mm" />
-          <TextInput label="Ubicación" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
-          <Button type="submit" loading={createActivity.isPending}>
-            Crear actividad
-          </Button>
-        </Stack>
-      </Card>
+      <Stagger from={0.6} style={{ marginBottom: CARD_GAP }}>
+        <SimpleGrid cols={{ base: 2, md: 2 }} spacing="md">
+          <MetricTile
+            label="Actividades publicadas"
+            value={activities.isLoading ? "—" : lista.length}
+            icon={<CalendarClock size={16} strokeWidth={1.8} />}
+          />
+          <MetricTile
+            label="RSVPs acumulados"
+            value={activities.isLoading ? "—" : rsvpsTotal}
+            icon={<UserCheck size={16} strokeWidth={1.8} />}
+            hint="Confirmaciones de tus miembros."
+          />
+        </SimpleGrid>
+      </Stagger>
 
-      <Card>
-        <Title order={3} mb="sm">
-          Actividades
-        </Title>
+      <GlassCard padding={24} delay={0.72} style={{ marginBottom: CARD_GAP }}>
+        <SectionLabel as="h2" mb={12}>Nueva actividad</SectionLabel>
+        <form onSubmit={onCreate}>
+          <Stack gap="sm" maw={460}>
+            <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
+            <DateTimePicker label="Fecha y hora" value={startsAt} onChange={setStartsAt} valueFormat="YYYY-MM-DD HH:mm" />
+            <TextInput label="Ubicación" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
+            <Button type="submit" loading={createActivity.isPending}>
+              Crear actividad
+            </Button>
+          </Stack>
+        </form>
+      </GlassCard>
+
+      <GlassCard padding={24} delay={0.84}>
+        <SectionLabel as="h2" mb={12}>Actividades</SectionLabel>
         {activities.isError ? (
           <PageError
             message="No se pudieron cargar las actividades del club."
@@ -228,7 +251,7 @@ function ActividadesPanel({ clubId }: { clubId: string }) {
             ))}
           </Stack>
         )}
-      </Card>
+      </GlassCard>
     </>
   );
 }
@@ -299,10 +322,16 @@ function RetosPanel({ clubId }: { clubId: string }) {
 
   return (
     <>
-      <Card mb="lg">
-        <Title order={3} mb="sm">
-          Revisiones pendientes
-        </Title>
+      {/* La cola que manda en este panel: puntos de reto esperando decisión. */}
+      <GlassCard variant="core" sheen padding={24} delay={0.6} style={{ marginBottom: CARD_GAP }}>
+        <BigMetric
+          label="Revisiones pendientes"
+          value={pendingSubmissions.isLoading ? "—" : (pendingSubmissions.data ?? []).length}
+          size="sm"
+          hint="Avances que tus miembros subieron y aún no apruebas."
+          delay={1.0}
+        />
+        <div style={{ height: "calc(14 * var(--u))" }} />
         {pendingSubmissions.isError ? (
           <PageError
             message="No se pudieron cargar los avances por revisar."
@@ -339,12 +368,10 @@ function RetosPanel({ clubId }: { clubId: string }) {
             ))}
           </Stack>
         )}
-      </Card>
+      </GlassCard>
 
-      <Card>
-        <Title order={3} mb="sm">
-          Retos
-        </Title>
+      <GlassCard padding={24} delay={0.72}>
+        <SectionLabel as="h2" mb={12}>Retos</SectionLabel>
         <Stack gap="sm" maw={460} mb="lg" component="form" onSubmit={onCreateChallenge}>
           <TextInput label="Nombre del reto" value={challengeName} onChange={(e) => setChallengeName(e.currentTarget.value)} required />
           <TextInput label="Meta (km o cantidad)" value={challengeTarget} onChange={(e) => setChallengeTarget(e.currentTarget.value)} required />
@@ -399,7 +426,7 @@ function RetosPanel({ clubId }: { clubId: string }) {
             ))}
           </Stack>
         )}
-      </Card>
+      </GlassCard>
     </>
   );
 }
@@ -443,51 +470,49 @@ function AnunciosPanel({ clubId }: { clubId: string }) {
 
   return (
     <>
-      <Card mb="lg" component="form" onSubmit={onPublicar}>
-        <Title order={3} mb={4}>
-          Nuevo anuncio
-        </Title>
+      <GlassCard padding={24} delay={0.6} style={{ marginBottom: CARD_GAP }}>
+        <SectionLabel as="h2" mb={8}>Nuevo anuncio</SectionLabel>
         <Text c="dimmed" size="sm" mb="md">
           Se publica en el feed del club y les llega como notificación a sus miembros.
         </Text>
-        <Stack gap="sm" maw={520}>
-          <TextInput
-            label="Título"
-            placeholder="Rodada del domingo"
-            value={title}
-            onChange={(e) => setTitle(e.currentTarget.value)}
-            maxLength={120}
-            required
-          />
-          <Textarea
-            label="Mensaje"
-            placeholder="Salimos a las 6:00 del parqueo del gym…"
-            value={body}
-            onChange={(e) => setBody(e.currentTarget.value)}
-            autosize
-            minRows={3}
-            required
-          />
-          <FileInput
-            label="Foto (opcional)"
-            placeholder="Subir imagen"
-            accept="image/*"
-            value={photo}
-            onChange={setPhoto}
-            clearable
-          />
-          <Group justify="flex-end">
-            <Button type="submit" loading={crear.isPending} disabled={!title.trim() || !body.trim()}>
-              Publicar anuncio
-            </Button>
-          </Group>
-        </Stack>
-      </Card>
+        <form onSubmit={onPublicar}>
+          <Stack gap="sm" maw={520}>
+            <TextInput
+              label="Título"
+              placeholder="Rodada del domingo"
+              value={title}
+              onChange={(e) => setTitle(e.currentTarget.value)}
+              maxLength={120}
+              required
+            />
+            <Textarea
+              label="Mensaje"
+              placeholder="Salimos a las 6:00 del parqueo del gym…"
+              value={body}
+              onChange={(e) => setBody(e.currentTarget.value)}
+              autosize
+              minRows={3}
+              required
+            />
+            <FileInput
+              label="Foto (opcional)"
+              placeholder="Subir imagen"
+              accept="image/*"
+              value={photo}
+              onChange={setPhoto}
+              clearable
+            />
+            <Group justify="flex-end">
+              <Button type="submit" loading={crear.isPending} disabled={!title.trim() || !body.trim()}>
+                Publicar anuncio
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </GlassCard>
 
-      <Card>
-        <Title order={3} mb="sm">
-          Publicados
-        </Title>
+      <GlassCard padding={24} delay={0.72}>
+        <SectionLabel as="h2" mb={12}>Publicados</SectionLabel>
         {anuncios.isError ? (
           <PageError
             message="No se pudieron cargar los anuncios del club."
@@ -514,7 +539,14 @@ function AnunciosPanel({ clubId }: { clubId: string }) {
                       {new Date(a.created_at).toLocaleString("es-GT")}
                     </Text>
                     {a.photo && (
-                      <Image src={a.photo} alt={a.title} radius="md" mt="xs" maw={220} />
+                      <Image
+                        src={a.photo}
+                        alt={a.title}
+                        radius="lg"
+                        mt="xs"
+                        maw={240}
+                        style={{ border: "1px solid var(--a-line)" }}
+                      />
                     )}
                   </div>
                   <Button
@@ -531,7 +563,7 @@ function AnunciosPanel({ clubId }: { clubId: string }) {
             ))}
           </Stack>
         )}
-      </Card>
+      </GlassCard>
     </>
   );
 }
@@ -575,58 +607,62 @@ function PerfilPanel({ clubId }: { clubId: string }) {
   if (perfil.isLoading) return <PageLoading label="Cargando la ficha…" />;
 
   return (
-    <Card component="form" onSubmit={onGuardar}>
-      <Title order={3} mb={4}>
-        Ficha del club
-      </Title>
+    <GlassCard padding={24} delay={0.6}>
+      <SectionLabel as="h2" mb={8}>Ficha del club</SectionLabel>
       <Text c="dimmed" size="sm" mb="md">
         Es lo que ven los atletas al encontrar tu club en la app. Si el club es público y su estado
         lo decide el gimnasio, eso no se edita desde aquí.
       </Text>
-      <Stack gap="sm" maw={520}>
-        <TextInput
-          label="Nombre"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
-          required
-        />
-        <TextInput
-          label="Tipo"
-          placeholder="running, cycling, rowing…"
-          value={form.club_type}
-          onChange={(e) => setForm({ ...form, club_type: e.currentTarget.value })}
-        />
-        <Textarea
-          label="Descripción"
-          placeholder="Quiénes somos, cuándo entrenamos, a quién buscamos…"
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
-          autosize
-          minRows={3}
-        />
-        {perfil.data?.photo && !photo && (
-          <div>
-            <Text size="sm" mb={4}>
-              Foto actual
-            </Text>
-            <Image src={perfil.data.photo} alt={perfil.data.name} radius="md" maw={220} />
-          </div>
-        )}
-        <FileInput
-          label="Foto del club"
-          description="Reemplaza la actual. Formato cuadrado se ve mejor."
-          placeholder="Subir imagen"
-          accept="image/*"
-          value={photo}
-          onChange={setPhoto}
-          clearable
-        />
-        <Group justify="flex-end">
-          <Button type="submit" loading={guardar.isPending} disabled={!form.name.trim()}>
-            Guardar ficha
-          </Button>
-        </Group>
-      </Stack>
-    </Card>
+      <form onSubmit={onGuardar}>
+        <Stack gap="sm" maw={520}>
+          <TextInput
+            label="Nombre"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+            required
+          />
+          <TextInput
+            label="Tipo"
+            placeholder="running, cycling, rowing…"
+            value={form.club_type}
+            onChange={(e) => setForm({ ...form, club_type: e.currentTarget.value })}
+          />
+          <Textarea
+            label="Descripción"
+            placeholder="Quiénes somos, cuándo entrenamos, a quién buscamos…"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
+            autosize
+            minRows={3}
+          />
+          {perfil.data?.photo && !photo && (
+            <div>
+              <SectionLabel mb={6}>Foto actual</SectionLabel>
+              <Image
+                src={perfil.data.photo}
+                alt={perfil.data.name}
+                radius="lg"
+                maw={240}
+                style={{ border: "1px solid var(--a-line)" }}
+              />
+            </div>
+          )}
+          <FileInput
+            label="Foto del club"
+            description="Reemplaza la actual. Formato cuadrado se ve mejor."
+            placeholder="Subir imagen"
+            accept="image/*"
+            value={photo}
+            onChange={setPhoto}
+            clearable
+          />
+          <Group justify="flex-end">
+            <Button type="submit" loading={guardar.isPending} disabled={!form.name.trim()}>
+              Guardar ficha
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </GlassCard>
   );
 }

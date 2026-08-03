@@ -3,10 +3,9 @@ import {
   Alert,
   Badge,
   Button,
-  Card,
+  Divider,
   Group,
   Modal,
-  SimpleGrid,
   Stack,
   Text,
   TextInput,
@@ -27,6 +26,7 @@ import { EmptyState } from "../components/EmptyState";
 import { PageError, PageLoading } from "../components/PageStatus";
 import { RowActions } from "../components/RowActions";
 import { Money, SectionLabel } from "../components/ui";
+import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora";
 import { errMsg } from "../lib/errors";
 import { fmtQ } from "../lib/money";
 
@@ -34,30 +34,6 @@ import { fmtQ } from "../lib/money";
 function periodoDe(d: Date | null): string | undefined {
   if (!d) return undefined;
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function Metric({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
-  return (
-    <Card>
-      <Text c="dimmed" size="sm">
-        {label}
-      </Text>
-      <Text
-        fw={700}
-        fz={{ base: 20, sm: 24 }}
-        c={accent ? "flame" : undefined}
-        ff='"Space Grotesk", sans-serif'
-        style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}
-      >
-        {value}
-      </Text>
-      {sub && (
-        <Text c="dimmed" size="xs" mt={4}>
-          {sub}
-        </Text>
-      )}
-    </Card>
-  );
 }
 
 /**
@@ -113,9 +89,9 @@ export function PlatformBillingPanel() {
 
   return (
     <div>
-      <Card mb="lg">
+      <GlassCard padding={16} delay={0.6} style={{ marginBottom: "calc(20 * var(--u))" }}>
         <Group justify="space-between" align="flex-end" wrap="wrap" gap="md">
-          <div>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <Title order={3} mb={4}>
               Estado de cuenta de la red
             </Title>
@@ -132,7 +108,7 @@ export function PlatformBillingPanel() {
             w={{ base: "100%", sm: 200 }}
           />
         </Group>
-      </Card>
+      </GlassCard>
 
       {statements.isError ? (
         <PageError onRetry={() => statements.refetch()} />
@@ -142,30 +118,74 @@ export function PlatformBillingPanel() {
         <EmptyState title="Sin datos" description="No hay liquidación para este periodo." />
       ) : (
         <>
-          <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="md" mb="lg">
-            <Metric
+          {/* La cifra que manda en esta pantalla: lo que Nucleo se quedó de recargo. */}
+          <GlassCard
+            variant="core"
+            sheen
+            padding={26}
+            delay={0.72}
+            style={{ marginBottom: "calc(20 * var(--u))" }}
+          >
+            <BigMetric
               label="Ganancia de Nucleo"
               value={fmtQ(data.totals.platform_earned)}
-              sub="Recargo neto de reembolsos"
-              accent
+              fz="clamp(34px, calc(58 * var(--u)), 68px)"
+              hint="Recargo cobrado por la pasarela, ya neto de reembolsos."
+              delay={1.04}
             />
-            <Metric label="Cobrado por pasarela" value={fmtQ(data.totals.gross_charged)} />
-            <Metric label="Ingreso de los gyms" value={fmtQ(data.totals.gym_revenue)} />
-            <Metric label="Reembolsos" value={fmtQ(data.totals.refunds_total)} />
-            <Metric
+            <Group
+              gap="lg"
+              mt="lg"
+              wrap="wrap"
+              className="a-rise"
+              style={{ animationDelay: "1.16s" }}
+            >
+              <div>
+                <SectionLabel mb={4}>Periodo</SectionLabel>
+                <Text fw={600} className="a-tabular">
+                  {data.period_start} → {data.period_end}
+                </Text>
+              </div>
+              <Divider orientation="vertical" />
+              <div>
+                <SectionLabel mb={4}>Gyms con movimiento</SectionLabel>
+                <Text fw={600} className="a-tabular">
+                  {data.totals.gyms_count}
+                </Text>
+              </div>
+            </Group>
+          </GlassCard>
+
+          <SectionLabel as="h2">Movimiento del periodo</SectionLabel>
+          <Stagger
+            from={0.96}
+            style={{
+              display: "grid",
+              gap: "var(--mantine-spacing-md)",
+              gridTemplateColumns: "repeat(auto-fit, minmax(calc(170 * var(--u)), 1fr))",
+              marginBottom: "calc(20 * var(--u))",
+            }}
+          >
+            <MetricTile label="Cobrado por pasarela" value={fmtQ(data.totals.gross_charged)} />
+            <MetricTile label="Ingreso de los gyms" value={fmtQ(data.totals.gym_revenue)} />
+            <MetricTile
+              label="Reembolsos"
+              value={fmtQ(data.totals.refunds_total)}
+              tone="var(--nucleo-danger)"
+            />
+            <MetricTile
               label="Por depositar"
               value={fmtQ(data.totals.net_to_deposit)}
-              sub="Custodia puente"
+              hint="Custodia puente"
             />
-            <Metric
-              label="Gyms con movimiento"
-              value={String(data.totals.gyms_count)}
-              sub={`${data.period_start} → ${data.period_end}`}
-            />
-          </SimpleGrid>
+          </Stagger>
 
-          <Card mb="lg">
-            <SectionLabel>Por gimnasio</SectionLabel>
+          <SectionLabel as="h2">Por gimnasio</SectionLabel>
+          <GlassCard
+            padding={10}
+            delay={1.08}
+            style={{ marginBottom: "calc(20 * var(--u))" }}
+          >
             <DataTable<GymStatement>
               minHeight={160}
               highlightOnHover
@@ -253,10 +273,10 @@ export function PlatformBillingPanel() {
                 },
               ]}
             />
-          </Card>
+          </GlassCard>
 
-          <Card>
-            <SectionLabel>Depósitos del periodo</SectionLabel>
+          <SectionLabel as="h2">Depósitos del periodo</SectionLabel>
+          <GlassCard padding={10} delay={1.2}>
             {payouts.isError ? (
               <PageError onRetry={() => payouts.refetch()} />
             ) : (
@@ -323,7 +343,7 @@ export function PlatformBillingPanel() {
                 ]}
               />
             )}
-          </Card>
+          </GlassCard>
         </>
       )}
 

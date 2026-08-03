@@ -4,7 +4,6 @@ import {
   Alert,
   Badge,
   Button,
-  Card,
   Group,
   Modal,
   NumberInput,
@@ -15,7 +14,6 @@ import {
   Table,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
@@ -35,6 +33,7 @@ import type { ErpPurchaseOrder, PurchaseOrderStatus } from "../api/types";
 import { DetailSheet } from "../components/DetailSheet";
 import { PageError, PageLoading } from "../components/PageStatus";
 import { RowActions } from "../components/RowActions";
+import { GlassCard } from "../components/aurora";
 import { errMsg } from "../lib/errors";
 import { fmtQ } from "../lib/money";
 import { Money, SectionLabel } from "../components/ui";
@@ -220,12 +219,10 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
     <div>
       {orders.isError && <PageError onRetry={() => orders.refetch()} />}
 
-      <Card mb="lg">
+      <GlassCard padding={20} delay={0.6} style={{ marginBottom: "calc(16 * var(--u))" }}>
         <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
           <div>
-            <Title order={3} mb={4}>
-              Órdenes de compra
-            </Title>
+            <SectionLabel as="h2" mb={6}>Órdenes de compra</SectionLabel>
             <Text c="dimmed" size="sm">
               Lo que le pediste a cada proveedor. Al marcar la recepción, el stock entra solo con
               el costo real de la compra.
@@ -244,10 +241,10 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
             Primero da de alta un proveedor en la pestaña «Proveedores».
           </Alert>
         )}
-      </Card>
+      </GlassCard>
 
-      <Card>
-        <Group align="flex-end" gap="md" mb="md" wrap="wrap">
+      <GlassCard padding={16} delay={0.72} style={{ marginBottom: "calc(16 * var(--u))" }}>
+        <Group align="flex-end" gap="md" wrap="wrap">
           <Select
             label="Estado"
             placeholder="Todos"
@@ -268,7 +265,10 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
             data={supplierData}
           />
         </Group>
+      </GlassCard>
 
+      <SectionLabel as="h2" mb="xs">Historial de órdenes</SectionLabel>
+      <GlassCard padding={14} delay={0.84}>
         <DataTable<ErpPurchaseOrder>
           minHeight={160}
           highlightOnHover
@@ -343,7 +343,7 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
             },
           ]}
         />
-      </Card>
+      </GlassCard>
 
       {/* Ficha de la orden + recepción de mercadería. */}
       <DetailSheet
@@ -379,7 +379,7 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
               </Alert>
             )}
 
-            <SectionLabel mt="xs">Productos</SectionLabel>
+            <SectionLabel as="h2" mt="xs">Productos</SectionLabel>
             <Table>
               <Table.Thead>
                 <Table.Tr>
@@ -400,10 +400,10 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
                         {fmtQ(l.unit_cost, { decimals: 2 })} c/u
                       </Text>
                     </Table.Td>
-                    <Table.Td ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    <Table.Td ta="right" className="a-tabular">
                       {l.qty}
                     </Table.Td>
-                    <Table.Td ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    <Table.Td ta="right" className="a-tabular">
                       {l.received_qty}
                     </Table.Td>
                     {puedeRecibir && (
@@ -521,7 +521,7 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
             onChange={(e) => setYaOrdenada(e.currentTarget.checked)}
           />
 
-          <SectionLabel mt="xs">Productos</SectionLabel>
+          <SectionLabel as="h2" mt="xs">Productos</SectionLabel>
           <Stack gap="xs">
             {lineas.map((l, i) => (
               <Group key={i} gap="xs" align="flex-end" wrap="nowrap">

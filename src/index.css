@@ -1,4 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap");
+/* Inter (texto) + Inter Tight (display del panel, lenguaje Aurora) + Space Grotesk
+   (wordmark y landing). Inter Tight 500 es la tipografía del titular de la
+   referencia `design/aurora-reference.html`. */
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@400;500;600&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -62,9 +65,8 @@ html {
     letter-spacing: -0.04em;
     line-height: 0.95;
   }
-  .text-glow-flame {
-    text-shadow: 0 0 14px rgba(252, 76, 2, 0.35);
-  }
+  /* `.text-glow-flame` se eliminó con el rediseño Aurora: ya nadie la usaba y el
+     resplandor naranja quedó fuera del lenguaje. */
   .neon-divider {
     background: linear-gradient(
       90deg,

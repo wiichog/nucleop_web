@@ -3,7 +3,6 @@ import {
   Alert,
   Badge,
   Button,
-  Card,
   Group,
   Modal,
   NumberInput,
@@ -14,7 +13,6 @@ import {
   Table,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useQueryClient } from "@tanstack/react-query";
@@ -33,6 +31,7 @@ import { DetailSheet } from "../components/DetailSheet";
 import { PageError } from "../components/PageStatus";
 import { RowActions } from "../components/RowActions";
 import { Money, SectionLabel } from "../components/ui";
+import { GlassCard } from "../components/aurora";
 import { errMsg } from "../lib/errors";
 import { fmtQ } from "../lib/money";
 
@@ -203,168 +202,179 @@ export function StoreOrdersPanel({ gymId }: { gymId: string }) {
     <div>
       {orders.isError && <PageError onRetry={() => orders.refetch()} />}
 
-      {pendientes.length > 0 && (
-        <Card mb="lg">
-          <SectionLabel>Devoluciones por resolver ({pendientes.length})</SectionLabel>
-          <Text c="dimmed" size="sm" mb="md">
-            El atleta ya pidió devolver. Al aprobar se registra el reembolso de la base y las
-            unidades regresan al inventario; el recargo de Nucleo no se reembolsa.
-          </Text>
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Atleta</Table.Th>
-                <Table.Th>Motivo</Table.Th>
-                <Table.Th ta="right">Monto</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {pendientes.map((o) => (
-                <Table.Tr key={o.id}>
-                  <Table.Td>
-                    <Text size="sm" fw={600}>
-                      {o.athlete_name}
-                    </Text>
-                    <Text c="dimmed" size="xs">
-                      {o.product_name}
-                      {o.items_count > 1 ? ` +${o.items_count - 1} más` : ""}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">{o.return_reason || "—"}</Text>
-                  </Table.Td>
-                  <Table.Td ta="right">
-                    <Money value={o.total} decimals={2} />
-                  </Table.Td>
-                  <Table.Td>
-                    <RowActions
-                      actions={[
-                        {
-                          label: "Aprobar",
-                          variant: "filled" as const,
-                          loading: aprobarDev.isPending && aprobarDev.variables?.id === o.id,
-                          onClick: () => resolverDevolucion(o, true),
-                        },
-                        {
-                          label: "Rechazar",
-                          variant: "subtle" as const,
-                          color: "red",
-                          loading: rechazarDev.isPending && rechazarDev.variables?.id === o.id,
-                          onClick: () => resolverDevolucion(o, false),
-                        },
-                      ]}
-                    />
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Card>
-      )}
-
-      <ShippingCard gymId={gymId} />
-
-      <Card>
-        <Group justify="space-between" align="flex-end" mb="md" wrap="wrap">
+      <div style={{ display: "flex", flexDirection: "column", gap: "calc(18 * var(--u))" }}>
+        {/* Lo que exige respuesta hoy: por eso es la tarjeta encendida del panel. */}
+        {pendientes.length > 0 && (
           <div>
-            <Title order={3} mb={4}>
-              Pedidos de la tienda
-            </Title>
-            <Text c="dimmed" size="sm">
-              Compras y apartados que tus atletas hacen desde la app.
-            </Text>
+            <SectionLabel as="h2" mb={10}>Devoluciones por resolver · {pendientes.length}</SectionLabel>
+            <GlassCard variant="core" sheen padding={20} delay={0.6}>
+              <Text c="dimmed" size="sm" mb="md">
+                El atleta ya pidió devolver. Al aprobar se registra el reembolso de la base y las
+                unidades regresan al inventario; el recargo de Nucleo no se reembolsa.
+              </Text>
+              <Table>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Atleta</Table.Th>
+                    <Table.Th>Motivo</Table.Th>
+                    <Table.Th ta="right">Monto</Table.Th>
+                    <Table.Th />
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {pendientes.map((o) => (
+                    <Table.Tr key={o.id}>
+                      <Table.Td>
+                        <Text size="sm" fw={600}>
+                          {o.athlete_name}
+                        </Text>
+                        <Text c="dimmed" size="xs">
+                          {o.product_name}
+                          {o.items_count > 1 ? ` +${o.items_count - 1} más` : ""}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm">{o.return_reason || "—"}</Text>
+                      </Table.Td>
+                      <Table.Td ta="right">
+                        <Money value={o.total} decimals={2} />
+                      </Table.Td>
+                      <Table.Td>
+                        <RowActions
+                          actions={[
+                            {
+                              label: "Aprobar",
+                              variant: "filled" as const,
+                              loading: aprobarDev.isPending && aprobarDev.variables?.id === o.id,
+                              onClick: () => resolverDevolucion(o, true),
+                            },
+                            {
+                              label: "Rechazar",
+                              variant: "subtle" as const,
+                              color: "red",
+                              loading: rechazarDev.isPending && rechazarDev.variables?.id === o.id,
+                              onClick: () => resolverDevolucion(o, false),
+                            },
+                          ]}
+                        />
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </GlassCard>
           </div>
-          <Select
-            label="Estado"
-            placeholder="Todos"
-            value={estado}
-            onChange={setEstado}
-            clearable
-            w={{ base: "100%", sm: 220 }}
-            data={Object.entries(ORDER_STATUS).map(([value, s]) => ({ value, label: s.label }))}
-          />
-        </Group>
+        )}
 
-        <DataTable<ProductOrder>
-          minHeight={140}
-          highlightOnHover
-          striped
-          idAccessor="id"
-          records={orders.data ?? []}
-          fetching={orders.isLoading}
-          noRecordsText="Sin pedidos todavía. Activa productos en la tienda para que tus atletas compren desde la app."
-          columns={[
-            { accessor: "athlete_name", title: "Atleta" },
-            {
-              accessor: "product_name",
-              title: "Pedido",
-              render: (o) => (
-                <div>
-                  <Text size="sm" fw={600}>
-                    {o.product_name}
-                    {o.items_count > 1 ? ` +${o.items_count - 1} más` : ` × ${o.qty}`}
-                  </Text>
-                  {(o.size || o.color) && (
-                    <Text c="dimmed" size="xs">
-                      {[o.size && `Talla ${o.size}`, o.color].filter(Boolean).join(" · ")}
-                    </Text>
-                  )}
-                </div>
-              ),
-            },
-            {
-              accessor: "total",
-              title: "Total",
-              textAlign: "right",
-              render: (o) => <Money value={o.total} decimals={2} block />,
-            },
-            {
-              accessor: "delivery_method",
-              title: "Entrega",
-              render: (o) => (
-                <div>
-                  <Text size="sm">{o.delivery_method === "shipping" ? "Envío" : "En el gym"}</Text>
-                  {o.tracking_code && (
-                    <Text c="dimmed" size="xs">
-                      Guía {o.tracking_code}
-                    </Text>
-                  )}
-                </div>
-              ),
-            },
-            {
-              accessor: "status",
-              title: "Estado",
-              render: (o) => {
-                const s = ORDER_STATUS[o.status] ?? { label: o.status, color: "gray" };
-                return (
-                  <Group gap={4} wrap="nowrap">
-                    <Badge color={s.color} variant="light">
-                      {s.label}
-                    </Badge>
-                    {o.return_status === "requested" && (
-                      <Badge color="orange" variant="light">
-                        Devolución
-                      </Badge>
-                    )}
-                  </Group>
-                );
-              },
-            },
-            {
-              accessor: "created_at",
-              title: "Fecha",
-              render: (o) => new Date(o.created_at).toLocaleString("es-GT"),
-            },
-            {
-              accessor: "actions",
-              title: "",
-              render: (o) => <RowActions actions={acciones(o)} />,
-            },
-          ]}
-        />
-      </Card>
+        <ShippingCard gymId={gymId} />
+
+        <div>
+          <SectionLabel as="h2" mb={10}>Pedidos de la tienda</SectionLabel>
+          <GlassCard padding={16} delay={0.84}>
+            <Group justify="space-between" align="flex-end" wrap="wrap" gap="md">
+              <Text c="dimmed" size="sm" style={{ maxWidth: "calc(440 * var(--u))" }}>
+                Compras y apartados que tus atletas hacen desde la app.
+              </Text>
+              <Select
+                label="Estado"
+                placeholder="Todos"
+                value={estado}
+                onChange={setEstado}
+                clearable
+                w={{ base: "100%", sm: 220 }}
+                data={Object.entries(ORDER_STATUS).map(([value, s]) => ({ value, label: s.label }))}
+              />
+            </Group>
+          </GlassCard>
+
+          <GlassCard
+            padding={0}
+            delay={0.96}
+            style={{ overflow: "hidden", marginTop: "calc(18 * var(--u))" }}
+          >
+            <DataTable<ProductOrder>
+              minHeight={140}
+              highlightOnHover
+              striped
+              idAccessor="id"
+              records={orders.data ?? []}
+              fetching={orders.isLoading}
+              noRecordsText="Sin pedidos todavía. Activa productos en la tienda para que tus atletas compren desde la app."
+              columns={[
+                { accessor: "athlete_name", title: "Atleta" },
+                {
+                  accessor: "product_name",
+                  title: "Pedido",
+                  render: (o) => (
+                    <div>
+                      <Text size="sm" fw={600}>
+                        {o.product_name}
+                        {o.items_count > 1 ? ` +${o.items_count - 1} más` : ` × ${o.qty}`}
+                      </Text>
+                      {(o.size || o.color) && (
+                        <Text c="dimmed" size="xs">
+                          {[o.size && `Talla ${o.size}`, o.color].filter(Boolean).join(" · ")}
+                        </Text>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  accessor: "total",
+                  title: "Total",
+                  textAlign: "right",
+                  render: (o) => <Money value={o.total} decimals={2} block />,
+                },
+                {
+                  accessor: "delivery_method",
+                  title: "Entrega",
+                  render: (o) => (
+                    <div>
+                      <Text size="sm">
+                        {o.delivery_method === "shipping" ? "Envío" : "En el gym"}
+                      </Text>
+                      {o.tracking_code && (
+                        <Text c="dimmed" size="xs">
+                          Guía {o.tracking_code}
+                        </Text>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  accessor: "status",
+                  title: "Estado",
+                  render: (o) => {
+                    const s = ORDER_STATUS[o.status] ?? { label: o.status, color: "gray" };
+                    return (
+                      <Group gap={4} wrap="nowrap">
+                        <Badge color={s.color} variant="light">
+                          {s.label}
+                        </Badge>
+                        {o.return_status === "requested" && (
+                          <Badge color="orange" variant="light">
+                            Devolución
+                          </Badge>
+                        )}
+                      </Group>
+                    );
+                  },
+                },
+                {
+                  accessor: "created_at",
+                  title: "Fecha",
+                  render: (o) => new Date(o.created_at).toLocaleString("es-GT"),
+                },
+                {
+                  accessor: "actions",
+                  title: "",
+                  render: (o) => <RowActions actions={acciones(o)} />,
+                },
+              ]}
+            />
+          </GlassCard>
+        </div>
+      </div>
 
       {/* Ficha del pedido: líneas, envío y bitácora tal como la ve el atleta. */}
       <DetailSheet opened={!!ficha} onClose={() => setFicha(null)} title="Pedido" size={520}>
@@ -380,7 +390,7 @@ export function StoreOrdersPanel({ gymId }: { gymId: string }) {
               </Badge>
             </Group>
 
-            <SectionLabel mt="xs">Productos</SectionLabel>
+            <SectionLabel as="h2" mt="xs">Productos</SectionLabel>
             <Table>
               <Table.Tbody>
                 {(ficha.lines ?? []).map((l) => (
@@ -430,7 +440,7 @@ export function StoreOrdersPanel({ gymId }: { gymId: string }) {
 
             {ficha.delivery_method === "shipping" && (
               <>
-                <SectionLabel mt="sm">Envío</SectionLabel>
+                <SectionLabel as="h2" mt="sm">Envío</SectionLabel>
                 <Text size="sm">
                   {ficha.shipping_recipient || ficha.athlete_name}
                   {ficha.shipping_phone ? ` · ${ficha.shipping_phone}` : ""}
@@ -457,7 +467,7 @@ export function StoreOrdersPanel({ gymId }: { gymId: string }) {
               </Alert>
             )}
 
-            <SectionLabel mt="sm">Bitácora</SectionLabel>
+            <SectionLabel as="h2" mt="sm">Bitácora</SectionLabel>
             {!(ficha.events ?? []).length ? (
               <Text c="dimmed" size="sm">
                 Sin hitos registrados.
@@ -554,10 +564,10 @@ function ShippingCard({ gymId }: { gymId: string }) {
   };
 
   return (
-    <Card mb="lg">
+    <GlassCard padding={20} delay={0.72}>
       <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
         <div>
-          <SectionLabel mb={4}>Envíos</SectionLabel>
+          <SectionLabel as="h2" mb={4}>Envíos</SectionLabel>
           <Text size="sm">
             {config.data?.enabled
               ? `Activos · ${fmtQ(config.data.cost, { decimals: 2 })}${
@@ -621,6 +631,6 @@ function ShippingCard({ gymId }: { gymId: string }) {
           </Group>
         </Stack>
       </Modal>
-    </Card>
+    </GlassCard>
   );
 }

@@ -2,7 +2,6 @@ import { FormEvent, useState } from "react";
 import {
   Badge,
   Button,
-  Card,
   Group,
   Modal,
   SimpleGrid,
@@ -10,14 +9,15 @@ import {
   Text,
   Textarea,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
+import { CheckCircle2, Flag, Users } from "lucide-react";
 import { useGymClubs, useDecideClub, useCreateGymClub } from "../api/hooks";
 import type { GymClub } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
-import { PageHeader } from "../components/ui";
+import { PageHeader, SectionLabel } from "../components/ui";
+import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
 import { sortRecords } from "../lib/sortRecords";
@@ -86,43 +86,79 @@ export function ClubsPage() {
 
   const rows = clubs.data ?? [];
   const pending = rows.filter((c) => c.status === "pending");
+  const aprobados = rows.filter((c) => c.status === "approved").length;
+  const miembros = rows.reduce((total, c) => total + (c.member_count ?? 0), 0);
 
   return (
     <div>
       <PageHeader
         kicker="Comunidad · Clubes"
         title="Clubes del gimnasio"
-        subtitle="Crea tus propios clubes o aprueba/rechaza los que proponen tus atletas."
+        subtitle="Crea los clubes de tu box y resuelve las solicitudes que proponen tus atletas: el creador administra el club en cuanto lo apruebas."
       />
 
-      <Card mb="lg" component="form" onSubmit={onCreate}>
-        <Title order={3} mb="sm">
-          Crear club
-        </Title>
-        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-          <TextInput
-            label="Nombre del club"
-            placeholder="Runners 1821"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+      {/* Retrato del padrón de clubes, derivado del mismo listado de abajo. */}
+      <Stagger from={0.6} style={{ marginBottom: "calc(20 * var(--u))" }}>
+        <SimpleGrid cols={{ base: 2, md: 3 }} spacing="md">
+          <MetricTile
+            label="Clubes registrados"
+            value={clubs.isLoading ? "—" : rows.length}
+            icon={<Flag size={16} strokeWidth={1.8} />}
           />
-          <TextInput
-            label="Tipo"
-            placeholder="running, cycling, rowing…"
-            value={form.club_type}
-            onChange={(e) => setForm({ ...form, club_type: e.currentTarget.value })}
+          <MetricTile
+            label="Aprobados"
+            value={clubs.isLoading ? "—" : aprobados}
+            icon={<CheckCircle2 size={16} strokeWidth={1.8} />}
+            hint="Ya visibles para tus atletas."
+          />
+          <MetricTile
+            label="Miembros en clubes"
+            value={clubs.isLoading ? "—" : miembros}
+            icon={<Users size={16} strokeWidth={1.8} />}
           />
         </SimpleGrid>
-        <Button type="submit" mt="md" loading={createClub.isPending} disabled={!form.name.trim() || !form.club_type.trim()}>
-          Crear club
-        </Button>
-      </Card>
+      </Stagger>
 
+      <GlassCard padding={24} delay={0.72} style={{ marginBottom: "calc(20 * var(--u))" }}>
+        <SectionLabel as="h2" mb={12}>Crear club</SectionLabel>
+        <form onSubmit={onCreate}>
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+            <TextInput
+              label="Nombre del club"
+              placeholder="Runners 1821"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Tipo"
+              placeholder="running, cycling, rowing…"
+              value={form.club_type}
+              onChange={(e) => setForm({ ...form, club_type: e.currentTarget.value })}
+            />
+          </SimpleGrid>
+          <Button type="submit" mt="md" loading={createClub.isPending} disabled={!form.name.trim() || !form.club_type.trim()}>
+            Crear club
+          </Button>
+        </form>
+      </GlassCard>
+
+      {/* El borde flame solo aparece cuando de verdad hay algo que decidir. */}
       {pending.length > 0 && (
-        <Card mb="lg">
-          <Title order={3} mb="sm">
-            Solicitudes pendientes ({pending.length})
-          </Title>
+        <GlassCard
+          variant="core"
+          sheen
+          padding={24}
+          delay={0.84}
+          style={{ marginBottom: "calc(20 * var(--u))" }}
+        >
+          <BigMetric
+            label="Solicitudes pendientes"
+            value={pending.length}
+            size="sm"
+            hint="Clubes propuestos por atletas esperando tu decisión."
+            delay={1.04}
+          />
+          <div style={{ height: "calc(14 * var(--u))" }} />
           <Table>
             <Table.Thead>
               <Table.Tr>
@@ -158,13 +194,11 @@ export function ClubsPage() {
               ))}
             </Table.Tbody>
           </Table>
-        </Card>
+        </GlassCard>
       )}
 
-      <Card>
-        <Title order={3} mb="sm">
-          Todos los clubes
-        </Title>
+      <GlassCard padding={20} delay={0.96}>
+        <SectionLabel as="h2" mb={12}>Todos los clubes</SectionLabel>
         <DataTable<GymClub>
           minHeight={140}
           highlightOnHover
@@ -191,7 +225,7 @@ export function ClubsPage() {
             { accessor: "member_count", title: "Miembros", sortable: true, render: (c) => <Text size="sm">{c.member_count ?? 0}</Text> },
           ]}
         />
-      </Card>
+      </GlassCard>
 
       <Modal
         opened={!!rechazando}

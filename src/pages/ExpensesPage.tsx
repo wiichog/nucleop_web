@@ -4,7 +4,6 @@ import {
   Anchor,
   Badge,
   Button,
-  Card,
   FileInput,
   Group,
   Modal,
@@ -13,7 +12,6 @@ import {
   Stack,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
@@ -31,7 +29,9 @@ import { DetailSheet } from "../components/DetailSheet";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { RowActions } from "../components/RowActions";
 import { Money, PageHeader, SectionLabel } from "../components/ui";
+import { BigMetric, GlassCard } from "../components/aurora";
 import { errMsg } from "../lib/errors";
+import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
 import { sortRecords } from "../lib/sortRecords";
 
@@ -208,6 +208,10 @@ export function ExpensesPage() {
     sortStatus,
   );
 
+  // Suma de lo que el operador tiene en pantalla (respeta los filtros de arriba).
+  // Es un dato de lectura: no toca el listado ni lo que responde el backend.
+  const totalListado = filas.reduce((acc, e) => acc + Number(e.amount || 0), 0);
+
   return (
     <div>
       <PageHeader
@@ -218,190 +222,208 @@ export function ExpensesPage() {
 
       {expenses.isError && <PageError onRetry={() => expenses.refetch()} />}
 
-      <Card mb="lg" component="form" onSubmit={onSubmit}>
-        <Title order={3} mb="sm">
-          Registrar gasto
-        </Title>
-        <Stack gap="md">
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
-            <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIES} />
-            <TextInput
-              label="Monto (Q)"
-              value={amount}
-              onChange={(e) => setAmount(e.currentTarget.value)}
-            />
-            <TextInput
-              label="Descripción"
-              value={description}
-              onChange={(e) => setDescription(e.currentTarget.value)}
-            />
-            <DateInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" />
-          </SimpleGrid>
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-            <FileInput
-              label="Comprobante (factura o recibo)"
-              description="Opcional. También se puede adjuntar después."
-              placeholder="Subir archivo"
-              accept="image/*,application/pdf"
-              value={proof}
-              onChange={setProof}
-              clearable
-            />
-            {branchData.length > 0 && (
-              <Select
-                label="Sede"
-                placeholder="Todas"
-                value={branch}
-                onChange={setBranch}
-                data={branchData}
-                clearable
-              />
-            )}
-          </SimpleGrid>
-          <Group justify="flex-end">
-            <Button type="submit" disabled={!amount} loading={createExpense.isPending}>
-              Registrar
-            </Button>
-          </Group>
-        </Stack>
-      </Card>
+      <div style={{ display: "flex", flexDirection: "column", gap: "calc(18 * var(--u))" }}>
+        {/* La cifra que manda: lo que suman los gastos que se están viendo. */}
+        <GlassCard variant="core" sheen padding={24} delay={0.6}>
+          <BigMetric
+            label="Suma de los gastos listados"
+            value={fmtQ(totalListado, { decimals: 2 })}
+            fz="clamp(30px, calc(50 * var(--u)), 60px)"
+            hint={`${filas.length} gasto${filas.length === 1 ? "" : "s"} con los filtros aplicados.`}
+            delay={1.0}
+          />
+        </GlassCard>
 
-      <Card>
-        <Group align="flex-end" gap="md" mb="md" wrap="wrap">
-          <TextInput
-            label="Buscar"
-            placeholder="Descripción o categoría…"
-            value={search}
-            onChange={(e) => setSearch(e.currentTarget.value)}
-            w={{ base: "100%", sm: 280 }}
-          />
-          <Select
-            label="Estado"
-            value={estado}
-            onChange={setEstado}
-            w={{ base: "100%", sm: 180 }}
-            data={[
-              { value: "vigentes", label: "Vigentes" },
-              { value: "anulados", label: "Anulados" },
-              { value: "todos", label: "Todos" },
-            ]}
-          />
-          <Select
-            label="Categoría"
-            placeholder="Todas"
-            value={categoria}
-            onChange={setCategoria}
-            clearable
-            w={{ base: "100%", sm: 220 }}
-            data={CATEGORIES}
-          />
-        </Group>
-
-        <DataTable<ErpExpense>
-          minHeight={160}
-          highlightOnHover
-          striped
-          idAccessor="id"
-          records={filas}
-          fetching={expenses.isLoading}
-          noRecordsText="Registra los costos del gym para ver tu utilidad real."
-          sortStatus={sortStatus}
-          onSortStatusChange={setSortStatus}
-          rowStyle={(e) => (e.is_void ? { opacity: 0.55 } : undefined)}
-          columns={[
-            { accessor: "incurred_on", title: "Fecha", sortable: true },
-            {
-              accessor: "category",
-              title: "Categoría",
-              sortable: true,
-              render: (e) => CATEGORY_LABEL[e.category] ?? e.category,
-            },
-            {
-              accessor: "description",
-              title: "Descripción",
-              sortable: true,
-              render: (e) => (
-                <div>
-                  <Text size="sm">{e.description || "—"}</Text>
-                  {e.replaces && (
-                    <Text c="dimmed" size="xs">
-                      Corrige a un gasto anterior
-                    </Text>
-                  )}
-                </div>
-              ),
-            },
-            {
-              accessor: "amount",
-              title: "Monto",
-              sortable: true,
-              textAlign: "right",
-              render: (e) => <Money value={e.amount} decimals={2} block />,
-            },
-            {
-              accessor: "proof_file",
-              title: "Comprobante",
-              render: (e) =>
-                e.proof_file || e.proof_url ? (
-                  <Anchor href={e.proof_file || e.proof_url} target="_blank" size="sm">
-                    Ver
-                  </Anchor>
-                ) : (
-                  <Text c="dimmed" size="sm">
-                    —
-                  </Text>
-                ),
-            },
-            {
-              accessor: "is_void",
-              title: "Estado",
-              sortable: true,
-              render: (e) =>
-                e.is_void ? (
-                  <Badge color="gray" variant="light">
-                    {e.replaced_by ? "Corregido" : "Anulado"}
-                  </Badge>
-                ) : (
-                  <Badge color="teal" variant="light">
-                    Vigente
-                  </Badge>
-                ),
-            },
-            {
-              accessor: "actions",
-              title: "Acciones",
-              render: (e) => (
-                <RowActions
-                  actions={[
-                    { label: "Ver", variant: "subtle", onClick: () => setFicha(e) },
-                    !e.is_void && {
-                      label: "Corregir",
-                      onClick: () => abrirCorreccion(e),
-                    },
-                    !e.is_void && {
-                      label: "Comprobante",
-                      variant: "subtle" as const,
-                      onClick: () => {
-                        setAdjuntando(e);
-                        setAdjunto(null);
-                      },
-                    },
-                    !e.is_void && {
-                      label: "Anular",
-                      color: "red",
-                      variant: "subtle" as const,
-                      onClick: () => {
-                        setAnulando(e);
-                        setMotivo("");
-                      },
-                    },
-                  ]}
+        <GlassCard padding={20} delay={0.72}>
+          <form onSubmit={onSubmit}>
+            <SectionLabel as="h2" mb={12}>Registrar gasto</SectionLabel>
+            <Stack gap="md">
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+                <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIES} />
+                <TextInput
+                  label="Monto (Q)"
+                  value={amount}
+                  onChange={(e) => setAmount(e.currentTarget.value)}
                 />
-              ),
-            },
-          ]}
-        />
-      </Card>
+                <TextInput
+                  label="Descripción"
+                  value={description}
+                  onChange={(e) => setDescription(e.currentTarget.value)}
+                />
+                <DateInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" />
+              </SimpleGrid>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                <FileInput
+                  label="Comprobante (factura o recibo)"
+                  description="Opcional. También se puede adjuntar después."
+                  placeholder="Subir archivo"
+                  accept="image/*,application/pdf"
+                  value={proof}
+                  onChange={setProof}
+                  clearable
+                />
+                {branchData.length > 0 && (
+                  <Select
+                    label="Sede"
+                    placeholder="Todas"
+                    value={branch}
+                    onChange={setBranch}
+                    data={branchData}
+                    clearable
+                  />
+                )}
+              </SimpleGrid>
+              <Group justify="flex-end">
+                <Button type="submit" disabled={!amount} loading={createExpense.isPending}>
+                  Registrar
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+        </GlassCard>
+
+        <GlassCard padding={16} delay={0.84}>
+          <Group align="flex-end" gap="md" wrap="wrap">
+            <TextInput
+              label="Buscar"
+              placeholder="Descripción o categoría…"
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              w={{ base: "100%", sm: 280 }}
+            />
+            <Select
+              label="Estado"
+              value={estado}
+              onChange={setEstado}
+              w={{ base: "100%", sm: 180 }}
+              data={[
+                { value: "vigentes", label: "Vigentes" },
+                { value: "anulados", label: "Anulados" },
+                { value: "todos", label: "Todos" },
+              ]}
+            />
+            <Select
+              label="Categoría"
+              placeholder="Todas"
+              value={categoria}
+              onChange={setCategoria}
+              clearable
+              w={{ base: "100%", sm: 220 }}
+              data={CATEGORIES}
+            />
+          </Group>
+        </GlassCard>
+
+        <div>
+          <SectionLabel as="h2" mb={10}>Movimientos</SectionLabel>
+          <GlassCard padding={0} delay={0.96} style={{ overflow: "hidden" }}>
+            <DataTable<ErpExpense>
+              minHeight={160}
+              highlightOnHover
+              striped
+              idAccessor="id"
+              records={filas}
+              fetching={expenses.isLoading}
+              noRecordsText="Registra los costos del gym para ver tu utilidad real."
+              sortStatus={sortStatus}
+              onSortStatusChange={setSortStatus}
+              rowStyle={(e) => (e.is_void ? { opacity: 0.55 } : undefined)}
+              columns={[
+                { accessor: "incurred_on", title: "Fecha", sortable: true },
+                {
+                  accessor: "category",
+                  title: "Categoría",
+                  sortable: true,
+                  render: (e) => CATEGORY_LABEL[e.category] ?? e.category,
+                },
+                {
+                  accessor: "description",
+                  title: "Descripción",
+                  sortable: true,
+                  render: (e) => (
+                    <div>
+                      <Text size="sm">{e.description || "—"}</Text>
+                      {e.replaces && (
+                        <Text c="dimmed" size="xs">
+                          Corrige a un gasto anterior
+                        </Text>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  accessor: "amount",
+                  title: "Monto",
+                  sortable: true,
+                  textAlign: "right",
+                  render: (e) => <Money value={e.amount} decimals={2} block />,
+                },
+                {
+                  accessor: "proof_file",
+                  title: "Comprobante",
+                  render: (e) =>
+                    e.proof_file || e.proof_url ? (
+                      <Anchor href={e.proof_file || e.proof_url} target="_blank" size="sm">
+                        Ver
+                      </Anchor>
+                    ) : (
+                      <Text c="dimmed" size="sm">
+                        —
+                      </Text>
+                    ),
+                },
+                {
+                  accessor: "is_void",
+                  title: "Estado",
+                  sortable: true,
+                  render: (e) =>
+                    e.is_void ? (
+                      <Badge color="gray" variant="light">
+                        {e.replaced_by ? "Corregido" : "Anulado"}
+                      </Badge>
+                    ) : (
+                      <Badge color="teal" variant="light">
+                        Vigente
+                      </Badge>
+                    ),
+                },
+                {
+                  accessor: "actions",
+                  title: "Acciones",
+                  render: (e) => (
+                    <RowActions
+                      actions={[
+                        { label: "Ver", variant: "subtle", onClick: () => setFicha(e) },
+                        !e.is_void && {
+                          label: "Corregir",
+                          onClick: () => abrirCorreccion(e),
+                        },
+                        !e.is_void && {
+                          label: "Comprobante",
+                          variant: "subtle" as const,
+                          onClick: () => {
+                            setAdjuntando(e);
+                            setAdjunto(null);
+                          },
+                        },
+                        !e.is_void && {
+                          label: "Anular",
+                          color: "red",
+                          variant: "subtle" as const,
+                          onClick: () => {
+                            setAnulando(e);
+                            setMotivo("");
+                          },
+                        },
+                      ]}
+                    />
+                  ),
+                },
+              ]}
+            />
+          </GlassCard>
+        </div>
+      </div>
 
       {/* Ficha del gasto: lo único que explica un monto raro en el P&L. */}
       <DetailSheet opened={!!ficha} onClose={() => setFicha(null)} title="Gasto">
@@ -429,7 +451,7 @@ export function ExpensesPage() {
                 )}
               </Alert>
             )}
-            <SectionLabel mt="sm">Rastro</SectionLabel>
+            <SectionLabel as="h2" mt="sm">Rastro</SectionLabel>
             <Text c="dimmed" size="xs">
               Registrado el {new Date(ficha.created_at).toLocaleString("es-GT")}.
               {ficha.replaces ? " Nació de la corrección de otro gasto." : ""}

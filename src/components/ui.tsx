@@ -1,4 +1,4 @@
-import { Badge, Box, Group, Stack, Text, Title } from "@mantine/core";
+import { Badge, Text } from "@mantine/core";
 import type { MantineSize } from "@mantine/core";
 import type { ReactNode } from "react";
 import {
@@ -11,14 +11,23 @@ import {
   label,
 } from "../lib/labels";
 import { fmtQ } from "../lib/money";
-
-const DISPLAY_FONT = '"Space Grotesk", Inter, sans-serif';
+import { AuroraHero, Kicker, SectionLabel } from "./aurora";
 
 /**
- * Badge de conteo (notificaciones / pendientes). Antes se usaba `<Badge circle>`,
- * que fuerza un círculo cuadrado del tamaño de UN carácter: con 2+ dígitos el
- * número se desbordaba/recortaba ("se mira mal a partir de 10"). Aquí el badge es
- * un círculo perfecto para 1 dígito y se expande a pastilla para 10…99 y "99+".
+ * Primitivos compartidos por todas las pantallas del panel. Desde el rediseño
+ * **Aurora** son una fachada delgada sobre `components/aurora.tsx`: mantienen la
+ * API que ya usan las 24 páginas (`PageHeader`, `SectionLabel`, `Money`…) y por
+ * dentro componen el lenguaje nuevo. Cambiar el lenguaje aquí cambia el panel
+ * entero sin editar pantalla por pantalla.
+ */
+
+// Reexportados desde `aurora.tsx` (definición única): las pantallas los siguen
+// importando desde aquí, pero solo existe una implementación de cada uno.
+export { Kicker, SectionLabel };
+
+/**
+ * Badge de conteo (notificaciones / pendientes). Círculo perfecto para 1 dígito
+ * y pastilla para 10…99 y "99+", para que el número nunca se recorte.
  */
 export function CountBadge({
   count,
@@ -36,62 +45,10 @@ export function CountBadge({
 }
 
 /**
- * Kicker/overline editorial: MAYÚSCULAS con tracking + punto flame. Es el mismo
- * lenguaje de los grupos del sidebar, bajado al cuerpo de cada pantalla. Firma de
- * marca reactivada (antes solo vivía en el nav).
+ * Encabezado de página. Ahora es el **hero** del lenguaje Aurora: chip de
+ * sección, titular en Inter Tight que se revela por línea con máscara, blurb y
+ * hairline con tick flame. Misma firma de props que antes.
  */
-export function Kicker({ children }: { children: ReactNode }) {
-  return (
-    <Group gap={7} align="center" mb={6} wrap="nowrap">
-      <span
-        aria-hidden
-        style={{
-          width: 5,
-          height: 5,
-          borderRadius: "var(--radius-pill)",
-          background: "var(--nucleo-accent)",
-          boxShadow: "0 0 8px rgba(252,76,2,0.55)",
-          flex: "none",
-        }}
-      />
-      <Text
-        component="span"
-        tt="uppercase"
-        fw={600}
-        fz={11}
-        style={{ letterSpacing: "0.18em", color: "var(--nucleo-muted)", fontFamily: DISPLAY_FONT }}
-      >
-        {children}
-      </Text>
-    </Group>
-  );
-}
-
-/** Overline de subsección dentro de una página (reutiliza el lenguaje del kicker). */
-export function SectionLabel({
-  children,
-  mt,
-  mb = "xs",
-}: {
-  children: ReactNode;
-  mt?: MantineSize | number;
-  mb?: MantineSize | number;
-}) {
-  return (
-    <Text
-      tt="uppercase"
-      fw={600}
-      fz={11}
-      mt={mt}
-      mb={mb}
-      style={{ letterSpacing: "0.16em", color: "var(--nucleo-muted)", fontFamily: DISPLAY_FONT }}
-    >
-      {children}
-    </Text>
-  );
-}
-
-/** Encabezado de página consistente: kicker + título display + hairline con tick flame. */
 export function PageHeader({
   title,
   subtitle,
@@ -103,31 +60,7 @@ export function PageHeader({
   action?: ReactNode;
   kicker?: string;
 }) {
-  return (
-    <Box mb="lg">
-      <Group justify="space-between" align="flex-start" gap="sm">
-        <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-          {kicker && <Kicker>{kicker}</Kicker>}
-          <Title order={2} style={{ letterSpacing: "-0.02em" }}>
-            {title}
-          </Title>
-          {subtitle && (
-            <Text c="dimmed" size="sm">
-              {subtitle}
-            </Text>
-          )}
-        </Stack>
-        {action}
-      </Group>
-      {/* Hairline editorial con tick flame: ancla cada página al mismo lenguaje. */}
-      <Box mt="md" style={{ position: "relative", height: 1, background: "var(--nucleo-hairline)" }}>
-        <span
-          aria-hidden
-          style={{ position: "absolute", left: 0, top: 0, width: 44, height: 1, background: "var(--nucleo-accent)" }}
-        />
-      </Box>
-    </Box>
-  );
+  return <AuroraHero kicker={kicker} title={title} subtitle={subtitle} action={action} />;
 }
 
 /**

@@ -1,37 +1,15 @@
 import { useState } from "react";
-import { Badge, Card, Group, Select, SimpleGrid, Table, Text, Title } from "@mantine/core";
+import { Badge, Group, Select, SimpleGrid, Table, Text } from "@mantine/core";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
+import { AlertTriangle, Boxes, PackageSearch, TrendingUp } from "lucide-react";
 import { useErpInventoryValuation } from "../api/hooks";
 import type { InventoryValuationRow } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { PageError, PageLoading } from "../components/PageStatus";
+import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora";
 import { Money, SectionLabel } from "../components/ui";
 import { fmtQ, toNumber } from "../lib/money";
 import { sortRecords } from "../lib/sortRecords";
-
-function Metric({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
-  return (
-    <Card>
-      <Text c="dimmed" size="sm">
-        {label}
-      </Text>
-      <Text
-        fw={700}
-        fz={{ base: 20, sm: 24 }}
-        c={accent ? "flame" : undefined}
-        ff='"Space Grotesk", sans-serif'
-        style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}
-      >
-        {value}
-      </Text>
-      {sub && (
-        <Text c="dimmed" size="xs" mt={4}>
-          {sub}
-        </Text>
-      )}
-    </Card>
-  );
-}
 
 const num = (v: number | null | undefined, sufijo = "") =>
   v === null || v === undefined ? "—" : `${v}${sufijo}`;
@@ -64,12 +42,11 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
 
   return (
     <div>
-      <Card mb="lg">
+      {/* Controles de periodo: pastilla de vidrio, arriba de todo (0.6s). */}
+      <GlassCard padding={16} delay={0.6} style={{ marginBottom: "calc(16 * var(--u))" }}>
         <Group justify="space-between" align="flex-end" wrap="wrap" gap="md">
           <div>
-            <Title order={3} mb={4}>
-              Valuación de inventario
-            </Title>
+            <SectionLabel as="h2" mb={6}>Valuación de inventario</SectionLabel>
             <Text c="dimmed" size="sm">
               Valor a costo de lo que tienes en bodega, antigüedad y rotación
               {data ? ` al ${data.as_of}` : ""}.
@@ -89,7 +66,7 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
             ]}
           />
         </Group>
-      </Card>
+      </GlassCard>
 
       {valuation.isError ? (
         <PageError onRetry={() => valuation.refetch()} />
@@ -102,35 +79,62 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
         />
       ) : (
         <>
-          <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="md" mb="lg">
-            <Metric
-              label="Valor a costo"
+          {/* La cifra que manda en la pantalla: el dinero parado en bodega. */}
+          <GlassCard
+            variant="core"
+            sheen
+            padding={26}
+            delay={0.7}
+            style={{ marginBottom: "calc(16 * var(--u))" }}
+          >
+            <BigMetric
+              label="Valor del inventario a costo"
               value={fmtQ(data.total_value)}
-              sub={`${data.total_units} unidades`}
-              accent
+              fz="clamp(32px, calc(54 * var(--u)), 64px)"
+              hint={`${data.total_units} unidades en bodega · ventana de ${data.days} días`}
+              delay={1.04}
             />
-            <Metric label="Valor a precio de venta" value={fmtQ(data.total_retail_value)} />
-            <Metric
-              label="Margen potencial"
-              value={fmtQ(data.potential_margin)}
-              sub="Si se vendiera todo"
-            />
-            <Metric label="Productos" value={String(data.products_count)} />
-            <Metric
-              label="Capital dormido"
-              value={fmtQ(data.dead_stock_value)}
-              sub={`${data.dead_stock_count} sin vender en ${data.days} días`}
-            />
-            <Metric
-              label="Por reordenar"
-              value={String(data.reorder_count)}
-              sub="Bajo el nivel de reorden"
-            />
-          </SimpleGrid>
+          </GlassCard>
+
+          <SectionLabel as="h2" mb="xs">Lo que dice la bodega</SectionLabel>
+          <Stagger from={1.0} style={{ marginBottom: "calc(16 * var(--u))" }}>
+            <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} spacing="md">
+              <MetricTile
+                label="A precio de venta"
+                value={fmtQ(data.total_retail_value)}
+                icon={<TrendingUp size={16} strokeWidth={1.8} />}
+              />
+              <MetricTile
+                label="Margen potencial"
+                value={fmtQ(data.potential_margin)}
+                hint="Si se vendiera todo"
+                tone="var(--nucleo-accent)"
+              />
+              <MetricTile
+                label="Productos"
+                value={data.products_count}
+                icon={<Boxes size={16} strokeWidth={1.8} />}
+              />
+              <MetricTile
+                label="Capital dormido"
+                value={fmtQ(data.dead_stock_value)}
+                hint={`${data.dead_stock_count} sin vender en ${data.days} días`}
+                icon={<PackageSearch size={16} strokeWidth={1.8} />}
+                tone="var(--nucleo-warning)"
+              />
+              <MetricTile
+                label="Por reordenar"
+                value={data.reorder_count}
+                hint="Bajo el nivel de reorden"
+                icon={<AlertTriangle size={16} strokeWidth={1.8} />}
+                tone="var(--nucleo-danger)"
+              />
+            </SimpleGrid>
+          </Stagger>
 
           {(data.by_category ?? []).length > 0 && (
-            <Card mb="lg">
-              <SectionLabel>Por categoría</SectionLabel>
+            <GlassCard padding={18} delay={0.84} style={{ marginBottom: "calc(16 * var(--u))" }}>
+              <SectionLabel as="h2">Por categoría</SectionLabel>
               <Table>
                 <Table.Thead>
                   <Table.Tr>
@@ -147,13 +151,13 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
                     return (
                       <Table.Tr key={c.category}>
                         <Table.Td>{c.label}</Table.Td>
-                        <Table.Td ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>
+                        <Table.Td ta="right" className="a-tabular">
                           {c.units}
                         </Table.Td>
                         <Table.Td ta="right">
                           <Money value={c.value} decimals={2} />
                         </Table.Td>
-                        <Table.Td ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>
+                        <Table.Td ta="right" className="a-tabular">
                           {pct}%
                         </Table.Td>
                       </Table.Tr>
@@ -161,12 +165,12 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
                   })}
                 </Table.Tbody>
               </Table>
-            </Card>
+            </GlassCard>
           )}
 
-          <Card>
+          <GlassCard padding={14} delay={0.96}>
             <Group justify="space-between" align="flex-end" mb="md" wrap="wrap">
-              <SectionLabel mb={0}>Detalle por producto</SectionLabel>
+              <SectionLabel as="h2" mb={0}>Detalle por producto</SectionLabel>
               <Select
                 value={soloDormido}
                 onChange={setSoloDormido}
@@ -210,7 +214,7 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
                   sortable: true,
                   textAlign: "right",
                   render: (p) => (
-                    <Text size="sm" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    <Text size="sm" className="a-tabular">
                       {p.stock_qty}
                     </Text>
                   ),
@@ -235,7 +239,7 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
                   sortable: true,
                   textAlign: "right",
                   render: (p) => (
-                    <Text size="sm" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    <Text size="sm" className="a-tabular">
                       {p.units_sold}
                     </Text>
                   ),
@@ -246,7 +250,7 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
                   sortable: true,
                   textAlign: "right",
                   render: (p) => (
-                    <Text size="sm" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    <Text size="sm" className="a-tabular">
                       {num(p.days_of_inventory)}
                     </Text>
                   ),
@@ -257,7 +261,7 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
                   sortable: true,
                   textAlign: "right",
                   render: (p) => (
-                    <Text size="sm" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    <Text size="sm" className="a-tabular">
                       {p.turnover === null ? "—" : `${p.turnover}×`}
                     </Text>
                   ),
@@ -300,7 +304,7 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
                 },
               ]}
             />
-          </Card>
+          </GlassCard>
         </>
       )}
     </div>

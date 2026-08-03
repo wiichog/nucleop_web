@@ -2,7 +2,6 @@ import { FormEvent, useMemo, useState } from "react";
 import {
   Badge,
   Button,
-  Card,
   Checkbox,
   Group,
   Modal,
@@ -14,7 +13,6 @@ import {
   Switch,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
@@ -33,7 +31,8 @@ import {
 } from "../api/hooks";
 import type { Plan, PlanOffer, ServiceType } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
-import { Money, PageHeader } from "../components/ui";
+import { GlassCard, Reveal } from "../components/aurora";
+import { Money, PageHeader, SectionLabel } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
 import { sortRecords } from "../lib/sortRecords";
@@ -157,53 +156,61 @@ export function PlansPage() {
 
   return (
     <div>
-      <PageHeader kicker="Usuarios · Cobro" title="Planes y cuotas" subtitle="Crea planes, promociones y aplícalas al asignar." />
+      <PageHeader
+        kicker="Usuarios · Cobro"
+        title="Planes y cuotas"
+        subtitle="Arma los planes que cobras, define el cobro de cada servicio del catálogo y las promociones que se aplican al asignar."
+      />
 
       {/* Sin esto, un fallo de carga se veía igual que "todavía no tienes planes"
           y el gym creaba duplicados encima de los que ya existían. */}
       {plansQuery.isError && (
-        <PageError
-          message="No se pudieron cargar los planes del gimnasio."
-          onRetry={() => plansQuery.refetch()}
-        />
+        <div style={{ marginBottom: "calc(20 * var(--u))" }}>
+          <PageError
+            message="No se pudieron cargar los planes del gimnasio."
+            onRetry={() => plansQuery.refetch()}
+          />
+        </div>
       )}
 
-      <Card mb="lg" component="form" onSubmit={onSubmit}>
-        <Title order={3} mb="sm">
-          Crear plan
-        </Title>
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
-          <TextInput label="Nombre" placeholder="Mensual CrossFit" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-          <TextInput label="Precio (Q)" placeholder="350" value={price} onChange={(e) => setPrice(e.currentTarget.value)} />
-          <NumberInput label="Duración (días)" value={durationDays} onChange={setDurationDays} min={1} />
-          <NumberInput label="Límite de clases" placeholder="Sin límite" value={classLimit} onChange={setClassLimit} min={0} />
-        </SimpleGrid>
-        <MultiSelect
-          mt="md"
-          label="Servicios incluidos"
-          description="Disciplinas del catálogo que esta suscripción incluye; el atleta lo ve en la app."
-          placeholder={serviceOptions.length ? "Selecciona servicios" : "Crea servicios en Clases → Servicios"}
-          data={serviceOptions}
-          value={planServices}
-          onChange={setPlanServices}
-          searchable
-          clearable
-        />
-        <Group mt="md" gap="lg" align="center">
-          <Checkbox label="Acceso a clases especiales" checked={specialAccess} onChange={(e) => setSpecialAccess(e.currentTarget.checked)} />
-          <Checkbox label="Open gym" checked={openGym} onChange={(e) => setOpenGym(e.currentTarget.checked)} />
-          <NumberInput label="Penalización no-show (pts)" value={noshowPoints} onChange={setNoshowPoints} w={170} />
-          <Button type="submit" mt={22} loading={createPlan.isPending} disabled={!name || !price}>
-            Crear plan
-          </Button>
-        </Group>
-      </Card>
+      <GlassCard padding={20} delay={0.6} style={{ marginBottom: "calc(20 * var(--u))" }}>
+        <form onSubmit={onSubmit}>
+          <SectionLabel mb={12} as="h2">Crear plan</SectionLabel>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
+            <TextInput label="Nombre" placeholder="Mensual CrossFit" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+            <TextInput label="Precio (Q)" placeholder="350" value={price} onChange={(e) => setPrice(e.currentTarget.value)} />
+            <NumberInput label="Duración (días)" value={durationDays} onChange={setDurationDays} min={1} />
+            <NumberInput label="Límite de clases" placeholder="Sin límite" value={classLimit} onChange={setClassLimit} min={0} />
+          </SimpleGrid>
+          <MultiSelect
+            mt="md"
+            label="Servicios incluidos"
+            description="Disciplinas del catálogo que esta suscripción incluye; el atleta lo ve en la app."
+            placeholder={serviceOptions.length ? "Selecciona servicios" : "Crea servicios en Clases → Servicios"}
+            data={serviceOptions}
+            value={planServices}
+            onChange={setPlanServices}
+            searchable
+            clearable
+          />
+          <Group mt="md" gap="lg" align="center">
+            <Checkbox label="Acceso a clases especiales" checked={specialAccess} onChange={(e) => setSpecialAccess(e.currentTarget.checked)} />
+            <Checkbox label="Open gym" checked={openGym} onChange={(e) => setOpenGym(e.currentTarget.checked)} />
+            <NumberInput label="Penalización no-show (pts)" value={noshowPoints} onChange={setNoshowPoints} w={170} />
+            <Button type="submit" mt={22} loading={createPlan.isPending} disabled={!name || !price}>
+              Crear plan
+            </Button>
+          </Group>
+        </form>
+      </GlassCard>
 
-      <Card mb="lg">
-        <Title order={3} mb={4}>
-          Servicios y su cobro
-        </Title>
-        <Text c="dimmed" size="sm" mb="md">
+      {/* Cada servicio ya es una tarjeta de vidrio: envolver la lista en otra
+          GlassCard apilaba dos capas de material y el conjunto se leía gris
+          plano (AURORA §1). El encabezado y el intro viven fuera, como en
+          "Ofertas" y "Planes" más abajo. */}
+      <div style={{ marginBottom: "calc(20 * var(--u))" }}>
+        <SectionLabel mb={8} as="h2">Servicios y su cobro</SectionLabel>
+        <Text c="dimmed" size="sm" mb="md" style={{ maxWidth: "calc(680 * var(--u))" }}>
           Los servicios que creas en <b>Clases → Servicios</b> llegan aquí como{" "}
           <b>pendientes</b>. Defínele su cobro (incluido o pago extra), asígnalo a uno o más planes
           y actívalo para poder agendarlo y mostrarlo a tus atletas.
@@ -214,214 +221,226 @@ export function PlansPage() {
             onRetry={() => serviceTypes.refetch()}
           />
         ) : serviceTypes.isLoading ? (
-          <Text c="dimmed" size="sm">Cargando servicios…</Text>
+          <GlassCard padding={18} delay={0.72}>
+            <Text c="dimmed" size="sm">Cargando servicios…</Text>
+          </GlassCard>
         ) : !(serviceTypes.data ?? []).length ? (
-          <Text c="dimmed" size="sm">
-            Aún no hay servicios. Créalos en Clases → Servicios.
-          </Text>
+          <GlassCard padding={18} delay={0.72}>
+            <Text c="dimmed" size="sm">
+              Aún no hay servicios. Créalos en Clases → Servicios.
+            </Text>
+          </GlassCard>
         ) : (
-          <Stack gap="sm">
-            {[...((serviceTypes.data ?? []) as ServiceType[])]
-              .sort((a, b) => Number(a.status === "active") - Number(b.status === "active"))
-              .map((s) => (
-                <ServiceConfigCard
-                  key={s.id}
-                  service={s}
-                  planOptions={(data ?? []).map((p) => ({ value: p.id, label: p.name }))}
-                  saving={updateService.isPending && updateService.variables?.id === s.id}
-                  onSave={async (body) => {
-                    try {
-                      await updateService.mutateAsync({ id: s.id, body });
-                      notifications.show({
-                        color: "teal",
-                        message: body.status === "active" ? "Servicio activado." : "Servicio actualizado.",
-                      });
-                    } catch (e: unknown) {
-                      const detail =
-                        typeof e === "object" && e !== null && "response" in e
-                          ? (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
-                          : undefined;
-                      notifications.show({
-                        color: "red",
-                        message:
-                          typeof detail === "string"
-                            ? detail
-                            : "Revisa el precio (si es pago extra) o asígnalo a un plan (si es incluido).",
-                      });
-                    }
-                  }}
-                />
-              ))}
-          </Stack>
+          // La lista entra como un bloque: escalonar cada servicio se sentiría
+          // igual que animar las filas de una tabla.
+          <Reveal anim="slide-r" delay={0.72}>
+            <Stack gap="sm">
+              {[...((serviceTypes.data ?? []) as ServiceType[])]
+                .sort((a, b) => Number(a.status === "active") - Number(b.status === "active"))
+                .map((s) => (
+                  <ServiceConfigCard
+                    key={s.id}
+                    service={s}
+                    planOptions={(data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+                    saving={updateService.isPending && updateService.variables?.id === s.id}
+                    onSave={async (body) => {
+                      try {
+                        await updateService.mutateAsync({ id: s.id, body });
+                        notifications.show({
+                          color: "teal",
+                          message:
+                            body.status === "active" ? "Servicio activado." : "Servicio actualizado.",
+                        });
+                      } catch (e: unknown) {
+                        const detail =
+                          typeof e === "object" && e !== null && "response" in e
+                            ? (e as { response?: { data?: { detail?: unknown } } }).response?.data
+                                ?.detail
+                            : undefined;
+                        notifications.show({
+                          color: "red",
+                          message:
+                            typeof detail === "string"
+                              ? detail
+                              : "Revisa el precio (si es pago extra) o asígnalo a un plan (si es incluido).",
+                        });
+                      }
+                    }}
+                  />
+                ))}
+            </Stack>
+          </Reveal>
         )}
-      </Card>
+      </div>
 
-      <Card mb="lg" component="form" onSubmit={onCreateOffer}>
-        <Title order={3} mb={4}>
-          Crear oferta / promoción
-        </Title>
-        <Text c="dimmed" size="sm" mb="md">
-          Ej.: “2 meses gratis” (meses gratis = 2) o “30% de fecha a fecha”. Se aplican al asignar el plan.
-        </Text>
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
-          <TextInput label="Nombre de la oferta" placeholder="Promo verano" value={offerName} onChange={(e) => setOfferName(e.currentTarget.value)} />
-          <Select
-            label="Tipo"
-            value={offerType}
-            onChange={(v) => setOfferType((v as "percent" | "free_months") ?? "percent")}
-            data={[
-              { value: "percent", label: "Descuento %" },
-              { value: "free_months", label: "Meses gratis" },
-            ]}
-          />
-          <TextInput
-            label={offerType === "percent" ? "Porcentaje (0-100)" : "Meses gratis"}
-            placeholder={offerType === "percent" ? "30" : "2"}
-            value={offerValue}
-            onChange={(e) => setOfferValue(e.currentTarget.value)}
-          />
-          <Select
-            label="Plan (opcional)"
-            placeholder="Cualquier plan"
-            value={offerPlan}
-            onChange={setOfferPlan}
-            clearable
-            data={(data ?? []).map((p) => ({ value: p.id, label: p.name }))}
-          />
-          <DateInput label="Válida desde" value={offerFrom} onChange={setOfferFrom} valueFormat="YYYY-MM-DD" clearable />
-          <DateInput label="Válida hasta" value={offerTo} onChange={setOfferTo} valueFormat="YYYY-MM-DD" clearable />
-        </SimpleGrid>
-        <Button type="submit" mt="md" loading={createOffer.isPending} disabled={!offerName || !offerValue}>
-          Crear oferta
-        </Button>
-      </Card>
+      <GlassCard padding={20} delay={0.84} style={{ marginBottom: "calc(20 * var(--u))" }}>
+        <form onSubmit={onCreateOffer}>
+          <SectionLabel mb={8} as="h2">Crear oferta / promoción</SectionLabel>
+          <Text c="dimmed" size="sm" mb="md">
+            Ej.: “2 meses gratis” (meses gratis = 2) o “30% de fecha a fecha”. Se aplican al asignar el plan.
+          </Text>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
+            <TextInput label="Nombre de la oferta" placeholder="Promo verano" value={offerName} onChange={(e) => setOfferName(e.currentTarget.value)} />
+            <Select
+              label="Tipo"
+              value={offerType}
+              onChange={(v) => setOfferType((v as "percent" | "free_months") ?? "percent")}
+              data={[
+                { value: "percent", label: "Descuento %" },
+                { value: "free_months", label: "Meses gratis" },
+              ]}
+            />
+            <TextInput
+              label={offerType === "percent" ? "Porcentaje (0-100)" : "Meses gratis"}
+              placeholder={offerType === "percent" ? "30" : "2"}
+              value={offerValue}
+              onChange={(e) => setOfferValue(e.currentTarget.value)}
+            />
+            <Select
+              label="Plan (opcional)"
+              placeholder="Cualquier plan"
+              value={offerPlan}
+              onChange={setOfferPlan}
+              clearable
+              data={(data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+            />
+            <DateInput label="Válida desde" value={offerFrom} onChange={setOfferFrom} valueFormat="YYYY-MM-DD" clearable />
+            <DateInput label="Válida hasta" value={offerTo} onChange={setOfferTo} valueFormat="YYYY-MM-DD" clearable />
+          </SimpleGrid>
+          <Button type="submit" mt="md" loading={createOffer.isPending} disabled={!offerName || !offerValue}>
+            Crear oferta
+          </Button>
+        </form>
+      </GlassCard>
 
-      <Card mb="lg">
-        <Title order={3} mb="sm">
-          Ofertas
-        </Title>
+      <div style={{ marginBottom: "calc(20 * var(--u))" }}>
+        <SectionLabel mb={10} as="h2">Ofertas</SectionLabel>
         {offers.isError && (
-          <PageError
-            message="No se pudieron cargar las ofertas."
-            onRetry={() => offers.refetch()}
-          />
+          <div style={{ marginBottom: "calc(12 * var(--u))" }}>
+            <PageError
+              message="No se pudieron cargar las ofertas."
+              onRetry={() => offers.refetch()}
+            />
+          </div>
         )}
-        <DataTable<PlanOffer>
-          minHeight={140}
-          highlightOnHover
-          striped
-          idAccessor="id"
-          records={sortRecords((offers.data ?? []) as PlanOffer[], sortOffers)}
-          fetching={offers.isLoading}
-          noRecordsText="Crea promociones reutilizables para tus planes."
-          sortStatus={sortOffers}
-          onSortStatusChange={setSortOffers}
-          columns={[
-            { accessor: "name", title: "Oferta", sortable: true },
-            {
-              accessor: "offer_type",
-              title: "Tipo",
-              sortable: true,
-              render: (o) => OFFER_LABEL[o.offer_type] ?? o.offer_type,
-            },
-            { accessor: "value", title: "Valor", render: (o) => (o.offer_type === "percent" ? `${o.value}%` : `${o.value} meses`) },
-            { accessor: "plan_name", title: "Plan", sortable: true, render: (o) => o.plan_name ?? "Cualquiera" },
-            { accessor: "valid_from", title: "Vigencia", render: (o) => `${o.valid_from || "—"} → ${o.valid_to || "—"}` },
-            {
-              accessor: "is_active",
-              title: "Activa",
-              sortable: true,
-              render: (o) => (
-                <Switch
-                  checked={o.is_active}
-                  onChange={() => toggleOffer.mutate({ offerId: o.id, is_active: !o.is_active })}
-                  color="flame"
-                />
-              ),
-            },
-            {
-              accessor: "actions",
-              title: "Acciones",
-              render: (o) => (
-                <Button variant="light" color="red" size="xs" onClick={() => onDeleteOffer(o.id, o.name)}>
-                  Eliminar
-                </Button>
-              ),
-            },
-          ]}
-        />
-      </Card>
-
-      <Card>
-        <Title order={3} mb="sm">
-          Planes
-        </Title>
-        <DataTable<Plan>
-          minHeight={140}
-          highlightOnHover
-          striped
-          idAccessor="id"
-          records={sortRecords((data ?? []) as Plan[], sortPlans)}
-          fetching={isLoading}
-          noRecordsText="Crea el primer plan para asignarlo a tus atletas."
-          sortStatus={sortPlans}
-          onSortStatusChange={setSortPlans}
-          columns={[
-            { accessor: "name", title: "Plan", sortable: true },
-            {
-              accessor: "price",
-              title: "Precio",
-              sortable: true,
-              textAlign: "right",
-              render: (p) => <Money value={p.price} decimals={2} block />,
-            },
-            { accessor: "duration_days", title: "Duración (días)", sortable: true },
-            {
-              accessor: "service_type_names",
-              title: "Servicios",
-              render: (p) =>
-                (p.service_type_names ?? []).length ? (
-                  <Group gap={4}>
-                    {(p.service_type_names ?? []).map((n) => (
-                      <Badge key={n} variant="light" color="flame" size="sm">
-                        {n}
-                      </Badge>
-                    ))}
-                  </Group>
-                ) : (
-                  <Text c="dimmed" size="sm">—</Text>
+        <GlassCard padding={10} delay={0.96}>
+          <DataTable<PlanOffer>
+            minHeight={140}
+            highlightOnHover
+            striped
+            idAccessor="id"
+            records={sortRecords((offers.data ?? []) as PlanOffer[], sortOffers)}
+            fetching={offers.isLoading}
+            noRecordsText="Crea promociones reutilizables para tus planes."
+            sortStatus={sortOffers}
+            onSortStatusChange={setSortOffers}
+            columns={[
+              { accessor: "name", title: "Oferta", sortable: true },
+              {
+                accessor: "offer_type",
+                title: "Tipo",
+                sortable: true,
+                render: (o) => OFFER_LABEL[o.offer_type] ?? o.offer_type,
+              },
+              { accessor: "value", title: "Valor", render: (o) => (o.offer_type === "percent" ? `${o.value}%` : `${o.value} meses`) },
+              { accessor: "plan_name", title: "Plan", sortable: true, render: (o) => o.plan_name ?? "Cualquiera" },
+              { accessor: "valid_from", title: "Vigencia", render: (o) => `${o.valid_from || "—"} → ${o.valid_to || "—"}` },
+              {
+                accessor: "is_active",
+                title: "Activa",
+                sortable: true,
+                render: (o) => (
+                  <Switch
+                    checked={o.is_active}
+                    onChange={() => toggleOffer.mutate({ offerId: o.id, is_active: !o.is_active })}
+                    color="flame"
+                  />
                 ),
-            },
-            { accessor: "auto_renew_default", title: "Renovación auto.", render: (p) => (p.auto_renew_default ? "Sí" : "No") },
-            {
-              accessor: "is_active",
-              title: "Activo",
-              sortable: true,
-              render: (p) => (
-                <Switch
-                  checked={p.is_active}
-                  onChange={() => updatePlan.mutate({ id: p.id, body: { is_active: !p.is_active } })}
-                  color="flame"
-                />
-              ),
-            },
-            {
-              accessor: "actions",
-              title: "Acciones",
-              render: (p) => (
-                <Group gap="xs">
-                  <Button variant="default" size="xs" onClick={() => setEditingPlan(p)}>
-                    Editar
-                  </Button>
-                  <Button variant="light" color="red" size="xs" onClick={() => onDeletePlan(p)}>
+              },
+              {
+                accessor: "actions",
+                title: "Acciones",
+                render: (o) => (
+                  <Button variant="light" color="red" size="xs" onClick={() => onDeleteOffer(o.id, o.name)}>
                     Eliminar
                   </Button>
-                </Group>
-              ),
-            },
-          ]}
-        />
-      </Card>
+                ),
+              },
+            ]}
+          />
+        </GlassCard>
+      </div>
+
+      <div>
+        <SectionLabel mb={10} as="h2">Planes</SectionLabel>
+        <GlassCard padding={10} delay={1.08}>
+          <DataTable<Plan>
+            minHeight={140}
+            highlightOnHover
+            striped
+            idAccessor="id"
+            records={sortRecords((data ?? []) as Plan[], sortPlans)}
+            fetching={isLoading}
+            noRecordsText="Crea el primer plan para asignarlo a tus atletas."
+            sortStatus={sortPlans}
+            onSortStatusChange={setSortPlans}
+            columns={[
+              { accessor: "name", title: "Plan", sortable: true },
+              {
+                accessor: "price",
+                title: "Precio",
+                sortable: true,
+                textAlign: "right",
+                render: (p) => <Money value={p.price} decimals={2} block />,
+              },
+              { accessor: "duration_days", title: "Duración (días)", sortable: true },
+              {
+                accessor: "service_type_names",
+                title: "Servicios",
+                render: (p) =>
+                  (p.service_type_names ?? []).length ? (
+                    <Group gap={4}>
+                      {(p.service_type_names ?? []).map((n) => (
+                        <Badge key={n} variant="light" color="flame" size="sm">
+                          {n}
+                        </Badge>
+                      ))}
+                    </Group>
+                  ) : (
+                    <Text c="dimmed" size="sm">—</Text>
+                  ),
+              },
+              { accessor: "auto_renew_default", title: "Renovación auto.", render: (p) => (p.auto_renew_default ? "Sí" : "No") },
+              {
+                accessor: "is_active",
+                title: "Activo",
+                sortable: true,
+                render: (p) => (
+                  <Switch
+                    checked={p.is_active}
+                    onChange={() => updatePlan.mutate({ id: p.id, body: { is_active: !p.is_active } })}
+                    color="flame"
+                  />
+                ),
+              },
+              {
+                accessor: "actions",
+                title: "Acciones",
+                render: (p) => (
+                  <Group gap="xs">
+                    <Button variant="default" size="xs" onClick={() => setEditingPlan(p)}>
+                      Editar
+                    </Button>
+                    <Button variant="light" color="red" size="xs" onClick={() => onDeletePlan(p)}>
+                      Eliminar
+                    </Button>
+                  </Group>
+                ),
+              },
+            ]}
+          />
+        </GlassCard>
+      </div>
 
       <EditPlanModal
         plan={editingPlan}
@@ -552,7 +571,7 @@ function ServiceConfigCard({
   const isDraft = service.status !== "active";
 
   return (
-    <Card withBorder>
+    <GlassCard padding={18}>
       <Group justify="space-between" mb="xs">
         <Group gap="sm">
           <Text fw={600}>{service.name}</Text>
@@ -620,6 +639,6 @@ function ServiceConfigCard({
           {isDraft ? "Activar servicio" : "Guardar cambios"}
         </Button>
       </Group>
-    </Card>
+    </GlassCard>
   );
 }

@@ -1,16 +1,38 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Badge, Card, Divider, Group, SimpleGrid, Table, Text, Title, UnstyledButton } from "@mantine/core";
+import { Divider, Group, SimpleGrid, Text } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
-import { BellRing, CheckCircle2 } from "lucide-react";
+import {
+  Activity,
+  CalendarClock,
+  CheckCircle2,
+  Dumbbell,
+  Flame,
+  Receipt,
+  Trophy,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { useDashboard, usePendingSummary } from "../api/hooks";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { CountBadge, Kicker, Money, PageHeader, SectionLabel } from "../components/ui";
+import { CountBadge, PageHeader, SectionLabel } from "../components/ui";
+import {
+  BigMetric,
+  GlassCard,
+  MetricTile,
+  Stagger,
+  WaveChart,
+} from "../components/aurora";
 import { fmtQ } from "../lib/money";
 import { PENDING_ITEMS } from "../lib/pending";
 import { useAuth } from "../lib/auth";
 
-const DISPLAY_FONT = '"Space Grotesk", sans-serif';
+/**
+ * Dashboard = vitrina del lenguaje **Aurora**. Reproduce la composición del
+ * dashboard de la referencia: hero a la izquierda, cifra protagonista, la onda
+ * que se dibuja sola, y un rail de tarjetas de vidrio a la derecha con el
+ * estado actual del gimnasio.
+ */
 
 function firstOfMonth() {
   const d = new Date();
@@ -21,83 +43,7 @@ function toIso(d: Date | null) {
   return d ? d.toLocaleDateString("en-CA") : "";
 }
 
-function Kpi({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string | number;
-  tone?: string;
-}) {
-  return (
-    <Card>
-      <Text c="dimmed" size="sm" mb={4}>
-        {label}
-      </Text>
-      <Text
-        fw={700}
-        fz={{ base: 22, sm: 28 }}
-        c={tone}
-        ff={DISPLAY_FONT}
-        style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}
-      >
-        {value}
-      </Text>
-    </Card>
-  );
-}
-
-/**
- * Momento "hero" del dashboard: la cifra que el dueño más mira (ingresos del
- * periodo) a escala editorial, con su desglose tarjeta/manual como ledger. Antes
- * competía en igualdad con "check-ins" en una retícula de 6 tarjetas idénticas.
- */
-function RevenueHero({
-  total,
-  card,
-  manual,
-}: {
-  total: number | string | null;
-  card: number | string | null;
-  manual: number | string | null;
-}) {
-  return (
-    <Card mb="lg" padding="xl">
-      <Group justify="space-between" align="flex-end" wrap="wrap" gap="xl">
-        <div style={{ minWidth: 0 }}>
-          <Kicker>Ingresos del periodo</Kicker>
-          <Text
-            className="text-glow-flame"
-            ff={DISPLAY_FONT}
-            fw={700}
-            style={{
-              color: "var(--nucleo-white)",
-              fontVariantNumeric: "tabular-nums",
-              letterSpacing: "-0.03em",
-              lineHeight: 1,
-              fontSize: "clamp(40px, 6vw, 58px)",
-            }}
-          >
-            {fmtQ(total)}
-          </Text>
-        </div>
-        <Group gap="lg" align="stretch">
-          <div>
-            <SectionLabel mb={4}>Tarjeta</SectionLabel>
-            <Money value={card} fw={700} />
-          </div>
-          <Divider orientation="vertical" />
-          <div>
-            <SectionLabel mb={4}>Manual</SectionLabel>
-            <Money value={manual} fw={700} />
-          </div>
-        </Group>
-      </Group>
-    </Card>
-  );
-}
-
+/** Pendientes por resolver: la bandeja de entrada del operador. */
 function PendingPanel({ gymId }: { gymId: string }) {
   const navigate = useNavigate();
   const pending = usePendingSummary(gymId);
@@ -108,53 +54,41 @@ function PendingPanel({ gymId }: { gymId: string }) {
 
   if (activos.length === 0) {
     return (
-      <Card mb="lg" withBorder>
+      <GlassCard padding={16} className="a-rise" style={{ marginBottom: "calc(18 * var(--u))" }}>
         <Group gap="xs">
-          <CheckCircle2 size={20} color="var(--mantine-color-teal-5)" />
-          <Text fw={600}>Todo al día</Text>
+          <CheckCircle2 size={19} color="var(--mantine-color-teal-5)" strokeWidth={1.9} />
+          <Text fw={600} size="sm">
+            Todo al día
+          </Text>
           <Text c="dimmed" size="sm">
             No hay pendientes por aprobar.
           </Text>
         </Group>
-      </Card>
+      </GlassCard>
     );
   }
 
   return (
-    <Card mb="lg" withBorder>
-      <Group mb="md" gap="xs">
-        <BellRing size={18} color="var(--mantine-color-flame-5)" />
-        <Text fw={700} ff='"Space Grotesk", sans-serif'>
-          Pendientes por resolver
-        </Text>
-        <Badge color="flame" variant="filled" ml={4}>
-          {counts.total}
-        </Badge>
-      </Group>
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
+    <div style={{ marginBottom: "calc(18 * var(--u))" }}>
+      <SectionLabel mb={10} as="h2">Pendientes por resolver · {counts.total}</SectionLabel>
+      <Stagger
+        from={0.52}
+        style={{ display: "flex", flexWrap: "wrap", gap: "calc(10 * var(--u))" }}
+      >
         {activos.map((item) => (
-          <UnstyledButton
+          <button
             key={item.key}
+            type="button"
+            className="a-chip a-lift"
+            style={{ cursor: "pointer" }}
             onClick={() => navigate(item.to)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 8,
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid var(--mantine-color-default-border)",
-              background: "var(--mantine-color-body)",
-            }}
           >
-            <Text size="sm" style={{ lineHeight: 1.2 }}>
-              {item.label}
-            </Text>
-            <CountBadge count={counts[item.key] ?? 0} size="lg" />
-          </UnstyledButton>
+            {item.label}
+            <CountBadge count={counts[item.key] ?? 0} />
+          </button>
         ))}
-      </SimpleGrid>
-    </Card>
+      </Stagger>
+    </div>
   );
 }
 
@@ -169,86 +103,221 @@ export function DashboardPage() {
   if (dashboard.isError) return <PageError onRetry={() => dashboard.refetch()} />;
 
   const d = dashboard.data;
+  const demanda = (d?.clases_mas_demandadas ?? []).slice(0, 6);
 
   return (
     <div>
-      <PageHeader kicker="Operación" title="Dashboard del gimnasio" subtitle="Ingresos y actividad del periodo" />
+      <PageHeader
+        kicker="Operación"
+        title="Tu gimnasio, en un vistazo"
+        subtitle="Ingresos, actividad y estado de la comunidad en el periodo seleccionado. Todo lo que necesitas revisar antes de abrir el box."
+      />
 
       <PendingPanel gymId={gymId} />
 
-      <Card mb="lg">
-        <Group>
-          <Text fw={600} style={{ marginRight: "auto" }}>
-            Periodo
-          </Text>
-          <DatePickerInput label="Desde" value={from} onChange={setFrom} valueFormat="YYYY-MM-DD" />
-          <DatePickerInput label="Hasta" value={to} onChange={setTo} valueFormat="YYYY-MM-DD" />
-        </Group>
-      </Card>
+      {/* Retícula de la referencia: columna principal + rail de tarjetas. */}
+      <div className="a-dash-grid">
+        {/* ── Columna principal ────────────────────────────────────────── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "calc(20 * var(--u))" }}>
+          <GlassCard padding={16} delay={0.6}>
+            <Group gap="md" wrap="wrap" align="flex-end">
+              <SectionLabel mb={0}>Periodo</SectionLabel>
+              <DatePickerInput
+                label="Desde"
+                value={from}
+                onChange={setFrom}
+                valueFormat="YYYY-MM-DD"
+                size="sm"
+              />
+              <DatePickerInput
+                label="Hasta"
+                value={to}
+                onChange={setTo}
+                valueFormat="YYYY-MM-DD"
+                size="sm"
+              />
+            </Group>
+          </GlassCard>
 
-      {dashboard.isLoading || !d ? (
-        <PageLoading label="Cargando KPIs…" />
-      ) : (
-        <>
-          <RevenueHero
-            total={d.ingresos_total}
-            card={d.ingresos_tarjeta}
-            manual={d.ingresos_manual}
-          />
+          {dashboard.isLoading || !d ? (
+            <PageLoading label="Cargando KPIs…" />
+          ) : (
+            <>
+              {/* Cifra protagonista: el equivalente del "10°C" de la referencia. */}
+              <GlassCard variant="core" sheen padding={26} delay={0.7}>
+                <BigMetric
+                  label="Ingresos del periodo"
+                  value={fmtQ(d.ingresos_total)}
+                  fz="clamp(34px, calc(58 * var(--u)), 68px)"
+                  delay={1.04}
+                />
+                <Group
+                  gap="lg"
+                  mt="lg"
+                  className="a-rise"
+                  style={{ animationDelay: "1.16s" }}
+                  wrap="wrap"
+                >
+                  <div>
+                    <SectionLabel mb={4}>Tarjeta</SectionLabel>
+                    <Text fw={600} className="a-tabular">
+                      {fmtQ(d.ingresos_tarjeta)}
+                    </Text>
+                  </div>
+                  <Divider orientation="vertical" />
+                  <div>
+                    <SectionLabel mb={4}>Manual</SectionLabel>
+                    <Text fw={600} className="a-tabular">
+                      {fmtQ(d.ingresos_manual)}
+                    </Text>
+                  </div>
+                </Group>
 
-          <SectionLabel>Actividad del periodo</SectionLabel>
-          <SimpleGrid cols={{ base: 3 }} spacing="md" mb="lg">
-            <Kpi label="Pagos" value={d.pagos ?? 0} />
-            <Kpi label="Nuevos atletas" value={d.nuevos_atletas ?? 0} />
-            <Kpi label="Check-ins" value={d.checkins ?? 0} />
-          </SimpleGrid>
+                <Group
+                  justify="space-between"
+                  mt="xl"
+                  wrap="wrap"
+                  gap="md"
+                  className="a-rise"
+                  style={{ animationDelay: "1.28s" }}
+                >
+                  <Group gap={7}>
+                    <Receipt size={16} strokeWidth={1.8} style={{ opacity: 0.75 }} />
+                    <Text size="sm" fw={500}>
+                      {d.pagos ?? 0} pagos
+                    </Text>
+                  </Group>
+                  <Group gap={7}>
+                    <UserPlus size={16} strokeWidth={1.8} style={{ opacity: 0.75 }} />
+                    <Text size="sm" fw={500}>
+                      {d.nuevos_atletas ?? 0} nuevos atletas
+                    </Text>
+                  </Group>
+                  <Group gap={7}>
+                    <Activity size={16} strokeWidth={1.8} style={{ opacity: 0.75 }} />
+                    <Text size="sm" fw={500}>
+                      {d.checkins ?? 0} check-ins
+                    </Text>
+                  </Group>
+                </Group>
+              </GlassCard>
 
-          <SectionLabel>Entrenamiento (periodo)</SectionLabel>
-          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md" mb="lg">
-            <Kpi label="WODs publicados" value={d.wods_publicados ?? 0} tone="flame" />
-            <Kpi label="Resultados de WOD" value={d.resultados_wod ?? 0} />
-            <Kpi label="Nuevos PRs" value={d.prs_nuevos ?? 0} />
-            <Kpi label="Servicios activos" value={d.servicios_activos ?? 0} />
-          </SimpleGrid>
+              {/* La firma gráfica: la onda se traza sola y el relleno la sigue. */}
+              <GlassCard padding={24} delay={0.82}>
+                <SectionLabel mb={14} as="h2">Clases más demandadas</SectionLabel>
+                {demanda.length === 0 ? (
+                  <Text c="dimmed" size="sm">
+                    Sin reservas registradas en el periodo.
+                  </Text>
+                ) : (
+                  <WaveChart
+                    values={demanda.map((c) => c.reservas)}
+                    labels={demanda.map((c) => c.class_type)}
+                    formatValue={(v) => v}
+                    height={190}
+                    delay={1.5}
+                  />
+                )}
+              </GlassCard>
 
-          <SectionLabel>Estado actual del gimnasio</SectionLabel>
-          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mb="lg">
-            <Kpi label="Atletas activos" value={d.atletas_activos ?? 0} />
-            <Kpi label="Morosos" value={d.morosos ?? 0} tone="red" />
-            <Kpi label="Por vencer" value={d.proximos_vencimientos ?? 0} tone="yellow" />
-          </SimpleGrid>
+              <div>
+                <SectionLabel mb={12} as="h2">Entrenamiento en el periodo</SectionLabel>
+                <Stagger from={1.0}>
+                  <SimpleGrid cols={{ base: 2, md: 4 }} spacing="md">
+                    <MetricTile
+                      label="WODs publicados"
+                      value={d.wods_publicados ?? 0}
+                      icon={<Flame size={16} strokeWidth={1.8} />}
+                      tone="var(--nucleo-accent)"
+                    />
+                    <MetricTile
+                      label="Resultados de WOD"
+                      value={d.resultados_wod ?? 0}
+                      icon={<Trophy size={16} strokeWidth={1.8} />}
+                    />
+                    <MetricTile
+                      label="Nuevos PRs"
+                      value={d.prs_nuevos ?? 0}
+                      icon={<Dumbbell size={16} strokeWidth={1.8} />}
+                    />
+                    <MetricTile
+                      label="Servicios activos"
+                      value={d.servicios_activos ?? 0}
+                      icon={<CalendarClock size={16} strokeWidth={1.8} />}
+                    />
+                  </SimpleGrid>
+                </Stagger>
+              </div>
+            </>
+          )}
+        </div>
 
-          <Card>
-            <Title order={3} mb="sm">
-              Clases más demandadas
-            </Title>
-            {!d.clases_mas_demandadas.length ? (
-              <Text c="dimmed" size="sm">
-                Sin reservas registradas.
+        {/* ── Rail derecho: el estado actual del gimnasio ───────────────── */}
+        {d && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "calc(20 * var(--u))",
+              position: "sticky",
+              top: "calc(var(--a-header-h) + 12 * var(--u))",
+            }}
+          >
+            <GlassCard variant="big" sheen padding={24} delay={0.8}>
+              <Group gap={7} mb="lg" className="a-rise" style={{ animationDelay: "1.04s" }}>
+                <Users size={16} strokeWidth={1.9} style={{ opacity: 0.85 }} />
+                <Text fw={600} size="sm">
+                  Atletas activos
+                </Text>
+              </Group>
+              <BigMetric value={d.atletas_activos ?? 0} delay={1.16} />
+              <Text size="sm" c="dimmed" mt="md" className="a-rise" style={{ animationDelay: "1.28s" }}>
+                Membresías vigentes en este gimnasio.
               </Text>
-            ) : (
-              <Table>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Clase</Table.Th>
-                    <Table.Th>Horario</Table.Th>
-                    <Table.Th>Reservas</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {d.clases_mas_demandadas.map((c, i) => (
-                    <Table.Tr key={`${c.class_type}-${c.horario}-${i}`}>
-                      <Table.Td>{c.class_type}</Table.Td>
-                      <Table.Td>{c.horario}</Table.Td>
-                      <Table.Td>{c.reservas}</Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            )}
-          </Card>
-        </>
-      )}
+            </GlassCard>
+
+            <GlassCard delay={0.92} padding={20}>
+              <Group justify="space-between" align="center" wrap="nowrap">
+                <div style={{ minWidth: 0 }}>
+                  <div className="a-kicker">Cobranza</div>
+                  <Text fw={600} fz="lg" mt={5} style={{ letterSpacing: "-0.02em" }}>
+                    Morosos
+                  </Text>
+                </div>
+                <div className="a-metric a-metric--sm" style={{ color: "var(--nucleo-danger)" }}>
+                  {d.morosos ?? 0}
+                </div>
+              </Group>
+            </GlassCard>
+
+            <GlassCard delay={1.03} padding={20}>
+              <Group justify="space-between" align="center" wrap="nowrap">
+                <div style={{ minWidth: 0 }}>
+                  <div className="a-kicker">Retención</div>
+                  <Text fw={600} fz="lg" mt={5} style={{ letterSpacing: "-0.02em" }}>
+                    Por vencer
+                  </Text>
+                </div>
+                <div className="a-metric a-metric--sm" style={{ color: "var(--nucleo-warning)" }}>
+                  {d.proximos_vencimientos ?? 0}
+                </div>
+              </Group>
+            </GlassCard>
+
+            <GlassCard delay={1.14} padding={20}>
+              <Group justify="space-between" align="center" wrap="nowrap">
+                <div style={{ minWidth: 0 }}>
+                  <div className="a-kicker">Catálogo</div>
+                  <Text fw={600} fz="lg" mt={5} style={{ letterSpacing: "-0.02em" }}>
+                    Servicios
+                  </Text>
+                </div>
+                <div className="a-metric a-metric--sm">{d.servicios_activos ?? 0}</div>
+              </Group>
+            </GlassCard>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

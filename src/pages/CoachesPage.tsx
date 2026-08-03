@@ -3,16 +3,15 @@ import {
   Avatar,
   Badge,
   Button,
-  Card,
   Divider,
   Group,
   SimpleGrid,
   Table,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { CalendarClock, Clock, Users, Wallet } from "lucide-react";
 import { DetailSheet } from "../components/DetailSheet";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
@@ -23,7 +22,8 @@ import {
 } from "../api/hooks";
 import type { Coach } from "../api/types";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { PageHeader } from "../components/ui";
+import { PageHeader, SectionLabel } from "../components/ui";
+import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora";
 import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
@@ -94,18 +94,73 @@ export function CoachesPage() {
   if (!gymId) return <NoGymAssigned />;
   if (coaches.isError) return <PageError onRetry={() => coaches.refetch()} />;
 
+  // KPIs derivados del roster que ya está en memoria: ninguna consulta nueva.
+  const roster = coaches.data ?? [];
+  const pendientes = (requests.data ?? []).length;
+  const activos = roster.filter((c) => c.is_active).length;
+  const porClase = roster.filter((c) => c.pay_type === "per_class").length;
+  const fijos = roster.filter((c) => c.pay_type === "fixed").length;
+  /** Mientras carga, un 0 mentiría (parecería "no tienes coaches"): va un guion. */
+  const kpi = (n: number) => (coaches.isLoading ? "—" : n);
+
   return (
     <div>
       <PageHeader
         kicker="Operación · Equipo"
         title="Coaches"
-        subtitle="Invita coaches y gestiona el equipo del gimnasio. La nómina y liquidaciones están en Negocio → Pagos a coaches."
+        subtitle="Invita coaches, resuelve quién entra al equipo y revisa el roster del gimnasio. La tarifa y las liquidaciones se operan en Negocio → Pagos a coaches."
       />
 
-      <Card mb="lg">
-        <Title order={3} mb={4}>
-          Invitar coach
-        </Title>
+      {/* Cifra protagonista: cuántos coaches sostienen las clases hoy. */}
+      <GlassCard variant="core" sheen padding={26} delay={0.6}>
+        <BigMetric
+          label="Coaches activos"
+          value={kpi(activos)}
+          hint={
+            requests.isLoading
+              ? undefined
+              : pendientes > 0
+                ? `${pendientes} ${pendientes === 1 ? "solicitud pendiente" : "solicitudes pendientes"} por resolver.`
+                : "Sin solicitudes ni invitaciones pendientes."
+          }
+          delay={1.0}
+        />
+      </GlassCard>
+
+      <Stagger
+        from={0.72}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(calc(180 * var(--u)), 1fr))",
+          gap: "calc(14 * var(--u))",
+          margin: "calc(16 * var(--u)) 0 calc(20 * var(--u))",
+        }}
+      >
+        <MetricTile
+          label="En el equipo"
+          value={kpi(roster.length)}
+          icon={<Users size={16} strokeWidth={1.8} />}
+        />
+        <MetricTile
+          label="Pago por clase"
+          value={kpi(porClase)}
+          icon={<CalendarClock size={16} strokeWidth={1.8} />}
+        />
+        <MetricTile
+          label="Salario fijo"
+          value={kpi(fijos)}
+          icon={<Wallet size={16} strokeWidth={1.8} />}
+        />
+        <MetricTile
+          label="Solicitudes"
+          value={requests.isLoading ? "—" : pendientes}
+          icon={<Clock size={16} strokeWidth={1.8} />}
+          tone={pendientes > 0 ? "var(--nucleo-accent)" : undefined}
+        />
+      </Stagger>
+
+      <GlassCard padding={20} delay={0.84} style={{ marginBottom: "calc(20 * var(--u))" }}>
+        <SectionLabel as="h2" mb={6}>Invitar coach</SectionLabel>
         <Text c="dimmed" size="sm" mb="md">
           Le creamos su cuenta de Nucleo; el coach la reclama y acepta para quedar activo.
         </Text>
@@ -128,10 +183,10 @@ export function CoachesPage() {
             {invMsg}
           </Text>
         )}
+      </GlassCard>
 
-        <Title order={4} mt="lg" mb="xs">
-          Solicitudes de coaches
-        </Title>
+      <SectionLabel as="h2" mb={10}>Solicitudes de coaches</SectionLabel>
+      <GlassCard padding={18} delay={0.96} style={{ marginBottom: "calc(20 * var(--u))" }}>
         {/* Un fallo aquí decía "no hay solicitudes": el coach que aplicó se
             quedaba esperando y el gym creía que nadie había pedido unirse. */}
         {requests.isError ? (
@@ -194,11 +249,11 @@ export function CoachesPage() {
             </Table.Tbody>
           </Table>
         )}
-      </Card>
+      </GlassCard>
 
-      <Card>
-        <Group justify="space-between" mb="sm">
-          <Title order={3}>Coaches del gimnasio</Title>
+      <SectionLabel as="h2" mb={10}>Coaches del gimnasio</SectionLabel>
+      <GlassCard padding={0} delay={1.08}>
+        <Group justify="flex-end" p="md" pb="xs">
           <TextInput
             placeholder="Buscar coach…"
             value={search}
@@ -261,7 +316,7 @@ export function CoachesPage() {
               sortable: true,
               render: (c) =>
                 c.rating != null ? (
-                  <Text size="sm">
+                  <Text size="sm" className="a-tabular">
                     ⭐ {c.rating.toFixed(1)}{" "}
                     <Text span c="dimmed" size="xs">
                       ({c.rating_count})
@@ -283,10 +338,10 @@ export function CoachesPage() {
             },
           ]}
         />
-        <Text c="dimmed" size="xs" mt="sm">
+        <Text c="dimmed" size="xs" px="md" pb="md" pt="xs">
           Toca un coach para ver su perfil. La tarifa y las liquidaciones se gestionan en Negocio → Pagos a coaches.
         </Text>
-      </Card>
+      </GlassCard>
 
       <CoachProfileSheet coach={selectedCoach} onClose={() => setSelectedCoach(null)} />
     </div>
@@ -303,7 +358,12 @@ function CoachProfileSheet({ coach, onClose }: { coach: Coach | null; onClose: (
               {(coach.name || coach.email).slice(0, 1).toUpperCase()}
             </Avatar>
             <div>
-              <Text fw={700} size="lg">
+              <Text
+                fw={600}
+                fz="lg"
+                ff="var(--a-font-display)"
+                style={{ letterSpacing: "-0.015em" }}
+              >
                 {coach.name || coach.email}
               </Text>
               <Text c="dimmed" size="sm">
@@ -317,16 +377,14 @@ function CoachProfileSheet({ coach, onClose }: { coach: Coach | null; onClose: (
           <Divider mb="md" />
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
             <div>
-              <Text c="dimmed" size="xs">
-                Forma de pago
-              </Text>
+              <SectionLabel mb={4}>Forma de pago</SectionLabel>
               <Text fw={600}>{coach.pay_type === "fixed" ? "Salario fijo" : "Por clase"}</Text>
             </div>
             <div>
-              <Text c="dimmed" size="xs">
+              <SectionLabel mb={4}>
                 {coach.pay_type === "fixed" ? "Salario fijo" : "Tarifa por clase"}
-              </Text>
-              <Text fw={600}>
+              </SectionLabel>
+              <Text fw={600} className="a-tabular">
                 {coach.pay_type === "fixed" ? money(coach.fixed_amount) : money(coach.per_class_rate)}
               </Text>
             </div>

@@ -1,12 +1,25 @@
-import { useState, type ReactNode } from "react";
-import { Card, Group, Select, SimpleGrid, Table, Text, Title } from "@mantine/core";
+import { useState } from "react";
+import { Divider, Group, Select, SimpleGrid, Table, Text } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { useBranches, useErpPnl } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { Money, PageHeader } from "../components/ui";
-import { fmtQ } from "../lib/money";
+import { Money, PageHeader, SectionLabel } from "../components/ui";
+import {
+  BigMetric,
+  GlassCard,
+  MetricTile,
+  Stagger,
+  WaveChart,
+} from "../components/aurora";
+import { fmtQ, toNumber } from "../lib/money";
 import { useAuth } from "../lib/auth";
+
+/**
+ * Reporte de negocio en el lenguaje **Aurora**: la utilidad neta manda (cifra
+ * protagonista), las líneas de ingreso se leen como onda antes que como tabla,
+ * y el resto de cortes (retail, métodos de cobro, gastos) vive en vidrio.
+ */
 
 function firstOfMonth() {
   const d = new Date();
@@ -24,36 +37,6 @@ function Delta({ value }: { value: number | null }) {
   );
 }
 
-function Metric({
-  label,
-  value,
-  accent,
-  sub,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-  sub?: ReactNode;
-}) {
-  return (
-    <Card>
-      <Text c="dimmed" size="sm">
-        {label}
-      </Text>
-      <Text
-        fw={700}
-        fz={{ base: 20, sm: 24 }}
-        c={accent ? "flame" : undefined}
-        ff='"Space Grotesk", sans-serif'
-        style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}
-      >
-        {value}
-      </Text>
-      {sub && <div style={{ marginTop: 4 }}>{sub}</div>}
-    </Card>
-  );
-}
-
 export function BusinessReportPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
@@ -67,10 +50,15 @@ export function BusinessReportPage() {
 
   return (
     <div>
-      <PageHeader kicker="Negocio · Reportes" title="Reportes de negocio" subtitle="Rentabilidad, márgenes y líneas de ingreso." />
+      <PageHeader
+        kicker="Negocio · Reportes"
+        title="Reportes de negocio"
+        subtitle="Rentabilidad del periodo: de dónde entra el dinero, cuánto cuesta operar y cuánto queda al final."
+      />
 
-      <Card mb="lg">
-        <Group align="flex-end" gap="md">
+      <GlassCard padding={16} delay={0.6} style={{ marginBottom: "calc(20 * var(--u))" }}>
+        <Group align="flex-end" gap="md" wrap="wrap">
+          <SectionLabel mb={0}>Periodo</SectionLabel>
           <DatePickerInput label="Desde" value={from} onChange={setFrom} valueFormat="YYYY-MM-DD" />
           <DatePickerInput label="Hasta" value={to} onChange={setTo} valueFormat="YYYY-MM-DD" />
           {(branches ?? []).length > 0 && (
@@ -84,7 +72,7 @@ export function BusinessReportPage() {
             />
           )}
         </Group>
-      </Card>
+      </GlassCard>
 
       {isLoading ? (
         <PageLoading />
@@ -94,70 +82,122 @@ export function BusinessReportPage() {
         <EmptyState title="Sin datos" description="No hay actividad en el período seleccionado." />
       ) : (
         <>
-          <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="md" mb="lg">
-            <Metric label="Ingresos totales" value={fmtQ(data.gross_revenue)} sub={<Delta value={data.delta_revenue_pct} />} />
-            <Metric label="Costo directo (COGS)" value={fmtQ(data.direct_cost)} />
-            <Metric
-              label="Margen bruto"
-              value={fmtQ(data.gross_margin)}
-              sub={<Text span size="xs" c="dimmed">{data.gross_margin_pct}%</Text>}
-            />
-            <Metric label="Pérdidas (mermas)" value={fmtQ(data.losses)} />
-            <Metric label="Gastos operativos" value={fmtQ(data.expenses)} />
-            <Metric
-              label="Utilidad neta"
+          {/* La cifra que manda: lo que de verdad queda después de todo. */}
+          <GlassCard
+            variant="core"
+            sheen
+            padding={26}
+            delay={0.7}
+            style={{ marginBottom: "calc(20 * var(--u))" }}
+          >
+            <BigMetric
+              label="Utilidad neta del periodo"
               value={fmtQ(data.net_profit)}
-              accent
-              sub={
+              fz="clamp(34px, calc(58 * var(--u)), 68px)"
+              delay={1.04}
+              hint={
                 <>
-                  <Text span size="xs" c="dimmed">{data.net_margin_pct}% </Text>
-                  <Delta value={data.delta_net_pct} />
+                  {data.net_margin_pct}% de margen · <Delta value={data.delta_net_pct} />
                 </>
               }
             />
-          </SimpleGrid>
+            <Group
+              gap="lg"
+              mt="lg"
+              wrap="wrap"
+              className="a-rise"
+              style={{ animationDelay: "1.16s" }}
+            >
+              <div>
+                <SectionLabel mb={4}>Ingresos totales</SectionLabel>
+                <Text fw={600} className="a-tabular">
+                  {fmtQ(data.gross_revenue)}
+                </Text>
+                <Delta value={data.delta_revenue_pct} />
+              </div>
+              <Divider orientation="vertical" />
+              <div>
+                <SectionLabel mb={4}>Margen bruto</SectionLabel>
+                <Text fw={600} className="a-tabular">
+                  {fmtQ(data.gross_margin)}
+                </Text>
+                <Text span size="xs" c="dimmed">
+                  {data.gross_margin_pct}% del ingreso
+                </Text>
+              </div>
+            </Group>
+          </GlassCard>
 
-          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mb="lg">
-            <Metric label="Socios activos" value={String(data.active_members)} />
-            <Metric label="Altas del período" value={String(data.new_members)} />
-            <Metric label="Compras a inventario (uds.)" value={String(data.inventory_purchases_units)} />
-          </SimpleGrid>
+          <SectionLabel as="h2" mb={12}>Costos del periodo</SectionLabel>
+          <Stagger from={0.82}>
+            <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="md">
+              <MetricTile label="Costo directo (COGS)" value={fmtQ(data.direct_cost)} />
+              <MetricTile
+                label="Pérdidas (mermas)"
+                value={fmtQ(data.losses)}
+                tone="var(--nucleo-danger)"
+              />
+              <MetricTile label="Gastos operativos" value={fmtQ(data.expenses)} />
+            </SimpleGrid>
+          </Stagger>
 
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
-            <Card>
-              <Title order={3} mb="sm">
-                Ingresos por línea de negocio
-              </Title>
-              <Table>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Línea</Table.Th>
-                    <Table.Th ta="right">Ingreso</Table.Th>
-                    <Table.Th ta="right">% del total</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {data.revenue_lines.map((l) => {
-                    const total = Number(data.gross_revenue) || 1;
-                    const pct = ((Number(l.revenue) / total) * 100).toFixed(0);
-                    return (
-                      <Table.Tr key={l.line}>
-                        <Table.Td>{l.label}</Table.Td>
-                        <Table.Td ta="right"><Money value={l.revenue} decimals={2} /></Table.Td>
-                        <Table.Td ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>{pct}%</Table.Td>
-                      </Table.Tr>
-                    );
-                  })}
-                </Table.Tbody>
-              </Table>
-            </Card>
+          <SectionLabel as="h2" mt="lg" mb={12}>
+            Comunidad e inventario
+          </SectionLabel>
+          <Stagger from={0.94}>
+            <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="md">
+              <MetricTile label="Socios activos" value={data.active_members} />
+              <MetricTile label="Altas del período" value={data.new_members} />
+              <MetricTile
+                label="Compras a inventario (uds.)"
+                value={data.inventory_purchases_units}
+              />
+            </SimpleGrid>
+          </Stagger>
 
-            <Card>
-              <Title order={3} mb="sm">
-                Productos más vendidos
-              </Title>
+          {/* La onda lee la mezcla de ingresos de un vistazo; la tabla la detalla. */}
+          <GlassCard padding={22} delay={1.06} style={{ marginTop: "calc(20 * var(--u))" }}>
+            <SectionLabel as="h2" mb={12}>Ingresos por línea de negocio</SectionLabel>
+            {data.revenue_lines.length > 1 && (
+              <WaveChart
+                values={data.revenue_lines.map((l) => toNumber(l.revenue))}
+                labels={data.revenue_lines.map((l) => l.label)}
+                formatValue={(v) => fmtQ(v, { decimals: 0 })}
+                height={170}
+                delay={1.5}
+              />
+            )}
+            <Table mt={data.revenue_lines.length > 1 ? "xl" : "xs"}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Línea</Table.Th>
+                  <Table.Th ta="right">Ingreso</Table.Th>
+                  <Table.Th ta="right">% del total</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {data.revenue_lines.map((l) => {
+                  const total = Number(data.gross_revenue) || 1;
+                  const pct = ((Number(l.revenue) / total) * 100).toFixed(0);
+                  return (
+                    <Table.Tr key={l.line}>
+                      <Table.Td>{l.label}</Table.Td>
+                      <Table.Td ta="right"><Money value={l.revenue} decimals={2} /></Table.Td>
+                      <Table.Td ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>{pct}%</Table.Td>
+                    </Table.Tr>
+                  );
+                })}
+              </Table.Tbody>
+            </Table>
+          </GlassCard>
+
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mt="lg">
+            <GlassCard padding={22} delay={1.18}>
+              <SectionLabel as="h2" mb={12}>Productos más vendidos</SectionLabel>
               {!data.top_products.length ? (
-                <EmptyState title="Sin ventas" description="Aún no hay ventas en el período." />
+                <Text c="dimmed" size="sm">
+                  Aún no hay ventas en el período.
+                </Text>
               ) : (
                 <Table>
                   <Table.Thead>
@@ -176,19 +216,17 @@ export function BusinessReportPage() {
                   </Table.Tbody>
                 </Table>
               )}
-            </Card>
-          </SimpleGrid>
+            </GlassCard>
 
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mt="lg">
-            <Card>
-              <Title order={3} mb={4}>
-                Retail por categoría
-              </Title>
+            <GlassCard padding={22} delay={1.24}>
+              <SectionLabel as="h2" mb={4}>Retail por categoría</SectionLabel>
               <Text c="dimmed" size="sm" mb="sm">
                 Ropa, bebidas, suplementos… mostrador + tienda de la app.
               </Text>
               {!(data.revenue_by_category ?? []).length ? (
-                <EmptyState title="Sin ventas" description="Aún no hay ventas de productos en el período." />
+                <Text c="dimmed" size="sm">
+                  Aún no hay ventas de productos en el período.
+                </Text>
               ) : (
                 <Table>
                   <Table.Thead>
@@ -211,14 +249,16 @@ export function BusinessReportPage() {
                   </Table.Tbody>
                 </Table>
               )}
-            </Card>
+            </GlassCard>
+          </SimpleGrid>
 
-            <Card>
-              <Title order={3} mb="sm">
-                Cobros por método
-              </Title>
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mt="lg">
+            <GlassCard padding={22} delay={1.3}>
+              <SectionLabel as="h2" mb={12}>Cobros por método</SectionLabel>
               {!(data.revenue_by_method ?? []).length ? (
-                <EmptyState title="Sin ventas" description="Registra ventas para ver el corte de caja." />
+                <Text c="dimmed" size="sm">
+                  Registra ventas para ver el corte de caja.
+                </Text>
               ) : (
                 <Table>
                   <Table.Thead>
@@ -237,11 +277,14 @@ export function BusinessReportPage() {
                   </Table.Tbody>
                 </Table>
               )}
-              <Title order={3} mt="lg" mb="sm">
-                Gastos por categoría
-              </Title>
+            </GlassCard>
+
+            <GlassCard padding={22} delay={1.36}>
+              <SectionLabel as="h2" mb={12}>Gastos por categoría</SectionLabel>
               {!(data.expenses_by_category ?? []).length ? (
-                <EmptyState title="Sin gastos" description="No hay gastos registrados en el período." />
+                <Text c="dimmed" size="sm">
+                  No hay gastos registrados en el período.
+                </Text>
               ) : (
                 <Table>
                   <Table.Thead>
@@ -260,7 +303,7 @@ export function BusinessReportPage() {
                   </Table.Tbody>
                 </Table>
               )}
-            </Card>
+            </GlassCard>
           </SimpleGrid>
         </>
       )}

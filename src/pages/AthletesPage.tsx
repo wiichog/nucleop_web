@@ -11,7 +11,6 @@ import {
   Modal,
   NumberInput,
   Popover,
-  SegmentedControl,
   Select,
   SimpleGrid,
   Switch,
@@ -26,7 +25,9 @@ import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import { useSearchParams } from "react-router-dom";
 import {
+  AlertTriangle,
   Bell,
+  CalendarClock,
   Download,
   Eye,
   KeyRound,
@@ -37,6 +38,8 @@ import {
   Play,
   Settings2,
   Smartphone,
+  Snowflake,
+  TrendingDown,
 } from "lucide-react";
 import {
   useAtRisk,
@@ -56,6 +59,7 @@ import { DetailSheet } from "../components/DetailSheet";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PhoneInput } from "../components/PhoneInput";
 import { Money, PageHeader, SectionLabel, StatusBadge } from "../components/ui";
+import { BigMetric, FilterChip, GlassCard, MetricTile, Stagger } from "../components/aurora";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
 import { errMsg } from "../lib/errors";
@@ -78,6 +82,17 @@ const LEAVE_ELIGIBLE = new Set([
   "approved_no_plan",
   "drop_in",
 ]);
+
+// Segmentos del padrón. Mismos valores que antes (viven en la URL); lo que
+// cambia es el material: pastillas de vidrio en vez de un SegmentedControl.
+const FILTROS = [
+  { value: "todos", label: "Todos" },
+  { value: "morosos", label: "Morosos" },
+  { value: "por_vencer", label: "Por vencer" },
+  { value: "en_riesgo", label: "En riesgo" },
+  { value: "bajas", label: "Bajas" },
+  { value: "pausadas", label: "Congeladas" },
+];
 
 function DueBadge({ days, date }: { days?: number | null; date?: string | null }) {
   if (days == null) return <Text c="dimmed">—</Text>;
@@ -397,6 +412,14 @@ export function AthletesPage() {
       return false;
     return true;
   });
+  // Conteos del encabezado: se derivan de lo que YA está cargado (no hay
+  // consultas nuevas) y describen el padrón completo, no el segmento filtrado.
+  const padron = data ?? [];
+  const activos = padron.filter((m) => m.status === "active").length;
+  const morosos = padron.filter((m) => m.payment_status === "overdue").length;
+  const porVencer = padron.filter((m) => m.payment_status === "due_soon").length;
+  const congeladas = padron.filter((m) => m.status === "paused").length;
+
   const rows =
     sortStatus.columnAccessor === "payment_priority"
       ? [...filtered].sort(
@@ -411,7 +434,7 @@ export function AthletesPage() {
       <PageHeader
         kicker="Usuarios · Padrón"
         title="Atletas del gimnasio"
-        subtitle="Solo se muestra la relación con ESTE gym (visibilidad por relación)."
+        subtitle="El padrón completo: estado de pago, vencimientos y quién se está enfriando. Solo se muestra la relación con ESTE gym."
         action={
           <Button
             variant="default"
@@ -437,20 +460,22 @@ export function AthletesPage() {
         }
       />
 
-      <Group justify="space-between" mb="md" wrap="wrap">
+      <Group justify="space-between" align="center" mb="md" wrap="wrap" gap="md">
+        <Stagger
+          from={0.6}
+          style={{ display: "flex", flexWrap: "wrap", gap: "calc(9 * var(--u))" }}
+        >
+          {FILTROS.map((f) => (
+            <FilterChip
+              key={f.value}
+              active={filtro === f.value}
+              onClick={() => setFiltro(f.value)}
+            >
+              {f.label}
+            </FilterChip>
+          ))}
+        </Stagger>
         <Group gap="sm" wrap="wrap">
-          <SegmentedControl
-            value={filtro}
-            onChange={setFiltro}
-            data={[
-              { label: "Todos", value: "todos" },
-              { label: `Morosos`, value: "morosos" },
-              { label: "Por vencer", value: "por_vencer" },
-              { label: "En riesgo", value: "en_riesgo" },
-              { label: "Bajas", value: "bajas" },
-              { label: "Congeladas", value: "pausadas" },
-            ]}
-          />
           {/* Riesgo y mora definen QUIÉN cae en esos filtros: se configuran aquí
               mismo, no en una pantalla aparte donde nadie lo relacionaría. */}
           <Popover opened={riesgoOpen} onChange={setRiesgoOpen} position="bottom-start" withArrow withinPortal>
@@ -533,23 +558,87 @@ export function AthletesPage() {
             w={{ base: "100%", sm: 240 }}
           />
         </Group>
-        <Text c="dimmed" size="sm">
-          {rows.length} {rows.length === 1 ? "atleta" : "atletas"}
-        </Text>
       </Group>
+
+      {/* Cifra protagonista del padrón + estado de la cartera. Los conteos son
+          del gimnasio completo, no del segmento que esté filtrado. */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(calc(290 * var(--u)), 1fr))",
+          gap: "calc(16 * var(--u))",
+          marginBottom: "calc(20 * var(--u))",
+        }}
+      >
+        {/* La tarjeta se estira a la altura de la retícula de tiles: el bloque
+            va centrado para que el aire quede repartido, no colgando abajo. */}
+        <GlassCard
+          variant="core"
+          sheen
+          padding={24}
+          delay={0.7}
+          style={{ display: "flex", alignItems: "center" }}
+        >
+          <BigMetric
+            label="Atletas activos"
+            value={activos}
+            hint={`${padron.length} ${padron.length === 1 ? "relación" : "relaciones"} en el padrón de este gimnasio.`}
+            delay={1.02}
+          />
+        </GlassCard>
+
+        <Stagger
+          from={0.92}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(calc(150 * var(--u)), 1fr))",
+            gap: "calc(14 * var(--u))",
+            alignContent: "start",
+          }}
+        >
+          <MetricTile
+            label="Morosos"
+            value={morosos}
+            icon={<AlertTriangle size={16} strokeWidth={1.8} />}
+            tone="var(--nucleo-danger)"
+          />
+          <MetricTile
+            label="Por vencer"
+            value={porVencer}
+            icon={<CalendarClock size={16} strokeWidth={1.8} />}
+            tone="var(--nucleo-warning)"
+          />
+          <MetricTile
+            label="En riesgo"
+            /* Si la lista de riesgo no cargó se muestra un guion: un 0 aquí
+               diría "nadie en riesgo", que es justo lo contrario del dato. */
+            value={atRisk.isError ? "—" : atRiskIds.size}
+            icon={<TrendingDown size={16} strokeWidth={1.8} />}
+            tone="var(--nucleo-accent)"
+          />
+          <MetricTile
+            label="Congeladas"
+            value={congeladas}
+            icon={<Snowflake size={16} strokeWidth={1.8} />}
+          />
+        </Stagger>
+      </div>
 
       {/* Sin la lista de riesgo el filtro "En riesgo" sale vacío y parece que no hay
           nadie en riesgo: hay que decir que es un fallo de carga, no un dato. */}
       {filtro === "en_riesgo" && atRisk.isError && (
-        <Card mb="md">
+        <GlassCard padding={16} style={{ marginBottom: "calc(16 * var(--u))" }}>
           <PageError
             message="No se pudo cargar la lista de atletas en riesgo."
             onRetry={() => atRisk.refetch()}
           />
-        </Card>
+        </GlassCard>
       )}
 
-      <Card>
+      <SectionLabel mb="xs" as="h2">
+        Padrón · {rows.length} {rows.length === 1 ? "atleta" : "atletas"}
+      </SectionLabel>
+      <GlassCard padding={8} delay={1.05} style={{ overflow: "hidden" }}>
         <DataTable<Membership>
           minHeight={180}
           highlightOnHover
@@ -709,7 +798,7 @@ export function AthletesPage() {
             },
           ]}
         />
-      </Card>
+      </GlassCard>
 
       <DetailSheet
         opened={!!selectedMembershipId}
@@ -801,8 +890,10 @@ export function AthletesPage() {
             </Text>
           </SimpleGrid>
 
-          <SectionLabel mt="lg">Cobro y renovación</SectionLabel>
-          <Card withBorder padding="sm">
+          <SectionLabel mt="lg" as="h2">Cobro y renovación</SectionLabel>
+          {/* El vidrio lo pone el tema (`Card` → `.a-glass-card`): sin `withBorder`,
+              que duplicaría el hairline del material. */}
+          <Card padding="sm">
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
               <Switch
                 label="Renovación automática"
@@ -833,8 +924,8 @@ export function AthletesPage() {
             </SimpleGrid>
           </Card>
 
-          <SectionLabel mt="lg">Congelamiento</SectionLabel>
-          <Card withBorder padding="sm">
+          <SectionLabel mt="lg" as="h2">Congelamiento</SectionLabel>
+          <Card padding="sm">
             {detail.data.status === "paused" ? (
               <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
                 <div style={{ flex: 1, minWidth: 220 }}>
@@ -913,9 +1004,9 @@ export function AthletesPage() {
             </Accordion.Item>
           </Accordion>
 
-          <Title order={4} mt="lg" mb="xs">
+          <SectionLabel mt="lg" mb="xs" as="h2">
             Pagos en este gimnasio
-          </Title>
+          </SectionLabel>
           {detail.data.payments.length === 0 ? (
             <Text c="dimmed" size="sm">Sin pagos registrados.</Text>
           ) : (
@@ -945,9 +1036,9 @@ export function AthletesPage() {
             </Table>
           )}
 
-          <Title order={4} mt="lg" mb="xs">
+          <SectionLabel mt="lg" mb="xs" as="h2">
             Asistencia en este gimnasio
-          </Title>
+          </SectionLabel>
           {detail.data.checkins.length === 0 ? (
             <Text c="dimmed" size="sm">Sin check-ins registrados.</Text>
           ) : (

@@ -72,7 +72,8 @@ import type {
 import { notifications } from "@mantine/notifications";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { RowActions } from "../components/RowActions";
-import { Money, PageHeader } from "../components/ui";
+import { Money, PageHeader, SectionLabel } from "../components/ui";
+import { BigMetric, GlassCard, MetricTile, Stagger, delayVar } from "../components/aurora";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
 import { CHECKIN_METHOD, CLASS_STATUS, label } from "../lib/labels";
@@ -132,7 +133,8 @@ export function ClassesPage() {
         subtitle="Define servicios, arma el horario semanal, registra asistencia y publica la rutina del día."
       />
       <Tabs defaultValue="schedule">
-        <Tabs.List mb="lg">
+        {/* Las pestañas entran justo después del hairline del hero. */}
+        <Tabs.List mb="lg" className="a-rise" style={delayVar(0.5)}>
           <Tabs.Tab value="services">Servicios</Tabs.Tab>
           <Tabs.Tab value="schedule">Horario semanal</Tabs.Tab>
           <Tabs.Tab value="classes">Clases</Tabs.Tab>
@@ -207,7 +209,8 @@ function DropinsTab({ gymId }: { gymId: string }) {
 
   return (
     <div>
-      <Card withBorder mb="lg">
+      <GlassCard delay={0.6} padding={22} style={{ marginBottom: "calc(18 * var(--u))" }}>
+        <SectionLabel mb={6}>Accesos temporales</SectionLabel>
         <Title order={4} mb={4}>
           Nuevo pase
         </Title>
@@ -246,67 +249,72 @@ function DropinsTab({ gymId }: { gymId: string }) {
             </Alert>
           ) : null}
         </form>
-      </Card>
+      </GlassCard>
 
-      {rows.length === 0 ? (
-        <Text c="dimmed">Aún no ofreces pases drop-in. Crea uno arriba.</Text>
-      ) : (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Tipo</Table.Th>
-              <Table.Th>Nombre</Table.Th>
-              <Table.Th ta="right">Precio</Table.Th>
-              <Table.Th>Activo</Table.Th>
-              <Table.Th />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.map((p) => (
-              <Table.Tr key={p.id}>
-                <Table.Td>{p.type_label ?? dropinTypeLabel(p.type)}</Table.Td>
-                <Table.Td>{p.name || "—"}</Table.Td>
-                <Table.Td ta="right"><Money value={p.price} decimals={2} /></Table.Td>
-                <Table.Td>
-                  <Switch
-                    checked={p.is_active}
-                    onChange={(e) => {
-                      // El valor se captura ANTES del callback: `currentTarget` ya
-                      // no es confiable cuando la mutación resuelve.
-                      const activo = e.currentTarget.checked;
-                      update.mutate(
-                        { id: p.id, body: { is_active: activo } },
-                        {
-                          onSuccess: () => ok(activo ? "Pase activado." : "Pase desactivado."),
-                          onError: (error) => fail(error, "No se pudo cambiar el estado del pase."),
-                        },
-                      );
-                    }}
-                  />
-                </Table.Td>
-                <Table.Td>
-                  {p.is_active ? (
-                    <Button
-                      variant="subtle"
-                      color="red"
-                      size="xs"
-                      onClick={() =>
-                        deactivate.mutate(p.id, {
-                          onSuccess: () => ok("Pase desactivado."),
-                          onError: (error) => fail(error, "No se pudo desactivar el pase."),
-                        })
-                      }
-                      loading={deactivate.isPending}
-                    >
-                      Desactivar
-                    </Button>
-                  ) : null}
-                </Table.Td>
+      <GlassCard delay={0.72} padding={18}>
+        <SectionLabel as="h2" mb={10}>Pases publicados</SectionLabel>
+        {rows.length === 0 ? (
+          <Text c="dimmed" size="sm">
+            Aún no ofreces pases drop-in. Crea uno arriba.
+          </Text>
+        ) : (
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Tipo</Table.Th>
+                <Table.Th>Nombre</Table.Th>
+                <Table.Th ta="right">Precio</Table.Th>
+                <Table.Th>Activo</Table.Th>
+                <Table.Th />
               </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
+            </Table.Thead>
+            <Table.Tbody>
+              {rows.map((p) => (
+                <Table.Tr key={p.id}>
+                  <Table.Td>{p.type_label ?? dropinTypeLabel(p.type)}</Table.Td>
+                  <Table.Td>{p.name || "—"}</Table.Td>
+                  <Table.Td ta="right"><Money value={p.price} decimals={2} /></Table.Td>
+                  <Table.Td>
+                    <Switch
+                      checked={p.is_active}
+                      onChange={(e) => {
+                        // El valor se captura ANTES del callback: `currentTarget` ya
+                        // no es confiable cuando la mutación resuelve.
+                        const activo = e.currentTarget.checked;
+                        update.mutate(
+                          { id: p.id, body: { is_active: activo } },
+                          {
+                            onSuccess: () => ok(activo ? "Pase activado." : "Pase desactivado."),
+                            onError: (error) => fail(error, "No se pudo cambiar el estado del pase."),
+                          },
+                        );
+                      }}
+                    />
+                  </Table.Td>
+                  <Table.Td>
+                    {p.is_active ? (
+                      <Button
+                        variant="subtle"
+                        color="red"
+                        size="xs"
+                        onClick={() =>
+                          deactivate.mutate(p.id, {
+                            onSuccess: () => ok("Pase desactivado."),
+                            onError: (error) => fail(error, "No se pudo desactivar el pase."),
+                          })
+                        }
+                        loading={deactivate.isPending}
+                      >
+                        Desactivar
+                      </Button>
+                    ) : null}
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        )}
+      </GlassCard>
     </div>
   );
 }
@@ -377,7 +385,9 @@ function ServicesTab({ gymId }: { gymId: string }) {
 
   return (
     <>
-      <Card mb="lg" component="form" onSubmit={submit}>
+      {/* El alta conserva `component="form"`: el vidrio se lo pone el tema. */}
+      <Card mb="lg" component="form" onSubmit={submit} className="a-slide-r" style={delayVar(0.6)}>
+        <SectionLabel mb={6}>Catálogo de disciplinas</SectionLabel>
         <Title order={3} mb={4}>
           Nuevo servicio
         </Title>
@@ -442,7 +452,8 @@ function ServicesTab({ gymId }: { gymId: string }) {
         </Group>
       </Card>
 
-      <Card>
+      <GlassCard delay={0.72} padding={18}>
+        <SectionLabel as="h2" mb={10}>Servicios del gimnasio</SectionLabel>
         <DataTable<ServiceType>
           minHeight={140}
           highlightOnHover
@@ -464,10 +475,23 @@ function ServicesTab({ gymId }: { gymId: string }) {
                     <img
                       src={s.photo}
                       alt={s.name}
-                      style={{ width: 46, height: 34, objectFit: "cover", borderRadius: 6 }}
+                      style={{
+                        width: 46,
+                        height: 34,
+                        objectFit: "cover",
+                        borderRadius: "calc(8 * var(--u))",
+                        border: "1px solid var(--a-line)",
+                      }}
                     />
                   ) : (
-                    <span style={{ width: 12, height: 12, borderRadius: 3, background: s.color || "#888" }} />
+                    <span
+                      style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: "calc(4 * var(--u))",
+                        background: s.color || "#888",
+                      }}
+                    />
                   )}
                   <div>
                     <Text fw={600}>{s.name}</Text>
@@ -500,7 +524,12 @@ function ServicesTab({ gymId }: { gymId: string }) {
               sortable: true,
               render: (s) =>
                 s.rating != null ? (
-                  <Text size="sm">⭐ {s.rating.toFixed(1)} <Text span c="dimmed" size="xs">({s.rating_count})</Text></Text>
+                  <Text size="sm">
+                    ⭐ <span className="a-tabular">{s.rating.toFixed(1)}</span>{" "}
+                    <Text span c="dimmed" size="xs">
+                      ({s.rating_count})
+                    </Text>
+                  </Text>
                 ) : (
                   <Text c="dimmed" size="sm">—</Text>
                 ),
@@ -554,7 +583,7 @@ function ServicesTab({ gymId }: { gymId: string }) {
             },
           ]}
         />
-      </Card>
+      </GlassCard>
 
       <EditServiceTypeModal
         service={editing}
@@ -650,7 +679,13 @@ function EditServiceTypeModal({
           <img
             src={service.photo}
             alt={service.name}
-            style={{ width: 86, height: 56, objectFit: "cover", borderRadius: 8 }}
+            style={{
+              width: 86,
+              height: 56,
+              objectFit: "cover",
+              borderRadius: "calc(12 * var(--u))",
+              border: "1px solid var(--a-line)",
+            }}
           />
           <Text c="dimmed" size="xs">
             Foto actual — sube otra para reemplazarla.
@@ -789,7 +824,8 @@ function ScheduleTab({ gymId }: { gymId: string }) {
 
   return (
     <>
-      <Card mb="lg" component="form" onSubmit={submit}>
+      <Card mb="lg" component="form" onSubmit={submit} className="a-slide-r" style={delayVar(0.6)}>
+        <SectionLabel mb={6}>Plantilla semanal</SectionLabel>
         <Title order={3} mb={4}>
           Agregar al horario
         </Title>
@@ -840,9 +876,12 @@ function ScheduleTab({ gymId }: { gymId: string }) {
         </Group>
       </Card>
 
-      <Card>
-        <Group justify="space-between" mb="sm">
-          <Title order={3}>Horario actual</Title>
+      <GlassCard delay={0.72} padding={18}>
+        <Group justify="space-between" mb="sm" wrap="wrap" gap="sm">
+          <div>
+            <SectionLabel mb={4}>Franjas activas</SectionLabel>
+            <Title order={3}>Horario actual</Title>
+          </div>
           <Tooltip label="Reconstruye el calendario futuro desde los horarios activos (quita clases sobrantes sin reservas y regenera las próximas semanas)">
             <Button
               variant="light"
@@ -884,7 +923,14 @@ function ScheduleTab({ gymId }: { gymId: string }) {
               sortable: true,
               render: (s) => (
                 <Group gap="xs">
-                  <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color || "#888" }} />
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "calc(4 * var(--u))",
+                      background: s.color || "#888",
+                    }}
+                  />
                   {s.service_type_name}
                   {s.requires_wod && <Badge size="xs" color="flame">Rutina</Badge>}
                 </Group>
@@ -920,7 +966,7 @@ function ScheduleTab({ gymId }: { gymId: string }) {
             },
           ]}
         />
-      </Card>
+      </GlassCard>
 
       <EditScheduleModal
         schedule={editing}
@@ -1048,8 +1094,48 @@ function ClassesTab({ gymId }: { gymId: string }) {
 
   return (
     <>
+      {/* La cifra que manda en esta pantalla: lo que se opera hoy en el box. */}
+      <GlassCard
+        variant="core"
+        sheen
+        padding={24}
+        delay={0.6}
+        style={{ marginBottom: "calc(18 * var(--u))" }}
+      >
+        <BigMetric
+          label="Clases de hoy"
+          value={countHoy}
+          hint="La asistencia se registra desde 30 minutos antes del inicio hasta una hora después del cierre."
+          delay={1.0}
+        />
+      </GlassCard>
+
+      <Stagger from={0.7} style={{ marginBottom: "calc(18 * var(--u))" }}>
+        <SimpleGrid cols={{ base: 2, md: 4 }} spacing="md">
+          <MetricTile label="Próximas" value={countProximas} />
+          <MetricTile label="Pasado · 60 días" value={countPasado} />
+          <MetricTile
+            label="Hoy sin coach"
+            value={hoySinCoach.length}
+            tone={hoySinCoach.length ? "var(--nucleo-warning)" : undefined}
+          />
+          <MetricTile
+            label="Hoy sin rutina"
+            value={hoySinRutina.length}
+            tone={hoySinRutina.length ? "var(--nucleo-warning)" : undefined}
+          />
+        </SimpleGrid>
+      </Stagger>
+
       {(hoySinCoach.length > 0 || hoySinRutina.length > 0) && (
-        <Alert color="yellow" variant="light" mb="lg" title="Atención para hoy">
+        <Alert
+          color="yellow"
+          variant="light"
+          mb="lg"
+          title="Atención para hoy"
+          className="a-rise"
+          style={delayVar(0.78)}
+        >
           {hoySinCoach.length > 0 && (
             <Text size="sm">
               🧑‍🏫 {hoySinCoach.length === 1 ? "1 clase sin coach asignado" : `${hoySinCoach.length} clases sin coach asignado`}:{" "}
@@ -1065,7 +1151,8 @@ function ClassesTab({ gymId }: { gymId: string }) {
         </Alert>
       )}
 
-      <Card mb="lg">
+      <GlassCard delay={0.84} padding={22} style={{ marginBottom: "calc(18 * var(--u))" }}>
+        <SectionLabel mb={6}>Configuración</SectionLabel>
         <Title order={3} mb={4}>
           Reservas de clases
         </Title>
@@ -1102,10 +1189,11 @@ function ClassesTab({ gymId }: { gymId: string }) {
             Los atletas solo verán habilitada la reserva de las clases del día.
           </Text>
         )}
-      </Card>
+      </GlassCard>
 
-      <Card>
-        <Group justify="space-between" mb="md">
+      <GlassCard delay={0.9} padding={18}>
+        <SectionLabel as="h2" mb={10}>Calendario de clases</SectionLabel>
+        <Group justify="space-between" mb="md" wrap="wrap" gap="sm">
           <SegmentedControl
             value={timeTab}
             onChange={(v) => {
@@ -1154,7 +1242,14 @@ function ClassesTab({ gymId }: { gymId: string }) {
               render: (gymClass) => (
                 <Group gap="xs">
                   {gymClass.color && (
-                    <span style={{ width: 10, height: 10, borderRadius: 3, background: gymClass.color }} />
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: "calc(4 * var(--u))",
+                        background: gymClass.color,
+                      }}
+                    />
                   )}
                   {gymClass.class_type}
                   {gymClass.needs_wod && <Badge size="xs" color="flame">Rutina</Badge>}
@@ -1190,7 +1285,12 @@ function ClassesTab({ gymId }: { gymId: string }) {
               title: "Calificación",
               render: (gymClass) =>
                 gymClass.rating != null ? (
-                  <Text size="sm">⭐ {gymClass.rating.toFixed(1)} <Text span c="dimmed" size="xs">({gymClass.rating_count})</Text></Text>
+                  <Text size="sm">
+                    ⭐ <span className="a-tabular">{gymClass.rating.toFixed(1)}</span>{" "}
+                    <Text span c="dimmed" size="xs">
+                      ({gymClass.rating_count})
+                    </Text>
+                  </Text>
                 ) : (
                   <Text c="dimmed" size="sm">—</Text>
                 ),
@@ -1238,7 +1338,7 @@ function ClassesTab({ gymId }: { gymId: string }) {
             },
           ]}
         />
-      </Card>
+      </GlassCard>
 
       <AssignCoachModal
         gymClass={editing}
@@ -1382,10 +1482,19 @@ function ClassQrBlock({ gymId, classId }: { gymId: string; classId: string }) {
   if (!qr.data) return <Text c="dimmed" size="sm">No se pudo generar el QR.</Text>;
   return (
     <Group align="center" gap="lg">
-      <div style={{ background: "#fff", padding: 12, borderRadius: 8 }}>
+      {/* Única superficie opaca de la pantalla: el QR necesita blanco para que
+          la cámara del atleta lo lea. */}
+      <div
+        style={{
+          background: "#fff",
+          padding: "calc(14 * var(--u))",
+          borderRadius: "var(--a-r-control)",
+        }}
+      >
         <QRCode value={qr.data.qr_token} size={140} />
       </div>
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <SectionLabel mb={4}>Check-in</SectionLabel>
         <Text fw={600}>QR de asistencia</Text>
         <Text c="dimmed" size="sm">
           Los atletas lo escanean desde su app para registrar su asistencia. El código pertenece a esta clase.
@@ -1530,7 +1639,8 @@ function WodTab({ gymId }: { gymId: string }) {
 
   return (
     <>
-      <Card mb="lg" component="form" onSubmit={submit}>
+      <Card mb="lg" component="form" onSubmit={submit} className="a-slide-r" style={delayVar(0.6)}>
+        <SectionLabel mb={6}>Entrenamiento</SectionLabel>
         <Title order={3} mb={4}>
           Rutina del día
         </Title>
@@ -1588,7 +1698,8 @@ function WodTab({ gymId }: { gymId: string }) {
         </Group>
       </Card>
 
-      <Card>
+      <GlassCard delay={0.72} padding={18}>
+        <SectionLabel mb={4}>Publicadas y borradores</SectionLabel>
         <Title order={3} mb="sm">
           Rutinas del {dateStr}
         </Title>
@@ -1685,7 +1796,7 @@ function WodTab({ gymId }: { gymId: string }) {
             },
           ]}
         />
-      </Card>
+      </GlassCard>
 
       <BoardModal gymId={gymId} wod={openBoard} onClose={() => setOpenBoard(null)} />
     </>
@@ -1799,6 +1910,7 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
             {(board.data ?? []).map((r) => (
               <Table.Tr key={r.id}>
                 <Table.Td>
+                  {/* Podio con medallas: el emoji comunica el rango de un vistazo. */}
                   {r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : r.rank}
                 </Table.Td>
                 <Table.Td>{r.athlete_name}</Table.Td>

@@ -11,7 +11,6 @@ import {
   Text,
   Textarea,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
@@ -24,6 +23,8 @@ import {
 import type { ErpSupplier } from "../api/types";
 import { PageError } from "../components/PageStatus";
 import { RowActions } from "../components/RowActions";
+import { GlassCard, Reveal } from "../components/aurora";
+import { SectionLabel } from "../components/ui";
 import { errMsg } from "../lib/errors";
 import { sortRecords } from "../lib/sortRecords";
 
@@ -144,10 +145,10 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
     <div>
       {suppliers.isError && <PageError onRetry={() => suppliers.refetch()} />}
 
+      {/* Alta: primera tanda del ritmo Aurora (0.6s). */}
+      <Reveal anim="slide-r" delay={0.6}>
       <Card mb="lg" component="form" onSubmit={onCrear}>
-        <Title order={3} mb={4}>
-          Nuevo proveedor
-        </Title>
+        <SectionLabel as="h2" mb={6}>Nuevo proveedor</SectionLabel>
         <Text c="dimmed" size="sm" mb="md">
           A quién le compras. Después le levantas órdenes de compra y, al recibirlas, el stock
           entra solo con su costo real.
@@ -192,9 +193,14 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
           </Group>
         </Stack>
       </Card>
+      </Reveal>
 
-      <Card>
-        <Group align="flex-end" gap="md" mb="md" wrap="wrap">
+      <GlassCard
+        padding={16}
+        delay={0.72}
+        style={{ marginBottom: "calc(16 * var(--u))" }}
+      >
+        <Group align="flex-end" gap="md" wrap="wrap">
           <TextInput
             label="Buscar"
             placeholder="Nombre, contacto o NIT…"
@@ -214,7 +220,10 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
             ]}
           />
         </Group>
+      </GlassCard>
 
+      <SectionLabel as="h2" mb="xs">Proveedores del gym</SectionLabel>
+      <GlassCard padding={14} delay={0.84}>
         <DataTable<ErpSupplier>
           minHeight={160}
           highlightOnHover
@@ -265,7 +274,7 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
             },
           ]}
         />
-      </Card>
+      </GlassCard>
 
       <Modal
         opened={!!editando}

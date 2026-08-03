@@ -1,14 +1,12 @@
 import { FormEvent, useState } from "react";
 import {
   Button,
-  Card,
   Group,
   SimpleGrid,
   Stack,
   Text,
   TextInput,
   Select,
-  Title,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
@@ -24,7 +22,8 @@ import {
 import { JoinRequest } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { PhoneInput } from "../components/PhoneInput";
-import { PageHeader, StatusBadge } from "../components/ui";
+import { GlassCard } from "../components/aurora";
+import { CountBadge, PageHeader, SectionLabel, StatusBadge } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
 import { sortRecords } from "../lib/sortRecords";
@@ -192,80 +191,94 @@ export function RequestsPage() {
     }
   };
 
+  // La bandeja se calcula una sola vez: el conteo del encabezado y las filas de
+  // la tabla tienen que ser exactamente el mismo conjunto.
+  const bandeja = sortRecords(
+    (requests.data ?? []).filter(
+      (r) =>
+        // Solo solicitudes accionables: las ya resueltas (activa, rechazada,
+        // baja) salen de la bandeja y viven en "Atletas".
+        ACTIONABLE_STATUSES.includes(r.status ?? "") &&
+        (!search.trim() || (r.athlete_name ?? "").toLowerCase().includes(search.trim().toLowerCase())),
+    ),
+    sortStatus,
+  );
+
   return (
     <div>
-      <PageHeader kicker="Usuarios · Bandeja" title="Solicitudes e invitaciones" subtitle="Resuelve solicitudes e invita atletas al gym." />
+      <PageHeader
+        kicker="Usuarios · Bandeja"
+        title="Solicitudes e invitaciones"
+        subtitle="Aprueba, ofrece prueba o rechaza a quien pide entrar, e invita atletas nuevos al gimnasio."
+      />
 
-      <Card mb="lg" component="form" onSubmit={onInvite}>
-        <Title order={3} mb="sm">
-          Invitar atleta
-        </Title>
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
-          <TextInput label="Correo electrónico" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.currentTarget.value })} />
-          <TextInput label="Nombre" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.currentTarget.value })} />
-          <TextInput label="Apellido" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.currentTarget.value })} />
-          <PhoneInput label="Teléfono (opcional)" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
-        </SimpleGrid>
-        <Text c="dimmed" size="sm" mt="md" mb={4}>
-          Periodo temporal (opcional): al aceptar la invitación, el atleta queda como <strong>temporal (prueba)</strong> entre estas fechas.
-        </Text>
-        <Group align="flex-end">
-          {/* No se permiten fechas en el pasado (el backend lo revalida). */}
-          <DateInput
-            label="Desde"
-            value={trialStart}
-            onChange={setTrialStart}
-            valueFormat="YYYY-MM-DD"
-            minDate={new Date()}
-            clearable
-          />
-          <DateInput
-            label="Hasta"
-            value={trialEnd}
-            onChange={setTrialEnd}
-            valueFormat="YYYY-MM-DD"
-            minDate={trialStart ?? new Date()}
-            clearable
-          />
-        </Group>
-        {invite.isError && (
-          <Text c="red" size="sm" mt="sm">
-            {inviteErrorMessage(invite.error) ?? "No se pudo enviar la invitación. Verifica los datos."}
+      <GlassCard padding={20} delay={0.6} style={{ marginBottom: "calc(20 * var(--u))" }}>
+        <form onSubmit={onInvite}>
+          <SectionLabel mb={12} as="h2">Invitar atleta</SectionLabel>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
+            <TextInput label="Correo electrónico" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.currentTarget.value })} />
+            <TextInput label="Nombre" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.currentTarget.value })} />
+            <TextInput label="Apellido" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.currentTarget.value })} />
+            <PhoneInput label="Teléfono (opcional)" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
+          </SimpleGrid>
+          <Text c="dimmed" size="sm" mt="md" mb={4}>
+            Periodo temporal (opcional): al aceptar la invitación, el atleta queda como <strong>temporal (prueba)</strong> entre estas fechas.
           </Text>
-        )}
-        <Button
-          type="submit"
-          mt="md"
-          loading={invite.isPending}
-          disabled={!form.email || !form.first_name || !form.last_name}
-        >
-          Enviar invitación
-        </Button>
-      </Card>
+          <Group align="flex-end">
+            {/* No se permiten fechas en el pasado (el backend lo revalida). */}
+            <DateInput
+              label="Desde"
+              value={trialStart}
+              onChange={setTrialStart}
+              valueFormat="YYYY-MM-DD"
+              minDate={new Date()}
+              clearable
+            />
+            <DateInput
+              label="Hasta"
+              value={trialEnd}
+              onChange={setTrialEnd}
+              valueFormat="YYYY-MM-DD"
+              minDate={trialStart ?? new Date()}
+              clearable
+            />
+          </Group>
+          {invite.isError && (
+            <Text c="red" size="sm" mt="sm">
+              {inviteErrorMessage(invite.error) ?? "No se pudo enviar la invitación. Verifica los datos."}
+            </Text>
+          )}
+          <Button
+            type="submit"
+            mt="md"
+            loading={invite.isPending}
+            disabled={!form.email || !form.first_name || !form.last_name}
+          >
+            Enviar invitación
+          </Button>
+        </form>
+      </GlassCard>
 
-      <Card>
+      <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb={10}>
+        <Group gap="xs" align="center">
+          <SectionLabel mb={0} as="h2">Bandeja de solicitudes</SectionLabel>
+          <CountBadge count={bandeja.length} />
+        </Group>
         <TextInput
           placeholder="Buscar atleta…"
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
-          mb="md"
           w={{ base: "100%", sm: 260 }}
         />
+      </Group>
+
+      <GlassCard padding={10} delay={0.72}>
         <DataTable<JoinRequest>
           minHeight={160}
           highlightOnHover
           verticalSpacing="md"
           idAccessor="id"
-          records={sortRecords(
-            (requests.data ?? []).filter(
-              (r) =>
-                // Solo solicitudes accionables: las ya resueltas (activa, rechazada,
-                // baja) salen de la bandeja y viven en "Atletas".
-                ACTIONABLE_STATUSES.includes(r.status ?? "") &&
-                (!search.trim() || (r.athlete_name ?? "").toLowerCase().includes(search.trim().toLowerCase())),
-            ),
-            sortStatus,
-          )}
+          records={bandeja}
           fetching={requests.isLoading}
           noRecordsText="Las nuevas solicitudes de unión aparecerán aquí."
           sortStatus={sortStatus}
@@ -286,7 +299,7 @@ export function RequestsPage() {
             },
           ]}
         />
-      </Card>
+      </GlassCard>
     </div>
   );
 }

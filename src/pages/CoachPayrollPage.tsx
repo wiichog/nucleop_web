@@ -3,17 +3,17 @@ import {
   Avatar,
   Badge,
   Button,
-  Card,
+  Divider,
   Group,
   NumberInput,
   Select,
   Switch,
   Table,
   Text,
-  Title,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
+import { CalendarClock, Dumbbell, Users, Wallet } from "lucide-react";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useCoachPayouts,
@@ -25,7 +25,8 @@ import {
 import type { CoachPayout } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { Money, PageHeader } from "../components/ui";
+import { Money, PageHeader, SectionLabel } from "../components/ui";
+import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora";
 import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
@@ -121,18 +122,83 @@ export function CoachPayrollPage() {
     }
   };
 
+  // Cifras derivadas de lo que ya está cargado: no hay consulta nueva.
+  const roster = coaches.data ?? [];
+  const liquidaciones = (payouts.data ?? []) as CoachPayout[];
+  const abiertas = liquidaciones.filter((p) => p.status === "open");
+  const porLiquidar = abiertas.reduce((acc, p) => acc + Number(p.total), 0);
+  const pagado = liquidaciones
+    .filter((p) => p.status === "paid")
+    .reduce((acc, p) => acc + Number(p.total), 0);
+  /** Mientras carga el roster, un 0 se leería como "no tienes coaches". */
+  const kpi = (n: number) => (coaches.isLoading ? "—" : n);
+
   return (
     <div>
       <PageHeader
         kicker="Negocio · Nómina"
         title="Pagos a coaches"
-        subtitle="Define cómo se le paga a cada coach y genera las liquidaciones por periodo (registra la nómina como gasto)."
+        subtitle="Define cómo se le paga a cada coach, habilita el personal trainer y genera las liquidaciones del periodo (quedan registradas como gasto de nómina)."
       />
 
-      <Card mb="lg">
-        <Title order={3} mb="sm">
-          Forma de pago por coach
-        </Title>
+      {/* Cifra protagonista: lo que el gimnasio le debe a sus coaches ahora. */}
+      <GlassCard variant="core" sheen padding={26} delay={0.6}>
+        <BigMetric
+          label="Por liquidar"
+          value={payouts.isLoading ? "—" : money(porLiquidar)}
+          fz="clamp(34px, calc(58 * var(--u)), 68px)"
+          delay={1.0}
+        />
+        <Group gap="lg" mt="lg" wrap="wrap" className="a-rise" style={{ animationDelay: "1.12s" }}>
+          <div>
+            <SectionLabel mb={4}>Liquidaciones abiertas</SectionLabel>
+            <Text fw={600} className="a-tabular">
+              {payouts.isLoading ? "—" : abiertas.length}
+            </Text>
+          </div>
+          <Divider orientation="vertical" />
+          <div>
+            <SectionLabel mb={4}>Pagado acumulado</SectionLabel>
+            <Text fw={600} className="a-tabular">
+              {payouts.isLoading ? "—" : money(pagado)}
+            </Text>
+          </div>
+        </Group>
+      </GlassCard>
+
+      <Stagger
+        from={0.72}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(calc(180 * var(--u)), 1fr))",
+          gap: "calc(14 * var(--u))",
+          margin: "calc(16 * var(--u)) 0 calc(20 * var(--u))",
+        }}
+      >
+        <MetricTile
+          label="Coaches en nómina"
+          value={kpi(roster.length)}
+          icon={<Users size={16} strokeWidth={1.8} />}
+        />
+        <MetricTile
+          label="Pago por clase"
+          value={kpi(roster.filter((c) => c.pay_type === "per_class").length)}
+          icon={<CalendarClock size={16} strokeWidth={1.8} />}
+        />
+        <MetricTile
+          label="Salario fijo"
+          value={kpi(roster.filter((c) => c.pay_type === "fixed").length)}
+          icon={<Wallet size={16} strokeWidth={1.8} />}
+        />
+        <MetricTile
+          label="Ofrecen personal trainer"
+          value={kpi(roster.filter((c) => c.offers_pt).length)}
+          icon={<Dumbbell size={16} strokeWidth={1.8} />}
+        />
+      </Stagger>
+
+      <SectionLabel as="h2" mb={10}>Forma de pago por coach</SectionLabel>
+      <GlassCard padding={18} delay={0.84} style={{ marginBottom: "calc(20 * var(--u))" }}>
         {coaches.isLoading ? (
           <PageLoading />
         ) : !(coaches.data ?? []).length ? (
@@ -222,12 +288,10 @@ export function CoachPayrollPage() {
           Coach por clase: se le acumula la tarifa por cada clase que imparte. Coach fijo: solo se le paga
           extra en las clases marcadas como “pagar extra”.
         </Text>
-      </Card>
+      </GlassCard>
 
-      <Card mb="lg">
-        <Title order={3} mb={4}>
-          Personal trainer
-        </Title>
+      <SectionLabel as="h2" mb={10}>Personal trainer</SectionLabel>
+      <GlassCard padding={18} delay={0.96} style={{ marginBottom: "calc(20 * var(--u))" }}>
         <Text c="dimmed" size="sm" mb="sm">
           Habilita el servicio 1‑a‑1 por coach, su precio y la comisión del trainer. El cobro completo
           es ingreso del gym y la comisión entra a la liquidación del coach (el gym se queda el resto).
@@ -330,19 +394,25 @@ export function CoachPayrollPage() {
             </Table>
           </Table.ScrollContainer>
         )}
-      </Card>
+      </GlassCard>
 
-      <Card>
-        <Group justify="space-between" mb="sm" align="flex-end" component="form" onSubmit={onGenerate}>
-          <div>
-            <Title order={3} mb={4}>
-              Liquidaciones
-            </Title>
+      {/* Controles de periodo: el filtro vive en su propia pastilla de vidrio. */}
+      <GlassCard padding={16} delay={1.08} style={{ marginBottom: "calc(14 * var(--u))" }}>
+        <Group
+          justify="space-between"
+          align="flex-end"
+          gap="md"
+          wrap="wrap"
+          component="form"
+          onSubmit={onGenerate}
+        >
+          <div style={{ minWidth: 0 }}>
+            <SectionLabel as="h2" mb={4}>Periodo a liquidar</SectionLabel>
             <Text c="dimmed" size="sm">
               Genera el pago acumulado de un periodo y márcalo como pagado (registra el gasto de nómina).
             </Text>
           </div>
-          <Group align="flex-end">
+          <Group align="flex-end" gap="sm" wrap="wrap">
             <DatePickerInput label="Desde" value={from} onChange={setFrom} valueFormat="YYYY-MM-DD" />
             <DatePickerInput label="Hasta" value={to} onChange={setTo} valueFormat="YYYY-MM-DD" />
             <Button type="submit" loading={generate.isPending}>
@@ -350,7 +420,10 @@ export function CoachPayrollPage() {
             </Button>
           </Group>
         </Group>
+      </GlassCard>
 
+      <SectionLabel as="h2" mb={10}>Liquidaciones</SectionLabel>
+      <GlassCard padding={12} delay={1.2}>
         {/* Sin esto, un fallo de carga se leía como "todavía no has liquidado
             nada" y el gym generaba la liquidación del periodo otra vez. */}
         {payouts.isError && (
@@ -406,7 +479,7 @@ export function CoachPayrollPage() {
             },
           ]}
         />
-      </Card>
+      </GlassCard>
     </div>
   );
 }

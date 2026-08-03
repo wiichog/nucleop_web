@@ -3,12 +3,10 @@ import {
   Badge,
   Box,
   Button,
-  Card,
   Grid,
   Group,
   Modal,
   SegmentedControl,
-  Select,
   Stack,
   Table,
   Text,
@@ -20,7 +18,8 @@ import { useGymTickets, useTicketReply, useTicketStatus } from "../api/hooks";
 import type { GymTicket } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { PageHeader } from "../components/ui";
+import { PageHeader, SectionLabel } from "../components/ui";
+import { FilterChip, GlassCard, Stagger } from "../components/aurora";
 import { useAuth } from "../lib/auth";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -28,6 +27,23 @@ const STATUS_COLOR: Record<string, string> = {
   in_progress: "blue",
   resolved: "teal",
 };
+
+/** Filtros de la bandeja como pastillas de vidrio (lenguaje Aurora). */
+const FILTROS = [
+  { value: "", label: "Todos" },
+  { value: "open", label: "Abiertos" },
+  { value: "in_progress", label: "En progreso" },
+  { value: "resolved", label: "Resueltos" },
+];
+
+/** Superficie de una burbuja de conversación: vidrio, nunca un bloque opaco. */
+function burbuja(esStaff: boolean) {
+  return {
+    background: esStaff ? "rgba(252,76,2,0.13)" : "rgba(255,255,255,0.06)",
+    border: `1px solid ${esStaff ? "rgba(252,76,2,0.26)" : "var(--a-line)"}`,
+    borderRadius: "var(--a-r-control)",
+  };
+}
 
 /** Adjunto: miniatura clicable que abre la imagen completa en un modal (antes la
  *  imagen salía a tamaño completo y se veía gigante — ticket bb66e7e7). */
@@ -39,10 +55,18 @@ function TicketImage({ src }: { src: string }) {
         src={src}
         alt="adjunto"
         onClick={() => setOpen(true)}
-        style={{ height: 88, width: 88, objectFit: "cover", borderRadius: 8, marginTop: 8, cursor: "zoom-in" }}
+        style={{
+          height: "calc(88 * var(--u))",
+          width: "calc(88 * var(--u))",
+          objectFit: "cover",
+          borderRadius: "calc(12 * var(--u))",
+          border: "1px solid var(--a-line)",
+          marginTop: "calc(8 * var(--u))",
+          cursor: "zoom-in",
+        }}
       />
       <Modal opened={open} onClose={() => setOpen(false)} size="lg" centered title="Adjunto">
-        <img src={src} alt="adjunto" style={{ width: "100%", borderRadius: 8 }} />
+        <img src={src} alt="adjunto" style={{ width: "100%", borderRadius: "calc(14 * var(--u))" }} />
       </Modal>
     </>
   );
@@ -103,30 +127,38 @@ export function TicketsPage() {
       <PageHeader
         kicker="Operación · Soporte"
         title="Reportes / tickets"
-        subtitle="Lo que reportan tus atletas; respóndelo y gestiónalo hasta resolver."
-        action={
-          <Select
-            value={filter}
-            onChange={(v) => setFilter(v ?? "")}
-            data={[
-              { value: "", label: "Todos" },
-              { value: "open", label: "Abiertos" },
-              { value: "in_progress", label: "En progreso" },
-              { value: "resolved", label: "Resueltos" },
-            ]}
-            w={170}
-          />
-        }
+        subtitle="Lo que reportan tus atletas: contesta, dale seguimiento y ciérralo cuando quede resuelto."
       />
+
+      <Stagger
+        from={0.52}
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "calc(10 * var(--u))",
+          marginBottom: "calc(18 * var(--u))",
+        }}
+      >
+        {FILTROS.map((f) => (
+          <FilterChip
+            key={f.value || "todos"}
+            active={filter === f.value}
+            onClick={() => setFilter(f.value)}
+          >
+            {f.label}
+          </FilterChip>
+        ))}
+      </Stagger>
 
       <Grid gutter="lg" align="stretch">
         <Grid.Col span={{ base: 12, lg: selected ? 5 : 12 }}>
-        <Card h="100%">
-          {tickets.isLoading ? (
-            <PageLoading />
-          ) : !rows.length ? (
-            <EmptyState title="Sin tickets" description="Los reportes de tus atletas aparecerán aquí." />
-          ) : (
+        <SectionLabel as="h2">Bandeja · {rows.length}</SectionLabel>
+        {tickets.isLoading ? (
+          <PageLoading />
+        ) : !rows.length ? (
+          <EmptyState title="Sin tickets" description="Los reportes de tus atletas aparecerán aquí." />
+        ) : (
+          <GlassCard padding={12} delay={0.6}>
             <Table highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
@@ -140,7 +172,7 @@ export function TicketsPage() {
                   <Table.Tr
                     key={t.id}
                     onClick={() => setSelectedId(t.id)}
-                    style={{ cursor: "pointer", background: t.id === selectedId ? "var(--mantine-color-dark-6)" : undefined }}
+                    style={{ cursor: "pointer", background: t.id === selectedId ? "rgba(255,255,255,0.09)" : undefined }}
                   >
                     <Table.Td>
                       <Text size="sm" fw={500}>{t.subject}</Text>
@@ -154,13 +186,15 @@ export function TicketsPage() {
                 ))}
               </Table.Tbody>
             </Table>
-          )}
-        </Card>
+          </GlassCard>
+        )}
         </Grid.Col>
 
         {selected && (
           <Grid.Col span={{ base: 12, lg: 7 }}>
-          <Card h="100%">
+          <SectionLabel as="h2">Conversación</SectionLabel>
+          {/* El detalle monta al hacer clic: el retardo es corto a propósito. */}
+          <GlassCard variant="big" padding={22} delay={0.06}>
             <Group justify="space-between" align="flex-start">
               <div>
                 <Title order={3}>{selected.subject}</Title>
@@ -181,7 +215,7 @@ export function TicketsPage() {
             </Group>
 
             <Stack gap="sm" mt="md">
-              <Box p="sm" style={{ background: "var(--mantine-color-dark-6)", borderRadius: 8 }}>
+              <Box p="sm" style={burbuja(false)}>
                 <Text size="xs" c="dimmed" mb={2}>
                   {selected.athlete_name} · {new Date(selected.created_at).toLocaleString("es-GT")}
                 </Text>
@@ -193,8 +227,7 @@ export function TicketsPage() {
                   key={m.id}
                   p="sm"
                   style={{
-                    background: m.is_staff ? "rgba(252,76,2,0.10)" : "var(--mantine-color-dark-6)",
-                    borderRadius: 8,
+                    ...burbuja(m.is_staff),
                     alignSelf: m.is_staff ? "flex-end" : "flex-start",
                     maxWidth: "85%",
                   }}
@@ -221,7 +254,7 @@ export function TicketsPage() {
                 Responder
               </Button>
             </Group>
-          </Card>
+          </GlassCard>
           </Grid.Col>
         )}
       </Grid>

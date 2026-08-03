@@ -4,15 +4,20 @@ interface AtomLogoProps {
   className?: string;
   /** Si el halo radiactivo late suavemente (el átomo nunca rota). */
   pulse?: boolean;
-  /** Si lleva el brillo naranja (halo + glow). false = marca limpia sobre negro. */
+  /**
+   * Si lleva el brillo naranja (halo + glow). **Por defecto `false`**: el halo
+   * naranja se retiró del lenguaje Aurora y ningún consumidor lo enciende. Se
+   * mantiene la prop por compatibilidad, pero activarla vuelve a pintar el
+   * `drop-shadow` cálido de `.glow-radioactive`.
+   */
   glow?: boolean;
 }
 
 /**
- * Marca de Nucleo: un átomo FIJO (no gira). Con `glow` lleva un halo cálido
- * contenido; sin él queda como una marca limpia. Representa el "núcleo" (§9).
+ * Marca de Nucleo: un átomo FIJO (no gira) y **sin halo**. Representa el
+ * "núcleo" (§9).
  */
-export function AtomLogo({ size = 28, className = "", pulse = true, glow = true }: AtomLogoProps) {
+export function AtomLogo({ size = 28, className = "", pulse = true, glow = false }: AtomLogoProps) {
   const glowClass = glow ? "glow-radioactive" : "";
   return (
     <svg

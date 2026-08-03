@@ -1,19 +1,11 @@
 import { useState } from "react";
 import { useLocation } from "react-router-dom";
-import {
-  ActionIcon,
-  Button,
-  FileInput,
-  Modal,
-  Stack,
-  Text,
-  Textarea,
-  Tooltip,
-} from "@mantine/core";
+import { Button, FileInput, Modal, Stack, Text, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { Bug } from "lucide-react";
 import { useReportConfig, useSubmitReport } from "../api/hooks";
 import { useAuth } from "../lib/auth";
+import { ToolButton } from "./aurora";
 
 // Versión inyectada en build por Vite (vite.config.ts → define).
 declare const __APP_VERSION__: string;
@@ -119,18 +111,9 @@ export function ReportIssueButton() {
 
   return (
     <>
-      <Tooltip label="Reportar un problema" withinPortal>
-        <ActionIcon
-          variant="subtle"
-          color="gray"
-          size="lg"
-          radius="xl"
-          aria-label="Reportar un problema"
-          onClick={() => setOpened(true)}
-        >
-          <Bug size={20} />
-        </ActionIcon>
-      </Tooltip>
+      <ToolButton label="Reportar un problema" className="a-pop" onClick={() => setOpened(true)}>
+        <Bug size={19} strokeWidth={1.8} />
+      </ToolButton>
       <ReportIssueDialog opened={opened} onClose={() => setOpened(false)} />
     </>
   );

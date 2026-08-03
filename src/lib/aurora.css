@@ -1,0 +1,1003 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   AURORA · lenguaje visual del panel Nucleo
+   ---------------------------------------------------------------------------
+   Liquid glass sobre un backdrop de marca (carbón + halo flame). Es la
+   traducción a Nucleo del sistema de la referencia `design/aurora-reference.html`:
+   misma retícula de unidades, mismas recetas de material, misma coreografía.
+
+   REGLA DE ORO DEL MATERIAL: el glass es blanco translúcido + blur + saturación.
+   Sobre una foto luminosa un 25% de blanco "muerde"; sobre el negro carbón de
+   Nucleo el mismo 25% se lee como gris plano. Por eso aquí se conserva la
+   ESTRUCTURA exacta de los degradados (mismos 4 stops, mismas paradas) y se
+   escalan los alfas ~0.45x, compensando con `saturate` más alto y un highlight
+   interior superior. El resultado se lee como vidrio, no como gris.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Unidad de la retícula ───────────────────────────────────────────────
+     La referencia mide todo en `min(100vw/1357, 100dvh/871)` porque es un
+     lienzo fijo. Un ERP no puede encogerse con la ventana (las tablas se
+     volverían ilegibles), así que aquí `--u` es la MISMA unidad pero acotada:
+     1u ≈ 1px en un monitor de 1357px, baja hasta 0.82 en laptops chicas y se
+     detiene en 1.06 para que en ultrawide el cromo no se infle. */
+  --u: clamp(0.82px, calc(100vw / 1357), 1.06px);
+
+  /* Curvas de la referencia (no inventar otras). */
+  --e-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --e-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --e-pen: cubic-bezier(0.37, 0.01, 0.2, 1);
+
+  /* Tinta y hairlines del material. */
+  --a-ink: #ffffff;
+  --a-ink-2: rgba(255, 255, 255, 0.72);
+  --a-ink-3: rgba(255, 255, 255, 0.52);
+  --a-line: rgba(255, 255, 255, 0.11);
+  --a-line-strong: rgba(255, 255, 255, 0.18);
+  --a-void: 6, 6, 9; /* base RGB del velo/viñeta */
+
+  /* Geometría del shell. */
+  --a-rail-w: calc(72 * var(--u));
+  --a-rail-w-open: calc(264 * var(--u));
+  --a-header-h: calc(76 * var(--u));
+  --a-gutter: calc(26 * var(--u));
+
+  /* Radios (escala de 3 pasos, alineada a los tokens Nucleo). */
+  --a-r-card: calc(24 * var(--u));
+  --a-r-card-lg: calc(26 * var(--u));
+  --a-r-control: calc(14 * var(--u));
+  --a-r-pill: 999px;
+
+  /* Tipografía: Inter para texto, Inter Tight 500 para display (la referencia). */
+  --a-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --a-font-display: "Inter Tight", "Inter", sans-serif;
+}
+
+/* ═══ 1 · BACKDROP ════════════════════════════════════════════════════════
+   El equivalente de la foto de tormenta: negro carbón con blooms de marca.
+   Necesita estructura y luminancia — si fuera un negro plano, el glass no
+   tendría nada que refractar. Va `fixed` detrás de todo el panel. */
+
+.aurora-stage {
+  position: relative;
+  min-height: 100vh;
+  isolation: isolate;
+}
+
+.aurora-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-color: #050507;
+  background-image:
+    radial-gradient(1100px 700px at 6% -12%, rgba(255, 255, 255, 0.085), transparent 62%),
+    radial-gradient(1250px 780px at 82% -10%, rgba(252, 76, 2, 0.155), transparent 60%),
+    radial-gradient(820px 640px at 98% 72%, rgba(252, 76, 2, 0.085), transparent 62%),
+    radial-gradient(960px 720px at 16% 104%, rgba(96, 132, 255, 0.06), transparent 60%),
+    linear-gradient(180deg, #0b0b11 0%, #08080c 46%, #050507 100%);
+}
+
+/* Blooms que respiran: le dan textura viva al vidrio (drift lentísimo). */
+.aurora-bloom {
+  position: fixed;
+  z-index: -2;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(90px);
+  opacity: 0.5;
+}
+.aurora-bloom--flame {
+  top: -14vh;
+  right: -6vw;
+  width: 52vw;
+  height: 52vw;
+  background: radial-gradient(circle, rgba(252, 76, 2, 0.5), transparent 66%);
+}
+.aurora-bloom--cold {
+  bottom: -22vh;
+  left: -10vw;
+  width: 46vw;
+  height: 46vw;
+  background: radial-gradient(circle, rgba(120, 150, 255, 0.22), transparent 68%);
+}
+
+/* Grano finísimo: rompe el banding de los degradados grandes. */
+.aurora-grain {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Viñeta del escenario (misma receta de la referencia, en carbón). */
+.aurora-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      105deg,
+      rgba(var(--a-void), 0.34) 0%,
+      rgba(var(--a-void), 0.2) 40%,
+      rgba(var(--a-void), 0.06) 78%,
+      transparent 100%
+    ),
+    linear-gradient(180deg, rgba(var(--a-void), 0.12) 0%, transparent 22%),
+    linear-gradient(0deg, rgba(var(--a-void), 0.07), rgba(var(--a-void), 0.07));
+}
+
+/* ═══ 2 · MATERIALES GLASS ════════════════════════════════════════════════ */
+
+/* Rail / sidebar — 4 stops de la referencia, alfas escalados a fondo oscuro. */
+.a-glass-rail {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.072) 0%,
+    rgba(255, 255, 255, 0.079) 13%,
+    rgba(255, 255, 255, 0.055) 34%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  backdrop-filter: blur(calc(18 * var(--u))) saturate(150%);
+  -webkit-backdrop-filter: blur(calc(18 * var(--u))) saturate(150%);
+  border: 1px solid var(--a-line);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 calc(24 * var(--u)) calc(64 * var(--u)) rgba(0, 0, 0, 0.5);
+}
+
+/* Tarjeta — el panel "liquid glass" principal del rail derecho de la referencia.
+   El selector compuesto `.mantine-Paper-root.a-glass-card` gana el desempate
+   contra el `background-color: var(--mantine-color-body)` de Mantine sin
+   depender del orden de importación de los CSS. */
+.a-glass-card,
+.mantine-Paper-root.a-glass-card {
+  position: relative;
+  /* Recorta al radio: sin esto, una tabla a sangre (`padding={0}`) asoma sus
+     esquinas cuadradas fuera del vidrio. Los dropdowns de Mantine se portalan
+     a <body>, así que no los recorta. */
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.078) 0%,
+    rgba(255, 255, 255, 0.108) 24%,
+    rgba(255, 255, 255, 0.102) 78%,
+    rgba(255, 255, 255, 0.088) 100%
+  );
+  backdrop-filter: blur(calc(26 * var(--u))) saturate(135%);
+  -webkit-backdrop-filter: blur(calc(26 * var(--u))) saturate(135%);
+  border: 1px solid var(--a-line);
+  border-radius: var(--a-r-card);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.11),
+    0 calc(18 * var(--u)) calc(48 * var(--u)) rgba(0, 0, 0, 0.34);
+}
+
+/* Variante "big": la tarjeta protagonista (cifra grande). */
+.a-glass-card--big,
+.mantine-Paper-root.a-glass-card--big {
+  border-radius: var(--a-r-card-lg);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.095) 0%,
+    rgba(255, 255, 255, 0.132) 24%,
+    rgba(255, 255, 255, 0.124) 78%,
+    rgba(255, 255, 255, 0.104) 100%
+  );
+}
+
+/* Variante con el núcleo encendido: la tarjeta que manda en la pantalla.
+   Se distingue por un BORDE flame sólido, sin halo. El glow naranja se retiró
+   de todo el sistema (ver §"Sin halos" en design/AURORA.md): el acento es
+   relleno, borde o texto, nunca un resplandor. */
+.a-glass-card--core {
+  border-color: rgba(252, 76, 2, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 calc(18 * var(--u)) calc(48 * var(--u)) rgba(0, 0, 0, 0.34);
+}
+
+/* Botón herramienta circular (52u) y pastilla glass. */
+.a-tool {
+  width: calc(52 * var(--u));
+  height: calc(52 * var(--u));
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--a-ink);
+  background: rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(calc(16 * var(--u))) saturate(135%);
+  -webkit-backdrop-filter: blur(calc(16 * var(--u))) saturate(135%);
+  border: 1px solid var(--a-line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition:
+    background 0.25s var(--e-soft),
+    transform 0.25s var(--e-soft),
+    border-color 0.25s var(--e-soft);
+}
+.a-tool:hover {
+  background: rgba(255, 255, 255, 0.17);
+  border-color: var(--a-line-strong);
+}
+.a-tool:active {
+  transform: scale(0.94);
+}
+.a-tool--sm {
+  width: calc(40 * var(--u));
+  height: calc(40 * var(--u));
+}
+
+.a-chip {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+  height: calc(36 * var(--u));
+  padding: 0 calc(15 * var(--u));
+  border-radius: calc(18 * var(--u));
+  background: rgba(255, 255, 255, 0.105);
+  backdrop-filter: blur(calc(16 * var(--u))) saturate(135%);
+  -webkit-backdrop-filter: blur(calc(16 * var(--u))) saturate(135%);
+  border: 1px solid var(--a-line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  font-size: clamp(11.5px, calc(12.5 * var(--u)), 13.5px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.94);
+  white-space: nowrap;
+}
+
+/* Pastilla de filtro encendida. Una sola definición del "activo" flame para
+   todo el panel (antes cada pantalla lo improvisaba con alfas distintos). */
+.a-chip--on {
+  background: rgba(252, 76, 2, 0.17);
+  border-color: rgba(252, 76, 2, 0.46);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+/* Coda especular: un solo destello que barre el material al montar. */
+.a-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.a-sheen::after {
+  content: "";
+  position: absolute;
+  top: calc(-24 * var(--u));
+  bottom: calc(-24 * var(--u));
+  left: 0;
+  width: 38%;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.17) 50%,
+    transparent 100%
+  );
+  transform: translate3d(-150%, 0, 0) skewX(-18deg);
+  animation: a-sheen 1.15s var(--e-soft) var(--sheen-d, 2.55s) 1 both;
+}
+
+/* Hairline editorial con tick flame (firma de encabezado de página). */
+.a-rule {
+  position: relative;
+  height: 1px;
+  background: var(--a-line);
+}
+.a-rule::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(44 * var(--u));
+  background: var(--nucleo-accent, #fc4c02);
+}
+
+/* ═══ 2b · SHELL: rail expandible + header ════════════════════════════════
+   La referencia tiene un rail de 72u con 5 destinos. El panel tiene 17 en 5
+   grupos, así que el rail se expande a 264u al hover/focus. Va `fixed` y el
+   contenido reserva SIEMPRE los 72u: al expandirse se superpone, nunca
+   reflowea la pantalla (una tabla que salta al pasar el mouse es un bug). */
+
+.a-rail {
+  position: fixed;
+  left: calc(16 * var(--u));
+  top: calc(14 * var(--u));
+  bottom: calc(14 * var(--u));
+  width: var(--a-rail-w);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  padding: calc(18 * var(--u)) calc(10 * var(--u)) calc(14 * var(--u));
+  border-radius: calc(26 * var(--u));
+  overflow: hidden;
+  transition: width 0.42s var(--e-out);
+}
+.a-rail:hover,
+.a-rail:focus-within {
+  width: var(--a-rail-w-open);
+}
+
+.a-rail__brand {
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--u));
+  height: calc(51.5 * var(--u));
+  padding: 0 calc(9 * var(--u));
+  flex: none;
+}
+.a-rail__wordmark {
+  font-family: "Space Grotesk", var(--a-font-display);
+  font-weight: 700;
+  font-size: clamp(17px, calc(19 * var(--u)), 20px);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(calc(-6 * var(--u)));
+  transition:
+    opacity 0.3s var(--e-soft),
+    transform 0.3s var(--e-soft);
+}
+
+.a-rail__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-top: calc(10 * var(--u));
+  scrollbar-width: none;
+}
+.a-rail__scroll::-webkit-scrollbar {
+  width: 0;
+}
+
+.a-nav-group {
+  position: relative;
+  height: calc(22 * var(--u));
+  margin-top: calc(10 * var(--u));
+  padding: 0 calc(11 * var(--u));
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.a-nav-group > span {
+  opacity: 0;
+  white-space: nowrap;
+  transition: opacity 0.3s var(--e-soft);
+}
+/* Colapsado el grupo se anuncia con un hairline; expandido, con su nombre. */
+.a-nav-group::before {
+  content: "";
+  position: absolute;
+  left: calc(14 * var(--u));
+  right: calc(14 * var(--u));
+  top: 50%;
+  height: 1px;
+  background: var(--a-line);
+  transition: opacity 0.3s var(--e-soft);
+}
+
+.a-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--u));
+  height: calc(34 * var(--u));
+  margin-bottom: calc(3 * var(--u));
+  /* 14.5u deja el ícono de 23u centrado en el rail colapsado (52u útiles). */
+  padding: 0 calc(14.5 * var(--u));
+  border-radius: calc(12 * var(--u));
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  transition:
+    background 0.22s var(--e-soft),
+    color 0.22s var(--e-soft);
+}
+.a-nav-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.a-nav-item[data-active="true"] {
+  background: rgba(255, 255, 255, 0.11);
+  color: #fff;
+}
+.a-nav-item__icon {
+  flex: none;
+  width: calc(23 * var(--u));
+  height: calc(23 * var(--u));
+  display: grid;
+  place-items: center;
+}
+.a-nav-item__label {
+  font-size: clamp(12.5px, calc(13.5 * var(--u)), 14.5px);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(calc(-6 * var(--u)));
+  transition:
+    opacity 0.3s var(--e-soft),
+    transform 0.3s var(--e-soft);
+}
+.a-nav-item__end {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.3s var(--e-soft);
+}
+
+/* Pip blanco del destino activo (el de la referencia, dentro del recorte). */
+.a-pip {
+  position: absolute;
+  left: calc(-6 * var(--u));
+  top: 50%;
+  width: calc(5 * var(--u));
+  height: calc(29 * var(--u));
+  margin-top: calc(-14.5 * var(--u));
+  border-radius: calc(3 * var(--u));
+  background: #fff;
+  box-shadow: 0 0 calc(10 * var(--u)) rgba(255, 255, 255, 0.55);
+  animation: a-grow-y 0.5s var(--e-out) both;
+}
+
+/* Punto flame: badge de pendientes cuando el rail está colapsado. */
+.a-nav-dot {
+  position: absolute;
+  top: calc(5 * var(--u));
+  left: calc(28 * var(--u));
+  width: calc(7 * var(--u));
+  height: calc(7 * var(--u));
+  border-radius: 50%;
+  background: var(--nucleo-accent, #fc4c02);
+  transition: opacity 0.3s var(--e-soft);
+}
+
+/* Al expandirse: aparecen etiquetas y badges, se retiran hairlines y puntos. */
+.a-rail:hover .a-rail__wordmark,
+.a-rail:focus-within .a-rail__wordmark,
+.a-rail:hover .a-nav-item__label,
+.a-rail:focus-within .a-nav-item__label {
+  opacity: 1;
+  transform: none;
+}
+.a-rail:hover .a-nav-group > span,
+.a-rail:focus-within .a-nav-group > span,
+.a-rail:hover .a-nav-item__end,
+.a-rail:focus-within .a-nav-item__end {
+  opacity: 1;
+}
+.a-rail:hover .a-nav-group::before,
+.a-rail:focus-within .a-nav-group::before,
+.a-rail:hover .a-nav-dot,
+.a-rail:focus-within .a-nav-dot {
+  opacity: 0;
+}
+
+/* Contenido: reserva fija del rail, jamás recalculada al expandir. */
+.a-shell {
+  position: relative;
+  min-height: 100vh;
+  padding-left: calc(16 * var(--u) + var(--a-rail-w) + var(--a-gutter));
+  padding-right: var(--a-gutter);
+  padding-bottom: calc(48 * var(--u));
+}
+
+.a-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  min-height: var(--a-header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(16 * var(--u));
+  padding: calc(12 * var(--u)) 0;
+  margin-bottom: calc(8 * var(--u));
+  /* Velo que despega el header del contenido al hacer scroll. */
+  background: linear-gradient(
+    180deg,
+    rgba(5, 5, 7, 0.72) 0%,
+    rgba(5, 5, 7, 0.5) 62%,
+    transparent 100%
+  );
+  backdrop-filter: blur(calc(14 * var(--u)));
+  -webkit-backdrop-filter: blur(calc(14 * var(--u)));
+}
+.a-hello {
+  font-size: clamp(12px, calc(13.5 * var(--u)), 15px);
+  font-weight: 400;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.72);
+}
+.a-who {
+  margin-top: calc(9 * var(--u));
+  font-size: clamp(17px, calc(19.5 * var(--u)), 21px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* Retícula "columna principal + rail" de la referencia. Colapsa a una sola
+   columna antes que el shell, porque el rail de 310u deja de tener sentido
+   cuando la columna principal baja de ~640u. */
+.a-dash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, calc(310 * var(--u)));
+  gap: calc(20 * var(--u));
+  align-items: start;
+}
+@media (max-width: 1180px) {
+  .a-dash-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .a-dash-grid > *:last-child {
+    position: static !important;
+  }
+}
+
+/* ═══ 3 · TIPOGRAFÍA ══════════════════════════════════════════════════════ */
+
+.a-display {
+  font-family: var(--a-font-display);
+  font-weight: 500;
+  letter-spacing: calc(0.25 * var(--u));
+}
+
+/* Titular hero: 63u/78u de la referencia, con tope para no romper el panel. */
+.a-h1 {
+  font-family: var(--a-font-display);
+  font-weight: 500;
+  font-size: clamp(30px, calc(44 * var(--u)), 52px);
+  line-height: 1.08;
+  letter-spacing: -0.012em;
+  margin: 0;
+}
+
+/* Cifra protagonista (el "10°C" de la referencia, aquí los ingresos/KPI). */
+.a-metric {
+  font-family: var(--a-font-display);
+  font-weight: 500;
+  font-size: clamp(38px, calc(66 * var(--u)), 78px);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.a-metric--sm {
+  font-size: clamp(24px, calc(34 * var(--u)), 40px);
+  letter-spacing: -0.03em;
+}
+.a-metric i {
+  font-style: normal;
+  font-size: 0.42em;
+  letter-spacing: 0;
+  vertical-align: 0.14em;
+  opacity: 0.72;
+  margin-left: 0.12em;
+}
+
+/* Kicker/overline: MAYÚSCULAS con tracking (firma editorial de Nucleo).
+   OJO con los `clamp` de aquí abajo: `--u` escala el CROMO (radios, blurs,
+   paddings), pero el TEXTO necesita un piso. En una laptop de 1280px `--u`
+   baja a 0.82 y un `calc(11 * var(--u))` daría 9px — ilegible. Toda medida
+   tipográfica de este archivo lleva piso y techo. */
+.a-kicker {
+  font-family: var(--a-font-display);
+  text-transform: uppercase;
+  font-weight: 600;
+  font-size: clamp(10px, calc(11 * var(--u)), 12px);
+  letter-spacing: 0.18em;
+  color: var(--a-ink-3);
+}
+
+.a-blurb {
+  font-size: clamp(13px, calc(15.2 * var(--u)), 16px);
+  line-height: 1.58;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  color: rgba(255, 255, 255, 0.82);
+  margin: 0;
+}
+
+.a-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Máscara de revelado por línea (headline de la referencia). */
+.a-ln {
+  display: block;
+  overflow: hidden;
+}
+.a-ln > span {
+  display: block;
+}
+
+/* ═══ 4 · COREOGRAFÍA ═════════════════════════════════════════════════════
+   Mismos keyframes y curvas de la referencia. El retardo se pasa por `--d`
+   para poder escalonar cualquier lista sin escribir CSS nuevo. */
+
+@keyframes a-rise {
+  from { opacity: 0; transform: translateY(var(--ry, 14px)); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes a-slide-l {
+  from { opacity: 0; transform: translateX(-26px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes a-slide-r {
+  from { opacity: 0; transform: translateX(30px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes a-pop {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes a-grow-y {
+  from { opacity: 0; transform: scaleY(0); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+@keyframes a-line-up {
+  from { transform: translateY(115%); }
+  to { transform: none; }
+}
+@keyframes a-wipe-down {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+@keyframes a-wipe-right {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+@keyframes a-draw-line {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes a-wipe-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes a-sheen {
+  from { transform: translate3d(-150%, 0, 0) skewX(-18deg); }
+  to { transform: translate3d(260%, 0, 0) skewX(-18deg); }
+}
+
+.a-rise { animation: a-rise 0.7s var(--e-out) var(--d, 0s) both; }
+.a-slide-l { animation: a-slide-l 0.92s var(--e-out) var(--d, 0s) both; }
+.a-slide-r { animation: a-slide-r 0.95s var(--e-out) var(--d, 0s) both; }
+.a-pop { animation: a-pop 0.58s var(--e-out) var(--d, 0s) both; }
+.a-grow-y { animation: a-grow-y 0.5s var(--e-out) var(--d, 0s) both; }
+.a-wipe-right { animation: a-wipe-right 0.8s var(--e-out) var(--d, 0s) both; }
+.a-wipe-down { animation: a-wipe-down 0.9s var(--e-soft) var(--d, 0s) both; }
+.a-ln > span { animation: a-line-up 1.05s var(--e-out) var(--d, 0s) both; }
+
+/* Escalonado automático: cualquier contenedor con `.a-stagger` reparte
+   retardos a sus hijos directos (paso 55ms, base configurable con --d0). */
+.a-stagger > * { animation: a-rise 0.7s var(--e-out) var(--d, 0s) both; }
+.a-stagger > *:nth-child(1) { --d: calc(var(--d0, 0s) + 0.00s); }
+.a-stagger > *:nth-child(2) { --d: calc(var(--d0, 0s) + 0.055s); }
+.a-stagger > *:nth-child(3) { --d: calc(var(--d0, 0s) + 0.11s); }
+.a-stagger > *:nth-child(4) { --d: calc(var(--d0, 0s) + 0.165s); }
+.a-stagger > *:nth-child(5) { --d: calc(var(--d0, 0s) + 0.22s); }
+.a-stagger > *:nth-child(6) { --d: calc(var(--d0, 0s) + 0.275s); }
+.a-stagger > *:nth-child(7) { --d: calc(var(--d0, 0s) + 0.33s); }
+.a-stagger > *:nth-child(8) { --d: calc(var(--d0, 0s) + 0.385s); }
+.a-stagger > *:nth-child(9) { --d: calc(var(--d0, 0s) + 0.44s); }
+.a-stagger > *:nth-child(10) { --d: calc(var(--d0, 0s) + 0.495s); }
+.a-stagger > *:nth-child(n + 11) { --d: calc(var(--d0, 0s) + 0.55s); }
+
+/* Firma del gráfico: la pluma dibuja y el relleno la sigue ~220ms detrás. */
+.a-wline {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: a-draw-line 1.6s var(--e-pen) var(--d, 0.5s) both;
+}
+.a-wclip {
+  transform-origin: 0 0;
+  animation: a-wipe-x 1.42s var(--e-pen) var(--wd, 0.72s) both;
+}
+
+/* ═══ 5 · TABLAS EN GLASS ═════════════════════════════════════════════════
+   Se aplican al <Table> de Mantine y a mantine-datatable. Densidad intacta:
+   cambia el material (hairlines, encabezado editorial, hover luminoso), no el
+   ritmo vertical, para que un listado de 300 filas siga siendo legible. */
+
+.a-table thead th,
+.mantine-datatable thead th {
+  background: transparent !important;
+  border-bottom: 1px solid var(--a-line-strong) !important;
+  color: var(--a-ink-3) !important;
+  font-family: var(--a-font-display);
+  text-transform: uppercase;
+  font-size: clamp(10px, calc(10.5 * var(--u)), 12px) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.a-table tbody td,
+.mantine-datatable tbody td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055) !important;
+}
+.a-table tbody tr,
+.mantine-datatable tbody tr {
+  transition: background 0.18s var(--e-soft);
+}
+.a-table tbody tr:hover,
+.mantine-datatable tbody tr:hover {
+  background: rgba(255, 255, 255, 0.055) !important;
+}
+.a-table tbody tr:last-child td,
+.mantine-datatable tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+/* ═══ 6 · SCROLLBARS ══════════════════════════════════════════════════════ */
+
+.aurora-stage *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.aurora-stage *::-webkit-scrollbar-track {
+  background: transparent;
+}
+.aurora-stage *::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+.aurora-stage *::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+  background-clip: content-box;
+}
+.aurora-stage * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+/* ═══ 7 · MICROESTADOS ════════════════════════════════════════════════════ */
+
+.aurora-stage :focus-visible {
+  outline: calc(2 * var(--u)) solid rgba(255, 255, 255, 0.9);
+  outline-offset: calc(2 * var(--u));
+  border-radius: var(--a-r-control);
+}
+
+.a-lift {
+  transition:
+    transform 0.28s var(--e-soft),
+    border-color 0.28s var(--e-soft),
+    box-shadow 0.28s var(--e-soft);
+}
+.a-lift:hover {
+  transform: translateY(calc(-2 * var(--u)));
+  border-color: var(--a-line-strong);
+}
+
+/* ═══ 8 · SIN MOVIMIENTO ══════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-stage *,
+  .aurora-stage *::before,
+  .aurora-stage *::after,
+  .a-rise,
+  .a-slide-l,
+  .a-slide-r,
+  .a-pop,
+  .a-grow-y,
+  .a-wipe-right,
+  .a-wipe-down,
+  .a-stagger > *,
+  .a-ln > span,
+  .aurora-bloom {
+    animation: none !important;
+    transition: none !important;
+  }
+  .a-sheen::after {
+    display: none;
+  }
+  .a-wline {
+    stroke-dashoffset: 0;
+    animation: none !important;
+  }
+  .a-wclip {
+    transform: scaleX(1);
+    animation: none !important;
+  }
+}
+
+/* ═══ 9 · PUENTE CON MANTINE ══════════════════════════════════════════════
+   Reescribir las variables de Mantine es lo que hace que las 22 pantallas
+   cambien de material sin tocarlas una por una: cada input, botón, badge o
+   superficie del panel las consume. La especificidad iguala la de Mantine
+   (`:root[data-mantine-color-scheme="dark"]`) y este archivo se importa
+   DESPUÉS de los CSS de Mantine en AdminShell para ganar el desempate.
+   Va en :root (no en .aurora-stage) porque modales y menús se portalan a
+   <body>, fuera del escenario. */
+
+:root[data-mantine-color-scheme="dark"],
+:root {
+  /* Superficies: transparentes para que el backdrop se vea a través del glass. */
+  --mantine-color-body: transparent;
+  --mantine-color-default: rgba(255, 255, 255, 0.055);
+  --mantine-color-default-hover: rgba(255, 255, 255, 0.105);
+  --mantine-color-default-border: rgba(255, 255, 255, 0.12);
+  --mantine-color-default-color: #ffffff;
+
+  /* Tinta. */
+  --mantine-color-text: #f2f4f8;
+  --mantine-color-dimmed: rgba(255, 255, 255, 0.55);
+  --mantine-color-placeholder: rgba(255, 255, 255, 0.36);
+  --mantine-color-anchor: #ff7c35;
+
+  /* Radios: la escala de 3 pasos del panel. */
+  --mantine-radius-xs: 8px;
+  --mantine-radius-sm: 10px;
+  --mantine-radius-md: 12px;
+  --mantine-radius-lg: 16px;
+  --mantine-radius-xl: 20px;
+
+  --mantine-font-family-headings: "Inter Tight", "Inter", sans-serif;
+}
+
+/* Superficies flotantes (modales, drawers, menús, popovers, dropdowns de
+   Select) comparten UN material. `.nucleo-glass` sigue siendo el gancho
+   histórico del tema; aquí se re-materializa en el lenguaje Aurora. */
+.nucleo-glass {
+  background: linear-gradient(
+    180deg,
+    rgba(20, 20, 26, 0.82) 0%,
+    rgba(14, 14, 19, 0.86) 100%
+  ) !important;
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  border: 1px solid var(--a-line-strong) !important;
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.62),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Inputs: campos de vidrio, no cajas opacas. */
+.aurora-stage .mantine-Input-input,
+.nucleo-glass .mantine-Input-input,
+.mantine-Modal-content .mantine-Input-input,
+.mantine-Drawer-content .mantine-Input-input {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  transition:
+    border-color 0.2s var(--e-soft),
+    background 0.2s var(--e-soft),
+    box-shadow 0.2s var(--e-soft);
+}
+.aurora-stage .mantine-Input-input:focus,
+.aurora-stage .mantine-Input-input:focus-within,
+.nucleo-glass .mantine-Input-input:focus,
+.nucleo-glass .mantine-Input-input:focus-within,
+.mantine-Modal-content .mantine-Input-input:focus,
+.mantine-Modal-content .mantine-Input-input:focus-within,
+.mantine-Drawer-content .mantine-Input-input:focus,
+.mantine-Drawer-content .mantine-Input-input:focus-within {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(252, 76, 2, 0.55);
+  box-shadow: 0 0 0 3px rgba(252, 76, 2, 0.14);
+}
+
+/* Botones: la pastilla flame se apoya en una sombra NEUTRA (profundidad), no en
+   un halo naranja. El resplandor de color se retiró de todo el sistema.
+   `:not([data-variant])` cubre el caso por defecto: Mantine solo emite el
+   atributo `data-variant` cuando la prop se pasa explícitamente, así que un
+   `<Button>` sin prop —que ES filled— no lo lleva. */
+.mantine-Button-root[data-variant="filled"],
+.mantine-Button-root:not([data-variant]) {
+  box-shadow: 0 calc(4 * var(--u)) calc(14 * var(--u)) rgba(0, 0, 0, 0.34);
+}
+.mantine-Button-root[data-variant="filled"]:hover,
+.mantine-Button-root:not([data-variant]):hover {
+  box-shadow: 0 calc(6 * var(--u)) calc(18 * var(--u)) rgba(0, 0, 0, 0.42);
+}
+.mantine-Button-root[data-variant="default"],
+.mantine-Button-root[data-variant="outline"] {
+  backdrop-filter: blur(calc(14 * var(--u))) saturate(130%);
+  -webkit-backdrop-filter: blur(calc(14 * var(--u))) saturate(130%);
+}
+.mantine-Button-root,
+.mantine-ActionIcon-root {
+  transition:
+    background 0.2s var(--e-soft),
+    box-shadow 0.2s var(--e-soft),
+    transform 0.2s var(--e-soft);
+}
+.mantine-Button-root:active,
+.mantine-ActionIcon-root:active {
+  transform: scale(0.97);
+}
+
+/* Badges: pastillas de vidrio teñido, no bloques sólidos. */
+.mantine-Badge-root[data-variant="light"] {
+  backdrop-filter: blur(calc(10 * var(--u)));
+  -webkit-backdrop-filter: blur(calc(10 * var(--u)));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Tabs y SegmentedControl: control de vidrio con indicador flotante. */
+.mantine-Tabs-list {
+  border-bottom-color: var(--a-line) !important;
+}
+.mantine-SegmentedControl-root {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--a-line);
+  backdrop-filter: blur(calc(14 * var(--u))) saturate(130%);
+  -webkit-backdrop-filter: blur(calc(14 * var(--u))) saturate(130%);
+}
+.mantine-SegmentedControl-indicator {
+  background: rgba(255, 255, 255, 0.13) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
+}
+
+/* Alertas y estados: vidrio teñido del color semántico. */
+.mantine-Alert-root {
+  backdrop-filter: blur(calc(18 * var(--u))) saturate(140%);
+  -webkit-backdrop-filter: blur(calc(18 * var(--u))) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* mantine-datatable: el paginador y el contenedor heredan el material. */
+.mantine-datatable {
+  background: transparent !important;
+}
+.mantine-datatable-pagination {
+  border-top: 1px solid var(--a-line) !important;
+  background: transparent !important;
+}
+
+/* ═══ 11 · RESPONSIVE ═════════════════════════════════════════════════════
+   ≤860px el rail se retira: navegación por drawer y una sola columna. La
+   unidad se ancla a 1px para no encoger tipografía ni áreas táctiles. */
+
+/* El corte es 767.98px (el `sm` de Mantine, 48em) para que el rail se retire
+   exactamente cuando aparecen la hamburguesa y el drawer (`hiddenFrom="sm"`).
+   Con un corte distinto habría un rango de anchos sin ninguna navegación. */
+@media (max-width: 767.98px) {
+  :root {
+    --u: 1px;
+    --a-gutter: 16px;
+    --a-header-h: 64px;
+  }
+  .aurora-bloom {
+    filter: blur(70px);
+    opacity: 0.42;
+  }
+  /* El rail desaparece: la navegación pasa a un drawer glass desde el header. */
+  .a-rail {
+    display: none;
+  }
+  .a-shell {
+    padding-left: var(--a-gutter);
+    padding-right: var(--a-gutter);
+  }
+  .a-who {
+    font-size: 17px;
+  }
+  /* En el drawer móvil el rail está siempre "abierto". */
+  .a-nav-drawer .a-nav-item__label,
+  .a-nav-drawer .a-nav-group > span,
+  .a-nav-drawer .a-nav-item__end {
+    opacity: 1;
+    transform: none;
+  }
+  .a-nav-drawer .a-nav-group::before,
+  .a-nav-drawer .a-nav-dot {
+    opacity: 0;
+  }
+  .a-nav-drawer .a-nav-item {
+    height: 44px;
+  }
+}

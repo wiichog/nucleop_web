@@ -33,6 +33,7 @@ import { EmptyState } from "../components/EmptyState";
 import { PageError } from "../components/PageStatus";
 import { RowActions } from "../components/RowActions";
 import { PageHeader, SectionLabel } from "../components/ui";
+import { GlassCard, MetricTile, Stagger, delayVar } from "../components/aurora";
 import { PlatformBillingPanel } from "./PlatformBillingPanel";
 import { errMsg } from "../lib/errors";
 import { fmtQ } from "../lib/money";
@@ -272,16 +273,22 @@ export function PlatformGymsPage() {
     }
   };
 
+  // Derivados solo para la retícula de KPIs: mismo criterio que las badges de la
+  // tabla (`is_active === false` = suspendido, `is_public === false` = privado).
+  const gymsList = (gyms.data ?? []) as GymAdmin[];
+  const activos = gymsList.filter((g) => g.is_active !== false).length;
+  const publicos = gymsList.filter((g) => g.is_public !== false).length;
+
   return (
     <div>
       <PageHeader
         kicker="Plataforma"
-        title="Plataforma"
-        subtitle="Alta y contrato de los gimnasios de la red, y lo que Nucleo gana con ellos."
+        title="La red, gimnasio por gimnasio"
+        subtitle="Aquí se da de alta un gym, se ajusta su contrato con Nucleo y se revisa el estado de cuenta de la red."
       />
 
       <Tabs defaultValue="gimnasios" keepMounted={false}>
-        <Tabs.List mb="lg">
+        <Tabs.List mb="lg" className="a-wipe-right" style={delayVar(0.56)}>
           <Tabs.Tab value="gimnasios">Gimnasios</Tabs.Tab>
           <Tabs.Tab value="cuenta">Estado de cuenta</Tabs.Tab>
         </Tabs.List>
@@ -289,7 +296,32 @@ export function PlatformGymsPage() {
         <Tabs.Panel value="gimnasios">
           {gyms.isError && <PageError onRetry={() => gyms.refetch()} />}
 
-          <Card mb="lg" component="form" onSubmit={submit}>
+          {gymsList.length > 0 && (
+            <Stagger
+              from={0.6}
+              style={{
+                display: "grid",
+                gap: "var(--mantine-spacing-md)",
+                gridTemplateColumns: "repeat(auto-fit, minmax(calc(150 * var(--u)), 1fr))",
+                marginBottom: "calc(20 * var(--u))",
+              }}
+            >
+              <MetricTile label="Gimnasios en la red" value={gymsList.length} />
+              <MetricTile label="Operando" value={activos} />
+              <MetricTile
+                label="Suspendidos"
+                value={gymsList.length - activos}
+                tone="var(--nucleo-danger)"
+              />
+              <MetricTile
+                label="En el directorio"
+                value={publicos}
+                hint="Visibles para los atletas"
+              />
+            </Stagger>
+          )}
+
+          <Card mb="lg" component="form" onSubmit={submit} className="a-slide-r" style={delayVar(0.72)}>
             <Title order={3} mb={4}>
               Nuevo gimnasio
             </Title>
@@ -406,6 +438,7 @@ export function PlatformGymsPage() {
               color="teal"
               variant="light"
               mb="lg"
+              className="a-rise"
               title={`«${resumen.name}» ya puede operar`}
               withCloseButton
               onClose={() => setResumen(null)}
@@ -423,7 +456,7 @@ export function PlatformGymsPage() {
           )}
 
           {editingId && (
-            <Card mb="lg" component="form" onSubmit={save}>
+            <Card mb="lg" component="form" onSubmit={save} className="a-rise">
               <Title order={3} mb="sm">
                 Editar contrato
               </Title>
@@ -487,13 +520,14 @@ export function PlatformGymsPage() {
             </Card>
           )}
 
-          <Card>
+          <SectionLabel as="h2">Gimnasios conectados</SectionLabel>
+          <GlassCard padding={10} delay={0.84}>
             <DataTable<GymAdmin>
               minHeight={160}
               highlightOnHover
               striped
               idAccessor="id"
-              records={sortRecords((gyms.data ?? []) as GymAdmin[], sortStatus)}
+              records={sortRecords(gymsList, sortStatus)}
               fetching={gyms.isLoading}
               noRecordsText="Aún no hay gimnasios conectados."
               sortStatus={sortStatus}
@@ -580,7 +614,7 @@ export function PlatformGymsPage() {
                 },
               ]}
             />
-          </Card>
+          </GlassCard>
         </Tabs.Panel>
 
         <Tabs.Panel value="cuenta">
@@ -635,6 +669,7 @@ function AdminsSheet({ gym, onClose }: { gym: GymAdmin | null; onClose: () => vo
       size={520}
     >
         <Stack gap="md">
+          <SectionLabel as="h2" mb={0}>Con acceso al panel</SectionLabel>
           <Text c="dimmed" size="sm">
             Quién puede entrar al panel de este gimnasio. «Sin reclamar» significa que todavía no
             ha puesto su contraseña.
@@ -683,7 +718,7 @@ function AdminsSheet({ gym, onClose }: { gym: GymAdmin | null; onClose: () => vo
               </Table.Tbody>
             </Table>
           )}
-          <SectionLabel mt="sm">Invitar administrador</SectionLabel>
+          <SectionLabel as="h2" mt="sm">Invitar administrador</SectionLabel>
           <Text c="dimmed" size="sm">
             Recibirá un correo para poner su contraseña. Si ese correo ya es de un usuario de
             Nucleo, se le suma el rol a esa misma cuenta (nunca se duplica la identidad).

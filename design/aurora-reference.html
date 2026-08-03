@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Weather Forecast — Central Jakarta</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04121b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500&display=swap" rel="stylesheet">
+<style>
+/* ═════════════════════════════════════════════════════════════════════════
+   AURORA WEATHER — liquid glass reference
+   Canvas de referencia: 1357 × 871. Todo mide en calc(N * var(--u)).
+   ═════════════════════════════════════════════════════════════════════════ */
+:root{
+  --u: min(100vw / 1357, 100dvh / 871);
+  --ink:#ffffff;
+  --glass: rgba(255,255,255,.155);
+  --glass-line: rgba(255,255,255,.20);
+  --e-out: cubic-bezier(.16,1,.3,1);
+  --e-soft: cubic-bezier(.22,.61,.36,1);
+  --e-pen: cubic-bezier(.37,.01,.2,1);
+}
+@supports not (height: 100dvh){ :root{ --u: min(100vw / 1357, 100vh / 871); } }
+
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0; overflow:hidden;
+  background-color:#04121b;
+  color:var(--ink);
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  font-feature-settings:"kern" 1;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;
+}
+img{ display:block; max-width:100%; }
+a{ color:inherit; text-decoration:none; }
+button{ font:inherit; color:inherit; }
+:focus-visible{ outline:calc(2*var(--u)) solid #fff; outline-offset:calc(2*var(--u)); border-radius:calc(8*var(--u)); }
+
+/* ── ESCENARIO ───────────────────────────────────────────────────────────
+   La foto de tormenta va primero; si ./assets/storm-background.jpg no existe,
+   el navegador cae al SVG embebido (misma atmósfera teal/verde-azabache). */
+.stage{
+  position:fixed; inset:0; overflow:hidden;
+  background-color:#04121b;
+  background-image:
+    url("./assets/storm-background.jpg"),
+    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1200' preserveAspectRatio='xMidYMid slice'%3E%3Cdefs%3E%3ClinearGradient id='sky' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23061a21'/%3E%3Cstop offset='.34' stop-color='%230a2830'/%3E%3Cstop offset='.62' stop-color='%23113a3a'/%3E%3Cstop offset='.82' stop-color='%23193f31'/%3E%3Cstop offset='1' stop-color='%230a1a12'/%3E%3C/linearGradient%3E%3CradialGradient id='glow' cx='.60' cy='.44' r='.46'%3E%3Cstop offset='0' stop-color='%23cfeee2' stop-opacity='.34'/%3E%3Cstop offset='1' stop-color='%23cfeee2' stop-opacity='0'/%3E%3C/radialGradient%3E%3ClinearGradient id='fld' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%232c5b33'/%3E%3Cstop offset='1' stop-color='%230b1a11'/%3E%3C/linearGradient%3E%3Cfilter id='b1' x='-30%25' y='-30%25' width='160%25' height='160%25'%3E%3CfeGaussianBlur stdDeviation='42'/%3E%3C/filter%3E%3Cfilter id='b2' x='-30%25' y='-30%25' width='160%25' height='160%25'%3E%3CfeGaussianBlur stdDeviation='18'/%3E%3C/filter%3E%3Cfilter id='b3' x='-40%25' y='-40%25' width='180%25' height='180%25'%3E%3CfeGaussianBlur stdDeviation='7'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='1600' height='1200' fill='url(%23sky)'/%3E%3Crect width='1600' height='1200' fill='url(%23glow)'/%3E%3Cg filter='url(%23b1)' opacity='.92'%3E%3Cellipse cx='250' cy='300' rx='430' ry='250' fill='%23061419'/%3E%3Cellipse cx='700' cy='210' rx='400' ry='215' fill='%23071a20'/%3E%3Cellipse cx='1180' cy='300' rx='460' ry='250' fill='%2305161b'/%3E%3Cellipse cx='430' cy='560' rx='520' ry='230' fill='%23081f23'/%3E%3Cellipse cx='1260' cy='580' rx='480' ry='215' fill='%23071c21'/%3E%3C/g%3E%3Cg filter='url(%23b2)' opacity='.5'%3E%3Cellipse cx='690' cy='430' rx='330' ry='120' fill='%23245046'/%3E%3Cellipse cx='1080' cy='470' rx='280' ry='96' fill='%231d4a44'/%3E%3Cellipse cx='330' cy='470' rx='260' ry='92' fill='%231b443f'/%3E%3C/g%3E%3Cg stroke='%23eafcff' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg filter='url(%23b3)' opacity='.55' stroke-width='9'%3E%3Cpath d='M742 250 L706 430 L772 418 L716 640'/%3E%3Cpath d='M1128 300 L1096 452 L1150 442 L1104 596'/%3E%3Cpath d='M356 336 L330 470 L378 462 L340 590'/%3E%3C/g%3E%3Cg opacity='.95' stroke-width='3'%3E%3Cpath d='M742 250 L706 430 L772 418 L716 640'/%3E%3Cpath d='M1128 300 L1096 452 L1150 442 L1104 596'/%3E%3Cpath d='M356 336 L330 470 L378 462 L340 590'/%3E%3Cpath d='M760 372 L800 400' opacity='.6'/%3E%3Cpath d='M1112 392 L1074 418' opacity='.6'/%3E%3C/g%3E%3C/g%3E%3Cpath d='M0 880 C260 838 520 862 820 846 C1080 832 1340 856 1600 830 L1600 1200 L0 1200 Z' fill='url(%23fld)'/%3E%3Cpath d='M0 902 C300 872 600 894 900 876 C1180 860 1400 884 1600 862 L1600 1200 L0 1200 Z' fill='%23091610' opacity='.55'/%3E%3C/svg%3E");
+  background-size:cover;
+  background-position:center 25%;
+  background-repeat:no-repeat;
+}
+.stage::after{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:0;
+  background:
+    linear-gradient(105deg, rgba(4,16,24,.34) 0%, rgba(4,16,24,.20) 40%, rgba(4,16,24,.06) 78%, transparent 100%),
+    linear-gradient(180deg, rgba(4,16,24,.12) 0%, transparent 22%),
+    linear-gradient(0deg, rgba(4,16,24,.07), rgba(4,16,24,.07));
+}
+.stage > *{ position:relative; z-index:1; }
+
+/* ── SIDEBAR ─────────────────────────────────────────────────────────────── */
+.sidebar{
+  position:absolute;
+  left:calc(16*var(--u)); top:calc(14*var(--u)); bottom:calc(7*var(--u));
+  width:calc(72*var(--u));
+  display:flex; flex-direction:column; align-items:center;
+  padding-top:calc(22*var(--u)); padding-bottom:calc(52*var(--u));
+  border-radius:calc(26*var(--u));
+  background:linear-gradient(180deg,
+    rgba(255,255,255,.125) 0%,
+    rgba(255,255,255,.135) 13%,
+    rgba(255,255,255,.098) 34%,
+    rgba(255,255,255,.092) 100%);
+  backdrop-filter:blur(calc(18*var(--u))) saturate(115%);
+  -webkit-backdrop-filter:blur(calc(18*var(--u))) saturate(115%);
+  border:1px solid var(--glass-line);
+  animation:slideL .92s var(--e-out) .05s both;
+}
+.pip{
+  position:absolute; left:calc(-2*var(--u)); top:calc(131*var(--u));
+  width:calc(5*var(--u)); height:calc(29*var(--u));
+  border-radius:calc(3*var(--u)); background:#fff;
+  box-shadow:0 0 calc(10*var(--u)) rgba(255,255,255,.55);
+  transform-origin:50% 50%;
+  animation:growY .50s var(--e-out) .68s both;
+}
+.brand{
+  height:calc(51.5*var(--u));
+  display:flex; align-items:center; justify-content:center;
+  animation:popIn .70s var(--e-out) .26s both;
+}
+.brand svg{ width:calc(40*var(--u)); height:calc(40*var(--u)); display:block; }
+
+.nav{
+  margin-top:calc(57.5*var(--u));
+  display:flex; flex-direction:column; align-items:center;
+  gap:calc(43*var(--u));
+}
+.nav a,.signout{
+  display:grid; place-items:center;
+  width:calc(29*var(--u)); height:calc(29*var(--u));
+  background:none; border:0; padding:0; cursor:pointer;
+  opacity:.72; transition:opacity .25s var(--e-soft), transform .25s var(--e-soft);
+}
+.nav a[aria-current="page"]{ opacity:1; }
+.nav a:hover,.signout:hover{ opacity:1; transform:translateY(calc(-1*var(--u))); }
+.nav svg,.signout svg{ width:calc(23*var(--u)); height:calc(23*var(--u)); }
+.nav a:nth-child(1){ animation:riseIn .60s var(--e-out) .36s both; }
+.nav a:nth-child(2){ animation:riseIn .60s var(--e-out) .41s both; }
+.nav a:nth-child(3){ animation:riseIn .60s var(--e-out) .46s both; }
+.nav a:nth-child(4){ animation:riseIn .60s var(--e-out) .51s both; }
+.nav a:nth-child(5){ animation:riseIn .60s var(--e-out) .56s both; }
+.signout{ margin-top:auto; animation:riseIn .60s var(--e-out) .70s both; }
+
+/* ── HEADER ──────────────────────────────────────────────────────────────── */
+.header{
+  position:absolute; top:calc(22*var(--u)); left:calc(126*var(--u)); right:calc(37*var(--u));
+  height:calc(52*var(--u));
+  display:flex; align-items:center; justify-content:space-between;
+}
+.hello{
+  font-size:calc(16*var(--u)); line-height:1; font-weight:400;
+  color:rgba(255,255,255,.93);
+  animation:riseIn .70s var(--e-out) .14s both;
+}
+.who{
+  margin-top:calc(13*var(--u));
+  font-size:calc(19.5*var(--u)); line-height:1; font-weight:700;
+  letter-spacing:calc(-.35*var(--u));
+  animation:riseIn .80s var(--e-out) .22s both;
+}
+.tools{ display:flex; align-items:center; gap:calc(16*var(--u)); }
+.tool{
+  width:calc(52*var(--u)); height:calc(52*var(--u)); border-radius:50%;
+  display:grid; place-items:center; overflow:hidden;
+  background:rgba(255,255,255,.15);
+  backdrop-filter:blur(calc(16*var(--u))) saturate(115%);
+  -webkit-backdrop-filter:blur(calc(16*var(--u))) saturate(115%);
+  border:1px solid var(--glass-line);
+  cursor:pointer;
+  transition:background .25s var(--e-soft), transform .25s var(--e-soft);
+}
+.tool:hover{ background:rgba(255,255,255,.24); }
+.tool svg{ width:calc(21*var(--u)); height:calc(21*var(--u)); }
+.tool.avatar{ padding:0; }
+.tool.avatar img,.tool.avatar svg{ width:100%; height:100%; object-fit:cover; border-radius:50%; }
+.tools > *:nth-child(1){ animation:popIn .58s var(--e-out) .30s both; }
+.tools > *:nth-child(2){ animation:popIn .58s var(--e-out) .365s both; }
+.tools > *:nth-child(3){ animation:popIn .58s var(--e-out) .43s both; }
+.tools > *:nth-child(4){ animation:popIn .58s var(--e-out) .495s both; }
+
+/* ── HERO ────────────────────────────────────────────────────────────────── */
+.hero{
+  position:absolute; left:calc(126*var(--u)); top:calc(136*var(--u));
+  max-width:calc(560*var(--u));
+}
+.chip{
+  position:relative; overflow:hidden;
+  display:inline-flex; align-items:center;
+  height:calc(36*var(--u)); border-radius:calc(18*var(--u));
+  padding:0 calc(15*var(--u));
+  font-size:calc(13.5*var(--u)); font-weight:600; letter-spacing:calc(.1*var(--u));
+  background:rgba(255,255,255,.175);
+  backdrop-filter:blur(calc(16*var(--u))) saturate(115%);
+  -webkit-backdrop-filter:blur(calc(16*var(--u))) saturate(115%);
+  border:1px solid var(--glass-line);
+  animation:wipeRight .80s var(--e-out) .44s both;
+}
+h1{
+  margin:calc(18*var(--u)) 0 0;
+  font-family:'Inter Tight','Inter',sans-serif;
+  font-weight:500;
+  font-size:calc(63*var(--u));
+  line-height:calc(78*var(--u));
+  letter-spacing:calc(.25*var(--u));
+}
+.ln{ display:block; overflow:hidden; }
+.ln > span{ display:block; }
+.ln:nth-of-type(1) > span{ animation:lineUp 1.05s var(--e-out) .56s both; }
+.ln:nth-of-type(2) > span{ animation:lineUp 1.05s var(--e-out) .67s both; }
+.blurb{
+  margin:calc(20*var(--u)) 0 0;
+  width:calc(480*var(--u)); max-width:100%;
+  font-size:calc(15.2*var(--u)); line-height:calc(24*var(--u));
+  font-weight:500; letter-spacing:calc(-.3*var(--u));
+  color:rgba(255,255,255,.95);
+  animation:wipeDown .90s var(--e-soft) .90s both;
+}
+
+/* ── FORECAST ────────────────────────────────────────────────────────────── */
+.forecast{
+  position:absolute; left:calc(126*var(--u)); right:calc(396*var(--u)); bottom:calc(99*var(--u));
+}
+.temps{ display:flex; align-items:center; justify-content:space-between; }
+.temps .t{ display:flex; align-items:center; gap:calc(9*var(--u)); }
+.temps .deg{
+  font-size:calc(37*var(--u)); line-height:1; font-weight:400;
+  letter-spacing:calc(-.7*var(--u));
+}
+.temps svg{ width:calc(30*var(--u)); height:calc(30*var(--u)); opacity:.95; }
+.temps .t:nth-child(1){ animation:riseIn .70s var(--e-out) 1.26s both; }
+.temps .t:nth-child(2){ animation:riseIn .70s var(--e-out) 1.33s both; }
+.temps .t:nth-child(3){ animation:riseIn .70s var(--e-out) 1.40s both; }
+.temps .t:nth-child(4){ animation:riseIn .70s var(--e-out) 1.47s both; }
+.temps .t:nth-child(5){ animation:riseIn .70s var(--e-out) 1.54s both; }
+.temps .t:nth-child(6){ animation:riseIn .70s var(--e-out) 1.61s both; }
+
+.chart{ display:block; width:100%; height:calc(230*var(--u)); margin-top:calc(43*var(--u)); overflow:visible; }
+.wline{
+  fill:none; stroke:url(#wg); stroke-linecap:round; stroke-linejoin:round;
+  stroke-dasharray:1; stroke-dashoffset:1;
+  animation:drawLine 1.60s var(--e-pen) 1.50s both;
+}
+#wclipr{ transform-origin:0 0; animation:wipeX 1.42s var(--e-pen) 1.72s both; }
+
+.days{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-top:calc(-31*var(--u));
+}
+.days span{
+  font-size:calc(18*var(--u)); font-weight:500; color:rgba(255,255,255,.88);
+}
+.days span.on{ color:#fff; font-weight:600; }
+.days span:nth-child(1){ animation:riseIn .70s var(--e-out) 2.10s both; }
+.days span:nth-child(2){ animation:riseIn .70s var(--e-out) 2.155s both; }
+.days span:nth-child(3){ animation:riseIn .70s var(--e-out) 2.21s both; }
+.days span:nth-child(4){ animation:riseIn .70s var(--e-out) 2.265s both; }
+.days span:nth-child(5){ animation:riseIn .70s var(--e-out) 2.32s both; }
+.days span:nth-child(6){ animation:riseIn .70s var(--e-out) 2.375s both; }
+
+/* ── RIGHT RAIL ──────────────────────────────────────────────────────────── */
+.rail{
+  position:absolute; right:calc(38*var(--u)); top:calc(134*var(--u)); bottom:calc(95*var(--u));
+  width:calc(310*var(--u));
+  display:flex; flex-direction:column; gap:calc(20*var(--u));
+}
+.card{
+  position:relative; overflow:hidden;
+  border-radius:calc(24*var(--u));
+  padding:calc(20*var(--u));
+  background:linear-gradient(180deg,
+    rgba(255,255,255,.20) 0%,
+    rgba(255,255,255,.258) 24%,
+    rgba(255,255,255,.252) 78%,
+    rgba(255,255,255,.232) 100%);
+  backdrop-filter:blur(calc(26*var(--u))) saturate(118%);
+  -webkit-backdrop-filter:blur(calc(26*var(--u))) saturate(118%);
+  border:1px solid var(--glass-line);
+}
+.card.big{ border-radius:calc(26*var(--u)); flex:1; display:flex; flex-direction:column; padding:calc(24*var(--u)); }
+.card.row{ height:calc(120*var(--u)); display:flex; align-items:center; justify-content:space-between; }
+.rail .card:nth-child(1){ animation:slideR .95s var(--e-out) .80s both; }
+.rail .card:nth-child(2){ animation:slideR .95s var(--e-out) .92s both; }
+.rail .card:nth-child(3){ animation:slideR .95s var(--e-out) 1.03s both; }
+.rail .card:nth-child(4){ animation:slideR .95s var(--e-out) 1.14s both; }
+
+/* Coda especular: un solo destello que barre las tarjetas y el chip. */
+.card::after,.chip::after{
+  content:""; position:absolute; top:calc(-20*var(--u)); bottom:calc(-20*var(--u)); left:0;
+  width:38%; pointer-events:none;
+  background:linear-gradient(100deg, transparent 0%, rgba(255,255,255,.17) 50%, transparent 100%);
+  transform:translate3d(-150%,0,0) skewX(-18deg);
+  animation:sheen 1.15s var(--e-soft) 2.55s 1 both;
+}
+
+.place{ display:flex; align-items:center; gap:calc(7*var(--u)); animation:riseIn .70s var(--e-out) 1.04s both; }
+.place svg{ width:calc(16*var(--u)); height:calc(16*var(--u)); opacity:.9; }
+.place span{ font-size:calc(15*var(--u)); font-weight:600; letter-spacing:calc(-.2*var(--u)); }
+.big-temp{
+  margin-top:auto;
+  font-size:calc(92*var(--u)); line-height:1; font-weight:500;
+  letter-spacing:calc(-4.4*var(--u));
+  animation:riseIn .80s var(--e-out) 1.16s both;
+}
+.big-temp i{ font-style:normal; font-size:calc(40*var(--u)); letter-spacing:0; vertical-align:calc(11*var(--u)); font-weight:500; }
+.metrics{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-top:calc(20*var(--u));
+  animation:riseIn .70s var(--e-out) 1.28s both;
+}
+.metrics div{ display:flex; align-items:center; gap:calc(6*var(--u)); font-size:calc(13.5*var(--u)); font-weight:500; }
+.metrics svg{ width:calc(17*var(--u)); height:calc(17*var(--u)); opacity:.9; }
+
+.card.row .meta{ min-width:0; }
+.card.row .country{ font-size:calc(12.5*var(--u)); font-weight:500; color:rgba(255,255,255,.72); }
+.card.row .city{ margin-top:calc(5*var(--u)); font-size:calc(19*var(--u)); font-weight:600; letter-spacing:calc(-.3*var(--u)); }
+.card.row .cond{ margin-top:calc(5*var(--u)); font-size:calc(13*var(--u)); font-weight:500; color:rgba(255,255,255,.82); }
+.card.row .right{ display:flex; align-items:center; gap:calc(8*var(--u)); }
+.card.row .right b{ font-size:calc(30*var(--u)); font-weight:400; letter-spacing:calc(-.6*var(--u)); }
+.card.row .right svg{ width:calc(28*var(--u)); height:calc(28*var(--u)); }
+.rail .card:nth-child(2) .meta{ animation:riseIn .70s var(--e-out) 1.14s both; }
+.rail .card:nth-child(2) .right{ animation:riseIn .70s var(--e-out) 1.19s both; }
+.rail .card:nth-child(3) .meta{ animation:riseIn .70s var(--e-out) 1.25s both; }
+.rail .card:nth-child(3) .right{ animation:riseIn .70s var(--e-out) 1.30s both; }
+.rail .card:nth-child(4) .meta{ animation:riseIn .70s var(--e-out) 1.36s both; }
+.rail .card:nth-child(4) .right{ animation:riseIn .70s var(--e-out) 1.41s both; }
+
+/* ── COREOGRAFÍA ─────────────────────────────────────────────────────────── */
+@keyframes riseIn{ from{ opacity:0; transform:translateY(var(--ry,14px)); } to{ opacity:1; transform:none; } }
+@keyframes slideL{ from{ opacity:0; transform:translateX(-26px); } to{ opacity:1; transform:none; } }
+@keyframes slideR{ from{ opacity:0; transform:translateX(30px) scale(.985); } to{ opacity:1; transform:none; } }
+@keyframes popIn{ from{ opacity:0; transform:scale(.7); } to{ opacity:1; transform:scale(1); } }
+@keyframes growY{ from{ opacity:0; transform:scaleY(0); } to{ opacity:1; transform:scaleY(1); } }
+@keyframes lineUp{ from{ transform:translateY(115%); } to{ transform:none; } }
+@keyframes wipeDown{ from{ clip-path:inset(0 0 100% 0); } to{ clip-path:inset(0 0 0 0); } }
+@keyframes wipeRight{ from{ clip-path:inset(0 100% 0 0); } to{ clip-path:inset(0 0 0 0); } }
+@keyframes drawLine{ from{ stroke-dashoffset:1; } to{ stroke-dashoffset:0; } }
+@keyframes wipeX{ from{ transform:scaleX(0); } to{ transform:scaleX(1); } }
+@keyframes sheen{
+  from{ transform:translate3d(-150%,0,0) skewX(-18deg); }
+  to{ transform:translate3d(260%,0,0) skewX(-18deg); }
+}
+
+/* ── MÓVIL: una sola columna con scroll ──────────────────────────────────── */
+@media (max-width:860px){
+  :root{ --u: min(100vw / 430, 1.22px); }
+  html,body{ overflow:auto; height:auto; }
+  body{ min-height:100%; }
+  .stage{ position:relative; inset:auto; min-height:100dvh; overflow:visible; }
+  .stage::after{ position:fixed; }
+
+  .sidebar{
+    position:fixed; left:calc(12*var(--u)); right:calc(12*var(--u)); top:auto;
+    bottom:calc(10*var(--u)); width:auto; height:calc(64*var(--u));
+    flex-direction:row; align-items:center; justify-content:space-around;
+    padding:0 calc(14*var(--u)); border-radius:calc(22*var(--u)); z-index:5;
+    animation:riseIn .70s var(--e-out) .05s both;
+  }
+  .pip{ display:none; }
+  .brand{ display:none; }
+  .nav{ margin-top:0; flex-direction:row; gap:calc(26*var(--u)); }
+  .signout{ margin-top:0; }
+
+  .header,.hero,.forecast,.rail{ position:static; inset:auto; width:auto; max-width:none; }
+  .stage{ display:flex; flex-direction:column; gap:calc(26*var(--u)); padding:calc(18*var(--u)) calc(16*var(--u)) calc(96*var(--u)); }
+  .header{ order:1; height:auto; }
+  .hero{ order:2; }
+  .rail{ order:3; }
+  .forecast{ order:4; right:auto; bottom:auto; }
+  .rail{ flex-direction:column; }
+  .rail .card{ animation:riseIn .70s var(--e-out) .8s both; }
+  .card.big{ flex:none; min-height:calc(230*var(--u)); }
+  h1{ font-size:calc(52*var(--u)); line-height:calc(62*var(--u)); }
+  .blurb{ width:auto; }
+  .chart{ height:calc(180*var(--u)); }
+}
+@media (max-width:420px){
+  :root{ --u: calc(100vw / 430); }
+}
+
+/* ── ACCESIBILIDAD: sin movimiento ───────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation:none !important;
+    transition:none !important;
+  }
+  .card::after,.chip::after{ display:none; }
+  .wline{ stroke-dashoffset:0; }
+  #wclipr{ transform:scaleX(1); }
+}
+.sr{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+</style>
+</head>
+<body>
+
+<!-- ═══ SPRITE DE ICONOS ═══════════════════════════════════════════════════ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <g id="ico" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></g>
+  </defs>
+
+  <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="3" width="7.5" height="7.5" rx="2.2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2.2"/>
+    <rect x="3" y="13.5" width="7.5" height="7.5" rx="2.2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2.2"/>
+  </symbol>
+
+  <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3.5 20.5h17"/><rect x="5" y="11" width="3.6" height="6.5" rx="1.3"/>
+    <rect x="10.2" y="6.5" width="3.6" height="11" rx="1.3"/><rect x="15.4" y="9" width="3.6" height="8.5" rx="1.3"/>
+  </symbol>
+
+  <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2"/>
+    <path d="M12 3.4c2.3 2.4 3.5 5.4 3.5 8.6S14.3 18.2 12 20.6C9.7 18.2 8.5 15.2 8.5 12S9.7 5.8 12 3.4Z"/>
+  </symbol>
+
+  <symbol id="i-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3.3" y="5" width="17.4" height="15.7" rx="3.2"/><path d="M3.3 9.8h17.4"/>
+    <path d="M8.2 3.3v3.4M15.8 3.3v3.4"/><circle cx="8.4" cy="14" r="1.05" fill="currentColor" stroke="none"/>
+    <circle cx="12" cy="14" r="1.05" fill="currentColor" stroke="none"/><circle cx="15.6" cy="14" r="1.05" fill="currentColor" stroke="none"/>
+  </symbol>
+
+  <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="3.1"/>
+    <path d="M19.5 14.3a1.6 1.6 0 0 0 .32 1.77l.06.06a1.94 1.94 0 1 1-2.75 2.75l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-.97 1.47v.17a1.94 1.94 0 1 1-3.89 0v-.09a1.6 1.6 0 0 0-1.05-1.47 1.6 1.6 0 0 0-1.77.32l-.06.06a1.94 1.94 0 1 1-2.75-2.75l.06-.06a1.6 1.6 0 0 0 .32-1.77 1.6 1.6 0 0 0-1.47-.97h-.17a1.94 1.94 0 1 1 0-3.89h.09a1.6 1.6 0 0 0 1.47-1.05 1.6 1.6 0 0 0-.32-1.77l-.06-.06A1.94 1.94 0 1 1 7.45 3.9l.06.06a1.6 1.6 0 0 0 1.77.32h.08a1.6 1.6 0 0 0 .97-1.47v-.17a1.94 1.94 0 1 1 3.89 0v.09a1.6 1.6 0 0 0 .97 1.47 1.6 1.6 0 0 0 1.77-.32l.06-.06a1.94 1.94 0 1 1 2.75 2.75l-.06.06a1.6 1.6 0 0 0-.32 1.77v.08a1.6 1.6 0 0 0 1.47.97h.17a1.94 1.94 0 1 1 0 3.89h-.09a1.6 1.6 0 0 0-1.47.97Z"/>
+  </symbol>
+
+  <symbol id="i-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.5 20.4H6.6a2.2 2.2 0 0 1-2.2-2.2V5.8a2.2 2.2 0 0 1 2.2-2.2h7.9"/>
+    <path d="M15.6 16.2 20 12l-4.4-4.2"/><path d="M20 12H9.4"/>
+  </symbol>
+
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 5.2v13.6M5.2 12h13.6"/>
+  </symbol>
+
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="10.9" cy="10.9" r="6.6"/><path d="M15.7 15.7 20 20"/>
+  </symbol>
+
+  <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18.2 16.2H5.8c1.2-1.2 1.6-2.2 1.6-4.3v-1.4a4.6 4.6 0 0 1 9.2 0v1.4c0 2.1.4 3.1 1.6 4.3Z"/>
+    <path d="M10.2 19.1a2 2 0 0 0 3.6 0"/>
+  </symbol>
+
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 21s6.4-5.3 6.4-10A6.4 6.4 0 0 0 5.6 11c0 4.7 6.4 10 6.4 10Z"/><circle cx="12" cy="10.7" r="2.4"/>
+  </symbol>
+
+  <symbol id="i-wind" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3.5 8.6h9.3a2.6 2.6 0 1 0-2.6-2.6"/><path d="M3.5 12.5h13a2.6 2.6 0 1 1-2.6 2.6"/><path d="M3.5 16.6h6.4"/>
+  </symbol>
+
+  <symbol id="i-drop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3.2s5.6 6.1 5.6 9.7a5.6 5.6 0 1 1-11.2 0C6.4 9.3 12 3.2 12 3.2Z"/>
+  </symbol>
+
+  <symbol id="i-gust" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3.6 9.4h8a2.4 2.4 0 1 0-2.4-2.4"/><path d="M3.6 14.6h10.8a2.6 2.6 0 1 1-2.6 2.6"/>
+    <path d="M17.4 9.4h1.2a2.2 2.2 0 1 0-2.2-2.2"/>
+  </symbol>
+
+  <symbol id="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7.3 18.4h9.4a4 4 0 0 0 .5-7.97 5.6 5.6 0 0 0-10.7-1.1 3.9 3.9 0 0 0 .8 9.07Z"/>
+  </symbol>
+
+  <symbol id="i-cloud2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16.2 8.6a3.4 3.4 0 1 0-3.35-4.02"/>
+    <path d="M6.9 19h9a3.85 3.85 0 0 0 .5-7.66 5.35 5.35 0 0 0-10.25-1.05A3.75 3.75 0 0 0 6.9 19Z"/>
+  </symbol>
+
+  <symbol id="i-hail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7.2 15.2h9.2a3.8 3.8 0 0 0 .5-7.57 5.4 5.4 0 0 0-10.3-1.05 3.75 3.75 0 0 0 .6 8.62Z"/>
+    <circle cx="8.6" cy="19.1" r="1.05" fill="currentColor" stroke="none"/>
+    <circle cx="12" cy="20.4" r="1.05" fill="currentColor" stroke="none"/>
+    <circle cx="15.4" cy="19.1" r="1.05" fill="currentColor" stroke="none"/>
+  </symbol>
+
+  <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="4.3"/>
+    <path d="M12 2.6v2.3M12 19.1v2.3M2.6 12h2.3M19.1 12h2.3M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4 17 7M7 17l-1.6 1.6"/>
+  </symbol>
+
+  <symbol id="i-avatar" viewBox="0 0 24 24">
+    <rect width="24" height="24" rx="12" fill="rgba(255,255,255,.22)"/>
+    <circle cx="12" cy="9.4" r="3.5" fill="rgba(255,255,255,.85)"/>
+    <path d="M4.6 21.2a7.6 7.6 0 0 1 14.8 0Z" fill="rgba(255,255,255,.85)"/>
+  </symbol>
+</svg>
+
+<!-- ═══ ESCENARIO ══════════════════════════════════════════════════════════ -->
+<div class="stage">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <span class="pip" aria-hidden="true"></span>
+
+    <div class="brand">
+      <svg viewBox="0 0 40 40" aria-label="Aurora Weather" role="img">
+        <defs>
+          <clipPath id="lgclip"><circle cx="20" cy="20" r="13.4"/></clipPath>
+        </defs>
+        <rect x="1.2" y="1.2" width="37.6" height="37.6" rx="12"
+              fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.55)" stroke-width="1.4"/>
+        <g clip-path="url(#lgclip)" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round">
+          <polyline points="4,9 9,7.2 14,9 19,7.2 24,9 29,7.2 34,9" opacity=".45"/>
+          <polyline points="4,13 9,11.2 14,13 19,11.2 24,13 29,11.2 34,13" opacity=".6"/>
+          <polyline points="4,17 9,15.2 14,17 19,15.2 24,17 29,15.2 34,17" opacity=".8"/>
+          <polyline points="4,21 9,19.2 14,21 19,19.2 24,21 29,19.2 34,21"/>
+          <polyline points="4,25 9,23.2 14,25 19,23.2 24,25 29,23.2 34,25" opacity=".8"/>
+          <polyline points="4,29 9,27.2 14,29 19,27.2 24,29 29,27.2 34,29" opacity=".6"/>
+          <polyline points="4,33 9,31.2 14,33 19,31.2 24,33 29,31.2 34,33" opacity=".45"/>
+        </g>
+      </svg>
+    </div>
+
+    <nav class="nav">
+      <a href="#" aria-label="Dashboard" aria-current="page"><svg><use href="#i-grid"/></svg></a>
+      <a href="#" aria-label="Reports"><svg><use href="#i-chart"/></svg></a>
+      <a href="#" aria-label="Explore regions"><svg><use href="#i-globe"/></svg></a>
+      <a href="#" aria-label="Calendar"><svg><use href="#i-cal"/></svg></a>
+      <a href="#" aria-label="Settings"><svg><use href="#i-gear"/></svg></a>
+    </nav>
+
+    <button class="signout" type="button" aria-label="Sign out"><svg><use href="#i-out"/></svg></button>
+  </aside>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div>
+      <div class="hello">Welcome</div>
+      <div class="who">Calfin Danang</div>
+    </div>
+    <div class="tools">
+      <button class="tool" type="button" aria-label="Add location"><svg><use href="#i-plus"/></svg></button>
+      <button class="tool" type="button" aria-label="Search"><svg><use href="#i-search"/></svg></button>
+      <button class="tool" type="button" aria-label="Notifications"><svg><use href="#i-bell"/></svg></button>
+      <span class="tool avatar">
+        <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=160&h=160&fit=crop&crop=faces&q=80&auto=format"
+             alt="Calfin Danang" loading="eager" decoding="async" onerror="this.remove()">
+        <svg aria-hidden="true"><use href="#i-avatar"/></svg>
+      </span>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <span class="chip">Weather Forecast</span>
+    <h1>
+      <span class="ln"><span>Strom</span></span>
+      <span class="ln"><span>with Heavy Rain</span></span>
+    </h1>
+    <p class="blurb">Partly cloudy with occasional snow showers. High around 50°F. Wind from the east 11 to 21 mph. Snow chance is 40%, with rainfall expected to be less than an inch.</p>
+  </section>
+
+  <!-- FORECAST -->
+  <section class="forecast" aria-label="Hourly and daily forecast">
+    <div class="temps">
+      <div class="t"><span class="deg">11°</span><svg><use href="#i-cloud"/></svg></div>
+      <div class="t"><span class="deg">13°</span><svg><use href="#i-cloud2"/></svg></div>
+      <div class="t"><span class="deg">14°</span><svg><use href="#i-cloud2"/></svg></div>
+      <div class="t"><span class="deg">10°</span><svg><use href="#i-hail"/></svg></div>
+      <div class="t"><span class="deg">19°</span><svg><use href="#i-sun"/></svg></div>
+      <div class="t"><span class="deg">12°</span><svg><use href="#i-cloud"/></svg></div>
+    </div>
+
+    <svg class="chart" viewBox="0 0 835 230" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="wg" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0"    stop-color="#fff" stop-opacity=".28"/>
+          <stop offset=".14"  stop-color="#fff" stop-opacity=".72"/>
+          <stop offset=".42"  stop-color="#fff" stop-opacity="1"/>
+          <stop offset=".74"  stop-color="#fff" stop-opacity=".92"/>
+          <stop offset="1"    stop-color="#fff" stop-opacity=".42"/>
+        </linearGradient>
+        <linearGradient id="wf" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0"   stop-color="#fff" stop-opacity=".34"/>
+          <stop offset=".55" stop-color="#fff" stop-opacity=".12"/>
+          <stop offset="1"   stop-color="#fff" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="wfadeg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0"   stop-color="#fff" stop-opacity="1"/>
+          <stop offset=".62" stop-color="#fff" stop-opacity=".45"/>
+          <stop offset="1"   stop-color="#fff" stop-opacity="0"/>
+        </linearGradient>
+        <mask id="wfade"><rect x="0" y="0" width="835" height="230" fill="url(#wfadeg)"/></mask>
+        <clipPath id="wclip" clipPathUnits="userSpaceOnUse">
+          <rect id="wclipr" x="0" y="-40" width="835" height="310"/>
+        </clipPath>
+      </defs>
+
+      <!-- Relleno: entra con wipe izquierda→derecha, ~220ms detrás de la pluma -->
+      <g clip-path="url(#wclip)">
+        <path mask="url(#wfade)" fill="url(#wf)"
+              d="M0,79 C64,79 90,30 152,30 C214,30 240,140 302,140 C364,140 390,44 452,44 C514,44 540,168 602,168 C664,168 690,60 752,60 C790,60 806,76 812,86 L835,86 L835,230 L0,230 Z"/>
+      </g>
+
+      <!-- Trazo: tres pasadas (halo + halo medio + línea) que se dibujan solas -->
+      <path class="wline" pathLength="1" stroke-width="6.2" opacity=".17"
+            d="M0,79 C64,79 90,30 152,30 C214,30 240,140 302,140 C364,140 390,44 452,44 C514,44 540,168 602,168 C664,168 690,60 752,60 C790,60 806,76 812,86 L835,86"/>
+      <path class="wline" pathLength="1" stroke-width="4.6" opacity=".26"
+            d="M0,79 C64,79 90,30 152,30 C214,30 240,140 302,140 C364,140 390,44 452,44 C514,44 540,168 602,168 C664,168 690,60 752,60 C790,60 806,76 812,86 L835,86"/>
+      <path class="wline" pathLength="1" stroke-width="3.4" opacity="1"
+            d="M0,79 C64,79 90,30 152,30 C214,30 240,140 302,140 C364,140 390,44 452,44 C514,44 540,168 602,168 C664,168 690,60 752,60 C790,60 806,76 812,86 L835,86"/>
+    </svg>
+
+    <div class="days">
+      <span>Sunday</span>
+      <span>Monday</span>
+      <span>Tuesday</span>
+      <span class="on">Wednesday</span>
+      <span>Thursday</span>
+      <span>Friday</span>
+    </div>
+  </section>
+
+  <!-- RIGHT RAIL -->
+  <aside class="rail">
+    <article class="card big">
+      <div class="place"><svg><use href="#i-pin"/></svg><span>Central Jakarta</span></div>
+      <div class="big-temp">10°<i>C</i></div>
+      <div class="metrics">
+        <div><svg><use href="#i-wind"/></svg>19 mph</div>
+        <div><svg><use href="#i-drop"/></svg>40%</div>
+        <div><svg><use href="#i-gust"/></svg>15km/h</div>
+      </div>
+    </article>
+
+    <article class="card row">
+      <div class="meta">
+        <div class="country">Indonesia</div>
+        <div class="city">North Jakarta</div>
+        <div class="cond">Mostly Sunny</div>
+      </div>
+      <div class="right"><b>12°</b><svg><use href="#i-cloud"/></svg></div>
+    </article>
+
+    <article class="card row">
+      <div class="meta">
+        <div class="country">Indonesia</div>
+        <div class="city">Bandung</div>
+        <div class="cond">Cloudy</div>
+      </div>
+      <div class="right"><b>10°</b><svg><use href="#i-cloud"/></svg></div>
+    </article>
+
+    <article class="card row">
+      <div class="meta">
+        <div class="country">Indonesia</div>
+        <div class="city">South Jakarta</div>
+        <div class="cond">Sunny</div>
+      </div>
+      <div class="right"><b>14°</b><svg><use href="#i-cloud2"/></svg></div>
+    </article>
+  </aside>
+
+</div>
+</body>
+</html>

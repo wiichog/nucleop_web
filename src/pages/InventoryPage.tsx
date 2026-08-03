@@ -15,7 +15,6 @@ import {
   Text,
   Textarea,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
@@ -39,7 +38,8 @@ import { StoreOrdersPanel } from "./StoreOrdersPanel";
 import { SuppliersPanel } from "./SuppliersPanel";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { RowActions } from "../components/RowActions";
-import { CountBadge, Money, PageHeader } from "../components/ui";
+import { CountBadge, Money, PageHeader, SectionLabel } from "../components/ui";
+import { GlassCard, Reveal } from "../components/aurora";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
 import { sortRecords } from "../lib/sortRecords";
@@ -218,10 +218,10 @@ export function InventoryPage() {
           onRetry={() => productsQuery.refetch()}
         />
       )}
+      {/* El alta entra con la primera tanda de tarjetas (0.6s del ritmo Aurora). */}
+      <Reveal anim="slide-r" delay={0.6}>
       <Card mb="lg" component="form" onSubmit={onCreate}>
-        <Title order={3} mb="sm">
-          Nuevo producto
-        </Title>
+        <SectionLabel as="h2" mb="sm">Nuevo producto</SectionLabel>
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} spacing="md">
           <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} />
           <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIES} />
@@ -328,8 +328,10 @@ export function InventoryPage() {
           </Button>
         </Group>
       </Card>
+      </Reveal>
 
-      <Card>
+      <SectionLabel as="h2" mb="xs">Catálogo · stock actual</SectionLabel>
+      <GlassCard padding={14} delay={0.72}>
         <TextInput
           placeholder="Buscar producto o categoría…"
           value={search}
@@ -364,7 +366,13 @@ export function InventoryPage() {
                     <img
                       src={p.photo}
                       alt={p.name}
-                      style={{ width: 42, height: 32, objectFit: "cover", borderRadius: 6 }}
+                      style={{
+                        width: "calc(42 * var(--u))",
+                        height: "calc(32 * var(--u))",
+                        objectFit: "cover",
+                        borderRadius: "calc(8 * var(--u))",
+                        border: "1px solid var(--a-line)",
+                      }}
                     />
                   )}
                   <Text size="sm" fw={600}>
@@ -406,7 +414,7 @@ export function InventoryPage() {
               sortable: true,
               textAlign: "right",
               render: (p) => (
-                <Text c={p.needs_reorder ? "red" : undefined} size="sm" style={{ fontVariantNumeric: "tabular-nums" }}>
+                <Text c={p.needs_reorder ? "red" : undefined} size="sm" className="a-tabular">
                   {p.stock_qty}
                   {p.needs_reorder ? " ⚠" : ""}
                 </Text>
@@ -443,7 +451,7 @@ export function InventoryPage() {
             },
           ]}
         />
-      </Card>
+      </GlassCard>
         </Tabs.Panel>
 
         <Tabs.Panel value="compras">
@@ -621,7 +629,13 @@ function EditProductModal({
               <img
                 src={product.photo}
                 alt={product.name}
-                style={{ width: 86, height: 56, objectFit: "cover", borderRadius: 8 }}
+                style={{
+                  width: "calc(86 * var(--u))",
+                  height: "calc(56 * var(--u))",
+                  objectFit: "cover",
+                  borderRadius: "calc(12 * var(--u))",
+                  border: "1px solid var(--a-line)",
+                }}
               />
               <Text c="dimmed" size="xs">
                 Foto actual — sube otra para reemplazarla.
@@ -658,9 +672,9 @@ function EditProductModal({
 
       {product && (
         <>
-          <Text fw={600} mt="md">
+          <SectionLabel as="h2" mt="md" mb={6}>
             Galería de imágenes
-          </Text>
+          </SectionLabel>
           <Text c="dimmed" size="xs" mb="sm">
             Fotos adicionales del producto (además de la portada). Se muestran en el detalle en la app.
           </Text>
@@ -668,15 +682,32 @@ function EditProductModal({
             <Group gap="xs" mb="sm">
               {(product.images ?? []).map((im) => (
                 <div key={im.id} style={{ position: "relative" }}>
-                  <img src={im.url} alt="" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8 }} />
+                  <img
+                    src={im.url}
+                    alt=""
+                    style={{
+                      width: "calc(72 * var(--u))",
+                      height: "calc(72 * var(--u))",
+                      objectFit: "cover",
+                      borderRadius: "calc(12 * var(--u))",
+                      border: "1px solid var(--a-line)",
+                    }}
+                  />
                   <Button
                     size="xs"
                     color="red"
                     variant="filled"
                     px={6}
-                    style={{ position: "absolute", top: -8, right: -8, height: 22, borderRadius: 999 }}
+                    style={{
+                      position: "absolute",
+                      top: -8,
+                      right: -8,
+                      height: "calc(22 * var(--u))",
+                      borderRadius: "var(--radius-pill)",
+                    }}
                     loading={deleteImage.isPending && deleteImage.variables?.imageId === im.id}
                     onClick={() => deleteImage.mutate({ id: product.id, imageId: im.id })}
+                    aria-label="Quitar imagen"
                   >
                     ✕
                   </Button>

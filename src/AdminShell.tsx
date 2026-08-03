@@ -31,6 +31,9 @@ import "@mantine/core/styles.css";
 import "@mantine/dates/styles.css";
 import "@mantine/notifications/styles.css";
 import "mantine-datatable/styles.css";
+// Aurora va AL FINAL a propósito: redefine variables y materiales de Mantine y
+// necesita ganar el desempate de orden en el CSS resultante.
+import "./lib/aurora.css";
 
 function Protected({ children }: { children: JSX.Element }) {
   const { authenticated, loading } = useAuth();

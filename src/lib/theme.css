@@ -18,12 +18,8 @@
   --radius-card: 14px;
   --radius-control: 10px;
 
-  /* Material glass único para TODOS los popups (ver .nucleo-glass). Neutros
-     derivados de la familia carbón/superficie-2, solo con alfa — sin hex nuevos. */
-  --nucleo-glass: rgba(29, 29, 34, 0.72);         /* superficie-2 translúcida */
-  --nucleo-glass-hairline: rgba(255, 255, 255, 0.12);
-  --nucleo-glass-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
-  --nucleo-scrim: rgba(6, 6, 7, 0.55);            /* velo que congela el fondo */
+  /* Velo que congela el fondo detrás de un popup (vibrancy tipo iOS). */
+  --nucleo-scrim: rgba(6, 6, 7, 0.55);
 }
 
 * { box-sizing: border-box; }
@@ -70,17 +66,14 @@ a { color: var(--nucleo-accent); }
 }
 
 /* ── Material glass ÚNICO ──────────────────────────────────────────────────
-   Todos los popups (modales, drawers, menús, popovers, hovercards y el dropdown
-   de los Select) heredan ESTE material vía `classNames` en mantineTheme.ts.
-   Una sola fuente de verdad para el "frosted glass" tipo iOS: translúcido +
-   blur fuerte + saturación (vibrancy) + hairline claro + sombra difusa. */
-.nucleo-glass {
-  background: var(--nucleo-glass) !important;
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid var(--nucleo-glass-hairline) !important;
-  box-shadow: var(--nucleo-glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
-}
+   `.nucleo-glass` (el material de TODOS los popups: modales, drawers, menús,
+   popovers, hovercards y el dropdown de los Select) se MUDÓ a `lib/aurora.css`
+   con el rediseño Aurora.
+
+   No se dejó aquí una segunda definición a propósito: aurora.css viaja en el
+   chunk diferido del panel y theme.css en el entry, así que cuál de las dos
+   ganaría la cascada dependía del orden de inyección — distinto en dev que en
+   el build de producción. Una sola definición elimina el desempate. */
 
 /* Cifras/dinero: dígitos de ancho fijo para que las columnas no "bailen". */
 .nucleo-tabular { font-variant-numeric: tabular-nums; }
@@ -92,10 +85,8 @@ a { color: var(--nucleo-accent); }
   border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.22);
 }
-.nucleo-card--glow {
-  border-color: rgba(252, 76, 2, 0.25);
-  box-shadow: 0 0 26px rgba(252, 76, 2, 0.12);
-}
+/* `.nucleo-card--glow` se eliminó: no la usaba nadie y el halo naranja quedó
+   proscrito del sistema (el acento es relleno/borde/texto, nunca resplandor). */
 
 .nucleo-btn {
   background: var(--nucleo-accent);

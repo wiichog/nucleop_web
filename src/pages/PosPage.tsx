@@ -1,15 +1,12 @@
 import { useMemo, useState } from "react";
 import {
   Button,
-  Card,
   Group,
   NumberInput,
   Select,
-  SimpleGrid,
   Stack,
   Table,
   Text,
-  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
@@ -23,7 +20,8 @@ import {
 import type { ErpSale } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { Money, PageHeader } from "../components/ui";
+import { Money, PageHeader, SectionLabel } from "../components/ui";
+import { BigMetric, GlassCard } from "../components/aurora";
 import { errMsg } from "../lib/errors";
 import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
@@ -82,6 +80,8 @@ export function PosPage() {
   const [error, setError] = useState("");
 
   const total = useMemo(() => cart.reduce((acc, l) => acc + Number(l.unit_price) * l.qty, 0), [cart]);
+  // Unidades del carrito: solo se muestra bajo el total, no interviene en el cobro.
+  const unidades = cart.reduce((acc, l) => acc + l.qty, 0);
 
   const addLine = () => {
     const product = (products ?? []).find((p) => p.id === productId);
@@ -124,116 +124,155 @@ export function PosPage() {
 
   return (
     <div>
-      <PageHeader kicker="Negocio · ERP" title="Punto de venta (recepción)" subtitle="Registra ventas de productos y servicios." />
+      <PageHeader
+        kicker="Negocio · ERP"
+        title="Punto de venta"
+        subtitle="Cobra en recepción: arma el carrito, elige cómo paga el atleta y registra la venta. Cada venta descuenta del inventario."
+      />
 
-      <Card mb="lg">
-        <Title order={3} mb="sm">
-          Nueva venta
-        </Title>
-        <Group align="flex-end" gap="md" mb="md">
-          <Select
-            label="Producto"
-            placeholder="Selecciona producto…"
-            value={productId}
-            onChange={setProductId}
-            searchable
-            style={{ flex: 1, minWidth: 200 }}
-            data={(products ?? [])
-              .filter((p) => p.is_active)
-              .map((p) => ({ value: p.id, label: `${p.name} — ${fmtQ(p.sale_price)} (stock ${p.stock_qty})` }))}
-          />
-          <NumberInput label="Cantidad" value={qty} onChange={setQty} w={100} min={1} />
-          <Button variant="default" onClick={addLine} disabled={!productId}>
-            Añadir
-          </Button>
-        </Group>
-
-        {cart.length === 0 ? (
-          <EmptyState title="Carrito vacío" description="Añade productos para registrar la venta." />
-        ) : (
-          <Table.ScrollContainer minWidth={480}>
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Producto</Table.Th>
-                <Table.Th ta="right">Cant.</Table.Th>
-                <Table.Th ta="right">Precio</Table.Th>
-                <Table.Th ta="right">Subtotal</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {cart.map((l, i) => (
-                <Table.Tr key={`${l.product_id}-${i}`}>
-                  <Table.Td>{l.name}</Table.Td>
-                  <Table.Td ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>{l.qty}</Table.Td>
-                  <Table.Td ta="right"><Money value={l.unit_price} decimals={2} /></Table.Td>
-                  <Table.Td ta="right"><Money value={Number(l.unit_price) * l.qty} decimals={2} /></Table.Td>
-                  <Table.Td>
-                    <Button variant="subtle" color="red" size="xs" onClick={() => setCart((prev) => prev.filter((_, idx) => idx !== i))}>
-                      Quitar
-                    </Button>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-          </Table.ScrollContainer>
-        )}
-
-        <Stack gap="md" mt="md">
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-            <Select
-              label="Atleta (opcional)"
-              placeholder="Venta anónima si vacío"
-              value={athleteId || null}
-              onChange={(v) => setAthleteId(v ?? "")}
-              data={athleteOptions}
-              searchable
-              clearable
-              nothingFoundMessage="Sin coincidencias"
-            />
-            {(branches ?? []).length > 0 && (
+      {/* Retícula del POS: el carrito se arma a la izquierda y el cobro vive en
+          el rail derecho, siempre a la vista mientras se suman líneas. */}
+      <div className="a-dash-grid">
+        <div style={{ display: "flex", flexDirection: "column", gap: "calc(20 * var(--u))" }}>
+          <GlassCard padding={18} delay={0.6}>
+            <SectionLabel as="h2" mb={12}>Nueva venta</SectionLabel>
+            <Group align="flex-end" gap="md">
               <Select
-                label="Sede"
-                placeholder="Sin sede"
-                value={branchId}
-                onChange={setBranchId}
-                clearable
-                data={(branches ?? []).map((b) => ({ value: b.id, label: b.name }))}
+                label="Producto"
+                placeholder="Selecciona producto…"
+                value={productId}
+                onChange={setProductId}
+                searchable
+                style={{ flex: 1, minWidth: 200 }}
+                data={(products ?? [])
+                  .filter((p) => p.is_active)
+                  .map((p) => ({ value: p.id, label: `${p.name} — ${fmtQ(p.sale_price)} (stock ${p.stock_qty})` }))}
               />
-            )}
-            <Select
-              label="Método"
-              value={method}
-              onChange={(v) => setMethod((v as typeof method) ?? "cash")}
-              data={[
-                { value: "cash", label: "Efectivo" },
-                { value: "card", label: "Tarjeta" },
-                { value: "bank_transfer", label: "Transferencia" },
-              ]}
-            />
-          </SimpleGrid>
-          <Group justify="space-between" align="center" wrap="wrap">
-            <Text fw={700} fz="lg" ff='"Space Grotesk", sans-serif' style={{ fontVariantNumeric: "tabular-nums" }}>
-              Total: {fmtQ(total, { decimals: 2 })}
-            </Text>
-            <Button onClick={submit} disabled={cart.length === 0} loading={createSale.isPending}>
-              Registrar venta
-            </Button>
-          </Group>
-        </Stack>
-        {error && (
-          <Text c="red" size="sm" mt="sm">
-            {error}
-          </Text>
-        )}
-      </Card>
+              <NumberInput label="Cantidad" value={qty} onChange={setQty} w={100} min={1} />
+              <Button variant="default" onClick={addLine} disabled={!productId}>
+                Añadir
+              </Button>
+            </Group>
+          </GlassCard>
 
-      <Card>
-        <Title order={3} mb="sm">
+          <div>
+            <SectionLabel as="h2" mb={10}>Carrito</SectionLabel>
+            {cart.length === 0 ? (
+              <EmptyState title="Carrito vacío" description="Añade productos para registrar la venta." />
+            ) : (
+              <GlassCard padding={0} delay={0.72} style={{ overflow: "hidden" }}>
+                <Table.ScrollContainer minWidth={480}>
+                  <Table>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Producto</Table.Th>
+                        <Table.Th ta="right">Cant.</Table.Th>
+                        <Table.Th ta="right">Precio</Table.Th>
+                        <Table.Th ta="right">Subtotal</Table.Th>
+                        <Table.Th />
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {cart.map((l, i) => (
+                        <Table.Tr key={`${l.product_id}-${i}`}>
+                          <Table.Td>{l.name}</Table.Td>
+                          <Table.Td ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>{l.qty}</Table.Td>
+                          <Table.Td ta="right"><Money value={l.unit_price} decimals={2} /></Table.Td>
+                          <Table.Td ta="right"><Money value={Number(l.unit_price) * l.qty} decimals={2} /></Table.Td>
+                          <Table.Td>
+                            <Button variant="subtle" color="red" size="xs" onClick={() => setCart((prev) => prev.filter((_, idx) => idx !== i))}>
+                              Quitar
+                            </Button>
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </Table.ScrollContainer>
+              </GlassCard>
+            )}
+          </div>
+        </div>
+
+        {/* Rail de cobro: cuánto, de quién y con qué. Es la tarjeta que manda. */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "calc(20 * var(--u))",
+            position: "sticky",
+            top: "calc(var(--a-header-h) + 12 * var(--u))",
+          }}
+        >
+          <GlassCard variant="core" sheen padding={24} delay={0.8}>
+            <BigMetric
+              label="Total a cobrar"
+              value={fmtQ(total, { decimals: 2 })}
+              fz="clamp(30px, calc(46 * var(--u)), 54px)"
+              hint={
+                cart.length === 0
+                  ? "Sin artículos en el carrito."
+                  : `${cart.length} línea${cart.length === 1 ? "" : "s"} · ${unidades} unidad${unidades === 1 ? "" : "es"}`
+              }
+              delay={1.04}
+            />
+
+            <Stack gap="md" mt="lg" className="a-rise" style={{ animationDelay: "1.16s" }}>
+              <Select
+                label="Atleta (opcional)"
+                placeholder="Venta anónima si vacío"
+                value={athleteId || null}
+                onChange={(v) => setAthleteId(v ?? "")}
+                data={athleteOptions}
+                searchable
+                clearable
+                nothingFoundMessage="Sin coincidencias"
+              />
+              {(branches ?? []).length > 0 && (
+                <Select
+                  label="Sede"
+                  placeholder="Sin sede"
+                  value={branchId}
+                  onChange={setBranchId}
+                  clearable
+                  data={(branches ?? []).map((b) => ({ value: b.id, label: b.name }))}
+                />
+              )}
+              <Select
+                label="Método"
+                value={method}
+                onChange={(v) => setMethod((v as typeof method) ?? "cash")}
+                data={[
+                  { value: "cash", label: "Efectivo" },
+                  { value: "card", label: "Tarjeta" },
+                  { value: "bank_transfer", label: "Transferencia" },
+                ]}
+              />
+              {/* Botón grande: en recepción se cobra de pie y con prisa. */}
+              <Button
+                size="md"
+                fullWidth
+                onClick={submit}
+                disabled={cart.length === 0}
+                loading={createSale.isPending}
+              >
+                Registrar venta
+              </Button>
+            </Stack>
+
+            {error && (
+              <Text c="red" size="sm" mt="sm">
+                {error}
+              </Text>
+            )}
+          </GlassCard>
+        </div>
+      </div>
+
+      <div style={{ marginTop: "calc(26 * var(--u))" }}>
+        <SectionLabel as="h2" mb={10}>
           Ventas recientes
-        </Title>
+        </SectionLabel>
         {salesQuery.isError ? (
           <PageError
             message="No se pudieron cargar las ventas recientes."
@@ -242,54 +281,56 @@ export function PosPage() {
         ) : !(sales ?? []).length ? (
           <EmptyState title="Aún no hay ventas" description="Las ventas POS aparecerán aquí." />
         ) : (
-          <Table.ScrollContainer minWidth={620}>
-            <Table>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Fecha</Table.Th>
-                  <Table.Th>Productos</Table.Th>
-                  <Table.Th ta="right">Total</Table.Th>
-                  <Table.Th ta="right">Margen</Table.Th>
-                  <Table.Th />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {(sales ?? []).map((s) => {
-                  const esDevolucion = !!s.return_of || Number(s.total) < 0;
-                  return (
-                    <Table.Tr key={s.id}>
-                      <Table.Td>{new Date(s.created_at).toLocaleString("es-GT")}</Table.Td>
-                      <Table.Td>
-                        {esDevolucion && (
-                          <Text span c="orange" fw={600} mr={6}>
-                            Devolución ·
-                          </Text>
-                        )}
-                        {s.lines.map((l) => `${l.product_name} ×${Math.abs(l.qty)}`).join(", ")}
-                      </Table.Td>
-                      <Table.Td ta="right"><Money value={s.total} decimals={2} c={esDevolucion ? "orange" : undefined} /></Table.Td>
-                      <Table.Td ta="right"><Money value={s.margin} decimals={2} /></Table.Td>
-                      <Table.Td>
-                        {!esDevolucion && (
-                          <Button
-                            variant="subtle"
-                            color="red"
-                            size="xs"
-                            loading={returnSale.isPending && returnSale.variables?.id === s.id}
-                            onClick={() => onReturn(s)}
-                          >
-                            Devolver
-                          </Button>
-                        )}
-                      </Table.Td>
-                    </Table.Tr>
-                  );
-                })}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
+          <GlassCard padding={0} delay={0.96} style={{ overflow: "hidden" }}>
+            <Table.ScrollContainer minWidth={620}>
+              <Table>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Fecha</Table.Th>
+                    <Table.Th>Productos</Table.Th>
+                    <Table.Th ta="right">Total</Table.Th>
+                    <Table.Th ta="right">Margen</Table.Th>
+                    <Table.Th />
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {(sales ?? []).map((s) => {
+                    const esDevolucion = !!s.return_of || Number(s.total) < 0;
+                    return (
+                      <Table.Tr key={s.id}>
+                        <Table.Td>{new Date(s.created_at).toLocaleString("es-GT")}</Table.Td>
+                        <Table.Td>
+                          {esDevolucion && (
+                            <Text span c="orange" fw={600} mr={6}>
+                              Devolución ·
+                            </Text>
+                          )}
+                          {s.lines.map((l) => `${l.product_name} ×${Math.abs(l.qty)}`).join(", ")}
+                        </Table.Td>
+                        <Table.Td ta="right"><Money value={s.total} decimals={2} c={esDevolucion ? "orange" : undefined} /></Table.Td>
+                        <Table.Td ta="right"><Money value={s.margin} decimals={2} /></Table.Td>
+                        <Table.Td>
+                          {!esDevolucion && (
+                            <Button
+                              variant="subtle"
+                              color="red"
+                              size="xs"
+                              loading={returnSale.isPending && returnSale.variables?.id === s.id}
+                              onClick={() => onReturn(s)}
+                            >
+                              Devolver
+                            </Button>
+                          )}
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
+          </GlassCard>
         )}
-      </Card>
+      </div>
     </div>
   );
 }

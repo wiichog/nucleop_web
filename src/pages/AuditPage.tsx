@@ -1,9 +1,10 @@
-import { Button, Card, Table, Text } from "@mantine/core";
+import { Button, Table, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { Download } from "lucide-react";
 import { useAuditLogs, useExportAudit } from "../api/hooks";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { PageHeader } from "../components/ui";
+import { PageHeader, SectionLabel } from "../components/ui";
+import { GlassCard } from "../components/aurora";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
 import { AUDIT_ACTION, AUDIT_ENTITY, AUDIT_ROLE, label } from "../lib/labels";
@@ -39,12 +40,14 @@ export function AuditPage() {
 
   if (!gymId) return <NoGymAssigned />;
 
+  const registros = logs.data ?? [];
+
   return (
     <div>
       <PageHeader
         kicker="Operación · Bitácora"
         title="Actividad del gimnasio"
-        subtitle="Quién hizo qué y cuándo, dentro de este gimnasio."
+        subtitle="Quién hizo qué y cuándo dentro de este gimnasio: cobros, altas y bajas, cambios de catálogo y exportaciones."
         action={
           <Button
             variant="default"
@@ -64,49 +67,56 @@ export function AuditPage() {
           </Button>
         }
       />
-      <Card>
-        {/* La bitácora es la prueba de quién hizo qué: decir "sin actividad"
-            cuando en realidad falló la carga es peor que no mostrarla. */}
-        {logs.isError ? (
-          <PageError
-            message="No se pudo cargar la bitácora del gimnasio."
-            onRetry={() => logs.refetch()}
-          />
-        ) : logs.isLoading ? (
-          <PageLoading label="Cargando la bitácora…" />
-        ) : (logs.data ?? []).length === 0 ? (
-          <Text c="dimmed" size="sm">
-            Sin actividad registrada.
-          </Text>
-        ) : (
-          <Table.ScrollContainer minWidth={520}>
-            <Table>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Fecha</Table.Th>
-                  <Table.Th>Quién</Table.Th>
-                  <Table.Th>Qué hizo</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {(logs.data ?? []).map((log) => {
-                  const extra = log as unknown as { descripcion?: string; actor_rol?: string };
-                  return (
-                    <Table.Tr key={log.id}>
-                      <Table.Td>{new Date(log.created_at).toLocaleString("es-GT")}</Table.Td>
-                      <Table.Td>
-                        {extra.actor_rol ??
-                          (log.actor_role ? label(AUDIT_ROLE, log.actor_role) : "Sistema/atleta")}
-                      </Table.Td>
-                      <Table.Td>{extra.descripcion ?? describe(log)}</Table.Td>
+      {/* La bitácora es la prueba de quién hizo qué: decir "sin actividad"
+          cuando en realidad falló la carga es peor que no mostrarla. */}
+      {logs.isError ? (
+        <PageError
+          message="No se pudo cargar la bitácora del gimnasio."
+          onRetry={() => logs.refetch()}
+        />
+      ) : logs.isLoading ? (
+        <PageLoading label="Cargando la bitácora…" />
+      ) : (
+        <>
+          <SectionLabel as="h2">
+            Movimientos registrados{registros.length > 0 ? ` · ${registros.length}` : ""}
+          </SectionLabel>
+          <GlassCard padding={12} delay={0.6}>
+            {registros.length === 0 ? (
+              <Text c="dimmed" size="sm" p="md">
+                Sin actividad registrada.
+              </Text>
+            ) : (
+              <Table.ScrollContainer minWidth={520}>
+                <Table>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Fecha</Table.Th>
+                      <Table.Th>Quién</Table.Th>
+                      <Table.Th>Qué hizo</Table.Th>
                     </Table.Tr>
-                  );
-                })}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
-      </Card>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {registros.map((log) => {
+                      const extra = log as unknown as { descripcion?: string; actor_rol?: string };
+                      return (
+                        <Table.Tr key={log.id}>
+                          <Table.Td>{new Date(log.created_at).toLocaleString("es-GT")}</Table.Td>
+                          <Table.Td>
+                            {extra.actor_rol ??
+                              (log.actor_role ? label(AUDIT_ROLE, log.actor_role) : "Sistema/atleta")}
+                          </Table.Td>
+                          <Table.Td>{extra.descripcion ?? describe(log)}</Table.Td>
+                        </Table.Tr>
+                      );
+                    })}
+                  </Table.Tbody>
+                </Table>
+              </Table.ScrollContainer>
+            )}
+          </GlassCard>
+        </>
+      )}
     </div>
   );
 }

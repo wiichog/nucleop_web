@@ -2,7 +2,6 @@ import { FormEvent, useMemo, useState } from "react";
 import {
   Badge,
   Button,
-  Card,
   FileInput,
   Grid,
   Group,
@@ -10,7 +9,6 @@ import {
   SimpleGrid,
   Text,
   TextInput,
-  Title,
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
@@ -24,10 +22,12 @@ import {
 } from "../api/hooks";
 import type { Membership, Payment } from "../api/types";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
+import { BigMetric, GlassCard, Stagger } from "../components/aurora";
 import { Money, PageHeader, SectionLabel, StatusBadge } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
 import { errMsg } from "../lib/errors";
+import { fmtQ } from "../lib/money";
 import { sortRecords } from "../lib/sortRecords";
 import {
   FEL_STATUS,
@@ -48,29 +48,44 @@ function periodosRecientes(): { value: string; label: string }[] {
   });
 }
 
-/** Cifra del estado de cuenta con su explicación (el gym tiene que poder auditarla). */
+/**
+ * Cifra del estado de cuenta con su explicación (el gym tiene que poder
+ * auditarla). El tooltip va DENTRO del vidrio: `GlassCard` es un componente y no
+ * reenvía la ref que `Tooltip` necesita para posicionarse.
+ */
 function Cifra({
   label: titulo,
   value,
   hint,
-  c,
+  tone,
 }: {
   label: string;
   value: string | number | null | undefined;
   hint: string;
-  c?: string;
+  /** Color CSS de la cifra (tokens de marca, no nombres de color de Mantine). */
+  tone?: string;
 }) {
   return (
-    <Tooltip label={hint} multiline w={260} withArrow position="top">
-      <div>
-        <Text size="xs" c="dimmed" tt="uppercase" style={{ letterSpacing: "0.08em" }}>
-          {titulo}
-        </Text>
-        <Text fz={22} fw={700} c={c} style={{ fontVariantNumeric: "tabular-nums" }}>
-          <Money value={value} decimals={2} fw={700} />
-        </Text>
-      </div>
-    </Tooltip>
+    <GlassCard padding={18}>
+      <Tooltip label={hint} multiline w={260} withArrow position="top">
+        <div>
+          <span className="a-kicker" style={{ lineHeight: 1.35 }}>
+            {titulo}
+          </span>
+          <div
+            className="a-metric a-metric--sm a-tabular"
+            style={{
+              marginTop: "calc(10 * var(--u))",
+              // Escala propia: un monto con miles y decimales no cabe en la del tile.
+              fontSize: "clamp(18px, calc(25 * var(--u)), 29px)",
+              color: tone,
+            }}
+          >
+            {fmtQ(value, { decimals: 2 })}
+          </div>
+        </div>
+      </Tooltip>
+    </GlassCard>
   );
 }
 
@@ -87,103 +102,133 @@ function EstadoDeCuenta({ gymId }: { gymId: string }) {
   const payout = st?.payout ?? null;
 
   return (
-    <Card mb="lg">
-      <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm" mb="sm">
-        <div>
-          <SectionLabel mb={2}>Cobranza · Nucleo</SectionLabel>
-          <Title order={3}>Estado de cuenta</Title>
-          <Text c="dimmed" size="sm">
-            Solo el dinero que pasó por la pasarela (tarjeta). Los pagos manuales ya los cobraste
-            vos y no entran aquí.
-          </Text>
-        </div>
-        <Select
-          aria-label="Periodo del estado de cuenta"
-          value={period}
-          onChange={(v) => v && setPeriod(v)}
-          data={periodos}
-          w={{ base: "100%", sm: 200 }}
-          comboboxProps={{ withinPortal: true }}
-        />
-      </Group>
+    <div style={{ marginBottom: "calc(20 * var(--u))" }}>
+      <GlassCard padding={16} delay={0.6}>
+        <Group justify="space-between" align="flex-end" wrap="wrap" gap="md">
+          <div style={{ minWidth: 0 }}>
+            <SectionLabel mb={4} as="h2">Cobranza · Nucleo</SectionLabel>
+            <Text fw={600} fz="lg" style={{ letterSpacing: "-0.02em" }}>
+              Estado de cuenta
+            </Text>
+            <Text c="dimmed" size="sm" mt={4}>
+              Solo el dinero que pasó por la pasarela (tarjeta). Los pagos manuales ya los cobraste
+              vos y no entran aquí.
+            </Text>
+          </div>
+          <Select
+            aria-label="Periodo del estado de cuenta"
+            value={period}
+            onChange={(v) => v && setPeriod(v)}
+            data={periodos}
+            w={{ base: "100%", sm: 200 }}
+            comboboxProps={{ withinPortal: true }}
+          />
+        </Group>
+      </GlassCard>
 
       {statement.isError ? (
-        <PageError
-          message={errMsg(statement.error, "No se pudo cargar el estado de cuenta.")}
-          onRetry={() => statement.refetch()}
-        />
+        <div style={{ marginTop: "calc(16 * var(--u))" }}>
+          <PageError
+            message={errMsg(statement.error, "No se pudo cargar el estado de cuenta.")}
+            onRetry={() => statement.refetch()}
+          />
+        </div>
       ) : statement.isLoading || !st ? (
         <PageLoading label="Calculando el periodo…" />
       ) : (
         <>
-          <SimpleGrid cols={{ base: 2, md: 5 }} spacing="lg">
-            <Cifra
+          {/* La cifra que manda en esta pantalla: lo que de verdad se cobró. */}
+          <GlassCard
+            variant="core"
+            sheen
+            padding={26}
+            delay={0.72}
+            style={{ marginTop: "calc(16 * var(--u))" }}
+          >
+            <BigMetric
               label="Cobrado por tarjeta"
-              value={st.gross_charged}
+              value={fmtQ(st.gross_charged, { decimals: 2 })}
+              fz="clamp(30px, calc(54 * var(--u)), 64px)"
               hint="Total que se le cobró a tus atletas con tarjeta en el periodo: tu cuota + el recargo de Nucleo."
+              delay={1.04}
             />
-            <Cifra
-              label="Tu ingreso"
-              value={st.gym_revenue}
-              hint="La parte que es tuya (el precio de tus planes, servicios y productos). El recargo de Nucleo nunca sale de aquí."
-            />
-            <Cifra
-              label="Recargo Nucleo"
-              value={st.platform_surcharge}
-              hint="Recargo de plataforma SUMADO encima de tu precio y pagado por el atleta. Nunca se deposita ni se te descuenta."
-              c="dimmed"
-            />
-            <Cifra
-              label="Reembolsos"
-              value={st.refunds_total}
-              hint="Devoluciones del periodo (registradas como movimientos negativos). Se restan de lo que se te deposita."
-              c={Number(st.refunds_total) < 0 ? "red" : undefined}
-            />
-            <Cifra
-              label={payout?.status === "executed" ? "Depositado" : "Pendiente de depósito"}
-              value={st.net_to_deposit}
-              hint="Neto que Nucleo te transfiere por el periodo: tu ingreso menos reembolsos."
-              c={payout?.status === "executed" ? "teal" : "flame"}
-            />
-          </SimpleGrid>
 
-          <Group gap="xs" mt="md" wrap="wrap">
-            <Landmark size={16} />
-            {payout?.status === "executed" ? (
-              <Text size="sm">
-                <Badge color="teal" variant="light" mr={6}>
-                  Depositado
-                </Badge>
-                {payout.executed_at
-                  ? `El ${new Date(payout.executed_at).toLocaleDateString("es-GT")}`
-                  : "Ejecutado"}
-                {payout.reference ? ` · Referencia: ${payout.reference}` : ""}
+            <Group
+              gap="xs"
+              mt="lg"
+              wrap="wrap"
+              className="a-rise"
+              style={{ animationDelay: "1.16s" }}
+            >
+              <Landmark size={16} />
+              {payout?.status === "executed" ? (
+                <Text size="sm">
+                  <Badge color="teal" variant="light" mr={6}>
+                    Depositado
+                  </Badge>
+                  {payout.executed_at
+                    ? `El ${new Date(payout.executed_at).toLocaleDateString("es-GT")}`
+                    : "Ejecutado"}
+                  {payout.reference ? ` · Referencia: ${payout.reference}` : ""}
+                </Text>
+              ) : payout ? (
+                <Text size="sm">
+                  <Badge color="yellow" variant="light" mr={6}>
+                    Depósito generado
+                  </Badge>
+                  Nucleo ya calculó tu liquidación del periodo; la transferencia está en camino.
+                </Text>
+              ) : (
+                <Text size="sm">
+                  <Badge color="gray" variant="light" mr={6}>
+                    Sin depósito aún
+                  </Badge>
+                  El depósito se genera al cerrar el periodo.
+                </Text>
+              )}
+              <Text size="sm" c="dimmed">
+                · {st.payments_count} {st.payments_count === 1 ? "cobro" : "cobros"}
+                {st.refunds_count > 0
+                  ? ` · ${st.refunds_count} ${st.refunds_count === 1 ? "reembolso" : "reembolsos"}`
+                  : ""}
               </Text>
-            ) : payout ? (
-              <Text size="sm">
-                <Badge color="yellow" variant="light" mr={6}>
-                  Depósito generado
-                </Badge>
-                Nucleo ya calculó tu liquidación del periodo; la transferencia está en camino.
-              </Text>
-            ) : (
-              <Text size="sm">
-                <Badge color="gray" variant="light" mr={6}>
-                  Sin depósito aún
-                </Badge>
-                El depósito se genera al cerrar el periodo.
-              </Text>
-            )}
-            <Text size="sm" c="dimmed">
-              · {st.payments_count} {st.payments_count === 1 ? "cobro" : "cobros"}
-              {st.refunds_count > 0
-                ? ` · ${st.refunds_count} ${st.refunds_count === 1 ? "reembolso" : "reembolsos"}`
-                : ""}
-            </Text>
-          </Group>
+            </Group>
+          </GlassCard>
+
+          <Stagger from={0.84} style={{ marginTop: "calc(16 * var(--u))" }}>
+            <SimpleGrid cols={{ base: 2, md: 4 }} spacing="md">
+              <Cifra
+                label="Tu ingreso"
+                value={st.gym_revenue}
+                hint="La parte que es tuya (el precio de tus planes, servicios y productos). El recargo de Nucleo nunca sale de aquí."
+              />
+              <Cifra
+                label="Recargo Nucleo"
+                value={st.platform_surcharge}
+                hint="Recargo de plataforma SUMADO encima de tu precio y pagado por el atleta. Nunca se deposita ni se te descuenta."
+                tone="var(--mantine-color-dimmed)"
+              />
+              <Cifra
+                label="Reembolsos"
+                value={st.refunds_total}
+                hint="Devoluciones del periodo (registradas como movimientos negativos). Se restan de lo que se te deposita."
+                tone={Number(st.refunds_total) < 0 ? "var(--nucleo-danger)" : undefined}
+              />
+              <Cifra
+                label={payout?.status === "executed" ? "Depositado" : "Pendiente de depósito"}
+                value={st.net_to_deposit}
+                hint="Neto que Nucleo te transfiere por el periodo: tu ingreso menos reembolsos."
+                tone={
+                  payout?.status === "executed"
+                    ? "var(--mantine-color-teal-5)"
+                    : "var(--nucleo-accent)"
+                }
+              />
+            </SimpleGrid>
+          </Stagger>
         </>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -247,15 +292,19 @@ export function PaymentsPage() {
 
   return (
     <div>
-      <PageHeader kicker="Negocio · ERP" title="Membresías" subtitle="Registra pagos de membresía y revisa el historial." />
+      <PageHeader
+        kicker="Negocio · ERP"
+        title="Membresías"
+        subtitle="Cuánto entró por la pasarela, quién quedó debiendo la cuota y el registro de los pagos en efectivo o transferencia."
+      />
 
       <EstadoDeCuenta gymId={gymId} />
 
       {morosos.length > 0 && (
-        <Card withBorder mb="lg">
-          <Group justify="space-between" mb="sm">
-            <Group gap="xs">
-              <Title order={3}>Morosos</Title>
+        <div style={{ marginBottom: "calc(20 * var(--u))" }}>
+          <Group justify="space-between" align="flex-end" wrap="wrap" gap="xs" mb={10}>
+            <Group gap="xs" align="center">
+              <SectionLabel mb={0} as="h2">Morosos</SectionLabel>
               <Badge color="red" variant="light">
                 {morosos.length}
               </Badge>
@@ -264,107 +313,114 @@ export function PaymentsPage() {
               Cuotas vencidas — da seguimiento o registra el pago.
             </Text>
           </Group>
-          <DataTable<Membership>
-            minHeight={80}
-            highlightOnHover
-            records={morosos}
-            idAccessor="id"
-            noRecordsText="Sin morosos."
-            columns={[
-              { accessor: "athlete_name", title: "Atleta" },
-              { accessor: "plan_name", title: "Plan", render: (m) => m.plan_name ?? "—" },
-              {
-                accessor: "renewal_date",
-                title: "Venció",
-                render: (m) =>
-                  m.renewal_date ? new Date(m.renewal_date).toLocaleDateString("es-GT") : "—",
-              },
-              {
-                accessor: "effective_fee",
-                title: "Cuota",
-                textAlign: "right",
-                render: (m) =>
-                  m.effective_fee ? <Money value={m.effective_fee} decimals={2} block /> : "—",
-              },
-            ]}
-          />
-        </Card>
+          <GlassCard padding={10} delay={0.96}>
+            <DataTable<Membership>
+              minHeight={80}
+              highlightOnHover
+              records={morosos}
+              idAccessor="id"
+              noRecordsText="Sin morosos."
+              columns={[
+                { accessor: "athlete_name", title: "Atleta" },
+                { accessor: "plan_name", title: "Plan", render: (m) => m.plan_name ?? "—" },
+                {
+                  accessor: "renewal_date",
+                  title: "Venció",
+                  render: (m) =>
+                    m.renewal_date ? new Date(m.renewal_date).toLocaleDateString("es-GT") : "—",
+                },
+                {
+                  accessor: "effective_fee",
+                  title: "Cuota",
+                  textAlign: "right",
+                  render: (m) =>
+                    m.effective_fee ? <Money value={m.effective_fee} decimals={2} block /> : "—",
+                },
+              ]}
+            />
+          </GlassCard>
+        </div>
       )}
       {/* Sin el padrón el selector de membresía queda vacío y el gym no entiende
           por qué no puede registrar un pago: hay que decírselo. */}
       {memberships.isError && (
-        <Card mb="lg">
+        <div style={{ marginBottom: "calc(20 * var(--u))" }}>
           <PageError
             message="No se pudo cargar el padrón de atletas: el selector de membresía quedó vacío."
             onRetry={() => memberships.refetch()}
           />
-        </Card>
+        </div>
       )}
 
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 4 }}>
-          <Card component="form" onSubmit={onSubmit}>
-            <Title order={3} mb={4}>
-              Registrar pago manual
-            </Title>
-            <Text c="dimmed" size="sm" mb="md">
-              Efectivo o transferencia. No genera comisión, pero activa la membresía.
-            </Text>
-            <Select
-              label="Membresía"
-              placeholder="Selecciona…"
-              value={membershipId}
-              onChange={setMembershipId}
-              searchable
-              mb="sm"
-              data={(memberships.data ?? []).map((m) => ({
-                value: m.id,
-                label: `${m.athlete_name} (${label(MEMBERSHIP_STATUS, m.status)})`,
-              }))}
-            />
-            <Select
-              label="Método"
-              value={method}
-              onChange={(v) => setMethod((v as "cash" | "bank_transfer") ?? "cash")}
-              mb="sm"
-              data={[
-                { value: "cash", label: "Efectivo" },
-                { value: "bank_transfer", label: "Transferencia" },
-              ]}
-            />
-            {method === "bank_transfer" && (
-              <FileInput
-                label="Comprobante"
-                placeholder="Adjuntar comprobante"
-                leftSection={<Paperclip size={16} />}
-                accept="image/*,.pdf"
-                value={proofFile}
-                onChange={setProofFile}
-                clearable
-                mb="sm"
-              />
-            )}
-            <TextInput
-              label="Monto (Q)"
-              value={amount}
-              onChange={(e) => setAmount(e.currentTarget.value)}
-              mb="md"
-            />
-            {registerManual.isError && (
-              <Text c="red" size="sm" mb="sm">
-                {errMsg(registerManual.error, "No se pudo registrar el pago. Verifica los datos.")}
+          <GlassCard padding={20} delay={1.08}>
+            <form onSubmit={onSubmit}>
+              <SectionLabel mb={6} as="h2">Registrar pago manual</SectionLabel>
+              <Text c="dimmed" size="sm" mb="md">
+                Efectivo o transferencia. No genera comisión, pero activa la membresía.
               </Text>
-            )}
-            <Button type="submit" fullWidth disabled={!membershipId || !amount} loading={registerManual.isPending}>
-              Registrar pago
-            </Button>
-          </Card>
+              <Select
+                label="Membresía"
+                placeholder="Selecciona…"
+                value={membershipId}
+                onChange={setMembershipId}
+                searchable
+                mb="sm"
+                data={(memberships.data ?? []).map((m) => ({
+                  value: m.id,
+                  label: `${m.athlete_name} (${label(MEMBERSHIP_STATUS, m.status)})`,
+                }))}
+              />
+              <Select
+                label="Método"
+                value={method}
+                onChange={(v) => setMethod((v as "cash" | "bank_transfer") ?? "cash")}
+                mb="sm"
+                data={[
+                  { value: "cash", label: "Efectivo" },
+                  { value: "bank_transfer", label: "Transferencia" },
+                ]}
+              />
+              {method === "bank_transfer" && (
+                <FileInput
+                  label="Comprobante"
+                  placeholder="Adjuntar comprobante"
+                  leftSection={<Paperclip size={16} />}
+                  accept="image/*,.pdf"
+                  value={proofFile}
+                  onChange={setProofFile}
+                  clearable
+                  mb="sm"
+                />
+              )}
+              <TextInput
+                label="Monto (Q)"
+                value={amount}
+                onChange={(e) => setAmount(e.currentTarget.value)}
+                mb="md"
+              />
+              {registerManual.isError && (
+                <Text c="red" size="sm" mb="sm">
+                  {errMsg(registerManual.error, "No se pudo registrar el pago. Verifica los datos.")}
+                </Text>
+              )}
+              <Button
+                type="submit"
+                fullWidth
+                disabled={!membershipId || !amount}
+                loading={registerManual.isPending}
+              >
+                Registrar pago
+              </Button>
+            </form>
+          </GlassCard>
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, md: 8 }}>
-          <Card>
-            <Group justify="space-between" mb="sm">
-              <Title order={3}>Historial</Title>
+          <GlassCard padding={16} delay={1.2}>
+            <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb="sm">
+              <SectionLabel mb={0} as="h2">Historial de pagos</SectionLabel>
               <Button
                 variant="default"
                 size="xs"
@@ -454,7 +510,7 @@ export function PaymentsPage() {
                 },
               ]}
             />
-          </Card>
+          </GlassCard>
         </Grid.Col>
       </Grid>
     </div>

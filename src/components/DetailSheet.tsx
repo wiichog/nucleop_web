@@ -46,7 +46,7 @@ export function DetailSheet({
         <div className="nucleo-grabber" style={{ margin: "0 auto" }} />
       </div>
       <Group justify="space-between" wrap="nowrap" px="lg" py="sm" gap="sm">
-        <Text fw={600} fz="lg" ff='"Space Grotesk", sans-serif' style={{ letterSpacing: "-0.01em" }} truncate>
+        <Text fw={500} fz="lg" ff="var(--a-font-display)" style={{ letterSpacing: "-0.018em" }} truncate>
           {title}
         </Text>
         <ActionIcon variant="subtle" color="gray" radius="xl" onClick={onClose} aria-label="Cerrar">

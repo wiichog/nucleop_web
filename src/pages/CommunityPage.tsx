@@ -3,19 +3,19 @@ import {
   Badge,
   Box,
   Button,
-  Card,
   FileInput,
   Grid,
   Group,
   Select,
+  SimpleGrid,
   Stack,
   Table,
   Text,
   Textarea,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { Newspaper, Trophy, Users } from "lucide-react";
 import {
   useAthletesOfMonth,
   useAthletesOfMonthHistory,
@@ -29,7 +29,8 @@ import {
 } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { PageHeader } from "../components/ui";
+import { PageHeader, SectionLabel } from "../components/ui";
+import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
 
@@ -59,6 +60,29 @@ const KIND_LABEL: Record<string, string> = {
   announcement: "Anuncio",
   athlete_post: "Post",
 };
+
+/**
+ * Marco del material para fotos y videos: hairline y radio del sistema, sin
+ * fondo propio. En esta pantalla el contenido es la imagen; el vidrio la
+ * enmarca, no compite con ella.
+ */
+const MEDIA_FRAME = {
+  borderRadius: "calc(14 * var(--u))",
+  border: "1px solid var(--a-line)",
+  display: "block",
+} as const;
+
+/** Miniatura cuadrada (atleta del mes, avatares del histórico). */
+function thumb(size: number, round = false) {
+  return {
+    width: size,
+    height: size,
+    objectFit: "cover" as const,
+    borderRadius: round ? "50%" : "calc(12 * var(--u))",
+    border: "1px solid var(--a-line)",
+    display: "block",
+  };
+}
 
 export function CommunityPage() {
   const { primaryGymId } = useAuth();
@@ -181,15 +205,38 @@ export function CommunityPage() {
       <PageHeader
         kicker="Comunidad · Feed"
         title="Comunidad del gym"
-        subtitle="Feed de PRs, badges, puntos, anuncios y destacados de tu comunidad."
+        subtitle="Publica anuncios, destaca al atleta del mes y modera lo que suben tus atletas antes de que llegue al feed."
       />
+
+      {/* Pulso de la comunidad: todo se deriva de lo que ya trajeron las queries. */}
+      <Stagger from={0.6} style={{ marginBottom: "calc(20 * var(--u))" }}>
+        <SimpleGrid cols={{ base: 2, md: 3 }} spacing="md">
+          <MetricTile
+            label="Destacados vigentes"
+            value={awards.isLoading ? "—" : (awards.data ?? []).length}
+            icon={<Trophy size={16} strokeWidth={1.8} />}
+            tone="var(--nucleo-accent)"
+            hint="Atletas del mes publicados ahora mismo."
+          />
+          <MetricTile
+            label="Actividad en el feed"
+            value={feed.isLoading ? "—" : (feed.data ?? []).length}
+            icon={<Newspaper size={16} strokeWidth={1.8} />}
+            hint="Publicaciones visibles para tu comunidad."
+          />
+          <MetricTile
+            label="Atletas activos"
+            value={memberships.isLoading ? "—" : activeAthletes.length}
+            icon={<Users size={16} strokeWidth={1.8} />}
+            hint="Pueden aparecer como atleta del mes."
+          />
+        </SimpleGrid>
+      </Stagger>
 
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, lg: 6 }}>
-          <Card h="100%">
-            <Title order={3} mb={4}>
-              Atleta del mes por clase
-            </Title>
+          <GlassCard padding={24} delay={0.72} style={{ height: "100%" }}>
+            <SectionLabel as="h2" mb={8}>Atleta del mes por clase</SectionLabel>
             <Text c="dimmed" size="sm" mb="md">
               Elige un atleta por clase y confirma con “Publicar”: el anuncio sale al feed con una
               imagen enmarcada con su foto.
@@ -230,7 +277,7 @@ export function CommunityPage() {
                                 <img
                                   src={current.image}
                                   alt={current.athlete_name}
-                                  style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }}
+                                  style={thumb(44)}
                                 />
                               </a>
                             )}
@@ -271,72 +318,70 @@ export function CommunityPage() {
                 </Table.Tbody>
               </Table>
             )}
-          </Card>
+          </GlassCard>
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, lg: 6 }}>
-          <Card h="100%" component="form" onSubmit={onPost}>
-            <Title order={3} mb="sm">
-              Publicar anuncio en el feed
-            </Title>
-            <Stack gap="sm">
-              <Group grow align="flex-start">
-                <TextInput label="Título" placeholder="Título del anuncio" value={annTitle} onChange={(e) => setAnnTitle(e.currentTarget.value)} />
-                <Select
-                  label="Segmento"
-                  value={annClass}
-                  onChange={setAnnClass}
-                  data={[
-                    { value: "", label: "Todo el gym" },
-                    ...classTypes.map((ct) => ({ value: ct, label: `Solo ${ct}` })),
-                  ]}
+          <GlassCard padding={24} delay={0.84} style={{ height: "100%" }}>
+            <SectionLabel as="h2" mb={12}>Publicar anuncio en el feed</SectionLabel>
+            <form onSubmit={onPost}>
+              <Stack gap="sm">
+                <Group grow align="flex-start">
+                  <TextInput label="Título" placeholder="Título del anuncio" value={annTitle} onChange={(e) => setAnnTitle(e.currentTarget.value)} />
+                  <Select
+                    label="Segmento"
+                    value={annClass}
+                    onChange={setAnnClass}
+                    data={[
+                      { value: "", label: "Todo el gym" },
+                      ...classTypes.map((ct) => ({ value: ct, label: `Solo ${ct}` })),
+                    ]}
+                  />
+                </Group>
+                <Textarea
+                  label="Mensaje"
+                  placeholder="Mensaje para tus atletas…"
+                  value={annBody}
+                  onChange={(e) => setAnnBody(e.currentTarget.value)}
+                  autosize
+                  minRows={3}
                 />
-              </Group>
-              <Textarea
-                label="Mensaje"
-                placeholder="Mensaje para tus atletas…"
-                value={annBody}
-                onChange={(e) => setAnnBody(e.currentTarget.value)}
-                autosize
-                minRows={3}
-              />
-              <Group grow align="flex-start">
-                <FileInput
-                  label="Foto (opcional)"
-                  placeholder="Subir imagen"
-                  accept="image/*"
-                  clearable
-                  value={annPhoto}
-                  onChange={setAnnPhoto}
-                />
-                <FileInput
-                  label="Video (opcional)"
-                  placeholder="Subir video"
-                  accept="video/*"
-                  clearable
-                  value={annVideo}
-                  onChange={setAnnVideo}
-                />
-              </Group>
-              {annPhoto && (
-                <img
-                  src={URL.createObjectURL(annPhoto)}
-                  alt="vista previa"
-                  style={{ maxWidth: 200, borderRadius: 8 }}
-                />
-              )}
-              <Button type="submit" loading={postAnnouncement.isPending} disabled={!annTitle || !annBody}>
-                Publicar anuncio
-              </Button>
-            </Stack>
-          </Card>
+                <Group grow align="flex-start">
+                  <FileInput
+                    label="Foto (opcional)"
+                    placeholder="Subir imagen"
+                    accept="image/*"
+                    clearable
+                    value={annPhoto}
+                    onChange={setAnnPhoto}
+                  />
+                  <FileInput
+                    label="Video (opcional)"
+                    placeholder="Subir video"
+                    accept="video/*"
+                    clearable
+                    value={annVideo}
+                    onChange={setAnnVideo}
+                  />
+                </Group>
+                {annPhoto && (
+                  <img
+                    src={URL.createObjectURL(annPhoto)}
+                    alt="vista previa"
+                    style={{ ...MEDIA_FRAME, maxWidth: 200 }}
+                  />
+                )}
+                <Button type="submit" loading={postAnnouncement.isPending} disabled={!annTitle || !annBody}>
+                  Publicar anuncio
+                </Button>
+              </Stack>
+            </form>
+          </GlassCard>
         </Grid.Col>
       </Grid>
 
-      <Card mt="lg">
-        <Title order={3} mb={4}>
-          Histórico de atletas del mes
-        </Title>
+      <GlassCard padding={24} delay={0.96} style={{ marginTop: "calc(20 * var(--u))" }}>
+        <SectionLabel as="h2" mb={8}>Histórico de atletas del mes</SectionLabel>
         <Text c="dimmed" size="sm" mb="md">
           Todos los destacados publicados, del mes más reciente al más antiguo.
         </Text>
@@ -369,11 +414,7 @@ export function CommunityPage() {
                   <Table.Td>
                     <Group gap="sm" wrap="nowrap">
                       {a.athlete_photo && (
-                        <img
-                          src={a.athlete_photo}
-                          alt={a.athlete_name}
-                          style={{ width: 30, height: 30, objectFit: "cover", borderRadius: 15 }}
-                        />
+                        <img src={a.athlete_photo} alt={a.athlete_name} style={thumb(30, true)} />
                       )}
                       {a.athlete_name}
                     </Group>
@@ -384,7 +425,7 @@ export function CommunityPage() {
                         <img
                           src={a.image}
                           alt={`Atleta del mes ${a.period}`}
-                          style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8 }}
+                          style={thumb(56)}
                         />
                       </a>
                     ) : (
@@ -396,17 +437,24 @@ export function CommunityPage() {
             </Table.Tbody>
           </Table>
         )}
-      </Card>
+      </GlassCard>
 
-      <Card mt="lg">
-        <Group justify="space-between" mb="sm">
-          <Title order={3}>Posts por aprobar</Title>
-          {(pendingPosts.data ?? []).length > 0 && (
-            <Badge color="yellow" variant="light">
-              {(pendingPosts.data ?? []).length} pendientes
-            </Badge>
-          )}
-        </Group>
+      {/* La bandeja que manda en la pantalla: es lo único que exige una decisión. */}
+      <GlassCard
+        variant="core"
+        sheen
+        padding={24}
+        delay={1.08}
+        style={{ marginTop: "calc(20 * var(--u))" }}
+      >
+        <BigMetric
+          label="Posts por aprobar"
+          value={pendingPosts.isLoading ? "—" : (pendingPosts.data ?? []).length}
+          size="sm"
+          hint="Publicaciones de atletas y coaches esperando tu visto bueno."
+          delay={1.3}
+        />
+        <div style={{ height: "calc(16 * var(--u))" }} />
         {/* Un fallo aquí decía "no hay nada que moderar": el peor error posible en
             una bandeja de moderación (posts reportados quedan invisibles). */}
         {pendingPosts.isError ? (
@@ -423,7 +471,11 @@ export function CommunityPage() {
         ) : (
           <Stack gap="sm">
             {(pendingPosts.data ?? []).map((p) => (
-              <Box key={p.id} p="sm" style={{ border: "1px solid var(--mantine-color-dark-5)", borderRadius: 8 }}>
+              <Box
+                key={p.id}
+                p="sm"
+                style={{ border: "1px solid var(--a-line)", borderRadius: "calc(16 * var(--u))" }}
+              >
                 <Group gap={6} mb={2}>
                   <Badge size="xs" variant="light" color={p.author_type === "coach" ? "grape" : "flame"}>
                     {p.author_type === "coach" ? "Coach" : "Atleta"}
@@ -451,9 +503,9 @@ export function CommunityPage() {
                       : []
                   ).map((m, i) =>
                     m.kind === "video" ? (
-                      <video key={i} src={m.url} controls style={{ maxWidth: 280, borderRadius: 8 }} />
+                      <video key={i} src={m.url} controls style={{ ...MEDIA_FRAME, maxWidth: 280 }} />
                     ) : (
-                      <img key={i} src={m.url} alt="post" style={{ maxWidth: 280, borderRadius: 8 }} />
+                      <img key={i} src={m.url} alt="post" style={{ ...MEDIA_FRAME, maxWidth: 280 }} />
                     ),
                   )}
                 </Group>
@@ -469,12 +521,10 @@ export function CommunityPage() {
             ))}
           </Stack>
         )}
-      </Card>
+      </GlassCard>
 
-      <Card mt="lg">
-        <Title order={3} mb="sm">
-          Feed
-        </Title>
+      <GlassCard padding={24} delay={1.2} style={{ marginTop: "calc(20 * var(--u))" }}>
+        <SectionLabel as="h2" mb={12}>Feed</SectionLabel>
         {feed.isLoading ? (
           <PageLoading />
         ) : !(feed.data ?? []).length ? (
@@ -482,7 +532,7 @@ export function CommunityPage() {
         ) : (
           <Stack gap={0}>
             {(feed.data ?? []).map((item) => (
-              <Box key={item.id} py="sm" style={{ borderBottom: "1px solid var(--mantine-color-dark-5)" }}>
+              <Box key={item.id} py="sm" style={{ borderBottom: "1px solid var(--a-line)" }}>
                 <Group gap="xs" mb={4}>
                   <Badge variant="light" color="flame" size="sm">
                     {KIND_LABEL[item.kind] ?? item.kind}
@@ -491,26 +541,28 @@ export function CommunityPage() {
                 </Group>
                 <Text size="sm">{item.body}</Text>
                 {(item.media ?? []).length > 0 && (
-                  <Group gap="xs" mt={6}>
+                  <Group gap="xs" mt={8}>
                     {(item.media ?? []).map((m, i) =>
                       m.kind === "video" ? (
-                        <video key={i} src={m.url} controls style={{ maxWidth: 240, borderRadius: 8 }} />
+                        <video key={i} src={m.url} controls style={{ ...MEDIA_FRAME, maxWidth: 240 }} />
                       ) : (
-                        <img key={i} src={m.url} alt="media" style={{ maxWidth: 240, borderRadius: 8 }} />
+                        <img key={i} src={m.url} alt="media" style={{ ...MEDIA_FRAME, maxWidth: 240 }} />
                       ),
                     )}
                   </Group>
                 )}
-                <Text c="dimmed" size="xs" mt={2}>
+                <Text c="dimmed" size="xs" mt={6}>
                   {item.actor_name} · {new Date(item.created_at).toLocaleString("es-GT")}
-                  {item.reaction_count > 0 ? ` · ${reactionSummary(item.reactions) || `♥ ${item.reaction_count}`}` : ""}
+                  {item.reaction_count > 0
+                    ? ` · ${reactionSummary(item.reactions) || `♥ ${item.reaction_count}`}`
+                    : ""}
                   {item.comment_count ? ` · 💬 ${item.comment_count}` : ""}
                 </Text>
               </Box>
             ))}
           </Stack>
         )}
-      </Card>
+      </GlassCard>
     </div>
   );
 }
