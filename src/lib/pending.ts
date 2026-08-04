@@ -18,6 +18,12 @@ export const PENDING_ITEMS: { key: PendingKey; label: string; to: string }[] = [
   { key: "solicitudes", label: "Solicitudes por revisar", to: "/panel/solicitudes" },
   { key: "coaches", label: "Coaches por aprobar", to: "/panel/coaches" },
   { key: "posts", label: "Posts en moderación", to: "/panel/comunidad" },
+  // Un comentario reportado ya está OCULTO del feed: si no aparece aquí, nadie se
+  // entera de que hay algo esperando revisión salvo que entre a Comunidad.
+  { key: "comentarios", label: "Comentarios reportados", to: "/panel/comunidad" },
+  // Debido proceso: un descargo sin revisar deja al atleta sancionado sin
+  // respuesta, y si el gym no contesta la apelación escala a Nucleo.
+  { key: "apelaciones", label: "Apelaciones por revisar", to: "/panel/comunidad" },
   { key: "clases_sin_wod", label: "Clases sin rutina (próx. 48h)", to: "/panel/clases" },
   { key: "tickets", label: "Reportes abiertos", to: "/panel/tickets" },
   { key: "pedidos", label: "Pedidos por entregar", to: "/panel/inventario?tab=pedidos" },

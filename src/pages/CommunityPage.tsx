@@ -1,11 +1,14 @@
 import { FormEvent, useMemo, useState } from "react";
 import {
+  Alert,
   Badge,
   Box,
   Button,
   FileInput,
   Grid,
   Group,
+  Modal,
+  SegmentedControl,
   Select,
   SimpleGrid,
   Stack,
@@ -15,18 +18,25 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { Newspaper, Trophy, Users } from "lucide-react";
+import { Newspaper, ShieldAlert, Trophy, Users } from "lucide-react";
 import {
   useAthletesOfMonth,
   useAthletesOfMonthHistory,
+  useDecideAppeal,
+  useDecideComment,
   useDecidePost,
+  useGymAppeals,
   useGymClasses,
   useGymFeed,
   useGymPendingPosts,
+  useGymReportedComments,
   useMemberships,
+  useModerationSignals,
   usePostAnnouncement,
   useSetAthleteOfMonth,
 } from "../api/hooks";
+import { MOTIVOS_MODERACION } from "../api/types";
+import type { Appeal, MotivoModeracion, ReportedComment } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PageHeader, SectionLabel } from "../components/ui";
@@ -72,6 +82,14 @@ const MEDIA_FRAME = {
   display: "block",
 } as const;
 
+/** Color de la pastilla de estado de una apelación. */
+const APPEAL_COLOR: Record<string, string> = {
+  pending: "yellow",
+  escalated: "orange",
+  accepted: "teal",
+  rejected: "gray",
+};
+
 /** Miniatura cuadrada (atleta del mes, avatares del histórico). */
 function thumb(size: number, round = false) {
   return {
@@ -98,6 +116,28 @@ export function CommunityPage() {
   const postAnnouncement = usePostAnnouncement(gymId);
   const pendingPosts = useGymPendingPosts(gymId);
   const decidePost = useDecidePost(gymId);
+  const reportedComments = useGymReportedComments(gymId);
+  const decideComment = useDecideComment(gymId);
+  const appeals = useGymAppeals(gymId);
+  const decideAppeal = useDecideAppeal(gymId);
+  const signals = useModerationSignals(gymId);
+  // Sub-bandeja visible dentro de moderación: publicaciones, comentarios o apelaciones.
+  const [modTab, setModTab] = useState<"posts" | "comentarios" | "apelaciones">("posts");
+
+  // Rechazar exige motivo: se resuelve en un modal, nunca en el botón directo.
+  const [rechazo, setRechazo] = useState<{
+    tipo: "post" | "comment";
+    id: string;
+    quien: string;
+  } | null>(null);
+  const [motivo, setMotivo] = useState<MotivoModeracion | null>(null);
+  const [nota, setNota] = useState("");
+  // Resolución de una apelación (aceptar republica; rechazar mantiene la sanción).
+  const [resolucion, setResolucion] = useState<{
+    appeal: Appeal;
+    action: "accept" | "reject";
+  } | null>(null);
+  const [notaApelacion, setNotaApelacion] = useState("");
 
   const [annTitle, setAnnTitle] = useState("");
   const [annBody, setAnnBody] = useState("");
@@ -176,20 +216,119 @@ export function CommunityPage() {
     }
   };
 
-  /** Modera un post pendiente avisando el resultado (antes fallaba en silencio). */
-  const decidirPost = (postId: string, action: "approve" | "reject") => {
+  /** Aprueba un post pendiente. El rechazo va por el modal de motivo. */
+  const aprobarPost = (postId: string) => {
     decidePost.mutate(
-      { postId, action },
+      { postId, action: "approve" },
       {
         onSuccess: () =>
-          notifications.show({
-            color: "teal",
-            message: action === "approve" ? "Publicación aprobada: ya está en el feed." : "Publicación rechazada.",
-          }),
+          notifications.show({ color: "teal", message: "Publicación aprobada: ya está en el feed." }),
         onError: (e) =>
           notifications.show({
             color: "red",
             message: errMsg(e, "No se pudo moderar la publicación."),
+          }),
+      },
+    );
+  };
+
+  /** Devuelve el comentario al feed. El borrado va por el modal de motivo. */
+  const restaurarComentario = (comment: ReportedComment) => {
+    decideComment.mutate(
+      { commentId: comment.id, action: "approve" },
+      {
+        onSuccess: () =>
+          notifications.show({
+            color: "teal",
+            message: "Comentario restaurado: volvió a verse en el feed.",
+          }),
+        onError: (e) =>
+          notifications.show({
+            color: "red",
+            message: errMsg(e, "No se pudo moderar el comentario."),
+          }),
+      },
+    );
+  };
+
+  const abrirRechazo = (tipo: "post" | "comment", id: string, quien: string) => {
+    setRechazo({ tipo, id, quien });
+    setMotivo(null);
+    setNota("");
+  };
+
+  /**
+   * Confirma el rechazo con su motivo. El motivo es OBLIGATORIO en el backend
+   * (400 `reason_required`): es lo que se le dice al autor y lo único contra lo
+   * que puede defenderse si apela. La nota es una aclaración libre y opcional.
+   */
+  const confirmarRechazo = () => {
+    if (!rechazo || !motivo) return;
+    const comun = { reason: motivo, note: nota.trim() };
+    const cerrar = () => setRechazo(null);
+    const onError = (e: unknown) =>
+      notifications.show({
+        color: "red",
+        message: errMsg(e, "No se pudo aplicar la decisión."),
+      });
+    if (rechazo.tipo === "post") {
+      decidePost.mutate(
+        { postId: rechazo.id, action: "reject", ...comun },
+        {
+          onSuccess: () => {
+            cerrar();
+            notifications.show({
+              color: "teal",
+              message: "Publicación rechazada. El autor recibe el motivo y puede debatirlo.",
+            });
+          },
+          onError,
+        },
+      );
+    } else {
+      decideComment.mutate(
+        { commentId: rechazo.id, action: "reject", ...comun },
+        {
+          onSuccess: () => {
+            cerrar();
+            notifications.show({
+              color: "teal",
+              message: "Comentario eliminado. El autor recibe el motivo y puede debatirlo.",
+            });
+          },
+          onError,
+        },
+      );
+    }
+  };
+
+  /**
+   * Resuelve una apelación. **Aceptar republica el contenido**: el post vuelve al
+   * feed y el comentario deja de estar oculto. Rechazar mantiene la sanción, y el
+   * atleta puede pedirle una última revisión a Nucleo.
+   */
+  const confirmarApelacion = () => {
+    if (!resolucion) return;
+    const { appeal, action } = resolucion;
+    decideAppeal.mutate(
+      { appealId: appeal.id, action, note: notaApelacion.trim() },
+      {
+        onSuccess: () => {
+          setResolucion(null);
+          notifications.show({
+            color: "teal",
+            message:
+              action === "accept"
+                ? appeal.kind === "post"
+                  ? "Apelación aceptada: la publicación volvió al feed."
+                  : "Apelación aceptada: el comentario volvió al feed."
+                : "Apelación rechazada. La decisión se mantiene y el atleta ya lo sabe.",
+          });
+        },
+        onError: (e) =>
+          notifications.show({
+            color: "red",
+            message: errMsg(e, "No se pudo resolver la apelación."),
           }),
       },
     );
@@ -200,12 +339,22 @@ export function CommunityPage() {
 
   const aomRows = ["", ...classTypes];
 
+  // La bandeja de moderación tiene dos colas: lo que espera visto bueno antes de
+  // publicarse (posts) y lo que ya se publicó y un atleta reportó (comentarios).
+  // El contador de arriba suma las dos: si solo contara posts, un comentario
+  // reportado se quedaría escondido aquí para siempre.
+  const nPosts = (pendingPosts.data ?? []).length;
+  const nComentarios = (reportedComments.data ?? []).length;
+  const nApelaciones = (appeals.data ?? []).length;
+  const modCargando =
+    pendingPosts.isLoading || reportedComments.isLoading || appeals.isLoading;
+
   return (
     <div>
       <PageHeader
         kicker="Comunidad · Feed"
         title="Comunidad del gym"
-        subtitle="Publica anuncios, destaca al atleta del mes y modera lo que suben tus atletas antes de que llegue al feed."
+        subtitle="Publica anuncios, destaca al atleta del mes y modera lo que sube tu comunidad: publicaciones por aprobar y comentarios reportados."
       />
 
       {/* Pulso de la comunidad: todo se deriva de lo que ya trajeron las queries. */}
@@ -448,78 +597,343 @@ export function CommunityPage() {
         style={{ marginTop: "calc(20 * var(--u))" }}
       >
         <BigMetric
-          label="Posts por aprobar"
-          value={pendingPosts.isLoading ? "—" : (pendingPosts.data ?? []).length}
+          label="Pendientes de moderación"
+          value={modCargando ? "—" : nPosts + nComentarios + nApelaciones}
           size="sm"
-          hint="Publicaciones de atletas y coaches esperando tu visto bueno."
+          hint="Publicaciones por aprobar, comentarios reportados y apelaciones de atletas."
           delay={1.3}
         />
         <div style={{ height: "calc(16 * var(--u))" }} />
-        {/* Un fallo aquí decía "no hay nada que moderar": el peor error posible en
-            una bandeja de moderación (posts reportados quedan invisibles). */}
-        {pendingPosts.isError ? (
+        {/* Etiquetas cortas a propósito: en móvil el control no debe desbordar la
+            tarjeta. El "reportados" lo explica la línea de abajo. */}
+        <SegmentedControl
+          value={modTab}
+          onChange={(v) => setModTab(v as "posts" | "comentarios" | "apelaciones")}
+          data={[
+            { value: "posts", label: `Publicaciones (${modCargando ? "—" : nPosts})` },
+            { value: "comentarios", label: `Comentarios (${modCargando ? "—" : nComentarios})` },
+            { value: "apelaciones", label: `Apelaciones (${modCargando ? "—" : nApelaciones})` },
+          ]}
+        />
+        <Text c="dimmed" size="sm" mt={8} mb="md">
+          {modTab === "posts"
+            ? "Publicaciones de atletas y coaches que aún no salen al feed."
+            : modTab === "comentarios"
+              ? "Comentarios que tus atletas reportaron: están ocultos del feed hasta que decidas."
+              : "Atletas que no están de acuerdo con una decisión tuya y piden que la revises de nuevo."}
+        </Text>
+        {modTab === "apelaciones" ? (
+          appeals.isError ? (
+            <PageError
+              message="No se pudo cargar la cola de apelaciones. Puede haber atletas esperando respuesta."
+              onRetry={() => appeals.refetch()}
+            />
+          ) : appeals.isLoading ? (
+            <PageLoading />
+          ) : !nApelaciones ? (
+            <Text c="dimmed" size="sm">
+              No hay apelaciones por revisar. Cuando un atleta no esté de acuerdo con una decisión
+              de moderación, su descargo aparece aquí.
+            </Text>
+          ) : (
+            <Stack gap="sm">
+              {(appeals.data ?? []).map((a) => (
+                <Box
+                  key={a.id}
+                  p="sm"
+                  style={{ border: "1px solid var(--a-line)", borderRadius: "calc(16 * var(--u))" }}
+                >
+                  <Group gap={6} mb={6}>
+                    <Badge size="xs" variant="light" color="flame">
+                      {a.kind === "post" ? "Publicación" : "Comentario"}
+                    </Badge>
+                    <Badge size="xs" variant="light" color={APPEAL_COLOR[a.status] ?? "gray"}>
+                      {a.status_display}
+                    </Badge>
+                    <Text size="xs" c="dimmed">
+                      {a.athlete_name} · {new Date(a.created_at).toLocaleString("es-GT")}
+                    </Text>
+                  </Group>
+
+                  <SectionLabel mb={4}>Contenido sancionado</SectionLabel>
+                  <Text size="sm" c="dimmed">
+                    {a.content_excerpt || "(sin texto: era una foto o un video)"}
+                  </Text>
+                  <Text size="xs" c="dimmed" mt={4}>
+                    Motivo: {a.content_reason_display || "sin motivo registrado"}
+                    {a.content_note ? ` · ${a.content_note}` : ""}
+                  </Text>
+
+                  <SectionLabel mb={4} mt={12}>
+                    Lo que dice el atleta
+                  </SectionLabel>
+                  <Text size="sm">{a.body}</Text>
+
+                  {a.resolution_note && (
+                    <Text size="xs" c="dimmed" mt={8}>
+                      Tu respuesta: {a.resolution_note}
+                    </Text>
+                  )}
+
+                  {a.status === "pending" ? (
+                    <Group gap="xs" mt="sm">
+                      <Button
+                        size="xs"
+                        loading={decideAppeal.isPending}
+                        onClick={() => {
+                          setResolucion({ appeal: a, action: "accept" });
+                          setNotaApelacion("");
+                        }}
+                      >
+                        Aceptar y republicar
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="default"
+                        color="red"
+                        loading={decideAppeal.isPending}
+                        onClick={() => {
+                          setResolucion({ appeal: a, action: "reject" });
+                          setNotaApelacion("");
+                        }}
+                      >
+                        Mantener la decisión
+                      </Button>
+                    </Group>
+                  ) : (
+                    <Text size="xs" c="dimmed" mt="sm">
+                      {a.status === "escalated"
+                        ? "El atleta pidió una última revisión a Nucleo. Ya no la resuelve el gimnasio."
+                        : "Ya resuelta."}
+                    </Text>
+                  )}
+                </Box>
+              ))}
+            </Stack>
+          )
+        ) : modTab === "posts" ? (
+          /* Un fallo aquí decía "no hay nada que moderar": el peor error posible en
+             una bandeja de moderación (posts reportados quedan invisibles). */
+          pendingPosts.isError ? (
+            <PageError
+              message="No se pudo cargar la bandeja de moderación. Puede haber publicaciones esperando."
+              onRetry={() => pendingPosts.refetch()}
+            />
+          ) : pendingPosts.isLoading ? (
+            <PageLoading />
+          ) : !nPosts ? (
+            <Text c="dimmed" size="sm">
+              No hay publicaciones de atletas esperando aprobación.
+            </Text>
+          ) : (
+            <Stack gap="sm">
+              {(pendingPosts.data ?? []).map((p) => (
+                <Box
+                  key={p.id}
+                  p="sm"
+                  style={{ border: "1px solid var(--a-line)", borderRadius: "calc(16 * var(--u))" }}
+                >
+                  <Group gap={6} mb={2}>
+                    <Badge size="xs" variant="light" color={p.author_type === "coach" ? "grape" : "flame"}>
+                      {p.author_type === "coach" ? "Coach" : "Atleta"}
+                    </Badge>
+                    {(p.report_count ?? 0) > 0 && (
+                      <Badge size="xs" variant="filled" color="red">
+                        Reportado ×{p.report_count}
+                      </Badge>
+                    )}
+                    {p.moderation_label && (
+                      <Badge size="xs" variant="light" color="orange" title="Marcado por moderación automática (IA)">
+                        IA: {p.moderation_label}
+                      </Badge>
+                    )}
+                    <Text size="xs" c="dimmed">
+                      {p.author_name ?? p.athlete_name} · {new Date(p.created_at).toLocaleString("es-GT")}
+                    </Text>
+                  </Group>
+                  {p.body && <Text size="sm">{p.body}</Text>}
+                  <Group gap="xs" mt={8}>
+                    {(p.media && p.media.length
+                      ? p.media
+                      : p.photo
+                        ? [{ url: p.photo, kind: "image" as const }]
+                        : []
+                    ).map((m, i) =>
+                      m.kind === "video" ? (
+                        <video key={i} src={m.url} controls style={{ ...MEDIA_FRAME, maxWidth: 280 }} />
+                      ) : (
+                        <img key={i} src={m.url} alt="post" style={{ ...MEDIA_FRAME, maxWidth: 280 }} />
+                      ),
+                    )}
+                  </Group>
+                  <Group gap="xs" mt="sm">
+                    <Button size="xs" loading={decidePost.isPending} onClick={() => aprobarPost(p.id)}>
+                      Aprobar
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="default"
+                      color="red"
+                      onClick={() =>
+                        abrirRechazo("post", p.id, p.author_name ?? p.athlete_name)
+                      }
+                    >
+                      Rechazar…
+                    </Button>
+                  </Group>
+                </Box>
+              ))}
+            </Stack>
+          )
+        ) : /* Comentarios reportados: ya están OCULTOS del feed. Si esta cola
+              fallara en silencio, ocultar un comentario no tendría vuelta atrás. */
+        reportedComments.isError ? (
           <PageError
-            message="No se pudo cargar la bandeja de moderación. Puede haber publicaciones esperando."
-            onRetry={() => pendingPosts.refetch()}
+            message="No se pudo cargar la cola de comentarios reportados. Puede haber comentarios ocultos esperando tu revisión."
+            onRetry={() => reportedComments.refetch()}
           />
-        ) : pendingPosts.isLoading ? (
+        ) : reportedComments.isLoading ? (
           <PageLoading />
-        ) : !(pendingPosts.data ?? []).length ? (
+        ) : !nComentarios ? (
           <Text c="dimmed" size="sm">
-            No hay publicaciones de atletas esperando aprobación.
+            No hay comentarios reportados. Cuando un atleta reporte uno, se oculta del feed y
+            aparece aquí para que decidas.
           </Text>
         ) : (
           <Stack gap="sm">
-            {(pendingPosts.data ?? []).map((p) => (
+            {(reportedComments.data ?? []).map((c) => (
               <Box
-                key={p.id}
+                key={c.id}
                 p="sm"
                 style={{ border: "1px solid var(--a-line)", borderRadius: "calc(16 * var(--u))" }}
               >
                 <Group gap={6} mb={2}>
-                  <Badge size="xs" variant="light" color={p.author_type === "coach" ? "grape" : "flame"}>
-                    {p.author_type === "coach" ? "Coach" : "Atleta"}
+                  <Badge size="xs" variant="light" color="flame">
+                    Comentario
                   </Badge>
-                  {(p.report_count ?? 0) > 0 && (
-                    <Badge size="xs" variant="filled" color="red">
-                      Reportado ×{p.report_count}
-                    </Badge>
-                  )}
-                  {p.moderation_label && (
-                    <Badge size="xs" variant="light" color="orange" title="Marcado por moderación automática (IA)">
-                      IA: {p.moderation_label}
+                  <Badge size="xs" variant="filled" color="red">
+                    Reportado ×{c.report_count}
+                  </Badge>
+                  {c.hidden && (
+                    <Badge
+                      size="xs"
+                      variant="light"
+                      color="orange"
+                      title="Está fuera del feed mientras lo revisas"
+                    >
+                      Oculto del feed
                     </Badge>
                   )}
                   <Text size="xs" c="dimmed">
-                    {p.author_name ?? p.athlete_name} · {new Date(p.created_at).toLocaleString("es-GT")}
+                    {c.athlete_name} · {new Date(c.created_at).toLocaleString("es-GT")}
                   </Text>
                 </Group>
-                {p.body && <Text size="sm">{p.body}</Text>}
-                <Group gap="xs" mt={8}>
-                  {(p.media && p.media.length
-                    ? p.media
-                    : p.photo
-                      ? [{ url: p.photo, kind: "image" as const }]
-                      : []
-                  ).map((m, i) =>
-                    m.kind === "video" ? (
-                      <video key={i} src={m.url} controls style={{ ...MEDIA_FRAME, maxWidth: 280 }} />
-                    ) : (
-                      <img key={i} src={m.url} alt="post" style={{ ...MEDIA_FRAME, maxWidth: 280 }} />
-                    ),
-                  )}
-                </Group>
+                {c.body && <Text size="sm">{c.body}</Text>}
+                {c.image && (
+                  <img
+                    src={c.image}
+                    alt="comentario"
+                    // `width` + `maxWidth: 100%`: en móvil la imagen se encoge
+                    // con la tarjeta en vez de desbordarla.
+                    style={{ ...MEDIA_FRAME, width: 280, maxWidth: "100%", marginTop: 8 }}
+                  />
+                )}
                 <Group gap="xs" mt="sm">
-                  <Button size="xs" loading={decidePost.isPending} onClick={() => decidirPost(p.id, "approve")}>
-                    Aprobar
+                  <Button
+                    size="xs"
+                    loading={decideComment.isPending}
+                    onClick={() => restaurarComentario(c)}
+                  >
+                    Restaurar
                   </Button>
-                  <Button size="xs" variant="default" color="red" loading={decidePost.isPending} onClick={() => decidirPost(p.id, "reject")}>
-                    Rechazar
+                  <Button
+                    size="xs"
+                    variant="default"
+                    color="red"
+                    onClick={() => abrirRechazo("comment", c.id, c.athlete_name)}
+                  >
+                    Eliminar…
                   </Button>
                 </Group>
               </Box>
             ))}
           </Stack>
+        )}
+      </GlassCard>
+
+      {/* Señal de moderación: agregados ANÓNIMOS. Sirve para decidir si hablar con
+          alguien, no para saber quién lo bloqueó — eso no se muestra nunca. */}
+      <GlassCard padding={24} delay={1.14} style={{ marginTop: "calc(20 * var(--u))" }}>
+        <Group gap={8} mb={8} wrap="nowrap">
+          <ShieldAlert size={16} strokeWidth={1.8} />
+          <SectionLabel as="h2" mb={0}>Señal de moderación</SectionLabel>
+        </Group>
+        <Text c="dimmed" size="sm" mb="md">
+          Atletas de tu gimnasio a los que varias personas bloquearon o reportaron. Es una señal
+          para que decidas si hablas con ellos, no una sanción automática.
+        </Text>
+        <Alert color="gray" variant="light" mb="md" title="Cómo leer esta tabla">
+          <Text size="sm">
+            <b>No se muestra quién bloqueó ni quién reportó</b>, y no hay forma de averiguarlo desde
+            el panel: revelarlo expondría a la persona que se protegió, que además ve a esta otra en
+            la clase de las 6. Un atleta aparece cuando llega a un mínimo de bloqueos <b>o</b> de
+            reportes. Los bloqueos se muestran sólo a partir de ese mínimo — en un box de 30
+            personas un solo bloqueo prácticamente señala a quien lo hizo —, así que puedes ver una
+            fila con reportes y cero bloqueos. Sólo cuenta lo que pasó dentro de tu gimnasio, en los
+            últimos 90 días.
+          </Text>
+        </Alert>
+        {signals.isError ? (
+          <PageError
+            message="No se pudo cargar la señal de moderación."
+            onRetry={() => signals.refetch()}
+          />
+        ) : signals.isLoading ? (
+          <PageLoading />
+        ) : !(signals.data ?? []).length ? (
+          <Text c="dimmed" size="sm">
+            Nadie llega al umbral. Tu comunidad está tranquila.
+          </Text>
+        ) : (
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Atleta</Table.Th>
+                <Table.Th>Bloqueos</Table.Th>
+                <Table.Th>Reportes</Table.Th>
+                <Table.Th>Última señal</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {(signals.data ?? []).map((s) => (
+                <Table.Tr key={s.athlete_id}>
+                  <Table.Td>
+                    <Group gap="sm" wrap="nowrap">
+                      {s.athlete_avatar && (
+                        <img src={s.athlete_avatar} alt={s.athlete_name} style={thumb(30, true)} />
+                      )}
+                      {s.athlete_name}
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge variant="light" color="orange">
+                      {s.bloqueos}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge variant="light" color={s.reportes > 0 ? "red" : "gray"}>
+                      {s.reportes}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">
+                      {s.ultima_senal ? new Date(s.ultima_senal).toLocaleDateString("es-GT") : "—"}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
         )}
       </GlassCard>
 
@@ -563,6 +977,103 @@ export function CommunityPage() {
           </Stack>
         )}
       </GlassCard>
+
+      {/* Rechazar exige motivo: sin él el backend responde 400 `reason_required`,
+          y sin él el autor no sabe qué corregir ni contra qué apelar. */}
+      <Modal
+        opened={!!rechazo}
+        onClose={() => setRechazo(null)}
+        title={rechazo?.tipo === "post" ? "Rechazar publicación" : "Eliminar comentario"}
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            {rechazo?.tipo === "post"
+              ? `La publicación de ${rechazo?.quien} no saldrá al feed.`
+              : `El comentario de ${rechazo?.quien} se borra para siempre y no se puede recuperar.`}{" "}
+            Se le avisa con el motivo que elijas, y podrá pedirte que lo revises de nuevo.
+          </Text>
+          <Select
+            label="Motivo"
+            description="Obligatorio: es lo que verá el autor."
+            placeholder="Elige un motivo"
+            value={motivo}
+            onChange={(v) => setMotivo(v as MotivoModeracion | null)}
+            data={MOTIVOS_MODERACION}
+          />
+          <Textarea
+            label="Nota para el autor (opcional)"
+            placeholder="Aclaración breve: qué corregir, qué regla se pasó por alto…"
+            value={nota}
+            onChange={(e) => setNota(e.currentTarget.value)}
+            autosize
+            minRows={2}
+            maxLength={255}
+          />
+          <Group justify="flex-end" gap="sm">
+            <Button variant="default" onClick={() => setRechazo(null)}>
+              Cancelar
+            </Button>
+            <Button
+              color="red"
+              disabled={!motivo}
+              loading={decidePost.isPending || decideComment.isPending}
+              onClick={confirmarRechazo}
+            >
+              {rechazo?.tipo === "post" ? "Rechazar" : "Eliminar"}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Resolver una apelación. Aceptar NO es sólo cerrar el caso: republica. */}
+      <Modal
+        opened={!!resolucion}
+        onClose={() => setResolucion(null)}
+        title={
+          resolucion?.action === "accept" ? "Aceptar la apelación" : "Mantener la decisión"
+        }
+        centered
+      >
+        <Stack gap="md">
+          {resolucion?.action === "accept" ? (
+            <Alert color="teal" variant="light">
+              <Text size="sm">
+                {resolucion?.appeal.kind === "post"
+                  ? "La publicación vuelve al feed y se le quita el motivo de la sanción."
+                  : "El comentario deja de estar oculto, vuelve al feed y se borran los reportes que lo bajaron."}{" "}
+                Al atleta se le avisa que le diste la razón.
+              </Text>
+            </Alert>
+          ) : (
+            <Text size="sm" c="dimmed">
+              El contenido sigue sancionado. Al atleta se le avisa, y si no queda conforme puede
+              pedirle una última revisión a Nucleo.
+            </Text>
+          )}
+          <Textarea
+            label="Nota para el atleta (opcional)"
+            placeholder="Explícale por qué, en una línea."
+            value={notaApelacion}
+            onChange={(e) => setNotaApelacion(e.currentTarget.value)}
+            autosize
+            minRows={2}
+            maxLength={255}
+          />
+          <Group justify="flex-end" gap="sm">
+            <Button variant="default" onClick={() => setResolucion(null)}>
+              Cancelar
+            </Button>
+            <Button
+              color={resolucion?.action === "accept" ? "flame" : "red"}
+              loading={decideAppeal.isPending}
+              onClick={confirmarApelacion}
+            >
+              {resolucion?.action === "accept" ? "Aceptar y republicar" : "Mantener la decisión"}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </div>
   );
 }

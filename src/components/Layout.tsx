@@ -30,6 +30,7 @@ import {
   LifeBuoy,
   Package,
   Receipt,
+  Scale,
   Tag,
   TrendingDown,
   UserCog,
@@ -303,7 +304,10 @@ export function Layout() {
   if (isSuperuser) {
     groups.push({
       title: "Plataforma",
-      items: [{ to: "/panel/plataforma/gyms", label: "Gimnasios", icon: Globe }],
+      items: [
+        { to: "/panel/plataforma/gyms", label: "Gimnasios", icon: Globe },
+        { to: "/panel/plataforma/apelaciones", label: "Apelaciones", icon: Scale },
+      ],
     });
   }
 

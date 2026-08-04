@@ -2,8 +2,11 @@ import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/re
 import { api, tokenStore } from "./client";
 import {
   AltaGimnasio,
+  Appeal,
   AuditLog,
   Dashboard,
+  ModerationSignal,
+  MotivoModeracion,
   PendingSummary,
   GymClass,
   GymCheckin,
@@ -2327,16 +2330,197 @@ export function useGymPendingPosts(gymId: string) {
   });
 }
 
+/**
+ * Aprueba o rechaza un post pendiente. Al RECHAZAR el motivo es obligatorio
+ * (`400 {"code":"reason_required"}` si falta): es lo que se le dice al autor y
+ * lo único contra lo que puede apelar. `approve` ignora motivo y nota.
+ */
 export function useDecidePost(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ postId, action }: { postId: string; action: "approve" | "reject" }) =>
-      (await api.post(`/gym/${gymId}/posts/${postId}/${action}`, {})).data,
+    mutationFn: async ({
+      postId,
+      action,
+      reason,
+      note,
+    }: {
+      postId: string;
+      action: "approve" | "reject";
+      reason?: MotivoModeracion | "";
+      note?: string;
+    }) =>
+      (
+        await api.post(
+          `/gym/${gymId}/posts/${postId}/${action}`,
+          action === "reject" ? { reason, note: note || "" } : {},
+        )
+      ).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["gym-posts", gymId] });
       qc.invalidateQueries({ queryKey: ["gym-feed", gymId] });
       // Moderar baja el pendiente "posts en moderación".
       invalidarPendientes(qc, gymId);
+    },
+  });
+}
+
+/**
+ * Cola de comentarios reportados del gym (moderación REACTIVA). Un reporte de
+ * un atleta oculta el comentario del feed; esta lista es la única vía para
+ * devolverlo o borrarlo definitivamente.
+ */
+export function useGymReportedComments(gymId: string) {
+  return useQuery({
+    queryKey: ["gym-reported-comments", gymId],
+    queryFn: () =>
+      getList<import("./types").ReportedComment>(`/gym/${gymId}/reported-comments`),
+    enabled: !!gymId,
+  });
+}
+
+/**
+ * Resuelve un comentario reportado: `approve` lo restaura en el feed
+ * (`hidden=false`, contador de reportes a cero) y `reject` lo borra. Al eliminar
+ * el motivo es OBLIGATORIO (`400 {"code":"reason_required"}`): es el texto que
+ * recibe el autor, porque después del borrado ya no queda de dónde leerlo.
+ */
+export function useDecideComment(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      commentId,
+      action,
+      reason,
+      note,
+    }: {
+      commentId: string;
+      action: "approve" | "reject";
+      reason?: MotivoModeracion | "";
+      note?: string;
+    }) =>
+      (
+        await api.post(
+          `/gym/${gymId}/comments/${commentId}/${action}`,
+          action === "reject" ? { reason, note: note || "" } : {},
+        )
+      ).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-reported-comments", gymId] });
+      // Restaurar devuelve el comentario al feed: el conteo de comentarios cambia.
+      qc.invalidateQueries({ queryKey: ["gym-feed", gymId] });
+      invalidarPendientes(qc, gymId);
+    },
+  });
+}
+
+// --- Debido proceso: apelaciones y señal de moderación ---
+
+/**
+ * Cola de apelaciones del gym. Por defecto sólo las que esperan su decisión
+ * (`pending`); `status=all` trae el histórico, incluidas las que ya escalaron a
+ * Nucleo (ésas ya no las resuelve el gym).
+ */
+export function useGymAppeals(gymId: string, status?: string) {
+  return useQuery({
+    queryKey: ["gym-appeals", gymId, status ?? "pending"],
+    queryFn: async () =>
+      (
+        await api.get<Appeal[]>(
+          `/gym/${gymId}/appeals${status ? `?status=${status}` : ""}`,
+        )
+      ).data,
+    enabled: !!gymId,
+  });
+}
+
+/**
+ * El gym re-revisa una apelación. `accept` RESTAURA el contenido (el post vuelve
+ * al feed / el comentario deja de estar oculto); `reject` mantiene la sanción.
+ * En ambos casos el backend avisa al atleta.
+ */
+export function useDecideAppeal(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      appealId,
+      action,
+      note,
+      reason,
+    }: {
+      appealId: string;
+      action: "accept" | "reject";
+      note?: string;
+      reason?: MotivoModeracion | "";
+    }) =>
+      (
+        await api.post<Appeal>(`/gym/${gymId}/appeals/${appealId}/${action}`, {
+          note: note || "",
+          ...(reason ? { reason } : {}),
+        })
+      ).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-appeals", gymId] });
+      // Aceptar republica: el feed, la cola de posts y la de comentarios cambian.
+      qc.invalidateQueries({ queryKey: ["gym-feed", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-posts", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-reported-comments", gymId] });
+      invalidarPendientes(qc, gymId);
+    },
+  });
+}
+
+/**
+ * Señal de moderación: bloqueos y reportes ACUMULADOS por atleta dentro de este
+ * gym. Sólo conteos — el backend nunca devuelve quién bloqueó ni quién reportó, y
+ * omite a quien no supera el umbral de anonimato.
+ */
+export function useModerationSignals(gymId: string) {
+  return useQuery({
+    queryKey: ["gym-moderation-signals", gymId],
+    queryFn: async () =>
+      (await api.get<ModerationSignal[]>(`/gym/${gymId}/moderation-signals`)).data,
+    enabled: !!gymId,
+  });
+}
+
+/**
+ * Cola de apelaciones ESCALADAS a Nucleo (todos los gyms, superadmin). Por
+ * defecto `status=escalated`, que es lo que espera decisión de soporte.
+ */
+export function usePlatformAppeals(status: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["platform-appeals", status ?? "escalated"],
+    queryFn: async () =>
+      (await api.get<Appeal[]>(`/platform/appeals${status ? `?status=${status}` : ""}`)).data,
+    enabled,
+  });
+}
+
+/** Soporte de Nucleo resuelve una escalada. Última instancia: no hay otra vuelta. */
+export function useDecidePlatformAppeal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      appealId,
+      action,
+      note,
+      reason,
+    }: {
+      appealId: string;
+      action: "accept" | "reject";
+      note?: string;
+      reason?: MotivoModeracion | "";
+    }) =>
+      (
+        await api.post<Appeal>(`/platform/appeals/${appealId}/${action}`, {
+          note: note || "",
+          ...(reason ? { reason } : {}),
+        })
+      ).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform-appeals"] });
+      // La apelación también vive en la cola del gym: su estado cambió.
+      qc.invalidateQueries({ queryKey: ["gym-appeals"] });
     },
   });
 }

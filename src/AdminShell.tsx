@@ -16,6 +16,7 @@ import { CoachesPage } from "./pages/CoachesPage";
 import { CoachPayrollPage } from "./pages/CoachPayrollPage";
 import { AuditPage } from "./pages/AuditPage";
 import { PasswordResetConfirmPage } from "./pages/PasswordResetConfirmPage";
+import { PlatformAppealsPage } from "./pages/PlatformAppealsPage";
 import { PlatformGymsPage } from "./pages/PlatformGymsPage";
 import { CommunityPage } from "./pages/CommunityPage";
 import { TicketsPage } from "./pages/TicketsPage";
@@ -93,6 +94,7 @@ export default function AdminShell() {
           <Route path="actividad" element={<AuditPage />} />
           <Route path="auditoria" element={<AuditPage />} />
           <Route path="plataforma/gyms" element={<PlatformGymsPage />} />
+          <Route path="plataforma/apelaciones" element={<PlatformAppealsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

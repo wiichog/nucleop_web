@@ -324,6 +324,17 @@ export interface PendingSummary {
   solicitudes: number;
   coaches: number;
   posts: number;
+  /**
+   * Comentarios del feed ocultos por reporte (moderación reactiva), esperando
+   * revisión del staff. Suma a `total`. Falta si el backend es viejo.
+   */
+  comentarios?: number;
+  /**
+   * Descargos de atletas contra una decisión de moderación de ESTE gym que
+   * esperan su re-revisión (sólo `status=pending`; lo escalado a Nucleo ya no
+   * espera al gym). Suma a `total`. Falta si el backend es viejo.
+   */
+  apelaciones?: number;
   tickets: number;
   clases_sin_wod: number;
   /** Clases de hoy sin coach (cobertura). Falta si el backend es viejo. */
@@ -1061,7 +1072,124 @@ export interface AthletePost {
   status_display: string;
   report_count?: number;
   moderation_label?: string;
+  /**
+   * Motivo por el que se sancionó (§2 del debido proceso). Es lo que se le dice
+   * al autor y contra lo que puede apelar; obligatorio al rechazar. Vacío en un
+   * post aprobado (aprobar limpia la sanción anterior).
+   */
+  decision_reason?: MotivoModeracion | "";
+  /** Mismo motivo ya traducido por el backend ("Lenguaje ofensivo"). */
+  decision_reason_display?: string;
+  /** Aclaración libre que escribió el admin al decidir. */
+  decision_note?: string;
   created_at: string;
+}
+
+/**
+ * Comentario del feed reportado por un atleta y OCULTO a la espera de que el
+ * gym lo revise. La moderación de comentarios es REACTIVA (un reporte lo baja
+ * del feed), así que esta cola es el único camino de vuelta: sin ella, ocultar
+ * un comentario sería irreversible.
+ */
+export interface ReportedComment {
+  id: string;
+  /** uuid del atleta autor (dato global; el gym solo ve su propia relación). */
+  athlete: string;
+  athlete_name: string;
+  body: string;
+  image: string | null;
+  report_count: number;
+  /** `true` mientras esté fuera del feed esperando la decisión del gym. */
+  hidden: boolean;
+  /** id sintético del ítem del feed sobre el que se comentó. */
+  feed_item_id: string;
+  /** Motivo con el que se sancionó (lo llena el rechazo; se limpia al restaurar). */
+  decision_reason?: MotivoModeracion | "";
+  /** Aclaración libre del admin al decidir. */
+  decision_note?: string;
+  created_at: string;
+}
+
+// --- Debido proceso: motivo de la sanción, apelaciones y señal de moderación ---
+
+/**
+ * Motivos con los que el gym puede sancionar un post o un comentario. Al
+ * rechazar es OBLIGATORIO mandar uno (`400 {"code":"reason_required"}` si falta):
+ * sin motivo el autor no sabe qué corregir y su apelación no tiene contra qué
+ * defenderse.
+ */
+export type MotivoModeracion =
+  | "spam"
+  | "ofensivo"
+  | "acoso"
+  | "sexual"
+  | "violencia"
+  | "desinformacion"
+  | "fuera_de_tema"
+  | "otro";
+
+/** Opciones del selector de motivo, en el orden en que las muestra el panel. */
+export const MOTIVOS_MODERACION: { value: MotivoModeracion; label: string }[] = [
+  { value: "spam", label: "Spam o publicidad" },
+  { value: "ofensivo", label: "Lenguaje ofensivo" },
+  { value: "acoso", label: "Acoso a otra persona" },
+  { value: "sexual", label: "Contenido sexual" },
+  { value: "violencia", label: "Violencia o contenido perturbador" },
+  { value: "desinformacion", label: "Información falsa o engañosa" },
+  { value: "fuera_de_tema", label: "No tiene que ver con el gimnasio" },
+  { value: "otro", label: "Otro motivo" },
+];
+
+/**
+ * Estado de una apelación. `pending` la revisa el gym; si la rechaza, el atleta
+ * puede escalarla UNA vez a Nucleo (`escalated`), que es la última instancia.
+ */
+export type AppealStatus = "pending" | "escalated" | "accepted" | "rejected";
+
+/**
+ * Descargo de un atleta contra una decisión de moderación (post rechazado o
+ * comentario oculto). Aceptarla RESTAURA el contenido: el post vuelve al feed y
+ * el comentario deja de estar oculto.
+ */
+export interface Appeal {
+  id: string;
+  /** Qué se apela. El objeto en sí va en `object_id`. */
+  kind: "post" | "comment";
+  object_id: string;
+  gym: string;
+  gym_name: string;
+  athlete: string;
+  athlete_name: string;
+  /** El descargo que escribió el atleta. */
+  body: string;
+  status: AppealStatus;
+  status_display: string;
+  /** Nota con la que el gym (o Nucleo) resolvió. */
+  resolution_note: string;
+  decided_at: string | null;
+  escalated_at: string | null;
+  created_at: string;
+  /** Extracto del contenido sancionado (el gym ve qué está debatiendo). */
+  content_excerpt: string;
+  content_reason: MotivoModeracion | "";
+  content_reason_display: string;
+  content_note: string;
+  /** `true` si el atleta todavía puede escalarla a Nucleo. */
+  can_escalate: boolean;
+}
+
+/**
+ * Fila de la señal de moderación: SÓLO conteos agregados dentro de ESTE gym.
+ * Nunca trae quién bloqueó ni quién reportó, y el backend omite a quien no
+ * supera el umbral de anonimato — es lo que separa una señal de una filtración.
+ */
+export interface ModerationSignal {
+  athlete_id: string;
+  athlete_name: string;
+  athlete_avatar: string | null;
+  bloqueos: number;
+  reportes: number;
+  ultima_senal: string;
 }
 
 export interface GymService {
