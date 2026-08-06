@@ -152,9 +152,16 @@ export function PrivacyPage() {
         </Section>
 
         <Section title="8. Menores de edad">
+          {/* 18+ y no 13+: es el público objetivo declarado en Google Play (decisión del
+              dueño, 2026-08-03). Si algún día se declara otro rango en la ficha de la
+              tienda, este texto tiene que cambiar con él: que la política y la ficha digan
+              edades distintas es una incoherencia que el revisor puede señalar. */}
           <p>
-            Nucleo no está dirigida a menores de 13 años. Si un menor usa la plataforma, debe hacerlo
-            bajo la autorización y supervisión de su padre, madre o tutor.
+            Nucleo está dirigida a personas mayores de edad y no está destinada a menores de 18
+            años. No recopilamos de forma consciente datos personales de menores de esa edad. Si un
+            menor utiliza la plataforma a través de la membresía gestionada por su gimnasio, debe
+            hacerlo bajo la autorización y supervisión de su padre, madre o tutor, quien será
+            responsable de los datos proporcionados.
           </p>
         </Section>
 
