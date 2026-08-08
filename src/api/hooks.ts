@@ -39,7 +39,9 @@ import {
   DropinProduct,
   Wod,
   WodResult,
+  BugReport,
   BugReportConfig,
+  BugReportDetail,
   ClubAnnouncement,
   ClubProfileEditable,
   ErpPurchaseOrder,
@@ -2590,5 +2592,56 @@ export function useSubmitReport() {
   });
 }
 
-// La gestión de reportes (triage / estado / lote / prompt de fix / kill-switch) vive
-// SOLO en el Django admin; el admin web únicamente REPORTA (useReportConfig + useSubmitReport).
+/** Filtros de la bandeja. `status` acepta un estado, `open` (default) o `all`. */
+export interface ReportFilters {
+  status?: string;
+  surface?: string;
+  kind?: string;
+  severity?: string;
+  q?: string;
+}
+
+/**
+ * Bandeja de reportes de TODA la red (superadmin). Usa `getList` porque el
+ * endpoint pagina por cursor y la pantalla filtra/ordena sobre el conjunto.
+ */
+export function usePlatformReports(filters: ReportFilters, enabled: boolean) {
+  const qs = new URLSearchParams(
+    Object.entries(filters).filter(([, v]) => !!v) as [string, string][],
+  ).toString();
+  return useQuery({
+    queryKey: ["platform-reports", filters],
+    queryFn: async () => getList<BugReport>(`/platform/reports${qs ? `?${qs}` : ""}`),
+    enabled,
+  });
+}
+
+/** Ficha completa de un reporte (incluye el prompt de fix para Claude Code). */
+export function usePlatformReport(reportId: string) {
+  return useQuery({
+    queryKey: ["platform-report", reportId],
+    queryFn: async () => (await api.get<BugReportDetail>(`/platform/reports/${reportId}`)).data,
+    enabled: !!reportId,
+  });
+}
+
+/** Triage del operador: estado, clasificación y notas. Solo se manda lo que cambia. */
+export function useTriagePlatformReport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      reportId,
+      ...cambios
+    }: {
+      reportId: string;
+      status?: string;
+      kind?: string;
+      severity?: string;
+      operator_notes?: string;
+    }) => (await api.patch<BugReportDetail>(`/platform/reports/${reportId}`, cambios)).data,
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["platform-reports"] });
+      qc.setQueryData(["platform-report", data.id], data);
+    },
+  });
+}

@@ -14,6 +14,7 @@ import {
   BarChart3,
   Bell,
   BellRing,
+  Bug,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -307,6 +308,9 @@ export function Layout() {
       items: [
         { to: "/panel/plataforma/gyms", label: "Gimnasios", icon: Globe },
         { to: "/panel/plataforma/apelaciones", label: "Apelaciones", icon: Scale },
+        // Fallas del software reportadas desde el app y el panel (apps.bugreports).
+        // No es la bandeja de soporte del gym: esa es /panel/tickets (GymTicket).
+        { to: "/panel/plataforma/reportes", label: "Reportes del app", icon: Bug },
       ],
     });
   }

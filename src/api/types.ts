@@ -1208,10 +1208,54 @@ export interface GymService {
 }
 
 // --- Reporte de errores del software (apps.bugreports) ---
-// El admin web SOLO reporta; la gestión vive en el Django admin. Por eso aquí queda
-// únicamente el estado del kill-switch que la superficie consulta.
+// Cualquier usuario del panel REPORTA; la bandeja (`platform/reports`) es del
+// superadmin de plataforma. Distinto de GymTicket (soporte atleta↔gimnasio).
 export interface BugReportConfig {
   web_enabled: boolean;
   mobile_enabled: boolean;
   updated_at?: string;
+}
+
+export type ReportStatus = "new" | "triaged" | "in_pr" | "resolved" | "closed" | "discarded";
+export type ReportKind = "bug" | "feature" | "support" | "noise" | "duplicate";
+export type ReportSeverity = "low" | "medium" | "high" | "critical";
+export type ReportSurface = "web_admin" | "mobile_ios" | "mobile_android" | "other";
+
+/** Fila de la bandeja de reportes (consola del operador). */
+export interface BugReport {
+  id: string;
+  created_at: string;
+  description: string;
+  surface: ReportSurface;
+  surface_display: string;
+  kind: ReportKind;
+  kind_display: string;
+  severity: ReportSeverity;
+  severity_display: string;
+  status: ReportStatus;
+  status_display: string;
+  reporter_email: string;
+  reporter_role: string;
+  gym_name: string;
+  app_version: string;
+  build: string;
+  screen: string;
+  has_attachment: boolean;
+}
+
+/** Ficha completa: metadata capturada + prompt de fix listo para Claude Code. */
+export interface BugReportDetail extends BugReport {
+  attachment: string | null;
+  os_name: string;
+  os_version: string;
+  device_model: string;
+  user_agent: string;
+  locale: string;
+  timezone: string;
+  stack_trace: string;
+  extra: Record<string, unknown>;
+  operator_notes: string;
+  resolved_at: string | null;
+  duplicate_of: string | null;
+  fix_prompt: string;
 }
