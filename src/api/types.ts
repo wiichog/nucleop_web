@@ -1241,6 +1241,8 @@ export interface BugReport {
   build: string;
   screen: string;
   has_attachment: boolean;
+  /** Solo si la bandeja pidió `with_prompt=1` (copiar sin abrir el ticket). */
+  fix_prompt?: string;
 }
 
 /** Ficha completa: metadata capturada + prompt de fix listo para Claude Code. */

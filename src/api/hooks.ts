@@ -2604,14 +2604,19 @@ export interface ReportFilters {
 /**
  * Bandeja de reportes de TODA la red (superadmin). Usa `getList` porque el
  * endpoint pagina por cursor y la pantalla filtra/ordena sobre el conjunto.
+ *
+ * Pide `with_prompt=1` para que cada fila traiga su prompt de fix: así el botón
+ * de copiar de la lista escribe en el portapapeles en el mismo clic, sin ir al
+ * servidor en medio (que es lo que algunos navegadores bloquean).
  */
 export function usePlatformReports(filters: ReportFilters, enabled: boolean) {
-  const qs = new URLSearchParams(
-    Object.entries(filters).filter(([, v]) => !!v) as [string, string][],
-  ).toString();
+  const qs = new URLSearchParams([
+    ...(Object.entries(filters).filter(([, v]) => !!v) as [string, string][]),
+    ["with_prompt", "1"],
+  ]).toString();
   return useQuery({
     queryKey: ["platform-reports", filters],
-    queryFn: async () => getList<BugReport>(`/platform/reports${qs ? `?${qs}` : ""}`),
+    queryFn: async () => getList<BugReport>(`/platform/reports?${qs}`),
     enabled,
   });
 }

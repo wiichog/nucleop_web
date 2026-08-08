@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ActionIcon,
   Badge,
   Box,
   Button,
@@ -98,6 +99,59 @@ const SEVERIDADES = [
 
 const fecha = (iso: string) => new Date(iso).toLocaleString("es-GT");
 
+/**
+ * Escribe en el portapapeles con respaldo. La Clipboard API se niega en varias
+ * situaciones normales (sin foco, sin permiso, fuera de un contexto seguro) y ahí
+ * el `textarea` + `execCommand` de toda la vida sí funciona: como TODO el valor de
+ * este botón es que el prompt quede copiado, no puede depender de una sola vía.
+ */
+async function escribirEnPortapapeles(texto: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(texto);
+    return true;
+  } catch {
+    // Cae al respaldo.
+  }
+  try {
+    const area = document.createElement("textarea");
+    area.value = texto;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const copiado = document.execCommand("copy");
+    document.body.removeChild(area);
+    return copiado;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Copia el prompt de fix. Lo comparten la fila de la bandeja y la ficha: el flujo
+ * real es copiar y pegar en Claude Code sin abrir el ticket, así que el prompt ya
+ * viene en la lista (`with_prompt=1`) y aquí no hay ida al servidor de por medio.
+ */
+async function copiarPrompt(prompt?: string) {
+  if (!prompt) {
+    notifications.show({
+      color: "red",
+      message: "Este reporte no trae el prompt; ábrelo para copiarlo desde la ficha.",
+    });
+    return;
+  }
+  if (await escribirEnPortapapeles(prompt)) {
+    notifications.show({ color: "teal", message: "Prompt copiado. Pégalo en Claude Code." });
+  } else {
+    notifications.show({
+      color: "red",
+      message: "El navegador bloqueó el portapapeles. Abre el reporte y copia desde la ficha.",
+    });
+  }
+}
+
 /** Adjunto: miniatura clicable (la captura completa abre en modal). */
 function Adjunto({ src }: { src: string }) {
   const [open, setOpen] = useState(false);
@@ -161,15 +215,6 @@ function DetalleReporte({ reportId }: { reportId: string }) {
       },
     );
 
-  const copiarPrompt = async () => {
-    try {
-      await navigator.clipboard.writeText(r.fix_prompt);
-      notifications.show({ color: "teal", message: "Prompt copiado. Pégalo en Claude Code." });
-    } catch {
-      notifications.show({ color: "red", message: "El navegador bloqueó el portapapeles." });
-    }
-  };
-
   return (
     <GlassCard variant="big" padding={22} delay={0.06}>
       <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
@@ -180,7 +225,12 @@ function DetalleReporte({ reportId }: { reportId: string }) {
             {r.reporter_role ? ` (${r.reporter_role})` : ""}
           </Text>
         </div>
-        <Button size="xs" variant="default" leftSection={<Copy size={14} />} onClick={copiarPrompt}>
+        <Button
+          size="xs"
+          variant="default"
+          leftSection={<Copy size={14} />}
+          onClick={() => copiarPrompt(r.fix_prompt)}
+        >
           Copiar prompt de fix
         </Button>
       </Group>
@@ -390,6 +440,7 @@ export function PlatformReportsPage() {
                     <Table.Th>Reporte</Table.Th>
                     <Table.Th>Origen</Table.Th>
                     <Table.Th>Estado</Table.Th>
+                    <Table.Th w={44} />
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -430,6 +481,23 @@ export function PlatformReportsPage() {
                             {r.severity_display}
                           </Badge>
                         </Group>
+                      </Table.Td>
+                      <Table.Td>
+                        {/* Copiar sin abrir el ticket: el flujo real es tomar el
+                            prompt, pegarlo en Claude Code y pasar al siguiente. */}
+                        <ActionIcon
+                          variant="subtle"
+                          color="gray"
+                          size="md"
+                          aria-label="Copiar prompt de fix"
+                          title="Copiar prompt de fix"
+                          onClick={(e) => {
+                            e.stopPropagation(); // no abras la ficha al copiar
+                            copiarPrompt(r.fix_prompt);
+                          }}
+                        >
+                          <Copy size={15} />
+                        </ActionIcon>
                       </Table.Td>
                     </Table.Tr>
                   ))}
