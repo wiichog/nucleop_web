@@ -980,29 +980,49 @@ export function AthletesPage() {
             )}
           </Card>
 
-          <Accordion variant="separated" mt="md">
-            <Accordion.Item value="edit">
-              <Accordion.Control>Editar datos del atleta</Accordion.Control>
-              <Accordion.Panel>
-                <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
-                  <TextInput label="Nombre" value={edit.first_name} onChange={(e) => setEdit({ ...edit, first_name: e.currentTarget.value })} />
-                  <TextInput label="Apellido" value={edit.last_name} onChange={(e) => setEdit({ ...edit, last_name: e.currentTarget.value })} />
-                  <DateInput
-                    label="Cumpleaños"
-                    valueFormat="YYYY-MM-DD"
-                    value={edit.birth_date ? new Date(edit.birth_date) : null}
-                    onChange={(d) => setEdit({ ...edit, birth_date: d ? d.toLocaleDateString("en-CA") : "" })}
-                  />
-                  <TextInput label="Contacto (nombre)" value={edit.ec_name} onChange={(e) => setEdit({ ...edit, ec_name: e.currentTarget.value })} />
-                  <PhoneInput label="Contacto (teléfono)" value={edit.ec_phone} onChange={(ec_phone) => setEdit({ ...edit, ec_phone })} />
-                  <TextInput label="Parentesco" value={edit.ec_relation} onChange={(e) => setEdit({ ...edit, ec_relation: e.currentTarget.value })} />
-                </SimpleGrid>
-                <Button mt="sm" loading={editProfile.isPending} onClick={onSaveProfile}>
-                  Guardar cambios
-                </Button>
-              </Accordion.Panel>
-            </Accordion.Item>
-          </Accordion>
+          {/* Nombre, cumpleaños y contacto de emergencia son datos GLOBALES de la
+              persona, no de su relación con este gimnasio: el perfil es del atleta.
+              El backend sólo deja escribirlos mientras el alta que hizo el gym siga
+              sin reclamar (`profile_editable_by_gym`); después responde 403
+              `athlete_profile_owned`. Ofrecer el formulario igual era prometer un
+              guardado que nunca ocurría. Lo de la RELACIÓN (plan, cuota, cobro,
+              pausa, notas internas, baja) no se toca: sigue arriba. */}
+          {detail.data.athlete_profile.profile_editable_by_gym ? (
+            <Accordion variant="separated" mt="md">
+              <Accordion.Item value="edit">
+                <Accordion.Control>Completar datos del atleta</Accordion.Control>
+                <Accordion.Panel>
+                  <Text size="sm" c="dimmed" mb="sm">
+                    Todavía puedes completarlos porque este atleta no ha reclamado su cuenta. En
+                    cuanto entre a la app por primera vez, su perfil pasa a ser suyo y estos
+                    campos se cierran.
+                  </Text>
+                  <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+                    <TextInput label="Nombre" value={edit.first_name} onChange={(e) => setEdit({ ...edit, first_name: e.currentTarget.value })} />
+                    <TextInput label="Apellido" value={edit.last_name} onChange={(e) => setEdit({ ...edit, last_name: e.currentTarget.value })} />
+                    <DateInput
+                      label="Cumpleaños"
+                      valueFormat="YYYY-MM-DD"
+                      value={edit.birth_date ? new Date(edit.birth_date) : null}
+                      onChange={(d) => setEdit({ ...edit, birth_date: d ? d.toLocaleDateString("en-CA") : "" })}
+                    />
+                    <TextInput label="Contacto (nombre)" value={edit.ec_name} onChange={(e) => setEdit({ ...edit, ec_name: e.currentTarget.value })} />
+                    <PhoneInput label="Contacto (teléfono)" value={edit.ec_phone} onChange={(ec_phone) => setEdit({ ...edit, ec_phone })} />
+                    <TextInput label="Parentesco" value={edit.ec_relation} onChange={(e) => setEdit({ ...edit, ec_relation: e.currentTarget.value })} />
+                  </SimpleGrid>
+                  <Button mt="sm" loading={editProfile.isPending} onClick={onSaveProfile}>
+                    Guardar cambios
+                  </Button>
+                </Accordion.Panel>
+              </Accordion.Item>
+            </Accordion>
+          ) : (
+            <Text size="sm" c="dimmed" mt="md">
+              El nombre, el cumpleaños y el contacto de emergencia los edita el atleta desde su
+              app: el perfil viaja con él a los demás gimnasios. Si hay un dato mal, pídeselo a él
+              o corrígelo en tus <b>notas internas</b>.
+            </Text>
+          )}
 
           <SectionLabel mt="lg" mb="xs" as="h2">
             Pagos en este gimnasio
