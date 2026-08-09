@@ -32,6 +32,7 @@ import {
   Package,
   Receipt,
   Scale,
+  ShieldAlert,
   Tag,
   TrendingDown,
   UserCog,
@@ -92,6 +93,10 @@ const GROUPS: NavGroup[] = [
     items: [
       { to: "/panel/comunidad", label: "Feed y atleta del mes", icon: MessageSquare },
       { to: "/panel/clubes", label: "Clubes", icon: Handshake },
+      // Lo que se publica DENTRO de un club (anuncios, actividades, retos y
+      // publicaciones de miembros). Va aparte de "Clubes" —que decide altas— porque
+      // es una cola de moderación, no un padrón.
+      { to: "/panel/contenido-clubes", label: "Contenido de clubes", icon: ShieldAlert },
     ],
   },
   {

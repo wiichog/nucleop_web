@@ -82,6 +82,12 @@ export type GymCheckin = components["schemas"]["GymCheckin"];
 export type AuditLog = components["schemas"]["AuditLog"] & {
   descripcion: string;
   actor_rol: string;
+  /**
+   * LEGADO: el schema regenerado ya no lo declara porque el serializer dejó de
+   * enviarlo. Se conserva opcional sólo para que el fallback de `AuditPage` siga
+   * compilando; nunca llega con valor. Al limpiar ese fallback, borrar esto.
+   */
+  actor_role?: string;
 };
 export type GymAdmin = components["schemas"]["GymAdmin"] & {
   allow_future_reservations?: boolean;
@@ -800,6 +806,29 @@ export interface ClubProfileEditable {
   description: string;
   photo: string | null;
 }
+
+/**
+ * Una fila de la cola de moderación de contenido de club (`apps/clubs/moderation.py`).
+ *
+ * Mezcla los CUATRO tipos que llevan texto libre dentro de un club —anuncio,
+ * actividad, reto y publicación de un miembro— en un solo stream: `kind` es lo que
+ * dice cuál se está mirando. Sale del schema generado, no se escribe a mano.
+ *
+ * La moderación aquí es REACTIVA (lo publicado ya se ve): `report_count > 0` es la
+ * única señal que existe sobre el TEXTO, porque ninguna IA lo lee.
+ */
+export type ClubContentRow = components["schemas"]["ClubContentModeration"];
+
+/** Tipos de contenido moderable dentro de un club, en el orden del backend. */
+export type ClubContentKind = "announcement" | "activity" | "challenge" | "post";
+
+/** Etiqueta legible de cada tipo (el backend manda el `kind` crudo). */
+export const CLUB_CONTENT_KIND: Record<string, string> = {
+  announcement: "Anuncio",
+  activity: "Actividad",
+  challenge: "Reto",
+  post: "Publicación de un miembro",
+};
 
 export interface ErpBranch {
   id: string;

@@ -43,6 +43,8 @@ import {
   BugReportConfig,
   BugReportDetail,
   ClubAnnouncement,
+  ClubContentKind,
+  ClubContentRow,
   ClubProfileEditable,
   ErpPurchaseOrder,
   ErpSupplier,
@@ -358,6 +360,23 @@ export function useEditAthleteProfile(gymId: string) {
   });
 }
 
+/**
+ * Asigna plan (y opcionalmente cuota personalizada / oferta) a una membresía.
+ *
+ * **`customFee` tiene tres valores con tres significados distintos**, y por eso no
+ * se colapsa con `|| null`:
+ *
+ *   - `undefined` → la clave `custom_fee` **no viaja**: no se toca la cuota.
+ *   - `null`      → viaja `custom_fee: null`: se pide **QUITAR** la cuota
+ *                   personalizada y volver al precio del plan.
+ *   - `"350.00"`  → se fija esa cuota.
+ *
+ * ⚠️ Dependencia del backend: hoy `AssignPlanView` hace `if custom_fee is not None`,
+ * así que el `null` explícito lo IGNORA y la cuota no se puede quitar desde el
+ * panel. El arreglo es leer la presencia de la clave
+ * (`if "custom_fee" in serializer.validated_data`), no su valor. Mientras eso no
+ * esté, quitar la cuota es un no-op silencioso del lado del servidor.
+ */
 export function useAssignPlan(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -369,13 +388,14 @@ export function useAssignPlan(gymId: string) {
     }: {
       membershipId: string;
       planId: string;
-      customFee?: string;
+      /** `null` = quitar la cuota personalizada · `undefined` = no tocarla. */
+      customFee?: string | null;
       offerId?: string;
     }) =>
       (
         await api.post<Membership>(`/gym/${gymId}/memberships/${membershipId}/assign-plan`, {
           plan_id: planId,
-          custom_fee: customFee || null,
+          ...(customFee === undefined ? {} : { custom_fee: customFee }),
           offer_id: offerId || null,
         })
       ).data,
@@ -2524,6 +2544,135 @@ export function useDecidePlatformAppeal() {
       // La apelación también vive en la cola del gym: su estado cambió.
       qc.invalidateQueries({ queryKey: ["gym-appeals"] });
     },
+  });
+}
+
+// --- Moderación del contenido escrito DENTRO de los clubes ---
+// (`apps/clubs/moderation.py`). Hasta ahora esta cola sólo se leía entrando al
+// Django admin: un club es un canal de difusión a decenas de atletas y nadie del
+// gimnasio podía ver qué se publicaba ahí.
+
+/** Filtros de la cola de contenido de club. Todos opcionales; vacío = todo. */
+export interface ClubContentFilters {
+  /** `announcement | activity | challenge | post`. Vacío = los cuatro. */
+  kind?: string;
+  /** Acota a un club concreto del gimnasio. */
+  club_id?: string;
+  /** `approved | rejected`. */
+  status?: string;
+  /** `true` = sólo lo que un miembro denunció: la cola urgente. */
+  reported?: boolean;
+}
+
+function qsContenidoDeClub(filtros: ClubContentFilters): string {
+  const params = new URLSearchParams();
+  if (filtros.kind) params.set("kind", filtros.kind);
+  if (filtros.club_id) params.set("club_id", filtros.club_id);
+  if (filtros.status) params.set("status", filtros.status);
+  // Sólo se manda cuando es `true`: `reported=false` también filtraría en el
+  // backend (`_es_verdadero` lo lee como falso, pero el parámetro viaja igual) y
+  // ensuciaría la clave de caché con dos URLs equivalentes.
+  if (filtros.reported) params.set("reported", "true");
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+/**
+ * Todo el texto escrito dentro de los clubes de ESTE gimnasio (los cuatro tipos).
+ *
+ * El endpoint devuelve un **array plano** (sin cursor), así que no pasa por
+ * `getList`. El aislamiento por gym lo impone el backend filtrando por
+ * `club__gym_id`: no existe un modo "todos los clubes".
+ */
+export function useGymClubContent(gymId: string, filtros: ClubContentFilters = {}) {
+  return useQuery({
+    queryKey: ["gym-club-content", gymId, filtros],
+    queryFn: async () =>
+      (
+        await api.get<ClubContentRow[]>(
+          `/gym/${gymId}/club-content${qsContenidoDeClub(filtros)}`,
+        )
+      ).data,
+    enabled: !!gymId,
+  });
+}
+
+/**
+ * El gimnasio retira (`reject`) o restaura (`approve`) contenido de sus clubes.
+ *
+ * Al retirar el motivo es OBLIGATORIO (mismo `exigir_motivo` que el feed: 400
+ * `reason_required` si falta) porque es lo que se le dice al autor. Retirar **no
+ * borra**: el texto se conserva para que quede constancia de lo que se publicó.
+ */
+export function useDecideClubContent(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      kind,
+      contentId,
+      action,
+      reason,
+      note,
+    }: {
+      kind: ClubContentKind | string;
+      contentId: string;
+      action: "approve" | "reject";
+      reason?: MotivoModeracion | "";
+      note?: string;
+    }) =>
+      (
+        await api.post<ClubContentRow>(
+          `/gym/${gymId}/club-content/${kind}/${contentId}/${action}`,
+          action === "reject" ? { reason, note: note || "" } : {},
+        )
+      ).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-club-content", gymId] });
+      invalidarPendientes(qc, gymId);
+    },
+  });
+}
+
+/**
+ * Cola de la PLATAFORMA: clubes legados sin gimnasio (`Club.gym = NULL`).
+ *
+ * Ningún gimnasio los alcanza —no son de nadie—, así que si Nucleo no los mira,
+ * nadie los mira. Mismo criterio que las apelaciones escaladas.
+ */
+export function usePlatformClubContent(filtros: ClubContentFilters, enabled: boolean) {
+  return useQuery({
+    queryKey: ["platform-club-content", filtros],
+    queryFn: async () =>
+      (await api.get<ClubContentRow[]>(`/platform/club-content${qsContenidoDeClub(filtros)}`))
+        .data,
+    enabled,
+  });
+}
+
+/** Nucleo retira o restaura contenido de un club sin gimnasio. */
+export function useDecidePlatformClubContent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      kind,
+      contentId,
+      action,
+      reason,
+      note,
+    }: {
+      kind: ClubContentKind | string;
+      contentId: string;
+      action: "approve" | "reject";
+      reason?: MotivoModeracion | "";
+      note?: string;
+    }) =>
+      (
+        await api.post<ClubContentRow>(
+          `/platform/club-content/${kind}/${contentId}/${action}`,
+          action === "reject" ? { reason, note: note || "" } : {},
+        )
+      ).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-club-content"] }),
   });
 }
 

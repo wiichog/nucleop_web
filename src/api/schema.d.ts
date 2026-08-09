@@ -4,6 +4,33 @@
  */
 
 export interface paths {
+    "/api/v1/auth/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Borra la cuenta del usuario autenticado (anonimiza + desactiva).
+         *
+         *     Requisito de App Store / Google Play: el borrado debe poder hacerse dentro
+         *     de la app. Respeta el histórico inmutable (no hace hard-delete de pagos, etc.).
+         *
+         *     `throttle_scope` (nuevo): este endpoint COMPARA la contraseña y responde distinto
+         *     según acierte, o sea era un oráculo de contraseña ILIMITADO para quien robara un
+         *     access token — y al acertar borra la cuenta. Aquí el request va autenticado, así
+         *     que la cuota es por usuario, no por IP: 10/min no estorba a nadie real.
+         */
+        post: operations["auth_account_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/claim": {
         parameters: {
             query?: never;
@@ -13,6 +40,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * @description Reclamo de una cuenta creada por un gimnasio. La decisión (y el porqué de cada
+         *     rechazo) vive en `services.reclamar_cuenta`.
+         */
         post: operations["auth_claim_create"];
         delete?: never;
         options?: never;
@@ -30,10 +61,73 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * @description Takes a set of user credentials and returns an access and refresh JSON web
-         *     token pair to prove the authentication of those credentials.
+         * @description Login por correo + contraseña.
+         *
+         *     Idéntica a la vista de SimpleJWT salvo por el rate limit: sin él este endpoint
+         *     era el único sin freno, es decir, fuerza bruta gratis contra cualquier cuenta.
+         *
+         *     DOS limitadores a propósito (ver `apps/accounts/throttling.py`): el fino va por
+         *     (IP + correo intentado) para frenar al que martilla UNA cuenta, y el grueso por
+         *     IP sola como techo anti-botnet. Una cuota por IP a secas castigaba al gimnasio
+         *     entero —todos comparten la IP del wifi— y regalaba un DoS de un peso: quemar los
+         *     intentos contra una cuenta dejaba sin login a todo el box.
          */
         post: operations["auth_login_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Cierra la sesión de verdad: revoca el refresh token (blacklist de SimpleJWT).
+         *
+         *     Sin esto, "cerrar sesión" solo borraba el token del dispositivo y un teléfono
+         *     robado seguía renovando accesos durante 14 días. ALCANCE REAL: revoca el jti que
+         *     le mandan. Los refresh que esa sesión rotó antes siguen vivos (ver la nota de
+         *     `BLACKLIST_AFTER_ROTATION` en settings); para cortar TODO hay que cambiar la
+         *     contraseña, que dispara `services.revocar_sesiones` + `CHECK_REVOKE_TOKEN`.
+         *
+         *     No exige access token válido a propósito (`authentication_classes = []`): el
+         *     refresh ES la credencial, y quien cierra sesión suele tener el access vencido.
+         *     Es idempotente: un refresh inválido, vencido o ya revocado también responde 200
+         *     para que el cliente limpie su almacenamiento igual.
+         *
+         *     Scope PROPIO, no el de login: compartirlo hacía que cada cierre de sesión le
+         *     comiera cuota de entrada a todo el gimnasio detrás de la misma IP.
+         */
+        post: operations["auth_logout_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Cambio de contraseña del usuario autenticado (incluye cambio forzado tras reset).
+         *
+         *     Igual que el borrado de cuenta: compara `current_password` y por eso lleva
+         *     throttle por usuario (antes era fuerza bruta ilimitada con un access robado).
+         */
+        post: operations["auth_password_change_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -66,7 +160,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Confirma recuperación mediante token firmado de un solo uso práctico. */
+        /**
+         * @description Confirma recuperación mediante token firmado de un solo uso práctico.
+         *
+         *     Es también la vía SEGURA para tomar posesión de una cuenta invitada (por eso
+         *     `establecer_password_de_invitacion` marca `claimed_at` y convierte las membresías
+         *     invitadas): un gym_admin o un coach invitado ya no pueden reclamarla solo con el
+         *     correo, y este enlace es su camino.
+         */
         post: operations["auth_password_reset_confirm_create"];
         delete?: never;
         options?: never;
@@ -84,8 +185,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * @description Takes a refresh type JSON web token and returns an access type JSON web
-         *     token if the refresh token is valid.
+         * @description Renueva el access token. Scope propio y MUY holgado: lo dispara la máquina, no
+         *     una persona, y el cliente móvil no serializa los refresh en vuelo (una pantalla
+         *     que monta cinco queries manda cinco). Con una cuota apretada por IP, un box entero
+         *     la reventaba y el interceptor del app leía ese 429 como "la sesión murió".
          */
         post: operations["auth_refresh_create"];
         delete?: never;
@@ -103,7 +206,53 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Mixin de vista: traduce el 429 de DRF. Úsalo en TODA vista de `apps.accounts`. */
         post: operations["auth_register_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/social": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Login/registro vía Google, Apple o Facebook. Auto-vincula por email verificado.
+         *
+         *     Scope propio (`social`): no es una superficie de adivinar contraseñas —el
+         *     proveedor ya autenticó— y compartir el balde de 10/min con register/reset dejaba
+         *     fuera al onceavo atleta del onboarding presencial de un gimnasio.
+         */
+        post: operations["auth_social_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/classes/{id}/attendees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Atletas inscritos (reservados) en una clase, para que un atleta vea quiénes van.
+         *
+         *     Visible para quien puede entrar a esa clase: socio del gym o visitante con pase
+         *     drop-in vigente (aislamiento por gym intacto: nunca sale otro gimnasio).
+         */
+        get: operations["classes_attendees_retrieve"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -143,6 +292,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/classes/{id}/handoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description El atleta con reserva pide cobertura cuando la clase quedó sin coach y ya
+         *     venció el deadline. Notifica a los coaches del gym para que alguno la acepte.
+         */
+        post: operations["classes_handoff_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/classes/{id}/rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El atleta califica una clase (1-5 estrellas) una vez que ya empezó/terminó. */
+        post: operations["classes_rate_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/classes/{id}/reserve": {
         parameters: {
             query?: never;
@@ -160,6 +346,491 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/classes/{id}/wod": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description WOD de una clase para el atleta: la rutina (si la clase lleva), su resultado
+         *     y si aún puede subir/editar su score (ventana de 1h tras la clase). Lo usa la app
+         *     después de marcar asistencia por QR para ofrecer subir el score.
+         */
+        get: operations["classes_wod_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/classes/checkin-qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El atleta escanea el QR de una clase y registra su asistencia. */
+        post: operations["classes_checkin_qr_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/club/{club_id}/activities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["club_activities_list"];
+        put?: never;
+        post: operations["club_activities_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/club/{club_id}/activities/{activity_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["club_activities_confirm_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/club/{club_id}/activities/{activity_id}/rsvps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["club_activities_rsvps_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/club/{club_id}/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description El club publica anuncios a sus miembros (y los notifica). */
+        get: operations["club_announcements_list"];
+        put?: never;
+        /** @description El club publica anuncios a sus miembros (y los notifica). */
+        post: operations["club_announcements_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/club/{club_id}/announcements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Baja de un anuncio del club (no es histórico inmutable: es comunicación). */
+        delete: operations["club_announcements_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/club/{club_id}/challenge-submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["club_challenge_submissions_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/club/{club_id}/challenge-submissions/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["club_challenge_submissions_review_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/club/{club_id}/challenges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["club_challenges_list"];
+        put?: never;
+        post: operations["club_challenges_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/club/{club_id}/challenges/{challenge_id}/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["club_challenges_leaderboard_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/club/{club_id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description El club edita su propio perfil público (nombre, tipo, descripción, foto). */
+        get: operations["club_profile_retrieve"];
+        /** @description El club edita su propio perfil público (nombre, tipo, descripción, foto). */
+        put: operations["club_profile_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description El club edita su propio perfil público (nombre, tipo, descripción, foto). */
+        patch: operations["club_profile_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/clubs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Clubes de los gimnasios a los que pertenece el atleta (aprobados).
+         *
+         *     Incluye clubes independientes (gym=null) públicos por compatibilidad.
+         */
+        get: operations["clubs_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clubs/{id}/activities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["clubs_activities_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clubs/{id}/activities/{activity_id}/rsvp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["clubs_activities_rsvp_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clubs/{id}/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Anuncios del club para sus miembros (sin lo que el gimnasio retiró). */
+        get: operations["clubs_announcements_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clubs/{id}/challenges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["clubs_challenges_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clubs/{id}/challenges/{challenge_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["clubs_challenges_join_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clubs/{id}/challenges/{challenge_id}/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["clubs_challenges_leaderboard_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clubs/{id}/challenges/{challenge_id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["clubs_challenges_progress_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clubs/{id}/content/{kind}/{content_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Un miembro denuncia contenido publicado dentro del club.
+         *
+         *     Es la única defensa real contra el TEXTO prohibido: ninguna IA del sistema lee
+         *     texto (Rekognition sólo mira imágenes), así que sin esto la cola del gimnasio
+         *     depende de que alguien entre a leerlo todo. Denunciar no retira nada — sube el
+         *     contador, marca la fila como `reported` en la cola del gym y le manda un push al
+         *     staff. El porqué está en `apps/clubs/moderation.py`.
+         */
+        post: operations["clubs_content_report_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clubs/{id}/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Todo lo que pasa dentro del club, en UNA lista ordenada por fecha.
+         *
+         *     El agujero que tapa (ticket 48e2abd4): lo publicado vivía repartido en tres
+         *     endpoints con formas distintas (`announcements`, `activities`, `challenges`) y no
+         *     existía ninguna llamada que respondiera "qué ha pasado en este club". Aquí llegan
+         *     los cuatro tipos —anuncios, actividades, retos y publicaciones de miembros— con la
+         *     misma forma, ya listos para pintar.
+         *
+         *     Sólo para miembros activos y para quien administra el club: es el espacio interno
+         *     del club, no su perfil público (ése sigue en `GET /clubs/<id>/profile`).
+         */
+        get: operations["clubs_feed_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clubs/{id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["clubs_join_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clubs/{id}/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Un MIEMBRO publica en el feed de su club (texto y/o foto).
+         *
+         *     Antes sólo escribía el `club_admin`. La publicación entra por el mismo pipeline de
+         *     moderación que el resto del contenido de club, así que aparece en la cola que el
+         *     gimnasio ya lee (`GET /gym/<gym_id>/club-content?kind=post`).
+         */
+        post: operations["clubs_posts_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clubs/{id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Perfil público del club: descubrirlo y compartirlo por link. */
+        get: operations["clubs_profile_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clubs/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Un atleta crea un club ligado a un gym al que pertenece; queda pendiente de aprobación. */
+        post: operations["clubs_create_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Recibe el formulario de contacto de la landing y notifica por correo.
+         *
+         *     Público (la landing no autentica) y con rate-limit por scope `contact`.
+         */
+        post: operations["contact_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/devices": {
         parameters: {
             query?: never;
@@ -169,6 +840,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * @description Registro del token de push. Cuelga del USER, no del atleta: el staff del
+         *     gym también recibe push (`services.notificar_staff_gym`) y con `IsAthlete` un
+         *     admin sin perfil de atleta no podía siquiera registrar su dispositivo.
+         */
         post: operations["devices_create"];
         delete?: never;
         options?: never;
@@ -192,6 +868,142 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/admins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Administradores (`gym_admin`) del gimnasio: listar e invitar.
+         *
+         *     Sin esto, dar de alta al DUEÑO de un gym o a un segundo administrador obliga a
+         *     entrar al Django admin de producción. Lo puede usar el superadmin de plataforma
+         *     o un `gym_admin` ya existente, y SOLO sobre su propio gimnasio.
+         */
+        get: operations["gym_admins_list"];
+        put?: never;
+        /**
+         * @description Administradores (`gym_admin`) del gimnasio: listar e invitar.
+         *
+         *     Sin esto, dar de alta al DUEÑO de un gym o a un segundo administrador obliga a
+         *     entrar al Django admin de producción. Lo puede usar el superadmin de plataforma
+         *     o un `gym_admin` ya existente, y SOLO sobre su propio gimnasio.
+         */
+        post: operations["gym_admins_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Anuncios del gym al feed (G8). Posteo por el admin, segmentable por clase. */
+        get: operations["gym_announcements_list"];
+        put?: never;
+        /** @description Anuncios del gym al feed (G8). Posteo por el admin, segmentable por clase. */
+        post: operations["gym_announcements_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/appeals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Cola de apelaciones del gimnasio (por defecto, las que esperan su decisión). */
+        get: operations["gym_appeals_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/appeals/{id}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El gimnasio re-revisa: `accept` restaura el contenido, `reject` lo mantiene. */
+        post: operations["gym_appeals_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/athlete-of-month": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["gym_athlete_of_month_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/athlete-of-month/compute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["gym_athlete_of_month_compute_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/athlete-of-month/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Antes de publicar: quién va ganando por puntos y a quién ya publicaste.
+         *
+         *     Responde el estado del periodo (`current`, `already_published`) junto al ranking
+         *     de candidatos por puntos de COMUNIDAD del mes, para que el panel no elija a ciegas.
+         */
+        get: operations["gym_athlete_of_month_suggestions_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/athletes": {
         parameters: {
             query?: never;
@@ -203,6 +1015,40 @@ export interface paths {
         get: operations["gym_athletes_list"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/athletes-of-month": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Lista los atletas del mes del período (gym-wide + por tipo de clase). */
+        get: operations["gym_athletes_of_month_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/athletes-of-month/set": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Selección manual del atleta del mes por clase (athlete_id null = limpiar). */
+        post: operations["gym_athletes_of_month_set_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -243,6 +1089,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/billing/statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Estado de cuenta del gym con Nucleo en un periodo (`?period=YYYY-MM`).
+         *
+         *     Aislamiento: el `gym_id` sale de la URL y el rol se valida contra ESE gym, así que
+         *     un admin nunca ve la liquidación de otro gimnasio. Solo cuenta el dinero que pasó
+         *     por la pasarela (lo que Nucleo tiene en custodia); los pagos manuales ya los cobró
+         *     el gym y viven en su historial de pagos.
+         */
+        get: operations["gym_billing_statement_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Sucursales del gym (multi-sede). Lectura para roles del gym; alta gym_admin. */
+        get: operations["gym_branches_list"];
+        put?: never;
+        /** @description Sucursales del gym (multi-sede). Lectura para roles del gym; alta gym_admin. */
+        post: operations["gym_branches_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/branches/{bid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Editar (PATCH) o eliminar una sucursal. Clases y horarios la dejan en NULL. */
+        put: operations["gym_branches_update"];
+        post?: never;
+        /** @description Editar (PATCH) o eliminar una sucursal. Clases y horarios la dejan en NULL. */
+        delete: operations["gym_branches_destroy"];
+        options?: never;
+        head?: never;
+        /** @description Editar (PATCH) o eliminar una sucursal. Clases y horarios la dejan en NULL. */
+        patch: operations["gym_branches_partial_update"];
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/classes": {
         parameters: {
             query?: never;
@@ -250,11 +1157,92 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Crear/listar clases del gym (A10). */
+        /**
+         * @description Crear/listar clases del gym (A10).
+         *
+         *     Para el panel: sin paginación y acotado a clases de hoy en adelante (más un
+         *     rango opcional `from`/`to`), ordenado por fecha. Así el calendario muestra
+         *     TODAS las clases del horizonte, no solo la primera página.
+         */
         get: operations["gym_classes_list"];
         put?: never;
-        /** @description Crear/listar clases del gym (A10). */
+        /**
+         * @description Crear/listar clases del gym (A10).
+         *
+         *     Para el panel: sin paginación y acotado a clases de hoy en adelante (más un
+         *     rango opcional `from`/`to`), ordenado por fecha. Así el calendario muestra
+         *     TODAS las clases del horizonte, no solo la primera página.
+         */
         post: operations["gym_classes_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/classes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Editar/eliminar una clase (asignar coach, deadline, pago extra). Solo gym_admin.
+         *
+         *     El admin puede asignar un coach DIRECTAMENTE a la clase en cualquier momento.
+         *     El handoff es otra cosa: (a) coach→coach, que solo inicia un coach desde el app
+         *     cediendo su clase; y (b) cobertura que pide un atleta cuando la clase quedó sin
+         *     coach. El `assignment_lead_min` solo define cuándo se habilita ese pedido de
+         *     cobertura del atleta, no limita al admin.
+         *
+         *     DELETE borra la ocurrencia de verdad. Si viene de un horario, además se marca
+         *     el (fecha/hora) como cancelado para que el materializador NO la recree.
+         */
+        get: operations["gym_classes_retrieve"];
+        put?: never;
+        post?: never;
+        /**
+         * @description Editar/eliminar una clase (asignar coach, deadline, pago extra). Solo gym_admin.
+         *
+         *     El admin puede asignar un coach DIRECTAMENTE a la clase en cualquier momento.
+         *     El handoff es otra cosa: (a) coach→coach, que solo inicia un coach desde el app
+         *     cediendo su clase; y (b) cobertura que pide un atleta cuando la clase quedó sin
+         *     coach. El `assignment_lead_min` solo define cuándo se habilita ese pedido de
+         *     cobertura del atleta, no limita al admin.
+         *
+         *     DELETE borra la ocurrencia de verdad. Si viene de un horario, además se marca
+         *     el (fecha/hora) como cancelado para que el materializador NO la recree.
+         */
+        delete: operations["gym_classes_destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * @description Editar/eliminar una clase (asignar coach, deadline, pago extra). Solo gym_admin.
+         *
+         *     El admin puede asignar un coach DIRECTAMENTE a la clase en cualquier momento.
+         *     El handoff es otra cosa: (a) coach→coach, que solo inicia un coach desde el app
+         *     cediendo su clase; y (b) cobertura que pide un atleta cuando la clase quedó sin
+         *     coach. El `assignment_lead_min` solo define cuándo se habilita ese pedido de
+         *     cobertura del atleta, no limita al admin.
+         *
+         *     DELETE borra la ocurrencia de verdad. Si viene de un horario, además se marca
+         *     el (fecha/hora) como cancelado para que el materializador NO la recree.
+         */
+        patch: operations["gym_classes_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/classes/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Cancela una sola ocurrencia (override puntual; ej. feriado) sin tocar el horario. */
+        post: operations["gym_classes_cancel_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -271,8 +1259,393 @@ export interface paths {
         /** @description Asistencia de una clase y check-in manual desde recepción. */
         get: operations["gym_classes_checkins_list"];
         put?: never;
-        /** @description Asistencia de una clase y check-in manual desde recepción. */
+        /**
+         * @description Marca presente a un socio (`membership_id`) o a un visitante (`dropin_purchase_id`).
+         *
+         *     Antes solo se aceptaba la membresía, así que el visitante con drop-in no se
+         *     podía anotar en la lista de asistencia: el gym lo cobraba y no le quedaba
+         *     registro de que entró. La credencial identifica al ATLETA; qué pase se
+         *     consume lo decide el backend (`validar_acceso` toma el vigente que vence
+         *     antes), nunca el cliente.
+         */
         post: operations["gym_classes_checkins_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/classes/{id}/offer-coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description El coach asignado cede una clase futura, ofreciéndola a otro coach (handoff
+         *     coach→coach). El traspaso solo se concreta si el otro coach acepta.
+         */
+        post: operations["gym_classes_offer_coverage_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/classes/{id}/qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description QR de asistencia de una clase. El coach/admin lo obtiene para mostrarlo o
+         *     reenviarlo; el token pertenece a la clase (estable), así que el admin web puede
+         *     verlo. Los alumnos lo escanean y registran su check-in (method=class_qr).
+         */
+        get: operations["gym_classes_qr_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/classes/recurring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Crea clases repetidas en un rango (ej. 6:00 todos los días). Simplifica el calendario. */
+        post: operations["gym_classes_recurring_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/club-content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Todo el texto escrito dentro de los clubes de ESTE gimnasio.
+         *
+         *     El agujero que tapa: hasta ahora nadie del gimnasio podía leer lo que un club
+         *     publicaba a sus miembros. El aislamiento por gym lo impone el service filtrando por
+         *     `club__gym_id`; la URL no admite un modo "todos los clubes".
+         *
+         *     Incluye las publicaciones de los MIEMBROS (`kind=post`), no sólo lo que escribe el
+         *     club_admin, y `reported=true` deja sólo lo que alguien denunció — la cola urgente
+         *     cuando lo prohibido está en el texto, que ninguna IA lee.
+         *
+         *     Filtros opcionales: `kind` (announcement|activity|challenge|post), `club_id`,
+         *     `status`, `reported`.
+         */
+        get: operations["gym_club_content_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/club-content/{kind}/{id}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description El gimnasio retira (`reject`) o restaura (`approve`) contenido de sus clubes.
+         *
+         *     Retirar exige motivo, igual que rechazar un post o un comentario del feed.
+         */
+        post: operations["gym_club_content_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/clubs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Clubes del gym (incluye pendientes) para que el admin los gestione. */
+        get: operations["gym_clubs_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/clubs/{club_id}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El admin del gym aprueba o rechaza la solicitud de club (con motivo opcional). */
+        post: operations["gym_clubs_decide_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/clubs/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description El admin del gym crea un club propio; queda APROBADO al instante (lo crea el
+         *     propio gimnasio, no requiere aprobación). Ticket 7fc495fc.
+         */
+        post: operations["gym_clubs_create_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/coach-invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El gym invita a un coach (crea su cuenta y deja la solicitud pendiente). */
+        post: operations["gym_coach_invitations_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/coach-payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Lista las liquidaciones del gym. */
+        get: operations["gym_coach_payouts_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/coach-payouts/{pid}/earnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Detalle de los ingresos incluidos en una liquidación. */
+        get: operations["gym_coach_payouts_earnings_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/coach-payouts/{pid}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Marca una liquidación como pagada (registra el egreso en finanzas). */
+        post: operations["gym_coach_payouts_pay_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/coach-payouts/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Genera la liquidación de un periodo (acumula ingresos y arma los lotes). */
+        post: operations["gym_coach_payouts_generate_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/coach-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Lista las solicitudes de coach del gym (invitaciones y aplicaciones). */
+        get: operations["gym_coach_requests_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/coach-requests/{rid}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El admin aprueba/rechaza una solicitud de coach (típicamente coach_apply). */
+        post: operations["gym_coach_requests_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/coaches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Lista los coaches del gym con su perfil de pago. */
+        get: operations["gym_coaches_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/coaches/{staff_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Edita el modelo de pago de un coach (por clase/fijo + tarifas). */
+        patch: operations["gym_coaches_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/coaches/{staff_id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Perfil de un coach con sus métricas globales en Nucleo (clases dadas, etc.).
+         *
+         *     Las métricas suman TODAS las clases del coach (en todos sus gimnasios), no solo
+         *     las de este gym.
+         */
+        get: operations["gym_coaches_profile_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/coaches/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Coaches registrados del gym (vista informativa para el atleta: nombre y foto). */
+        get: operations["gym_coaches_info_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/comments/{id}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description El admin restaura (`approve`) o borra (`reject`) un comentario reportado.
+         *
+         *     Al rechazar, el motivo es OBLIGATORIO (`code:"reason_required"`): es lo que le
+         *     llega al autor en el aviso de que su comentario se quitó.
+         */
+        post: operations["gym_comments_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -290,6 +1663,502 @@ export interface paths {
         get: operations["gym_dashboard_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/dropin-products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Panel del gym: lista y crea los pases drop-in que ofrece (rol gym_admin). */
+        get: operations["gym_dropin_products_list"];
+        put?: never;
+        /** @description Panel del gym: lista y crea los pases drop-in que ofrece (rol gym_admin). */
+        post: operations["gym_dropin_products_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/dropin-products/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Panel del gym: edita o desactiva un pase drop-in. DELETE = desactivar (no borra,
+         *     porque las compras lo referencian con PROTECT).
+         */
+        get: operations["gym_dropin_products_retrieve"];
+        put?: never;
+        post?: never;
+        /**
+         * @description Panel del gym: edita o desactiva un pase drop-in. DELETE = desactivar (no borra,
+         *     porque las compras lo referencian con PROTECT).
+         */
+        delete: operations["gym_dropin_products_destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * @description Panel del gym: edita o desactiva un pase drop-in. DELETE = desactivar (no borra,
+         *     porque las compras lo referencian con PROTECT).
+         */
+        patch: operations["gym_dropin_products_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/dropins/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description La recepción del gym escanea el QR de un pase drop-in y registra la entrada.
+         *
+         *     Es el único resolvedor de QR de drop-in del sistema: sin esto, el visitante de
+         *     otro box llegaba con un código que nadie podía leer (el otro QR del producto es
+         *     el de la CLASE, que solo escanean los atletas del gym).
+         *
+         *     Responde 201 si registró una entrada nueva, 200 si fue un re-escaneo dentro de la
+         *     ventana de idempotencia, y 4xx con un `code` distinto por motivo de rechazo.
+         */
+        post: operations["gym_dropins_validate_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Gastos del gym. `?voided=true|false` filtra anulados (por defecto vienen todos,
+         *     marcados con `is_void`, para que el panel pueda tacharlos sin perder el rastro).
+         */
+        get: operations["gym_erp_expenses_list"];
+        put?: never;
+        /**
+         * @description Gastos del gym. `?voided=true|false` filtra anulados (por defecto vienen todos,
+         *     marcados con `is_void`, para que el panel pueda tacharlos sin perder el rastro).
+         */
+        post: operations["gym_erp_expenses_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/expenses/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Ficha del gasto. Sin PUT/PATCH/DELETE a propósito (histórico inmutable):
+         *     para corregirlo está `/correct`, para darlo de baja `/void`.
+         */
+        get: operations["gym_erp_expenses_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/expenses/{id}/correct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Corrige un gasto: anula el original y devuelve el gasto NUEVO que lo sustituye. */
+        post: operations["gym_erp_expenses_correct_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/expenses/{id}/proof": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Adjunta el comprobante (factura/recibo) de un gasto ya registrado.
+         *     El archivo es privado: en prod se sirve con URL firmada.
+         */
+        post: operations["gym_erp_expenses_proof_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/expenses/{id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Anula un gasto mal capturado (nunca se borra: queda con motivo y fecha). */
+        post: operations["gym_erp_expenses_void_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/inventory/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        get: operations["gym_erp_inventory_movements_list"];
+        put?: never;
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        post: operations["gym_erp_inventory_movements_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        get: operations["gym_erp_products_list"];
+        put?: never;
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        post: operations["gym_erp_products_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/products/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        get: operations["gym_erp_products_retrieve"];
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        put: operations["gym_erp_products_update"];
+        post?: never;
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        delete: operations["gym_erp_products_destroy"];
+        options?: never;
+        head?: never;
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        patch: operations["gym_erp_products_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/products/{id}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Galería de un producto: agrega varias imágenes (multipart, campo 'images'). */
+        post: operations["gym_erp_products_images_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/products/{id}/images/{image_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Elimina una imagen de la galería de un producto. */
+        delete: operations["gym_erp_products_images_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/purchase-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        get: operations["gym_erp_purchase_orders_list"];
+        put?: never;
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        post: operations["gym_erp_purchase_orders_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/purchase-orders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        get: operations["gym_erp_purchase_orders_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/purchase-orders/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Anula la orden (o su pendiente). Lo ya recibido no se revierte aquí. */
+        post: operations["gym_erp_purchase_orders_cancel_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/purchase-orders/{id}/receive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Recibe la orden (total o parcial): carga el stock con su costo real. */
+        post: operations["gym_erp_purchase_orders_receive_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/reports/inventory-valuation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Valuación del inventario a costo, antigüedad y rotación (`?days=90`). */
+        get: operations["gym_erp_reports_inventory_valuation_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/reports/pnl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        get: operations["gym_erp_reports_pnl_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        get: operations["gym_erp_sales_list"];
+        put?: never;
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        post: operations["gym_erp_sales_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/sales/{id}/return": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Devolución (total o parcial) de una venta POS. Regresa stock (insumos si es
+         *     preparado) y registra el reembolso del pago. La venta original no se edita.
+         */
+        post: operations["gym_erp_sales_return_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/suppliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        get: operations["gym_erp_suppliers_list"];
+        put?: never;
+        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        post: operations["gym_erp_suppliers_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/erp/suppliers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description DELETE es soft-delete (el proveedor queda para las órdenes históricas). */
+        get: operations["gym_erp_suppliers_retrieve"];
+        /** @description DELETE es soft-delete (el proveedor queda para las órdenes históricas). */
+        put: operations["gym_erp_suppliers_update"];
+        post?: never;
+        /** @description DELETE es soft-delete (el proveedor queda para las órdenes históricas). */
+        delete: operations["gym_erp_suppliers_destroy"];
+        options?: never;
+        head?: never;
+        /** @description DELETE es soft-delete (el proveedor queda para las órdenes históricas). */
+        patch: operations["gym_erp_suppliers_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["gym_feed_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/handoffs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Coach/admin: solicitudes de cobertura pendientes del gym. */
+        get: operations["gym_handoffs_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/handoffs/{pid}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Un coach acepta una solicitud de cobertura/traspaso.
+         *
+         *     - Atleta→coach: la clase no tiene coach; el que acepta queda asignado (gana el
+         *       primero).
+         *     - Coach→coach: el coach cedió una clase futura; el que acepta la toma (traspaso
+         *       A→B) si la oferta era para él (o abierta) y la clase aún no empezó.
+         */
+        post: operations["gym_handoffs_accept_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -347,6 +2216,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/marketplace-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Panel: pedidos y apartados de la tienda del gym. */
+        get: operations["gym_marketplace_orders_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/marketplace-orders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Panel: avanza el seguimiento del pedido (preparar/enviar/entregar) o lo cancela. */
+        patch: operations["gym_marketplace_orders_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/marketplace-orders/{id}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Panel: devuelve un pedido pagado. Reembolsa la BASE (sin el recargo de
+         *     Nucleo) como registro contable negativo y regresa el stock (ticket 7ff9c254).
+         */
+        post: operations["gym_marketplace_orders_refund_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/marketplace-orders/{id}/return/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Panel: aprueba la devolución que pidió el atleta (reembolso + stock de vuelta). */
+        post: operations["gym_marketplace_orders_return_approve_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/marketplace-orders/{id}/return/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Panel: rechaza la devolución. El pedido conserva su estado de entrega. */
+        post: operations["gym_marketplace_orders_return_reject_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/marketplace/shipping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Panel: consulta y edita las condiciones de envío de la tienda. */
+        get: operations["gym_marketplace_shipping_retrieve"];
+        /** @description Panel: consulta y edita las condiciones de envío de la tienda. */
+        put: operations["gym_marketplace_shipping_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/memberships": {
         parameters: {
             query?: never;
@@ -391,6 +2366,181 @@ export interface paths {
         put?: never;
         /** @description Asignar plan / cuota personalizada a una membresía (A3 / A5). */
         post: operations["gym_memberships_assign_plan_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/memberships/{mid}/athlete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * @description Completa el perfil global de un atleta que el gym dio de alta y NADIE ha reclamado.
+         *
+         *     El `Athlete` es la persona y es portátil; la `Membership` es la relación con
+         *     ESTE gimnasio (decisión 3). El gym manda sobre la relación, no sobre la
+         *     persona: en cuanto el atleta toma posesión de su cuenta este endpoint responde
+         *     403 `athlete_profile_owned`. La regla y sus señales viven en
+         *     `athletes/services.py:gym_puede_editar_datos_globales`.
+         */
+        patch: operations["gym_memberships_athlete_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/memberships/{mid}/leave/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description El gym inicia / aprueba / cancela la baja (handoff). action ∈ request|approve|cancel.
+         *     Solo puede APROBAR si la baja la inició el atleta.
+         */
+        post: operations["gym_memberships_leave_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/memberships/{mid}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Pausar / congelar la membresía (viaje, lesión) — A5.
+         *
+         *     Hasta ahora solo existía como acción del Django admin. El aislamiento por gym lo
+         *     da la URL: la membresía se busca por `(mid, gym_id)`, así que un gimnasio no
+         *     puede congelar la relación de otro (404).
+         */
+        post: operations["gym_memberships_pause_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/memberships/{mid}/reminder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Envía un recordatorio de pago/vencimiento al atleta (push + notificación). */
+        post: operations["gym_memberships_reminder_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/memberships/{mid}/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Admin del gym dispara reset de contraseña de un alumno (email + cambio forzado).
+         *
+         *     No cambia la contraseña: envía un correo con token y marca `must_change_password`
+         *     para forzar el cambio en el próximo inicio de sesión del atleta.
+         */
+        post: operations["gym_memberships_reset_password_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/memberships/{mid}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Reanudar una membresía pausada: corre el vencimiento los días que duró la pausa. */
+        post: operations["gym_memberships_resume_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/memberships/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Manda el roster del gym por correo, con el CSV adjunto.
+         *
+         *     Antes el app armaba el CSV a mano y lo pasaba a `Share.share({message})`,
+         *     que comparte una CADENA: en iOS el CSV crudo terminaba pegado en el cuerpo
+         *     de un mensaje, sin nombre ni extensión, y muchos destinos lo truncaban. El
+         *     contenido ahora lo decide el backend, así que el reporte del panel web y el
+         *     del móvil son el mismo.
+         *
+         *     El destinatario es SIEMPRE el correo de quien lo pide: aceptarlo del cliente
+         *     convertiría esto en un relay de correo.
+         */
+        post: operations["gym_memberships_export_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/moderation-signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Señal de moderación del panel: bloqueos y reportes acumulados, ANÓNIMOS.
+         *
+         *     Sólo conteos y sólo por encima del umbral `MODERATION_BLOCK_SIGNAL_MIN`; nunca
+         *     quién bloqueó ni quién reportó. Y sólo cuenta lo que ocurrió DENTRO de este
+         *     gimnasio, aunque `AthleteBlock` sea global (aislamiento por gym).
+         */
+        get: operations["gym_moderation_signals_list"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -457,8 +2607,65 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Registrar pago manual efectivo/transferencia (A7). No genera comisión. */
+        /**
+         * @description Registrar pago manual: efectivo, transferencia o datáfono propio del gym (A7).
+         *
+         *     Nunca genera recargo (el dinero no pasa por la pasarela de Nucleo), pero sí activa
+         *     la membresía y dispara FEL.
+         */
         post: operations["gym_payments_manual_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/pending-detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Desglose del badge: QUÉ son los pendientes que cuenta `pending-summary`.
+         *
+         *     Es la otra mitad del contador. El badge del panel suma varias claves en un
+         *     número y el número, solo, no dice qué hay que hacer; peor aún, como es un
+         *     contador de TRABAJO PENDIENTE y no una bandeja de avisos, no se apaga por
+         *     entrar a la pantalla —baja cuando el trabajo se hace—. Este endpoint devuelve
+         *     las filas concretas de cada clave, con `action` diciendo exactamente qué la
+         *     apaga.
+         *
+         *     `?keys=` limita las claves (las mismas de `pending-summary`, separadas por
+         *     coma) para no calcular trece contadores cuando el badge sólo suma tres;
+         *     `?limit=` recorta la muestra por grupo (`count` siempre es el total real).
+         *     Mismo permiso que el resumen: cualquier rol del gym, y sólo de SU gym.
+         */
+        get: operations["gym_pending_detail_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/pending-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Resumen de pendientes operativos del gym (badge de notificaciones del panel).
+         *
+         *     Cualquier rol del gym (admin o coach) puede consultarlo; son solo conteos.
+         */
+        get: operations["gym_pending_summary_retrieve"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -475,6 +2682,110 @@ export interface paths {
         get: operations["gym_plans_list"];
         put?: never;
         post: operations["gym_plans_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/plans/{pid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * @description Editar (PATCH) o eliminar un plan/cuota. Borrar deja a las membresías sin
+         *     plan (FK SET_NULL); para conservar historial, desactívalo con is_active.
+         */
+        put: operations["gym_plans_update"];
+        post?: never;
+        /**
+         * @description Editar (PATCH) o eliminar un plan/cuota. Borrar deja a las membresías sin
+         *     plan (FK SET_NULL); para conservar historial, desactívalo con is_active.
+         */
+        delete: operations["gym_plans_destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * @description Editar (PATCH) o eliminar un plan/cuota. Borrar deja a las membresías sin
+         *     plan (FK SET_NULL); para conservar historial, desactívalo con is_active.
+         */
+        patch: operations["gym_plans_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/plans/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Catálogo de ofertas/promos reutilizables del gym (A3). */
+        get: operations["gym_plans_offers_list"];
+        put?: never;
+        /** @description Catálogo de ofertas/promos reutilizables del gym (A3). */
+        post: operations["gym_plans_offers_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/plans/offers/{oid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Activar/desactivar (PATCH) o eliminar una oferta. */
+        put: operations["gym_plans_offers_update"];
+        post?: never;
+        /** @description Activar/desactivar (PATCH) o eliminar una oferta. */
+        delete: operations["gym_plans_offers_destroy"];
+        options?: never;
+        head?: never;
+        /** @description Activar/desactivar (PATCH) o eliminar una oferta. */
+        patch: operations["gym_plans_offers_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Gym admin: posts de atletas pendientes de aprobación. */
+        get: operations["gym_posts_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/posts/{pid}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Gym admin aprueba o rechaza un post (action ∈ approve|reject).
+         *
+         *     Al rechazar, el motivo es OBLIGATORIO (`code:"reason_required"`): sin motivo el
+         *     autor no sabe qué corregir y su apelación no tendría contra qué defenderse.
+         */
+        post: operations["gym_posts_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -515,6 +2826,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/pt-coaches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Coaches que ofrecen personal trainer en un gym (vista del atleta). */
+        get: operations["gym_pt_coaches_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/pt-coaches/{staff_id}/book": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Reserva una sesión de personal trainer con un coach del gym.
+         *
+         *     Valida la agenda del coach (disponibilidad, ausencias, otra sesión, clase
+         *     grupal), crea el cobro pendiente (concept=personal_training, ingreso del gym)
+         *     y deja la sesión en `pending_payment`. El atleta paga con el flujo de tarjeta
+         *     normal, que confirma la sesión y acumula la comisión del trainer.
+         */
+        post: operations["gym_pt_coaches_book_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/pt-coaches/{staff_id}/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Slots LIBRES de un coach en un rango de días (disponibilidad real).
+         *
+         *     Sustituye a las horas fijas que inventaba el cliente: aquí ya vienen
+         *     descontadas sus ausencias, sus otras sesiones y sus clases grupales.
+         */
+        get: operations["gym_pt_coaches_slots_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/reported-comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Cola de comentarios reportados del gym (moderación reactiva). */
+        get: operations["gym_reported_comments_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/retention/at-risk": {
         parameters: {
             query?: never;
@@ -526,6 +2917,277 @@ export interface paths {
         get: operations["gym_retention_at_risk_list"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Plantilla del horario semanal. Al crear una fila se materializan de una vez
+         *     sus ocurrencias en el horizonte rodante (no se crean 41 clases a mano).
+         */
+        get: operations["gym_schedules_list"];
+        put?: never;
+        /**
+         * @description Plantilla del horario semanal. Al crear una fila se materializan de una vez
+         *     sus ocurrencias en el horizonte rodante (no se crean 41 clases a mano).
+         */
+        post: operations["gym_schedules_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/schedules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Editar o desactivar (soft-delete) una fila del horario.
+         *
+         *     Al desactivar, se cancelan las ocurrencias futuras sin reservas para limpiar
+         *     el calendario sin tocar el histórico ni clases con gente anotada.
+         */
+        get: operations["gym_schedules_retrieve"];
+        put?: never;
+        post?: never;
+        /**
+         * @description Editar o desactivar (soft-delete) una fila del horario.
+         *
+         *     Al desactivar, se cancelan las ocurrencias futuras sin reservas para limpiar
+         *     el calendario sin tocar el histórico ni clases con gente anotada.
+         */
+        delete: operations["gym_schedules_destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * @description Editar o desactivar (soft-delete) una fila del horario.
+         *
+         *     Al desactivar, se cancelan las ocurrencias futuras sin reservas para limpiar
+         *     el calendario sin tocar el histórico ni clases con gente anotada.
+         */
+        patch: operations["gym_schedules_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/schedules/materialize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Regenera el calendario del gym desde los horarios activos: limpia las
+         *     ocurrencias futuras sobrantes (sin reservas) y vuelve a materializar, para que
+         *     el calendario refleje exactamente los horarios actuales.
+         */
+        post: operations["gym_schedules_materialize_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/service-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Catálogo de servicios/tipos de clase del gym (CrossFit, Functional…). */
+        get: operations["gym_service_types_list"];
+        put?: never;
+        /** @description Catálogo de servicios/tipos de clase del gym (CrossFit, Functional…). */
+        post: operations["gym_service_types_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/service-types/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Editar o desactivar (soft-delete) un servicio del catálogo. */
+        get: operations["gym_service_types_retrieve"];
+        put?: never;
+        post?: never;
+        /** @description Editar o desactivar (soft-delete) un servicio del catálogo. */
+        delete: operations["gym_service_types_destroy"];
+        options?: never;
+        head?: never;
+        /** @description Editar o desactivar (soft-delete) un servicio del catálogo. */
+        patch: operations["gym_service_types_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/service-types/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Servicios/disciplinas (ServiceType) activos del gym, visibles para el atleta
+         *     en el detalle del gym (CrossFit, Functional, etc.).
+         */
+        get: operations["gym_service_types_public_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Servicios del gym con el estado para el atleta (incluido/pago/activo).
+         *
+         *     Fusión: lee del catálogo único `classes.ServiceType` (activos). El `class_types`
+         *     que la app usa para enlazar clases es el propio nombre del servicio.
+         */
+        get: operations["gym_services_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Gym admin: bandeja de tickets del gym (filtrable por estado). */
+        get: operations["gym_tickets_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/tickets/{tid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Gym admin: ver detalle y cambiar estado del ticket. */
+        get: operations["gym_tickets_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Gym admin: ver detalle y cambiar estado del ticket. */
+        patch: operations["gym_tickets_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/tickets/{tid}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Gym admin responde en el ticket (notifica al atleta). */
+        post: operations["gym_tickets_messages_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/wods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description WODs del gym (admin/coach). Crea/lista el WOD del día por servicio. */
+        get: operations["gym_wods_list"];
+        put?: never;
+        /** @description WODs del gym (admin/coach). Crea/lista el WOD del día por servicio. */
+        post: operations["gym_wods_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/wods/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Editar/publicar/eliminar un WOD. */
+        get: operations["gym_wods_retrieve"];
+        put?: never;
+        post?: never;
+        /** @description Editar/publicar/eliminar un WOD. */
+        delete: operations["gym_wods_destroy"];
+        options?: never;
+        head?: never;
+        /** @description Editar/publicar/eliminar un WOD. */
+        patch: operations["gym_wods_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/wods/{id}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Board de un WOD: GET el ranking (opcional ?class_id= para board por clase),
+         *     POST registra/actualiza el resultado de un atleta (coach/recepción).
+         */
+        get: operations["gym_wods_results_list"];
+        put?: never;
+        /**
+         * @description Board de un WOD: GET el ranking (opcional ?class_id= para board por clase),
+         *     POST registra/actualiza el resultado de un atleta (coach/recepción).
+         */
+        post: operations["gym_wods_results_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -558,7 +3220,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Buscar gyms por nombre/ubicación/tipo (A1). */
+        /**
+         * @description Buscar gyms por nombre/ubicación/tipo (A1) y descubrirlos por cercanía.
+         *
+         *     Si el cliente manda su posición (`?lat=&lng=`), cada gimnasio viaja con su
+         *     `distance_km` y el listado sale ordenado del más cercano al más lejano;
+         *     `?radius_km=` recorta a un radio. Sin posición, todo se comporta como antes.
+         */
         get: operations["gyms_list"];
         put?: never;
         post?: never;
@@ -618,6 +3286,104 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gyms/{gym_id}/marketplace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Catálogo de la tienda de un gym, visible para sus miembros. */
+        get: operations["gyms_marketplace_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gyms/{gym_id}/marketplace/{product_id}/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Compat: pedido de un solo producto (endpoint ya publicado en la app).
+         *     Devuelve payment_id para cobrar con tarjeta, o un apartado si es próximo.
+         */
+        post: operations["gyms_marketplace_order_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gyms/{gym_id}/marketplace/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Checkout del carrito: varias líneas, UN pedido, UN cobro y UN recargo. */
+        post: operations["gyms_marketplace_orders_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gyms/{gym_id}/marketplace/shipping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Condiciones de envío de la tienda, para que la app arme el checkout. */
+        get: operations["gyms_marketplace_shipping_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gyms/{gym_id}/public-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Ficha pública del gimnasio + vitrina de precios (planes, ofertas y pases).
+         *
+         *     Los planes y las ofertas viven detrás de `HasGymRole`, así que el atleta pulsaba
+         *     "solicitar unirme" sin haber visto un solo precio. Aquí ve exactamente lo que se
+         *     vende y cuánto cuesta antes de decidir.
+         *
+         *     Publica SOLO lo publicable de ESE gimnasio: nada de la capa de relación
+         *     (membresías, pagos, atletas) ni de configuración interna (recargo de plataforma,
+         *     datos fiscales, payout, umbral de retención).
+         */
+        get: operations["gyms_public_profile_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gyms/{id}": {
         parameters: {
             query?: never;
@@ -650,6 +3416,74 @@ export interface paths {
         patch: operations["me_partial_update"];
         trace?: never;
     };
+    "/api/v1/me/attendance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Asistencia del atleta agregada por gym + tipo de clase (progreso por clase). */
+        get: operations["me_attendance_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/badges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["me_badges_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description El atleta lista y crea sus bloqueos. La lógica vive en `blocks.py`. */
+        get: operations["me_blocks_list"];
+        put?: never;
+        /** @description El atleta lista y crea sus bloqueos. La lógica vive en `blocks.py`. */
+        post: operations["me_blocks_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/blocks/{athlete_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Desbloquear. Sólo el bloqueador puede deshacerlo. */
+        delete: operations["me_blocks_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/classes": {
         parameters: {
             query?: never;
@@ -657,8 +3491,373 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Próximas clases de los gyms del atleta (§7.4). */
+        /** @description Próximas clases del atleta (§7.4): las de sus gyms y las de su drop-in vigente. */
         get: operations["me_classes_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/classes/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Historial del atleta: clases pasadas en las que tuvo reserva (asistió o no). */
+        get: operations["me_classes_history_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/club-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Solicitudes de club que hizo el atleta, con su estado y el motivo de la decisión.
+         *
+         *     Endpoint aparte de `/clubs` a propósito: el listado general sigue mostrando SOLO
+         *     clubes aprobados (un club pendiente no debe verlo nadie más), pero su autor tiene
+         *     que poder saber si sigue pendiente o se la rechazaron.
+         */
+        get: operations["me_club_requests_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/clubs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["me_clubs_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description El usuario lista y crea sus solicitudes para ser coach de un gym. */
+        get: operations["me_coach_applications_list"];
+        put?: never;
+        /** @description El usuario lista y crea sus solicitudes para ser coach de un gym. */
+        post: operations["me_coach_applications_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach-invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Invitaciones de gym pendientes para el usuario autenticado. */
+        get: operations["me_coach_invitations_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach-invitations/{rid}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El coach acepta/rechaza una invitación del gym dirigida a él. */
+        post: operations["me_coach_invitations_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach-posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El coach publica al feed de uno de sus gyms (queda pendiente de aprobación). */
+        post: operations["me_coach_posts_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Analítica y nivel del coach. */
+        get: operations["me_coach_stats_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach/bio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description El coach lee y edita su perfil profesional global (bio, especialidades…). */
+        get: operations["me_coach_bio_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description El coach lee y edita su perfil profesional global (bio, especialidades…). */
+        patch: operations["me_coach_bio_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/me/coach/classes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Clases asignadas al coach (en todos sus gyms) con la asistencia aún abierta. */
+        get: operations["me_coach_classes_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Feed combinado de los gyms del coach (ítems aprobados). */
+        get: operations["me_coach_feed_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach/handoffs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Solicitudes de cobertura pendientes en los gyms del coach. */
+        get: operations["me_coach_handoffs_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach/pt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description El coach ofrece personal trainer en un gym (disponibilidad + precio).
+         *
+         *     La comisión la fija el admin del gym en su panel; aquí el coach solo propone.
+         */
+        get: operations["me_coach_pt_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * @description El coach ofrece personal trainer en un gym (disponibilidad + precio).
+         *
+         *     La comisión la fija el admin del gym en su panel; aquí el coach solo propone.
+         */
+        patch: operations["me_coach_pt_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/me/coach/pt-availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Bloques semanales y ausencias del coach autenticado. */
+        get: operations["me_coach_pt_availability_list"];
+        put?: never;
+        /** @description Bloques semanales y ausencias del coach autenticado. */
+        post: operations["me_coach_pt_availability_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach/pt-availability/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Baja de un bloque de disponibilidad propio (soft-delete). */
+        delete: operations["me_coach_pt_availability_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach/pt-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Agenda de sesiones de personal trainer del coach (en todos sus gyms). */
+        get: operations["me_coach_pt_sessions_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach/pt-sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * @description El coach marca una sesión PT como completada/cancelada/no_show.
+         *
+         *     La cancelación **no** se escribe a pelo: pasa por
+         *     `coaching.services.cancelar_sesion`, la misma puerta que usan el atleta y el
+         *     admin. Escribir el estado directo liquidaba igual la comisión del trainer —
+         *     se pagaba una hora que nunca ocurrió y el atleta se quedaba sin su devolución.
+         *     Como cancela el gym/coach (`por_atleta=False`), el atleta recupera su dinero
+         *     siempre y el ledger recibe la línea negativa que compensa el `CoachEarning`.
+         */
+        patch: operations["me_coach_pt_sessions_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/me/coach/pt-time-off": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Alta de una ausencia/vacaciones del coach. */
+        post: operations["me_coach_pt_time_off_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach/pt-time-off/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["me_coach_pt_time_off_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach/uncovered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Clases sin coach en los gyms del coach (por cubrir) todavía cubribles. */
+        get: operations["me_coach_uncovered_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -685,6 +3884,91 @@ export interface paths {
         patch: operations["me_consents_partial_update"];
         trace?: never;
     };
+    "/api/v1/me/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["me_feed_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/feed/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Lista y crea comentarios de un ítem del feed (id sintético, ej. post-{uuid}). */
+        get: operations["me_feed_comments_list"];
+        put?: never;
+        /** @description Lista y crea comentarios de un ítem del feed (id sintético, ej. post-{uuid}). */
+        post: operations["me_feed_comments_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/feed/comments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description El autor edita o borra su propio comentario del feed. */
+        delete: operations["me_feed_comments_destroy"];
+        options?: never;
+        head?: never;
+        /** @description El autor edita o borra su propio comentario del feed. */
+        patch: operations["me_feed_comments_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/me/feed/comments/{id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El atleta denuncia un comentario ajeno: se oculta del feed y avisa al staff. */
+        post: operations["me_feed_comments_report_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/feed/reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["me_feed_reactions_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/join-requests": {
         parameters: {
             query?: never;
@@ -696,6 +3980,74 @@ export interface paths {
         get: operations["me_join_requests_list"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/marketplace-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Pedidos del atleta en todas las tiendas de la red. */
+        get: operations["me_marketplace_orders_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/marketplace-orders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Detalle del pedido con sus líneas y su línea de tiempo de seguimiento. */
+        get: operations["me_marketplace_orders_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/marketplace-orders/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El atleta elimina su propio pedido si aún no lo ha pagado (ticket 7ff9c254). */
+        post: operations["me_marketplace_orders_cancel_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/marketplace-orders/{id}/return": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El atleta solicita la devolución de un pedido que YA pagó. El gym decide. */
+        post: operations["me_marketplace_orders_return_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -718,6 +4070,159 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/memberships/{mid}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Atleta solicita la baja. Relación viva → handoff (PENDING_LEAVE); solicitud
+         *     o invitación previa → retiro directo (former_member).
+         */
+        post: operations["me_membership_leave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/memberships/{mid}/leave/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description El atleta aprueba o cancela una baja pendiente (handoff). action ∈ approve|cancel.
+         *     Solo puede APROBAR si la baja la inició el gym.
+         */
+        post: operations["me_membership_leave_decision"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/moderation/appeals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El atleta presenta su descargo contra una decisión de moderación. */
+        post: operations["me_moderation_appeals_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/moderation/appeals/{id}/escalate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El atleta pide la revisión de Nucleo. Sólo tras un rechazo y una sola vez. */
+        post: operations["me_moderation_appeals_escalate_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/moderation/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description "Estado de tu cuenta": decisiones de moderación que le afectan al atleta.
+         *
+         *     Sólo contenido sancionado (posts rechazados, comentarios ocultos). Aquí NO
+         *     aparece nada de bloqueos: al bloqueado no se le dice que lo bloquearon.
+         */
+        get: operations["me_moderation_status_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Bandeja del atleta autenticado (§7.2). Solo las propias, nunca las de otro. */
+        get: operations["me_notifications_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/notifications/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Marca una notificación propia como leída (idempotente). */
+        post: operations["me_notifications_read_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Marca TODA la bandeja del atleta como leída (idempotente).
+         *
+         *     Ruta fija (`/me/notifications/read-all`), sin parámetros: un 404 aquí sólo
+         *     puede venir de un backend que todavía no tenga la ruta desplegada, nunca de
+         *     los datos del que llama.
+         */
+        post: operations["me_notifications_read_all_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/passport": {
         parameters: {
             query?: never;
@@ -728,6 +4233,97 @@ export interface paths {
         get: operations["me_passport_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/payment-card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description [Legado] Estado de la tarjeta PREDETERMINADA y alta rápida.
+         *
+         *     Se conserva por compatibilidad con apps viejas; el flujo actual usa
+         *     `/me/payment-cards` (varias tarjetas + default).
+         */
+        get: operations["me_payment_card_retrieve"];
+        put?: never;
+        /**
+         * @description [Legado] Estado de la tarjeta PREDETERMINADA y alta rápida.
+         *
+         *     Se conserva por compatibilidad con apps viejas; el flujo actual usa
+         *     `/me/payment-cards` (varias tarjetas + default).
+         */
+        post: operations["me_payment_card_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/payment-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Métodos de pago del atleta: lista, agrega y administra varias tarjetas.
+         *
+         *     El front solo ve marca/últimos 4/vencimiento; el PAN/CVV viven cifrados.
+         */
+        get: operations["me_payment_cards_list"];
+        put?: never;
+        /**
+         * @description Métodos de pago del atleta: lista, agrega y administra varias tarjetas.
+         *
+         *     El front solo ve marca/últimos 4/vencimiento; el PAN/CVV viven cifrados.
+         */
+        post: operations["me_payment_cards_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/payment-cards/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * @description Eliminar una tarjeta guardada. Si era la predeterminada, se promueve la
+         *     más reciente de las que queden.
+         */
+        delete: operations["me_payment_cards_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/payment-cards/{id}/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Marca una tarjeta como predeterminada (la del débito automático). */
+        post: operations["me_payment_cards_default_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -751,6 +4347,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Sube/actualiza la foto del atleta (multipart). Devuelve el perfil con photo_url. */
+        post: operations["me_photo_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/point-transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["me_point_transactions_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Atleta: lista sus posts y crea uno (queda pendiente de aprobación del admin). */
+        get: operations["me_posts_list"];
+        put?: never;
+        /** @description Atleta: lista sus posts y crea uno (queda pendiente de aprobación del admin). */
+        post: operations["me_posts_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/posts/{pid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * @description El autor (atleta o coach) edita o borra su propia publicación.
+         *
+         *     Editar el texto regresa el post a 'pendiente' y vuelve a pasar la moderación.
+         *     Borrar es definitivo (un post no es histórico inmutable como pagos/PRs).
+         */
+        delete: operations["me_posts_destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * @description El autor (atleta o coach) edita o borra su propia publicación.
+         *
+         *     Editar el texto regresa el post a 'pendiente' y vuelve a pasar la moderación.
+         *     Borrar es definitivo (un post no es histórico inmutable como pagos/PRs).
+         */
+        patch: operations["me_posts_partial_update"];
+        trace?: never;
+    };
     "/api/v1/me/prs": {
         parameters: {
             query?: never;
@@ -767,6 +4442,235 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/prs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Editar/borrar un PR propio. Solo si NO ha sido validado por un coach.
+         *
+         *     El borrado es soft-delete (decisión 5). Un PR validado queda bloqueado.
+         */
+        get: operations["me_prs_retrieve"];
+        put?: never;
+        post?: never;
+        /**
+         * @description Editar/borrar un PR propio. Solo si NO ha sido validado por un coach.
+         *
+         *     El borrado es soft-delete (decisión 5). Un PR validado queda bloqueado.
+         */
+        delete: operations["me_prs_destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * @description Editar/borrar un PR propio. Solo si NO ha sido validado por un coach.
+         *
+         *     El borrado es soft-delete (decisión 5). Un PR validado queda bloqueado.
+         */
+        patch: operations["me_prs_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/me/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Reportes que envió el usuario en sesión (habilita el aviso futuro de 'resuelto'). */
+        get: operations["me_reports_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/services/{sid}/enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Inscribe al atleta a un servicio. Incluido → activo; extra → genera pago. */
+        post: operations["me_services_enroll_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Atleta: lista sus tickets y crea uno nuevo (para un gym al que pertenece). */
+        get: operations["me_tickets_list"];
+        put?: never;
+        /** @description Atleta: lista sus tickets y crea uno nuevo (para un gym al que pertenece). */
+        post: operations["me_tickets_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/tickets/{tid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["me_tickets_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/tickets/{tid}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Atleta responde en su ticket. */
+        post: operations["me_tickets_messages_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/tickets/{tid}/messages/{mid}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Atleta: reporta un mensaje abusivo del hilo (escala a soporte de la plataforma).
+         *
+         *     Devuelve el ticket serializado —como el resto de las vistas del hilo— para que
+         *     el cliente refresque la conversación ya sin el mensaje denunciado, con 201
+         *     porque se creó el reporte (mismo contrato que `ReportPostView` del feed).
+         */
+        post: operations["me_tickets_messages_report_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/training-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Sesiones de personal trainer del atleta autenticado. */
+        get: operations["me_training_sessions_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/training-sessions/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El atleta cancela su sesión. Dentro de la ventana pierde el pago. */
+        post: operations["me_training_sessions_cancel_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/training-sessions/{id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Valoración 1-5 del atleta a su trainer (solo con la sesión completada). */
+        post: operations["me_training_sessions_rating_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/training-sessions/{id}/reschedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El atleta mueve su sesión a otro horario disponible del coach. */
+        post: operations["me_training_sessions_reschedule_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/wods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description WODs publicados de hoy (o ?date=) de los gyms donde el atleta puede entrenar.
+         *
+         *     Incluye los del gym donde solo tiene un pase drop-in vigente: si va a entrenar
+         *     ahí hoy, la rutina del día es justamente lo que necesita ver.
+         */
+        get: operations["me_wods_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments/card": {
         parameters: {
             query?: never;
@@ -776,8 +4680,156 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Cobra una membresía propia con Pagalo sin persistir datos de tarjeta. */
+        /** @description Cobra membresía o drop-in pendiente con Pagalo sin persistir datos de tarjeta. */
         post: operations["payments_card_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Cotiza un cobro ANTES de pagar: precio base + recargo Nucleo + total a la tarjeta.
+         *
+         *     Indica `membership_id` (cuota a cobrar, que aún no tiene pago) o `payment_id` (pago
+         *     pendiente ya creado: drop-in, servicio, tienda). El cliente solo muestra el desglose.
+         */
+        get: operations["payments_quote_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/appeals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Cola de apelaciones escaladas a Nucleo (todos los gimnasios). */
+        get: operations["platform_appeals_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/appeals/{id}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Soporte de Nucleo resuelve una apelación escalada. Última instancia. */
+        post: operations["platform_appeals_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/billing/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Payouts de la red: lista por periodo y generación idempotente (solo superadmin). */
+        get: operations["platform_billing_payouts_list"];
+        put?: never;
+        /** @description Payouts de la red: lista por periodo y generación idempotente (solo superadmin). */
+        post: operations["platform_billing_payouts_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/billing/payouts/{id}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Marca un payout como depositado con su referencia bancaria (solo superadmin). */
+        post: operations["platform_billing_payouts_pay_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/billing/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Liquidación de TODOS los gyms del periodo + lo que ganó Nucleo (solo superadmin). */
+        get: operations["platform_billing_statements_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/club-content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Cola de la plataforma: contenido de los clubes SIN gimnasio (legados).
+         *
+         *     Esos clubes no tienen ningún gimnasio que responda por ellos, así que la autoridad
+         *     es Nucleo — mismo criterio que `PlatformAppealsView` con las apelaciones escaladas.
+         *     Ningún club con gimnasio aparece aquí: ese lo modera su gym y sólo su gym.
+         */
+        get: operations["platform_club_content_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/club-content/{kind}/{id}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Nucleo retira o restaura contenido de un club sin gimnasio. */
+        post: operations["platform_club_content_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -791,10 +4843,22 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Listado y alta de gyms reservados al superadmin de plataforma. */
+        /**
+         * @description Listado y alta de gyms reservados al superadmin de plataforma.
+         *
+         *     El POST hace el alta COMPLETA (`crear_gimnasio_completo`): un gym sin suscripción,
+         *     sin plan vendible y sin admin es inservible, así que vender el segundo gimnasio
+         *     no debe requerir una consola.
+         */
         get: operations["platform_gyms_list"];
         put?: never;
-        /** @description Listado y alta de gyms reservados al superadmin de plataforma. */
+        /**
+         * @description Listado y alta de gyms reservados al superadmin de plataforma.
+         *
+         *     El POST hace el alta COMPLETA (`crear_gimnasio_completo`): un gym sin suscripción,
+         *     sin plan vendible y sin admin es inservible, así que vender el segundo gimnasio
+         *     no debe requerir una consola.
+         */
         post: operations["platform_gyms_create"];
         delete?: never;
         options?: never;
@@ -813,6 +4877,133 @@ export interface paths {
         get: operations["platform_gyms_subscription_retrieve"];
         /** @description Consulta y guarda configuración local de la suscripción SaaS del gym. */
         put: operations["platform_gyms_subscription_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Bandeja de reportes de TODA la red (superadmin). Paginada por cursor.
+         *
+         *     `status=open` es un atajo para "lo que sigue vivo" (new/triaged/in_pr); por
+         *     defecto la bandeja abre en ese conjunto para que la cola no arrastre meses de
+         *     tickets cerrados.
+         */
+        get: operations["platform_reports_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/reports/{rid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Ficha completa de un reporte + triage (estado/tipo/severidad/notas). */
+        get: operations["platform_reports_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Ficha completa de un reporte + triage (estado/tipo/severidad/notas). */
+        patch: operations["platform_reports_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/platform/reports/{rid}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Marca un reporte como resuelto. Hook de automatización del operador (p. ej.
+         *     Claude Code, tras aplicar y verificar un fix).
+         *
+         *     Dos credenciales válidas, ninguna anónima:
+         *       - superadmin de plataforma (JWT), o
+         *       - el secreto compartido `REPORTS_RESOLVE_TOKEN` en la cabecera
+         *         `X-Nucleo-Reports-Token`, pensado para la automatización que cierra
+         *         tickets sin tener que repartir un token de superadmin.
+         *
+         *     Antes era `AllowAny` (decisión temporal del dueño durante el cierre masivo de
+         *     tickets, con la nota "volver a IsSuperadmin o un secreto compartido"). Se
+         *     cierra por la segunda vía: el endpoint escribe un `AuditLog` vía
+         *     `services.cambiar_estado`, así que dejarlo abierto permitía a cualquiera con
+         *     el UUID cerrar tickets y falsificar la bitácora.
+         */
+        post: operations["platform_reports_resolve_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/posts/{pid}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description El atleta denuncia un post (contenido prohibido). Lo devuelve a la cola de
+         *     revisión del admin y lleva la cuenta de reportes. Un reporte por atleta y post.
+         */
+        post: operations["posts_report_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Recibe un reporte desde una superficie de cliente y lo persiste atómicamente. */
+        post: operations["reports_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Estado del kill-switch que la superficie consulta para mostrar/ocultar el reporter. */
+        get: operations["reports_config_retrieve"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -863,6 +5054,19 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * @description Webhook del certificador FEL. Verifica firma HMAC igual que el de Pagalo.
+         *
+         *     Escribe `fel_status`, `fel_reference` y `fel_document_url` sobre un Payment, así que
+         *     sin firma cualquiera con un id de pago podía darlo por facturado y plantar una URL
+         *     arbitraria que el app abre.
+         *
+         *     Diferencia con Pagalo: aquí la firma es obligatoria SIEMPRE. Sin
+         *     `FEL['WEBHOOK_SECRET']` configurado el endpoint rechaza todo (falla CERRADO) en vez
+         *     de omitir la verificación. Hoy la certificación se resuelve síncrona en
+         *     `billing/tasks.py:emitir_fel_async` y ningún proveedor llama a este endpoint, así que
+         *     cerrarlo no interrumpe ninguna facturación en curso.
+         */
         post: operations["webhooks_fel_create"];
         delete?: never;
         options?: never;
@@ -879,8 +5083,47 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Webhook de Pagalo (§7.6). Idempotente por gateway_reference; verifica firma. */
+        /**
+         * @description Webhook de Pagalo (§7.6). Verifica firma HMAC e idempotente por gateway_reference.
+         *
+         *     Procesa tanto la confirmación como el RECHAZO asíncrono: un estado fallido marca el
+         *     pago como fallido (con motivo), avisa a soporte y notifica al atleta (si es su cuota).
+         */
         post: operations["webhooks_pagalo_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wods/{id}/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Board de un WOD publicado, legible por los atletas del gym (app móvil). */
+        get: operations["wods_board_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wods/{id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El atleta registra su propio resultado en un WOD publicado. */
+        post: operations["wods_result_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -892,26 +5135,60 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * @description * `included` - Incluido en la membresía
+         *     * `extra` - Requiere pago extra
+         * @enum {string}
+         */
+        AccessTypeEnum: "included" | "extra";
+        /**
          * @description * `self_signup` - Auto-registro
          *     * `gym_invited` - Invitado por gimnasio
+         *     * `google` - Google
+         *     * `apple` - Apple
+         *     * `facebook` - Facebook
          * @enum {string}
          */
-        AccountOriginEnum: "self_signup" | "gym_invited";
+        AccountOriginEnum: "self_signup" | "gym_invited" | "google" | "apple" | "facebook";
         /**
-         * @description * `reserve_class` - reserve_class
-         *     * `cancel_reservation` - cancel_reservation
-         *     * `create_pr` - create_pr
-         *     * `join_gym` - join_gym
-         *     * `update_consents` - update_consents
-         *     * `purchase_dropin` - purchase_dropin
+         * @description * `athlete` - athlete
+         *     * `coach` - coach
          * @enum {string}
          */
-        ActionEnum: "reserve_class" | "cancel_reservation" | "create_pr" | "join_gym" | "update_consents" | "purchase_dropin";
+        AccountTypeEnum: "athlete" | "coach";
+        /**
+         * @description Body de la resolución de una apelación (gym o plataforma).
+         *
+         *     `reason` sólo se usa al RECHAZAR: deja registrado el motivo en el contenido
+         *     cuando todavía no lo tenía (caso típico: un comentario que se ocultó por reporte
+         *     de la comunidad, sin criterio humano detrás).
+         */
+        AppealDecision: {
+            note?: string;
+            reason?: components["schemas"]["ModerationReason"] | components["schemas"]["BlankEnum"];
+        };
+        /**
+         * @description * `pending` - En revisión del gimnasio
+         *     * `escalated` - En revisión de Nucleo
+         *     * `accepted` - Aceptada
+         *     * `rejected` - Rechazada
+         * @enum {string}
+         */
+        AppealStatus: "pending" | "escalated" | "accepted" | "rejected";
+        ApplyCoach: {
+            /** Format: uuid */
+            gym_id: string;
+            /** @default  */
+            message: string;
+        };
         AssignPlan: {
             /** Format: uuid */
             plan_id?: string;
             /** Format: decimal */
             custom_fee?: string | null;
+            /** Format: uuid */
+            offer_id?: string | null;
+            auto_renew?: boolean;
+            payment_method_pref?: components["schemas"]["PaymentMethod"];
         };
         Athlete: {
             /** Format: uuid */
@@ -920,8 +5197,7 @@ export interface components {
             last_name: string;
             /** Format: date */
             birth_date?: string | null;
-            /** Format: uri */
-            photo_url?: string;
+            readonly photo_url: string;
             emergency_contact?: unknown;
             /** Format: uuid */
             readonly global_qr_token: string;
@@ -929,24 +5205,90 @@ export interface components {
             goals?: string;
             readonly global_points: number;
             readonly profile_completeness: number;
+            auto_charge_consent?: boolean;
+            readonly has_payment_method: boolean;
+        };
+        AthleteBadge: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly name: string;
+            readonly slug: string;
+            readonly description: string;
+            readonly gym_name: string | null;
+            /** Format: date-time */
+            readonly awarded_at: string;
+        };
+        /** @description Un bloqueo hecho por el usuario: a quién bloqueó y desde cuándo. */
+        AthleteBlock: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly athlete_id: string;
+            readonly athlete_name: string;
+            readonly athlete_avatar: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /** @description Body de `POST /me/blocks`. */
+        AthleteBlockCreate: {
+            /** Format: uuid */
+            athlete_id: string;
+            reason?: string;
         };
         /** @description Cuenta autenticada + perfil global. Sirve a app y panel interno. */
         AthleteMe: {
             /** Format: uuid */
             readonly id: string;
-            phone: string;
-            phone_verified?: boolean;
             /** Format: email */
-            email?: string | null;
+            email: string;
             email_verified?: boolean;
+            phone?: string | null;
+            phone_verified?: boolean;
             account_origin?: components["schemas"]["AccountOriginEnum"];
+            /** @description Forzar cambio de contraseña en el próximo inicio de sesión (reset por admin). */
+            readonly must_change_password: boolean;
             /**
              * Estado de superusuario
              * @description Indica que este usuario tiene todos los permisos sin asignárselos explícitamente.
              */
             readonly is_superuser: boolean;
             readonly roles: components["schemas"]["StaffRole"][];
+            readonly is_athlete: boolean;
+            readonly pending_coach_invitations: number;
             athlete?: components["schemas"]["Athlete"] | null;
+        };
+        AthleteOfMonth: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            readonly athlete_photo: string;
+            readonly period: string;
+            readonly class_type: string;
+            /** Format: decimal */
+            readonly score: string;
+            /** Format: uri */
+            readonly image: string | null;
+            readonly source: string;
+            /** Format: date-time */
+            readonly awarded_at: string;
+        };
+        /** @description Candidato sugerido: el que más puntos de COMUNIDAD hizo en el periodo. */
+        AthleteOfMonthCandidate: {
+            rank: number;
+            readonly athlete_id: string;
+            readonly athlete_name: string;
+            readonly athlete_photo: string;
+            points: number;
+        };
+        /** @description Estado del periodo + ranking sugerido, para decidir sin publicar a ciegas. */
+        AthleteOfMonthSuggestions: {
+            period: string;
+            class_type: string;
+            already_published: boolean;
+            current: components["schemas"]["AthleteOfMonth"] | null;
+            candidates: components["schemas"]["AthleteOfMonthCandidate"][];
         };
         AthletePR: {
             /** Format: uuid */
@@ -960,15 +5302,45 @@ export interface components {
             /** Format: uuid */
             readonly validated_at_gym: string | null;
             is_public?: boolean;
+            readonly is_locked: boolean;
             /** Format: date-time */
             readonly created_at: string;
+        };
+        AthletePost: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            /** Format: uuid */
+            readonly athlete: string | null;
+            readonly athlete_name: string;
+            readonly author_name: string;
+            readonly author_type: string;
+            body?: string;
+            /** Format: uri */
+            readonly photo: string;
+            readonly media: components["schemas"]["PostMedia"][];
+            readonly status: components["schemas"]["ModerationStatus"];
+            readonly status_display: string;
+            /** Format: int64 */
+            report_count?: number;
+            moderation_label?: string;
+            decision_reason?: components["schemas"]["ModerationReason"] | components["schemas"]["BlankEnum"];
+            readonly decision_reason_display: string;
+            decision_note?: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        AthletePostCreate: {
+            body?: string;
+            /** Format: uri */
+            photo?: string;
         };
         AuditLog: {
             /** Format: uuid */
             readonly id: string;
-            /** Format: uuid */
-            actor_id?: string | null;
-            actor_role?: string;
+            readonly descripcion: string;
+            readonly actor_rol: string;
             action: string;
             entity: string;
             entity_id?: string;
@@ -977,10 +5349,131 @@ export interface components {
             /** Format: date-time */
             readonly created_at: string;
         };
-        /** @description Datos efímeros para cobrar una membresía con Pagalo. Nunca se persiste la tarjeta. */
+        /** @enum {unknown} */
+        BlankEnum: "";
+        /**
+         * @description Reserva de una sesión de personal trainer con un coach del gym.
+         *
+         *     La DURACIÓN no la elige el cliente: el precio del coach es por sesión, así que
+         *     dejar que el atleta pida 4 horas al precio de 1 sería un agujero de dinero.
+         *     La define el backend (`PT_SESSION_DURATION_MIN`, 60 min por defecto).
+         */
+        BookPt: {
+            /** Format: date-time */
+            scheduled_at: string;
+        };
+        BugReportConfig: {
+            /** @description Permite reportar errores desde el admin web. */
+            web_enabled?: boolean;
+            /** @description Permite reportar errores desde la app móvil. */
+            mobile_enabled?: boolean;
+            /** Format: date-time */
+            readonly updated_at: string;
+        };
+        /** @description Ficha completa: metadata capturada + prompt de fix listo para Claude Code. */
+        BugReportConsoleDetail: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: date-time */
+            readonly created_at: string;
+            description: string;
+            surface?: components["schemas"]["ReportSurface"];
+            readonly surface_display: string;
+            kind?: components["schemas"]["ReportKind"];
+            readonly kind_display: string;
+            severity?: components["schemas"]["ReportSeverity"];
+            readonly severity_display: string;
+            status?: components["schemas"]["ReportStatus"];
+            readonly status_display: string;
+            /** Format: email */
+            reporter_email?: string;
+            reporter_role?: string;
+            gym_name?: string;
+            app_version?: string;
+            build?: string;
+            screen?: string;
+            readonly has_attachment: boolean;
+            readonly fix_prompt: string;
+            /** Format: uri */
+            attachment?: string;
+            os_name?: string;
+            os_version?: string;
+            device_model?: string;
+            user_agent?: string;
+            locale?: string;
+            timezone?: string;
+            stack_trace?: string;
+            extra?: unknown;
+            operator_notes?: string;
+            /** Format: date-time */
+            resolved_at?: string | null;
+            /** Format: uuid */
+            duplicate_of?: string | null;
+        };
+        /**
+         * @description Fila de la bandeja: lo justo para triar de un vistazo.
+         *
+         *     `fix_prompt` pesa ~3 KB por reporte, así que NO viaja por defecto: solo si la
+         *     bandeja lo pide con `?with_prompt=1`, que es cuando la lista muestra el botón
+         *     de copiar en cada fila (copiar sin abrir el ticket = sin ir al servidor en el
+         *     clic, que es lo que rompe el portapapeles en algunos navegadores).
+         */
+        BugReportConsoleList: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: date-time */
+            readonly created_at: string;
+            description: string;
+            surface?: components["schemas"]["ReportSurface"];
+            readonly surface_display: string;
+            kind?: components["schemas"]["ReportKind"];
+            readonly kind_display: string;
+            severity?: components["schemas"]["ReportSeverity"];
+            readonly severity_display: string;
+            status?: components["schemas"]["ReportStatus"];
+            readonly status_display: string;
+            /** Format: email */
+            reporter_email?: string;
+            reporter_role?: string;
+            gym_name?: string;
+            app_version?: string;
+            build?: string;
+            screen?: string;
+            readonly has_attachment: boolean;
+        };
+        /** @description Lo que envían las superficies de cliente. Solo describen + adjuntan + contexto. */
+        BugReportCreate: {
+            description: string;
+            /** Format: uri */
+            attachment?: string;
+            surface?: components["schemas"]["ReportSurface"];
+            app_version?: string;
+            build?: string;
+            os_name?: string;
+            os_version?: string;
+            device_model?: string;
+            user_agent?: string;
+            screen?: string;
+            locale?: string;
+            timezone?: string;
+            stack_trace?: string;
+            extra?: unknown;
+            /** Format: uuid */
+            gym?: string | null;
+        };
+        CancelPtSession: {
+            reason?: string;
+        };
+        /**
+         * @description Datos efímeros para cobrar con Pagalo. Nunca se persiste la tarjeta.
+         *
+         *     Indica `membership_id` (cuota) o `payment_id` (drop-in pendiente), nunca ambos.
+         */
         CardPayment: {
             /** Format: uuid */
-            membership_id: string;
+            membership_id?: string;
+            /** Format: uuid */
+            payment_id?: string;
             billing_nit?: string;
             billing_name?: string;
             /** Format: email */
@@ -1001,11 +5494,53 @@ export interface components {
             card_number: string;
             cvv: string;
         };
+        CartItem: {
+            /** Format: uuid */
+            product_id: string;
+            /** @default 1 */
+            qty: number;
+            /** @default  */
+            size: string;
+            /** @default  */
+            color: string;
+        };
+        /** @description Checkout del carrito: varias líneas, una entrega y un solo cobro. */
+        CartOrderCreate: {
+            items: components["schemas"]["CartItem"][];
+            /** @default pickup */
+            delivery_method: components["schemas"]["DeliveryMethodEnum"];
+            /** @default  */
+            shipping_recipient: string;
+            /** @default  */
+            shipping_phone: string;
+            /** @default  */
+            shipping_address: string;
+            /** @default  */
+            shipping_city: string;
+            /** @default  */
+            shipping_notes: string;
+            /** @default  */
+            client_id: string;
+        };
+        /**
+         * @description * `push` - push
+         *     * `email` - email
+         *     * `both` - both
+         * @enum {string}
+         */
+        ChannelEnum: "push" | "email" | "both";
+        /**
+         * @description * `recurring` - Membresía recurrente
+         *     * `one_time` - Pase único
+         * @enum {string}
+         */
+        ChargeTypeEnum: "recurring" | "one_time";
         Checkin: {
             /** Format: uuid */
             readonly id: string;
             /** Format: uuid */
             readonly gym_class: string;
+            readonly needs_wod: boolean;
             /** Format: uuid */
             readonly athlete: string;
             /** Format: uuid */
@@ -1033,31 +5568,743 @@ export interface components {
          * @enum {string}
          */
         CheckinMethod: "athlete_qr" | "class_qr" | "manual" | "reception";
-        /** @description Reclamo de cuenta creada por un gym. Vincula el atleta existente; nunca duplica. */
+        /**
+         * @description Datos del reclamo de cuenta invitada. La DECISIÓN vive en
+         *     `accounts/services.py:reclamar_cuenta` (regla del repo: el negocio no va en el
+         *     serializer), incluido el porqué de cada rechazo.
+         */
         Claim: {
-            phone: string;
+            /** Format: email */
+            email: string;
             password: string;
+            uid?: string;
+            token?: string;
         };
         ClassDemand: {
             class_type: string;
+            horario: string;
             reservas: number;
         };
-        Consent: {
+        ClassHandoff: {
             /** Format: uuid */
             readonly id: string;
-            channel_type: components["schemas"]["ConsentChannelTypeEnum"];
-            granted?: boolean;
+            /** Format: uuid */
+            readonly gym_class: string;
+            /** Format: uuid */
+            readonly gym: string;
+            readonly gym_name: string;
+            readonly class_type: string;
+            /** Format: date-time */
+            readonly starts_at: string;
+            readonly initiated_by: string;
+            readonly requested_by_name: string;
+            /** Format: uuid */
+            readonly from_coach: string;
+            readonly from_coach_name: string;
+            /** Format: uuid */
+            readonly offered_to: string;
+            readonly offered_to_name: string;
+            readonly status: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /** @description QR de asistencia que el coach/admin muestra o reenvía. */
+        ClassQr: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            readonly gym_name: string;
+            readonly class_type: string;
+            /** Format: date-time */
+            readonly starts_at: string;
+            /** Format: uuid */
+            readonly qr_token: string;
+        };
+        /** @description El atleta envía el token escaneado del QR de la clase. */
+        ClassQrCheckin: {
+            /** Format: uuid */
+            qr_token: string;
+        };
+        /** @description Plantilla del horario semanal (una celda de la cuadrícula). */
+        ClassSchedule: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            /** Format: uuid */
+            branch?: string | null;
+            /** Format: uuid */
+            service_type: string;
+            readonly service_type_name: string;
+            readonly color: string;
+            readonly requires_wod: boolean;
+            /**
+             * Format: int64
+             * @description 0=Lunes … 6=Domingo
+             */
+            weekday: number;
+            /** Format: time */
+            start_time: string;
+            /** Format: int64 */
+            duration_min?: number;
+            /** Format: int64 */
+            capacity?: number;
+            level?: string;
+            /** Format: decimal */
+            cost?: string;
+            included_in_plan?: boolean;
+            /** Format: uuid */
+            default_coach?: string | null;
+            /** Format: int64 */
+            assignment_lead_min?: number;
+            /** Format: date */
+            valid_from: string;
+            /** Format: date */
+            valid_until?: string | null;
+            readonly is_open_ended: boolean;
+            is_active?: boolean;
             /** Format: date-time */
             readonly updated_at: string;
         };
         /**
-         * @description * `ops` - Operativa
-         *     * `community` - Comunidad
-         *     * `biz` - Comercial
-         *     * `retention` - Retención
+         * @description Ficha del club. `plan` (free/pro) NO se expone: es decorativo hasta que el
+         *     dueño defina la política comercial; ninguna vista lo consulta.
+         */
+        Club: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly name: string;
+            readonly club_type: string;
+            /** @description Descripción pública del club (perfil compartible). */
+            readonly description: string;
+            /**
+             * Format: uuid
+             * @description Gym al que pertenece el club. Null = club independiente (legado).
+             */
+            readonly gym: string | null;
+            readonly gym_name: string;
+            readonly status: components["schemas"]["ClubStatus"];
+            readonly status_display: string;
+            readonly is_public: boolean;
+            readonly member_count: number;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        ClubActivity: {
+            /** Format: uuid */
+            readonly id: string;
+            name: string;
+            /** Format: date-time */
+            starts_at: string;
+            location?: string;
+            route?: unknown;
+            is_free?: boolean;
+            /** Format: int64 */
+            capacity?: number | null;
+            readonly rsvp_count: number;
+            readonly my_rsvp: boolean;
+            readonly moderation_status: components["schemas"]["ClubContentStatus"];
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        ClubActivityRSVP: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            readonly status: string;
+            /** Format: date-time */
+            readonly confirmed_at: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        ClubActivityRSVPToggleResponse: {
+            rsvp: boolean;
+            rsvp_count: number;
+        };
+        ClubActivityWrite: {
+            /** Format: uuid */
+            readonly id: string;
+            name: string;
+            /** Format: date-time */
+            starts_at: string;
+            location?: string;
+            route?: unknown;
+            is_free?: boolean;
+            /** Format: int64 */
+            capacity?: number | null;
+            readonly moderation_status: components["schemas"]["ClubContentStatus"];
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        ClubAdminConfirmAttendance: {
+            /** Format: uuid */
+            athlete_id: string;
+        };
+        /**
+         * @description Anuncio del club a sus miembros (mismo contrato que el anuncio del gym).
+         *
+         *     `moderation_status` viaja para que el club_admin vea cuál de sus anuncios quedó
+         *     retirado, igual que el autor de un post ve el suyo "En revisión" en el feed.
+         */
+        ClubAnnouncement: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly club: string;
+            title: string;
+            body: string;
+            /** Format: uri */
+            photo?: string | null;
+            readonly moderation_status: components["schemas"]["ClubContentStatus"];
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        ClubChallenge: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly name: string;
+            readonly description: string;
+            readonly metric: string;
+            /** Format: decimal */
+            readonly target_value: string;
+            /** Format: date-time */
+            readonly starts_at: string;
+            /** Format: date-time */
+            readonly ends_at: string;
+            readonly points_reward: number;
+            readonly is_active: boolean;
+            readonly my_progress: string | null;
+            readonly my_status: string | null;
+            readonly pending_review: boolean;
+            readonly my_last_review: components["schemas"]["ClubChallengeReview"] | null;
+            readonly participant_count: number;
+            readonly moderation_status: components["schemas"]["ClubContentStatus"];
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        ClubChallengeEntry: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            /** Format: decimal */
+            readonly progress: string;
+            readonly status: string;
+            readonly rank: number;
+            /** Format: date-time */
+            readonly joined_at: string;
+            /** Format: date-time */
+            readonly completed_at: string | null;
+        };
+        ClubChallengeProgress: {
+            /** Format: decimal */
+            delta: string;
+        };
+        ClubChallengeProgressResponse: {
+            entry: components["schemas"]["ClubChallengeEntry"];
+            /** Format: uuid */
+            submission_id: string;
+            submission_status: string;
+            message: string;
+        };
+        /** @description Resultado de la última revisión del atleta en el reto (con motivo legible). */
+        ClubChallengeReview: {
+            /** Format: uuid */
+            submission_id: string;
+            status: string;
+            /** Format: decimal */
+            delta: string;
+            note: string;
+            /** Format: date-time */
+            reviewed_at: string;
+        };
+        ClubChallengeSubmission: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly challenge: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            /** Format: decimal */
+            readonly delta: string;
+            readonly source: components["schemas"]["SourceEnum"];
+            readonly status: components["schemas"]["ModerationStatus"];
+            /** Format: uuid */
+            readonly activity: string | null;
+            readonly review_note: string;
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: date-time */
+            readonly reviewed_at: string | null;
+        };
+        ClubChallengeSubmissionReview: {
+            action: components["schemas"]["ClubChallengeSubmissionReviewActionEnum"];
+            note?: string;
+        };
+        /**
+         * @description * `approve` - approve
+         *     * `reject` - reject
          * @enum {string}
          */
-        ConsentChannelTypeEnum: "ops" | "community" | "biz" | "retention";
+        ClubChallengeSubmissionReviewActionEnum: "approve" | "reject";
+        ClubChallengeWrite: {
+            /** Format: uuid */
+            readonly id: string;
+            name: string;
+            description?: string;
+            metric?: string;
+            /** Format: decimal */
+            target_value: string;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            /** Format: int64 */
+            points_reward?: number;
+            is_active?: boolean;
+            readonly moderation_status: components["schemas"]["ClubContentStatus"];
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /**
+         * @description Una fila de la cola de moderación de contenido de club (`moderation._fila`).
+         *
+         *     Serializer explícito y no un ModelSerializer: la cola mezcla cuatro modelos distintos
+         *     en un solo stream y `kind` es lo que le dice al panel qué está mirando.
+         */
+        ClubContentModeration: {
+            kind: string;
+            /** Format: uuid */
+            id: string;
+            feed_item_id: string;
+            /** Format: uuid */
+            club_id: string;
+            club_name: string;
+            /** Format: uuid */
+            gym_id: string | null;
+            title: string;
+            body: string;
+            author_email: string;
+            moderation_status: string;
+            moderation_label: string;
+            decision_reason: string;
+            decision_note: string;
+            report_count: number;
+            reported: boolean;
+            /** Format: date-time */
+            decided_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /**
+         * @description El miembro denuncia contenido del club; el motivo es opcional (igual que en el
+         *     feed del gym: exigirlo sólo consigue que la gente no denuncie).
+         */
+        ClubContentReportInput: {
+            reason?: string;
+        };
+        ClubContentReportResponse: {
+            kind: string;
+            /** Format: uuid */
+            content_id: string;
+            feed_item_id: string;
+            reported: boolean;
+            already_reported: boolean;
+            report_count: number;
+        };
+        /**
+         * @description * `approved` - Publicado
+         *     * `rejected` - Retirado
+         * @enum {string}
+         */
+        ClubContentStatus: "approved" | "rejected";
+        /** @description Un atleta crea un club ligado a un gym al que pertenece (queda pendiente). */
+        ClubCreate: {
+            name: string;
+            club_type: string;
+            /** Format: uuid */
+            gym_id: string;
+        };
+        /**
+         * @description Un renglón del feed del club (`clubs.feed.ItemDeFeedDeClub`).
+         *
+         *     Serializer explícito y no un ModelSerializer: el feed mezcla cuatro modelos en un
+         *     solo stream y `kind` es lo que le dice al cliente qué está pintando. `id` es el
+         *     identificador sintético `<prefijo>-<uuid>`; para actuar sobre el ítem (denunciarlo,
+         *     abrirlo) se usan `kind` + `object_id`.
+         */
+        ClubFeedItem: {
+            id: string;
+            kind: string;
+            /** Format: uuid */
+            object_id: string;
+            title: string;
+            body: string;
+            /** Format: uuid */
+            club_id: string;
+            club_name: string;
+            actor_name: string;
+            actor_avatar: string | null;
+            /** Format: uuid */
+            actor_athlete_id: string | null;
+            photo_url: string | null;
+            media: {
+                [key: string]: unknown;
+            }[];
+            /** Format: date-time */
+            starts_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            status: string;
+            mine: boolean;
+            can_report: boolean;
+            reported_by_me: boolean;
+            report_count: number;
+        };
+        ClubMembership: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly club: string;
+            readonly club_name: string;
+            readonly status: string;
+            /** Format: date-time */
+            readonly joined_at: string;
+        };
+        /**
+         * @description Publicación de un miembro dentro del club.
+         *
+         *     `moderation_status` viaja de vuelta al crear para que el autor vea al instante si el
+         *     pre-filtro de IA le retiró la foto, igual que el autor de un post del feed del gym
+         *     ve el suyo "En revisión".
+         */
+        ClubPost: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly club: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            body?: string;
+            /** Format: uri */
+            photo?: string | null;
+            readonly moderation_status: components["schemas"]["ClubContentStatus"];
+            readonly report_count: number;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /** @description Lo que un miembro manda al publicar: texto, foto, o las dos cosas. */
+        ClubPostCreate: {
+            body?: string;
+            /** Format: uri */
+            photo?: string | null;
+        };
+        /**
+         * @description Lo que el club_admin puede editar de su perfil público.
+         *
+         *     `is_public` y `status` quedan fuera a propósito: son la decisión del gym, y
+         *     apagarlos desde el club rompería sus propias actividades y retos.
+         */
+        ClubProfileUpdate: {
+            /** Format: uuid */
+            readonly id: string;
+            name: string;
+            club_type: string;
+            /** @description Descripción pública del club (perfil compartible). */
+            description?: string;
+            /** Format: uri */
+            photo?: string | null;
+        };
+        /** @description Perfil público del club: lo que se ve al descubrirlo o al abrir un link compartido. */
+        ClubPublicProfile: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly name: string;
+            readonly club_type: string;
+            /** @description Descripción pública del club (perfil compartible). */
+            readonly description: string;
+            /** Format: uri */
+            readonly photo: string;
+            /**
+             * Format: uuid
+             * @description Gym al que pertenece el club. Null = club independiente (legado).
+             */
+            readonly gym: string | null;
+            readonly gym_name: string;
+            readonly member_count: number;
+            readonly is_member: boolean;
+            readonly upcoming_activities: number;
+            readonly active_challenges: number;
+            readonly next_activity: components["schemas"]["ClubActivity"] | null;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /** @description Solicitud de club vista por quien la creó: estado + motivo legible. */
+        ClubRequest: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly name: string;
+            readonly club_type: string;
+            /** @description Descripción pública del club (perfil compartible). */
+            readonly description: string;
+            /**
+             * Format: uuid
+             * @description Gym al que pertenece el club. Null = club independiente (legado).
+             */
+            readonly gym: string | null;
+            readonly gym_name: string;
+            readonly status: components["schemas"]["ClubStatus"];
+            readonly status_display: string;
+            readonly is_public: boolean;
+            readonly member_count: number;
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly decision_note: string;
+        };
+        /**
+         * @description * `pending` - Pendiente de aprobación
+         *     * `approved` - Aprobado
+         *     * `rejected` - Rechazado
+         * @enum {string}
+         */
+        ClubStatus: "pending" | "approved" | "rejected";
+        /** @description Coach del gym (StaffRoleAssignment rol coach) + su perfil de pago. */
+        Coach: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly staff_role: string;
+            readonly name: string;
+            readonly email: string;
+            readonly photo: string | null;
+            pay_type: components["schemas"]["PayTypeEnum"];
+            /** Format: decimal */
+            per_class_rate: string;
+            /** Format: decimal */
+            fixed_amount: string;
+            is_active: boolean;
+            offers_pt: boolean;
+            /** Format: decimal */
+            pt_price: string;
+            /** Format: decimal */
+            pt_commission_pct: string;
+            /** Format: double */
+            readonly rating: number | null;
+            readonly rating_count: number;
+        };
+        /** @description Perfil profesional editable por el propio coach (global, no por gym). */
+        CoachBio: {
+            /** @description Título corto, ej. 'Coach de Halterofilia'. */
+            headline?: string;
+            bio?: string;
+            specialties?: unknown;
+            certifications?: string;
+            /** Format: int64 */
+            years_experience?: number;
+        };
+        CoachEarning: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym_class: string | null;
+            /** Format: uuid */
+            readonly payment: string | null;
+            readonly kind: components["schemas"]["CoachEarningKindEnum"];
+            /** Format: decimal */
+            readonly amount: string;
+            /** Format: date */
+            readonly earned_on: string;
+            readonly status: components["schemas"]["CoachEarningStatusEnum"];
+        };
+        /**
+         * @description * `per_class` - Por clase
+         *     * `extra` - Extra
+         *     * `pt` - Comisión personal trainer
+         * @enum {string}
+         */
+        CoachEarningKindEnum: "per_class" | "extra" | "pt";
+        /**
+         * @description * `pending` - Pendiente
+         *     * `paid` - Pagada
+         * @enum {string}
+         */
+        CoachEarningStatusEnum: "pending" | "paid";
+        CoachGym: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        /**
+         * @description Coach del gym para la vista informativa del atleta (sin datos de pago).
+         *
+         *     Opera sobre un `StaffRoleAssignment` (rol coach).
+         */
+        CoachInfo: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly name: string;
+            readonly photo: string | null;
+            /** Format: double */
+            readonly rating: number | null;
+            readonly rating_count: number;
+        };
+        CoachLevel: {
+            key: string;
+            name: string;
+            min: number;
+            next_at: number | null;
+            next_name: string | null;
+            /** Format: double */
+            progress: number;
+        };
+        /** @description El coach cede su clase; opcionalmente se la ofrece a un coach específico. */
+        CoachOffer: {
+            /** Format: uuid */
+            to_coach_id?: string | null;
+        };
+        CoachPayout: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly coach: string;
+            readonly coach_email: string;
+            /** Format: date */
+            readonly period_start: string;
+            /** Format: date */
+            readonly period_end: string;
+            /** Format: decimal */
+            readonly total: string;
+            readonly status: components["schemas"]["CoachPayoutStatusEnum"];
+            /** Format: date-time */
+            readonly paid_at: string | null;
+            readonly earnings_count: number;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /**
+         * @description * `open` - Abierta
+         *     * `paid` - Pagada
+         * @enum {string}
+         */
+        CoachPayoutStatusEnum: "open" | "paid";
+        CoachPostCreate: {
+            /** Format: uuid */
+            gym: string;
+            /** @default  */
+            body: string;
+        };
+        /** @description Estado de la oferta de PT del coach en un gym (respuesta del PATCH). */
+        CoachPtConfig: {
+            /** Format: uuid */
+            readonly gym: string;
+            readonly offers_pt: boolean;
+            /** Format: decimal */
+            readonly pt_price: string;
+            /** Format: decimal */
+            readonly pt_commission_pct: string;
+        };
+        /** @description Una fila de la oferta de PT del coach (un gym donde es coach). */
+        CoachPtRow: {
+            /** Format: uuid */
+            gym: string;
+            gym_name: string;
+            offers_pt: boolean;
+            /** Format: decimal */
+            pt_price: string;
+            /** Format: decimal */
+            pt_commission_pct: string;
+        };
+        /** @description Perfil público de un coach con métricas globales en Nucleo (para atletas). */
+        CoachPublicProfile: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            photo: string | null;
+            classes_taught: number;
+            upcoming_classes: number;
+            athletes_served: number;
+            gyms: string[];
+            /** Format: date-time */
+            since: string | null;
+            level: components["schemas"]["CoachLevel"];
+            /** Format: double */
+            rating: number | null;
+            rating_count: number;
+            /** @default  */
+            headline: string;
+            /** @default  */
+            bio: string;
+            specialties?: string[];
+            /** @default  */
+            certifications: string;
+            /** @default 0 */
+            years_experience: number;
+        };
+        CoachRequest: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            readonly gym_name: string;
+            /** Format: uuid */
+            readonly user: string;
+            readonly user_email: string;
+            readonly direction: components["schemas"]["DirectionEnum"];
+            readonly status: components["schemas"]["CoachRequestStatusEnum"];
+            readonly message: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /**
+         * @description * `pending` - Pendiente
+         *     * `accepted` - Aceptada
+         *     * `rejected` - Rechazada
+         *     * `cancelled` - Cancelada
+         * @enum {string}
+         */
+        CoachRequestStatusEnum: "pending" | "accepted" | "rejected" | "cancelled";
+        CoachStats: {
+            classes_taught: number;
+            upcoming_classes: number;
+            athletes_served: number;
+            handoffs_accepted: number;
+            level: components["schemas"]["CoachLevel"];
+            gyms: components["schemas"]["CoachGym"][];
+        };
+        /**
+         * @description Denuncia sobre un comentario.
+         *
+         *     De entrada sólo se acepta `reason` (el resto lo pone el service); de salida
+         *     alimenta la cola de moderación del gym.
+         *
+         *     **La identidad del denunciante NO sale nunca de aquí.** En un box todos se
+         *     conocen: si el admin ve quién reportó, lo comenta en la clase y el denunciante
+         *     queda expuesto a la represalia que el reporte existía para frenar. Es la misma
+         *     promesa que sostiene el umbral de anonimato de la señal de bloqueos, y sin esto
+         *     tendría una puerta al lado. Para arbitrar reportes falsos está el admin de
+         *     Django (exige `is_staff`, al que ningún gym_admin llega).
+         */
+        CommentReport: {
+            /** Format: uuid */
+            readonly id: string;
+            reason?: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        Consent: {
+            /** Format: uuid */
+            readonly id: string;
+            channel_type: components["schemas"]["NotificationCategory"];
+            granted?: boolean;
+            /** Format: date-time */
+            readonly updated_at: string;
+        };
         ConsentUpdateItem: {
             channel_type: components["schemas"]["ConsentUpdateItemChannelTypeEnum"];
             granted: boolean;
@@ -1069,6 +6316,17 @@ export interface components {
          * @enum {string}
          */
         ConsentUpdateItemChannelTypeEnum: "community" | "biz" | "retention";
+        /** @description Mensaje del formulario de contacto de la landing. */
+        Contact: {
+            name: string;
+            /** Format: email */
+            email: string;
+            /** @default  */
+            gym: string;
+            message: string;
+            /** @default  */
+            recaptcha_token: string;
+        };
         /**
          * @description * `approve` - approve
          *     * `reject` - reject
@@ -1077,6 +6335,16 @@ export interface components {
          * @enum {string}
          */
         DecisionEnum: "approve" | "reject" | "offer_trial" | "request_info";
+        /** @description Confirma el borrado de cuenta. Exige la contraseña si la cuenta tiene una. */
+        DeleteAccount: {
+            password?: string;
+        };
+        /**
+         * @description * `pickup` - Retiro en el gimnasio
+         *     * `shipping` - Envío a domicilio
+         * @enum {string}
+         */
+        DeliveryMethodEnum: "pickup" | "shipping";
         Device: {
             /** Format: uuid */
             readonly id: string;
@@ -1085,29 +6353,61 @@ export interface components {
             /** Format: date-time */
             readonly created_at: string;
         };
+        /**
+         * @description * `gym_invite` - Invitación del gym
+         *     * `coach_apply` - Solicitud del coach
+         * @enum {string}
+         */
+        DirectionEnum: "gym_invite" | "coach_apply";
         DropinProduct: {
             /** Format: uuid */
             readonly id: string;
             /** Format: uuid */
-            gym: string;
-            type: components["schemas"]["TypeEnum"];
+            readonly gym: string;
+            type: components["schemas"]["DropinProductTypeEnum"];
+            readonly type_label: string;
+            name?: string;
+            description?: string;
             /** Format: decimal */
             price: string;
+            /** Format: int64 */
+            max_uses?: number | null;
+            readonly effective_max_uses: number | null;
             is_active?: boolean;
         };
+        /**
+         * @description * `one_class` - Una clase
+         *     * `day` - Un día
+         *     * `week` - Una semana
+         *     * `open_gym` - Open gym
+         *     * `special` - Clase especial
+         *     * `free_trial` - Prueba gratuita
+         * @enum {string}
+         */
+        DropinProductTypeEnum: "one_class" | "day" | "week" | "open_gym" | "special" | "free_trial";
         DropinPurchase: {
             /** Format: uuid */
             readonly id: string;
             /** Format: uuid */
-            gym: string;
+            readonly gym: string;
             /** Format: uuid */
-            dropin_product: string;
+            readonly dropin_product: string;
+            readonly product_name: string;
+            /** Format: uuid */
+            readonly payment_id: string;
+            readonly payment_status: string;
+            /** Format: decimal */
+            readonly amount: string;
             /** Format: uuid */
             readonly qr_token: string;
             /** Format: date-time */
-            valid_from: string;
+            readonly valid_from: string;
             /** Format: date-time */
-            valid_to: string;
+            readonly valid_to: string;
+            readonly max_uses: number | null;
+            readonly uses_count: number;
+            readonly uses_left: number | null;
+            readonly is_usable: boolean;
             /** Format: date-time */
             readonly used_at: string | null;
             /** Format: date-time */
@@ -1116,6 +6416,169 @@ export interface components {
         DropinPurchaseRequest: {
             /** @default card */
             method: components["schemas"]["PaymentMethod"];
+        };
+        /** @description Body del escaneo en la puerta: el token del QR y, opcionalmente, a qué clase entra. */
+        DropinValidateRequest: {
+            /** Format: uuid */
+            qr_token: string;
+            /** Format: uuid */
+            gym_class_id?: string | null;
+        };
+        /** @description Respuesta del escaneo: si abre la puerta y con qué pase. */
+        DropinValidation: {
+            granted: boolean;
+            already_registered: boolean;
+            code: string;
+            message: string;
+            /** Format: uuid */
+            entry_id: string;
+            /** Format: date-time */
+            registered_at: string;
+            athlete: components["schemas"]["DropinValidationAthlete"];
+            purchase: components["schemas"]["DropinPurchase"];
+        };
+        /** @description Datos PÚBLICOS del visitante (el gym no ve su relación con otros gyms). */
+        DropinValidationAthlete: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            photo: string | null;
+        };
+        /**
+         * @description Gasto tal como lo lee el panel. La anulación y la corrección NO son campos
+         *     editables: van por sus endpoints (`/void`, `/correct`).
+         */
+        Expense: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            branch?: string | null;
+            category?: components["schemas"]["ExpenseCategory"];
+            /** Format: decimal */
+            amount: string;
+            description?: string;
+            /** Format: date */
+            incurred_on: string;
+            /** Format: uri */
+            proof_url?: string;
+            /** Format: uri */
+            proof_file?: string;
+            readonly is_void: boolean;
+            /** Format: date-time */
+            readonly voided_at: string | null;
+            readonly void_reason: string;
+            /** Format: uuid */
+            readonly replaces: string | null;
+            /** Format: uuid */
+            readonly replaced_by: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /**
+         * @description * `rent` - Renta
+         *     * `utilities` - Servicios
+         *     * `equipment` - Equipo
+         *     * `marketing` - Marketing
+         *     * `payroll` - Nómina
+         *     * `inventory` - Compra de inventario
+         *     * `other` - Otro
+         * @enum {string}
+         */
+        ExpenseCategory: "rent" | "utilities" | "equipment" | "marketing" | "payroll" | "inventory" | "other";
+        /**
+         * @description Corrección de un gasto: solo los campos que cambian. Lo que no venga se
+         *     hereda del gasto original.
+         */
+        ExpenseCorrect: {
+            category?: components["schemas"]["ExpenseCategory"];
+            /** Format: decimal */
+            amount?: string;
+            description?: string;
+            /** Format: date */
+            incurred_on?: string;
+            /** Format: uuid */
+            branch?: string | null;
+            /** Format: uri */
+            proof_url?: string;
+            /** Format: uri */
+            proof_file?: string;
+        };
+        /** @description Adjunta el comprobante (factura/recibo) de un gasto ya registrado. */
+        ExpenseProof: {
+            /** Format: uri */
+            proof_file: string;
+        };
+        /** @description Motivo de la anulación de un gasto (queda en el registro y en la auditoría). */
+        ExpenseVoid: {
+            reason?: string;
+        };
+        FeedComment: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            readonly body: string;
+            /** Format: uri */
+            readonly image: string;
+            readonly mine: boolean;
+            readonly hidden: boolean;
+            readonly report_count: number;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        FeedCommentCreate: {
+            feed_item_id: string;
+            /** Format: uuid */
+            gym_id: string;
+            /** @default  */
+            body: string;
+            /** Format: uri */
+            image?: string | null;
+        };
+        FeedItem: {
+            id: string;
+            kind: string;
+            title: string;
+            body: string;
+            /** Format: uuid */
+            gym_id: string | null;
+            gym_name: string | null;
+            club_name: string | null;
+            actor_name: string;
+            actor_avatar?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            reaction_count: number;
+            reacted_by_me: boolean;
+            reactions?: {
+                [key: string]: number;
+            };
+            my_reaction?: string | null;
+            comment_count?: number;
+            status?: string;
+            photo_url?: string | null;
+            media?: {
+                [key: string]: unknown;
+            }[];
+            /** @default false */
+            mine: boolean;
+            actor_athlete_id?: string | null;
+        };
+        FeedReactionToggle: {
+            feed_item_id: string;
+            /** Format: uuid */
+            gym_id: string;
+            reaction?: string | null;
+        };
+        FeedReactionToggleResponse: {
+            feed_item_id: string;
+            reacted: boolean;
+            reaction_count: number;
+            my_reaction: string | null;
+            reactions: {
+                [key: string]: number;
+            };
         };
         /**
          * @description * `not_required` - No requiere
@@ -1134,11 +6597,28 @@ export interface components {
             document_url?: string;
         };
         /**
+         * @description * `todos` - todos
+         *     * `activos` - activos
+         *     * `morosos` - morosos
+         *     * `por_vencer` - por_vencer
+         *     * `riesgo` - riesgo
+         * @enum {string}
+         */
+        FilterEnum: "todos" | "activos" | "morosos" | "por_vencer" | "riesgo";
+        /**
          * @description * `pagalo` - Pagalo
          *     * `manual` - Manual
          * @enum {string}
          */
         GatewayEnum: "pagalo" | "manual";
+        GeneratePayout: {
+            /** Format: date */
+            period_start: string;
+            /** Format: date */
+            period_end: string;
+            /** Format: uuid */
+            coach_id?: string | null;
+        };
         /** @description Edición por admin gym / superadmin (incluye config sensible). */
         GymAdmin: {
             /** Format: uuid */
@@ -1158,14 +6638,33 @@ export interface components {
             business_hours?: unknown;
             class_types?: unknown;
             is_public?: boolean;
-            saas_plan?: components["schemas"]["SaasPlanEnum"];
+            allow_future_reservations?: boolean;
+            /** @description Días sin asistir a ESTE gimnasio para considerar al atleta en riesgo de abandono (motor de retención). */
+            risk_inactivity_days?: number;
+            /** @description Días de mora tolerados antes del corte automático de la membresía (ACTIVE → vencida). El corte es reversible: al pagar vuelve a activa. */
+            overdue_grace_days?: number;
+            readonly saas_plan: components["schemas"]["SaasPlanEnum"];
             /** Format: decimal */
-            platform_commission_pct?: string;
+            readonly platform_commission_pct: string;
             /** Format: decimal */
-            fixed_fee?: string | null;
+            readonly fixed_fee: string | null;
             fiscal_data?: unknown;
             payout_config?: unknown;
+            readonly is_active: boolean;
             readonly subscription: components["schemas"]["Subscription"];
+        };
+        GymAnnouncement: {
+            /** Format: uuid */
+            readonly id: string;
+            title: string;
+            body: string;
+            class_type?: string;
+            /** Format: uri */
+            photo?: string | null;
+            /** Format: uri */
+            video?: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
         };
         GymAthletePR: {
             /** Format: uuid */
@@ -1182,6 +6681,19 @@ export interface components {
             /** Format: uuid */
             readonly validated_at_gym: string | null;
             readonly is_public: boolean;
+            readonly is_locked: boolean;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        GymBranch: {
+            /** Format: uuid */
+            readonly id: string;
+            name: string;
+            location_text?: string;
+            /** Format: decimal */
+            lat?: string | null;
+            /** Format: decimal */
+            lng?: string | null;
             /** Format: date-time */
             readonly created_at: string;
         };
@@ -1190,6 +6702,7 @@ export interface components {
             readonly id: string;
             /** Format: uuid */
             readonly gym_class: string;
+            readonly needs_wod: boolean;
             /** Format: uuid */
             readonly athlete: string;
             /** Format: uuid */
@@ -1204,9 +6717,23 @@ export interface components {
             readonly id: string;
             /** Format: uuid */
             readonly gym: string;
+            readonly gym_name: string;
+            /** Format: uuid */
+            branch?: string | null;
+            /** Format: uuid */
+            service_type?: string | null;
+            readonly service_type_name: string;
+            /** @default  */
+            readonly color: string;
+            /** Format: uuid */
+            schedule?: string | null;
+            readonly needs_wod: boolean;
             class_type: string;
             /** Format: uuid */
             coach?: string | null;
+            readonly coach_name: string;
+            /** @description Avatar del coach (desde su perfil de atleta). Para mostrarlo en la clase. */
+            readonly coach_photo: string;
             /** Format: date-time */
             starts_at: string;
             /** Format: int64 */
@@ -1221,27 +6748,206 @@ export interface components {
             included_in_plan?: boolean;
             cancellation_policy?: unknown;
             status?: string;
+            /** Format: int64 */
+            assignment_lead_min?: number;
+            /** Format: date-time */
+            readonly assignment_deadline_at: string;
+            readonly is_past_assignment_deadline: boolean;
+            readonly needs_coach: boolean;
+            readonly allow_future_reservations: boolean;
+            readonly is_reservable: boolean;
+            /** @default 5 */
+            readonly completion_points: number;
+            readonly reserved_by_me: boolean;
+            /**
+             * @description `reserved` | `waitlist` | `no_show`, o `null` si no tengo reserva viva.
+             *
+             *     Es el estado REAL: `reserved_by_me` (que se conserva para las pantallas que
+             *     ya lo usan) colapsa cupo y lista de espera en un booleano, así que el atleta
+             *     en espera veía "Reservada" y se presentaba a una clase sin lugar. Las
+             *     canceladas no aparecen; `no_show` sí, para el historial.
+             */
+            readonly my_reservation_status: string;
+            readonly my_waitlist_position: number;
+            readonly is_past: boolean;
+            readonly rated_by_me: boolean;
+            readonly my_rating: number;
+            /** Format: double */
+            readonly rating: number;
+            readonly rating_count: number;
+            readonly attended: boolean;
+            pay_extra?: boolean;
+            /** Format: decimal */
+            extra_amount?: string;
             /** Format: date-time */
             readonly updated_at: string;
         };
+        /** @description El admin del gym crea un club propio (queda aprobado). El gym viene de la URL. */
+        GymClubCreate: {
+            name: string;
+            club_type: string;
+        };
+        GymComputeAthleteOfMonth: {
+            period?: string;
+            /** @default  */
+            class_type: string;
+            /** @default false */
+            replace: boolean;
+        };
+        /**
+         * @description Datos del alta completa de un gimnasio desde el panel de plataforma.
+         *
+         *     Todo menos `name` es opcional: los valores por defecto son los del alta comercial
+         *     estándar (mismos que usaba el comando de consola).
+         */
+        GymCreate: {
+            name: string;
+            /** @default  */
+            location_text: string;
+            /** @default  */
+            address: string;
+            /** @default true */
+            is_public: boolean;
+            /** @default starter */
+            saas_plan: components["schemas"]["SaasPlanEnum"];
+            /**
+             * Format: decimal
+             * @default 299.00
+             */
+            monthly_price: string;
+            /**
+             * Format: decimal
+             * @description Recargo de Nucleo en tarjeta (0.03 = 3%). Vacío = tasa por defecto.
+             */
+            commission_pct?: string | null;
+            /** @default Membresía mensual */
+            plan_name: string;
+            /**
+             * Format: decimal
+             * @default 650.00
+             */
+            plan_price: string;
+            /**
+             * Format: email
+             * @default
+             */
+            admin_email: string;
+            /** @default  */
+            admin_password: string;
+            /** @default  */
+            admin_first_name: string;
+            /** @default  */
+            admin_last_name: string;
+            /** @default  */
+            admin_phone: string;
+        };
+        /**
+         * @description Respuesta del alta: el gimnasio + qué se creó alrededor de él.
+         *
+         *     Mantiene la forma de `GymAdminSerializer` (el panel ya la consume) y añade el
+         *     resumen del onboarding para poder mostrarlo sin una segunda llamada.
+         */
+        GymCreated: {
+            /** Format: uuid */
+            readonly id: string;
+            name: string;
+            slug?: string;
+            /** Format: uri */
+            logo_url?: string;
+            description?: string;
+            location_text?: string;
+            address?: string;
+            /** Format: decimal */
+            lat?: string | null;
+            /** Format: decimal */
+            lng?: string | null;
+            contact?: unknown;
+            business_hours?: unknown;
+            class_types?: unknown;
+            is_public?: boolean;
+            allow_future_reservations?: boolean;
+            /** @description Días sin asistir a ESTE gimnasio para considerar al atleta en riesgo de abandono (motor de retención). */
+            risk_inactivity_days?: number;
+            /** @description Días de mora tolerados antes del corte automático de la membresía (ACTIVE → vencida). El corte es reversible: al pagar vuelve a activa. */
+            overdue_grace_days?: number;
+            readonly saas_plan: components["schemas"]["SaasPlanEnum"];
+            /** Format: decimal */
+            readonly platform_commission_pct: string;
+            /** Format: decimal */
+            readonly fixed_fee: string | null;
+            fiscal_data?: unknown;
+            payout_config?: unknown;
+            readonly is_active: boolean;
+            readonly subscription: components["schemas"]["Subscription"];
+            /** @default  */
+            readonly admin_email: string;
+            /** @default false */
+            readonly admin_created: boolean;
+            /** Format: uuid */
+            readonly plan_id: string;
+            /** Format: uuid */
+            readonly subscription_id: string;
+        };
         GymDashboard: {
+            /**
+             * From
+             * Format: date
+             */
+            from_: string;
+            /** Format: date */
+            to: string;
+            /** Format: decimal */
+            ingresos_tarjeta: string;
+            /** Format: decimal */
+            ingresos_manual: string;
+            /** Format: decimal */
+            ingresos_total: string;
+            pagos: number;
+            nuevos_atletas: number;
+            checkins: number;
             atletas_activos: number;
             morosos: number;
-            /** Format: decimal */
-            ingresos_mes_tarjeta: string;
-            /** Format: decimal */
-            ingresos_mes_manual: string;
             proximos_vencimientos: number;
+            wods_publicados: number;
+            resultados_wod: number;
+            prs_nuevos: number;
+            servicios_activos: number;
             clases_mas_demandadas: components["schemas"]["ClassDemand"][];
         };
-        /** @description Alta de invitado deduplicada por teléfono (A4 escenario B/C). */
+        /** @description Alta de invitado deduplicada por correo (A4 escenario B/C). */
         GymInvitation: {
-            phone: string;
             /** Format: email */
-            email?: string;
+            email: string;
+            phone?: string;
             first_name: string;
             last_name: string;
             comment?: string;
+            /** Format: date */
+            trial_start?: string | null;
+            /** Format: date */
+            trial_end?: string | null;
+        };
+        /** @description Desglose del badge: los grupos con trabajo pendiente (los ceros no viajan). */
+        GymPendingDetail: {
+            total: number;
+            groups: components["schemas"]["PendingGroup"][];
+        };
+        /** @description Conteo de pendientes operativos del gym para el badge de notificaciones. */
+        GymPendingSummary: {
+            solicitudes: number;
+            coaches: number;
+            posts: number;
+            comentarios: number;
+            apelaciones: number;
+            tickets: number;
+            clases_sin_wod: number;
+            clases_sin_coach: number;
+            pedidos: number;
+            clubes: number;
+            bajas: number;
+            morosos: number;
+            en_riesgo: number;
+            total: number;
         };
         /** @description Perfil público del gym (A1) visible para atletas. */
         GymPublic: {
@@ -1261,6 +6967,170 @@ export interface components {
             contact?: unknown;
             business_hours?: unknown;
             class_types?: unknown;
+            /** Format: double */
+            readonly distance_km: number | null;
+        };
+        /** @description Ficha pública del gimnasio + vitrina de precios (planes, ofertas y pases). */
+        GymPublicProfile: {
+            gym: components["schemas"]["GymPublic"];
+            plans: components["schemas"]["PublicPlan"][];
+            offers: components["schemas"]["PublicPlanOffer"][];
+            dropins: components["schemas"]["DropinProduct"][];
+        };
+        /** @description Servicio con el estado para el atleta (incluido / requiere pago / activo). */
+        GymServiceAthlete: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string;
+            photo: string | null;
+            access_type: string;
+            charge_type: string;
+            /** Format: decimal */
+            price: string;
+            class_types: string[];
+            access_status: string;
+            /** Format: date */
+            valid_until: string | null;
+        };
+        /** @description Administrador del gimnasio tal como lo ve el panel (sin datos de otros gyms). */
+        GymStaffAdmin: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly user_id: string;
+            readonly email: string;
+            readonly phone: string | null;
+            readonly name: string;
+            readonly is_active: boolean;
+            /** Format: date-time */
+            readonly granted_at: string;
+            /** @description `True` si ya puede entrar (tiene contraseña utilizable). */
+            readonly claimed: boolean;
+        };
+        /**
+         * @description Estado de cuenta gym ↔ Nucleo de un periodo.
+         *
+         *     `gym_revenue` es el precio del gym cobrado por pasarela; `platform_surcharge` es el
+         *     recargo de Nucleo (nunca se deposita al gym); `net_to_deposit` es lo que Nucleo le
+         *     debe depositar al gimnasio. Los pagos manuales no entran: ese dinero nunca pasó
+         *     por la plataforma.
+         */
+        GymStatement: {
+            /** Format: uuid */
+            gym_id: string;
+            gym_name: string;
+            period: string;
+            /** Format: date */
+            period_start: string;
+            /** Format: date */
+            period_end: string;
+            currency: string;
+            /** Format: decimal */
+            gross_charged: string;
+            /** Format: decimal */
+            gym_revenue: string;
+            /** Format: decimal */
+            platform_surcharge: string;
+            /** Format: decimal */
+            refunds_total: string;
+            /** Format: decimal */
+            refunds_surcharge: string;
+            /** Format: decimal */
+            net_to_deposit: string;
+            /** Format: decimal */
+            platform_earned: string;
+            payments_count: number;
+            refunds_count: number;
+            payout: components["schemas"]["Payout"] | null;
+        };
+        GymTicket: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            category?: components["schemas"]["TicketCategory"];
+            readonly category_display: string;
+            subject: string;
+            body: string;
+            /** Format: uri */
+            readonly photo: string;
+            readonly status: components["schemas"]["TicketStatus"];
+            readonly status_display: string;
+            readonly messages: components["schemas"]["TicketMessage"][];
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        InventoryMovement: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly product: string;
+            readonly product_name: string;
+            readonly type: components["schemas"]["InventoryMovementType"];
+            readonly qty: number;
+            /** Format: decimal */
+            readonly unit_cost: string;
+            readonly note: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /**
+         * @description * `purchase` - Compra (entrada)
+         *     * `sale` - Venta (salida)
+         *     * `adjustment` - Ajuste
+         *     * `loss` - Merma
+         *     * `return` - Devolución (entrada)
+         * @enum {string}
+         */
+        InventoryMovementType: "purchase" | "sale" | "adjustment" | "loss" | "return";
+        /** @description Documenta en OpenAPI la valuación de inventario (valor, antigüedad, rotación). */
+        InventoryValuation: {
+            /** Format: date */
+            as_of: string;
+            days: number;
+            total_units: number;
+            /** Format: decimal */
+            total_value: string;
+            /** Format: decimal */
+            total_retail_value: string;
+            /** Format: decimal */
+            potential_margin: string;
+            products_count: number;
+            dead_stock_count: number;
+            /** Format: decimal */
+            dead_stock_value: string;
+            reorder_count: number;
+            by_category: {
+                [key: string]: unknown;
+            }[];
+            products: {
+                [key: string]: unknown;
+            }[];
+        };
+        InviteCoach: {
+            /** Format: email */
+            email: string;
+            /** @default  */
+            first_name: string;
+            /** @default  */
+            last_name: string;
+            /** @default  */
+            phone: string;
+        };
+        /** @description Alta de un administrador del gimnasio (dueño o segundo admin). */
+        InviteGymAdmin: {
+            /** Format: email */
+            email: string;
+            /** @default  */
+            first_name: string;
+            /** @default  */
+            last_name: string;
+            /** @default  */
+            phone: string;
         };
         JoinRequest: {
             /** Format: uuid */
@@ -1294,7 +7164,17 @@ export interface components {
             decision: components["schemas"]["DecisionEnum"];
             comment?: string;
         };
-        /** @description Registrar pago manual con conciliación (A7). */
+        /** @description Cierre de sesión: el refresh token a revocar (el access expira solo en 30 min). */
+        Logout: {
+            refresh: string;
+        };
+        /**
+         * @description Registrar pago manual con conciliación (A7).
+         *
+         *     `card` = el gym cobró con SU PROPIO datáfono: se registra como manual (recargo 0,
+         *     el dinero no pasó por la pasarela de Nucleo) pero activa la membresía y factura
+         *     igual que el efectivo.
+         */
         ManualPayment: {
             /** Format: uuid */
             membership_id: string;
@@ -1322,9 +7202,31 @@ export interface components {
         /**
          * @description * `cash` - cash
          *     * `bank_transfer` - bank_transfer
+         *     * `card` - card
          * @enum {string}
          */
-        ManualPaymentMethodEnum: "cash" | "bank_transfer";
+        ManualPaymentMethodEnum: "cash" | "bank_transfer" | "card";
+        /** @description Lo que ve el atleta de un producto en la tienda (sin costos internos). */
+        MarketProduct: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly name: string;
+            readonly category: components["schemas"]["ProductCategory"];
+            readonly description: string;
+            /** Format: uri */
+            readonly photo: string | null;
+            readonly images: string[];
+            /** Format: decimal */
+            readonly price: string;
+            readonly sizes: unknown;
+            readonly colors: unknown;
+            readonly in_stock: boolean;
+            readonly stock_qty: number;
+            readonly delivery_days: number;
+            readonly is_upcoming: boolean;
+            /** Format: date */
+            readonly launch_date: string | null;
+        };
         /**
          * @description Vista del panel del gym: capa de relación de ESTE gym (decisión 3).
          *
@@ -1336,9 +7238,12 @@ export interface components {
             /** Format: uuid */
             athlete: string;
             readonly athlete_name: string;
+            readonly athlete_photo: string | null;
             status?: components["schemas"]["MembershipStatus"];
+            readonly status_display: string;
             /** Format: uuid */
             plan?: string | null;
+            readonly plan_name: string;
             /**
              * Format: decimal
              * @description Cuota personalizada que sobreescribe el precio del plan SOLO en esta relación.
@@ -1350,9 +7255,27 @@ export interface components {
             start_date?: string | null;
             /** Format: date */
             renewal_date?: string | null;
+            readonly days_to_due: number | null;
+            /** Format: date */
+            trial_start?: string | null;
+            /** Format: date */
+            trial_end?: string | null;
+            leave_initiated_by?: string;
+            /**
+             * Format: date
+             * @description Día en que arrancó la pausa (ancla para correr el vencimiento).
+             */
+            paused_at?: string | null;
+            pause_reason?: string;
+            /**
+             * Format: date
+             * @description Fecha de retorno prevista (opcional); el cron reanuda sola al llegar.
+             */
+            pause_until?: string | null;
             auto_renew?: boolean;
             payment_method_pref?: components["schemas"]["PaymentMethod"];
             payment_status?: components["schemas"]["PaymentStatus"];
+            readonly payment_status_display: string;
             /** Format: decimal */
             discount?: string | null;
             internal_notes?: string;
@@ -1366,9 +7289,12 @@ export interface components {
             /** Format: uuid */
             athlete: string;
             readonly athlete_name: string;
+            readonly athlete_photo: string | null;
             status?: components["schemas"]["MembershipStatus"];
+            readonly status_display: string;
             /** Format: uuid */
             plan?: string | null;
+            readonly plan_name: string;
             /**
              * Format: decimal
              * @description Cuota personalizada que sobreescribe el precio del plan SOLO en esta relación.
@@ -1380,9 +7306,27 @@ export interface components {
             start_date?: string | null;
             /** Format: date */
             renewal_date?: string | null;
+            readonly days_to_due: number | null;
+            /** Format: date */
+            trial_start?: string | null;
+            /** Format: date */
+            trial_end?: string | null;
+            leave_initiated_by?: string;
+            /**
+             * Format: date
+             * @description Día en que arrancó la pausa (ancla para correr el vencimiento).
+             */
+            paused_at?: string | null;
+            pause_reason?: string;
+            /**
+             * Format: date
+             * @description Fecha de retorno prevista (opcional); el cron reanuda sola al llegar.
+             */
+            pause_until?: string | null;
             auto_renew?: boolean;
             payment_method_pref?: components["schemas"]["PaymentMethod"];
             payment_status?: components["schemas"]["PaymentStatus"];
+            readonly payment_status_display: string;
             /** Format: decimal */
             discount?: string | null;
             internal_notes?: string;
@@ -1400,7 +7344,14 @@ export interface components {
             /** Format: uuid */
             gym: string;
             readonly gym_name: string;
+            /** @default  */
+            readonly gym_logo: string;
+            /** @default  */
+            readonly gym_location: string;
+            /** @default  */
+            readonly gym_description: string;
             status?: components["schemas"]["MembershipStatus"];
+            readonly status_display: string;
             /** Format: uuid */
             plan?: string | null;
             readonly plan_name: string;
@@ -1411,8 +7362,20 @@ export interface components {
             /** Format: date */
             renewal_date?: string | null;
             payment_status?: components["schemas"]["PaymentStatus"];
+            readonly payment_status_display: string;
             /** Format: int64 */
             community_points?: number;
+            leave_initiated_by?: string;
+            /**
+             * Format: date
+             * @description Día en que arrancó la pausa (ancla para correr el vencimiento).
+             */
+            paused_at?: string | null;
+            /**
+             * Format: date
+             * @description Fecha de retorno prevista (opcional); el cron reanuda sola al llegar.
+             */
+            pause_until?: string | null;
         };
         /**
          * @description * `requested` - Solicitada
@@ -1424,12 +7387,13 @@ export interface components {
          *     * `paused` - Pausada
          *     * `expired` - Vencida
          *     * `rejected` - Rechazada
+         *     * `pending_leave` - Baja pendiente
          *     * `former_member` - Exmiembro
          *     * `blocked` - Bloqueada
          *     * `drop_in` - Drop-in
          * @enum {string}
          */
-        MembershipStatus: "requested" | "invited" | "pending_approval" | "approved_no_plan" | "active" | "trial" | "paused" | "expired" | "rejected" | "former_member" | "blocked" | "drop_in";
+        MembershipStatus: "requested" | "invited" | "pending_approval" | "approved_no_plan" | "active" | "trial" | "paused" | "expired" | "rejected" | "pending_leave" | "former_member" | "blocked" | "drop_in";
         MembershipStatusHistory: {
             from_status?: string;
             to_status: string;
@@ -1437,9 +7401,199 @@ export interface components {
             /** Format: date-time */
             readonly changed_at: string;
         };
+        /** @description Apelación tal como la ven el atleta, el gimnasio y la plataforma. */
+        ModerationAppeal: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly kind: string;
+            /** Format: uuid */
+            readonly object_id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            readonly gym_name: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            readonly body: string;
+            readonly status: components["schemas"]["AppealStatus"];
+            readonly status_display: string;
+            readonly resolution_note: string;
+            /** Format: date-time */
+            readonly decided_at: string | null;
+            /** Format: date-time */
+            readonly escalated_at: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly content_excerpt: string;
+            readonly content_reason: string;
+            readonly content_reason_display: string;
+            readonly content_note: string;
+            /** @description Sólo se escala lo que el gimnasio rechazó, y una sola vez. */
+            readonly can_escalate: boolean;
+        };
+        /** @description Body de `POST /me/moderation/appeals`. Exactamente uno de post/comment. */
+        ModerationAppealCreate: {
+            /** Format: uuid */
+            post_id?: string | null;
+            /** Format: uuid */
+            comment_id?: string | null;
+            body: string;
+        };
+        /** @description Una decisión de moderación que le afecta al atleta ("estado de tu cuenta"). */
+        ModerationDecision: {
+            kind: string;
+            /** Format: uuid */
+            object_id: string;
+            /** Format: uuid */
+            gym_id: string;
+            gym_name: string;
+            excerpt: string;
+            reason: string;
+            reason_display: string;
+            note: string;
+            /** Format: date-time */
+            decided_at: string;
+            appealable: boolean;
+            appeal: components["schemas"]["ModerationAppeal"] | null;
+        };
+        /**
+         * @description Body del rechazo de un post o un comentario.
+         *
+         *     El motivo es OBLIGATORIO al rechazar (el service lo re-valida con
+         *     `appeals.exigir_motivo`, que devuelve `code:"reason_required"`); al aprobar se
+         *     ignora. La nota es la aclaración libre del admin, opcional.
+         */
+        ModerationDecisionInput: {
+            reason?: components["schemas"]["ModerationReason"] | components["schemas"]["BlankEnum"];
+            note?: string;
+        };
+        /**
+         * @description * `spam` - Spam o publicidad
+         *     * `ofensivo` - Lenguaje ofensivo
+         *     * `acoso` - Acoso a otra persona
+         *     * `sexual` - Contenido sexual
+         *     * `violencia` - Violencia o contenido perturbador
+         *     * `desinformacion` - Información falsa o engañosa
+         *     * `fuera_de_tema` - No tiene que ver con el gimnasio
+         *     * `otro` - Otro motivo
+         * @enum {string}
+         */
+        ModerationReason: "spam" | "ofensivo" | "acoso" | "sexual" | "violencia" | "desinformacion" | "fuera_de_tema" | "otro";
+        /**
+         * @description Fila de la señal de moderación del panel: SÓLO conteos.
+         *
+         *     Nunca lleva la identidad de quien bloqueó o reportó, y las filas por debajo del
+         *     umbral (`settings.MODERATION_BLOCK_SIGNAL_MIN`) ni siquiera llegan aquí.
+         */
+        ModerationSignal: {
+            /** Format: uuid */
+            athlete_id: string;
+            athlete_name: string;
+            readonly athlete_avatar: string;
+            bloqueos: number;
+            reportes: number;
+            /** Format: date-time */
+            ultima_senal: string;
+        };
+        /**
+         * @description * `pending` - Pendiente
+         *     * `approved` - Aprobado
+         *     * `rejected` - Rechazado
+         * @enum {string}
+         */
+        ModerationStatus: "pending" | "approved" | "rejected";
+        MovementCreate: {
+            /** Format: uuid */
+            product_id: string;
+            type: components["schemas"]["InventoryMovementType"];
+            qty: number;
+            /** Format: decimal */
+            unit_cost?: string | null;
+            note?: string;
+        };
+        /** @description Vista mínima para que el reportante vea el estado de su reporte. */
+        MyBugReport: {
+            /** Format: uuid */
+            readonly id: string;
+            description: string;
+            surface?: components["schemas"]["ReportSurface"];
+            readonly surface_display: string;
+            status?: components["schemas"]["ReportStatus"];
+            readonly status_display: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /**
+         * @description Estado del WOD de una clase para el atleta: rutina, su resultado y si aún
+         *     puede subir/editar su score (ventana de 1h tras la clase).
+         */
+        MyClassWod: {
+            needs_wod: boolean;
+            wod_status: components["schemas"]["WodStatusEnum"];
+            wod: components["schemas"]["Wod"] | null;
+            my_result: components["schemas"]["WodResult"] | null;
+            can_submit: boolean;
+            window_open: boolean;
+            /** Format: date-time */
+            window_closes_at: string | null;
+        };
+        /** @description Item de la bandeja del atleta. `read` evita que el cliente interprete fechas. */
+        Notification: {
+            /** Format: uuid */
+            readonly id: string;
+            category: components["schemas"]["NotificationCategory"];
+            type: string;
+            /**
+             * @description Mismo título (con emoji) que mostró el push, para que la bandeja no
+             *     contradiga a la barra de notificaciones. El cliente no vuelve a mapear
+             *     tipo → texto: si el tipo es nuevo, aquí ya cae al genérico.
+             */
+            readonly title: string;
+            payload?: unknown;
+            /** Format: date-time */
+            sent_at?: string | null;
+            /** Format: date-time */
+            opened_at?: string | null;
+            readonly read: boolean;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /**
+         * @description * `ops` - Operativa
+         *     * `community` - Comunidad
+         *     * `biz` - Comercial
+         *     * `retention` - Retención
+         * @enum {string}
+         */
+        NotificationCategory: "ops" | "community" | "biz" | "retention";
+        /** @description Cuántas notificaciones pasaron a leídas en esta llamada (0 si ya no había). */
+        NotificationsReadAllResponse: {
+            updated: number;
+        };
+        /**
+         * @description * `percent` - Descuento %
+         *     * `free_months` - Meses gratis
+         * @enum {string}
+         */
+        OfferTypeEnum: "percent" | "free_months";
         PagaloWebhook: {
             reference: string;
             status: string;
+            error_code?: unknown;
+            message?: string;
+        };
+        PaginatedAthleteBadgeList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["AthleteBadge"][];
         };
         PaginatedAthletePRList: {
             /**
@@ -1454,6 +7608,19 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["AthletePR"][];
         };
+        PaginatedAthletePostList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["AthletePost"][];
+        };
         PaginatedAuditLogList: {
             /**
              * Format: uri
@@ -1466,6 +7633,123 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["AuditLog"][];
+        };
+        PaginatedBugReportConsoleListList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["BugReportConsoleList"][];
+        };
+        PaginatedClassHandoffList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["ClassHandoff"][];
+        };
+        PaginatedClassScheduleList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["ClassSchedule"][];
+        };
+        PaginatedClubActivityList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["ClubActivity"][];
+        };
+        PaginatedClubAnnouncementList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["ClubAnnouncement"][];
+        };
+        PaginatedClubChallengeList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["ClubChallenge"][];
+        };
+        PaginatedClubList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["Club"][];
+        };
+        PaginatedClubMembershipList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["ClubMembership"][];
+        };
+        PaginatedClubRequestList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["ClubRequest"][];
         };
         PaginatedDropinProductList: {
             /**
@@ -1480,6 +7764,19 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["DropinProduct"][];
         };
+        PaginatedExpenseList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["Expense"][];
+        };
         PaginatedGymAdminList: {
             /**
              * Format: uri
@@ -1493,6 +7790,19 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["GymAdmin"][];
         };
+        PaginatedGymAnnouncementList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["GymAnnouncement"][];
+        };
         PaginatedGymAthletePRList: {
             /**
              * Format: uri
@@ -1505,6 +7815,19 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["GymAthletePR"][];
+        };
+        PaginatedGymBranchList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["GymBranch"][];
         };
         PaginatedGymClassList: {
             /**
@@ -1531,6 +7854,32 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["GymPublic"][];
+        };
+        PaginatedGymTicketList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["GymTicket"][];
+        };
+        PaginatedInventoryMovementList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["InventoryMovement"][];
         };
         PaginatedJoinRequestList: {
             /**
@@ -1571,6 +7920,32 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["MembershipSelf"][];
         };
+        PaginatedMyBugReportList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["MyBugReport"][];
+        };
+        PaginatedNotificationList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["Notification"][];
+        };
         PaginatedPaymentList: {
             /**
              * Format: uri
@@ -1597,27 +7972,211 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["Plan"][];
         };
+        PaginatedPlanOfferList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["PlanOffer"][];
+        };
+        PaginatedPointTransactionList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["PointTransaction"][];
+        };
+        PaginatedProductList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["Product"][];
+        };
+        PaginatedProductOrderList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["ProductOrder"][];
+        };
+        PaginatedPurchaseOrderList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["PurchaseOrder"][];
+        };
+        PaginatedSaleList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["Sale"][];
+        };
+        PaginatedServiceTypeList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["ServiceType"][];
+        };
+        PaginatedSupplierList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["Supplier"][];
+        };
+        PaginatedWodList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["Wod"][];
+        };
         /** @description Pasaporte completo (§7.2). Solo lo ve el propio atleta. */
         Passport: {
             athlete: components["schemas"]["Athlete"];
             memberships: components["schemas"]["MembershipSelf"][];
             prs: components["schemas"]["AthletePR"][];
-            clubs?: unknown[];
+            clubs: components["schemas"]["PassportClub"][];
+            badges: components["schemas"]["PassportBadge"][];
+            streaks: components["schemas"]["PassportStreak"][];
+            score_streak: number;
             dropins: components["schemas"]["PassportDropin"][];
         };
-        PassportDropin: {
+        PassportBadge: {
+            name: string;
+            slug: string;
+            description: string;
+            gym_name: string | null;
+            /** Format: date-time */
+            awarded_at: string;
+        };
+        PassportClub: {
             /** Format: uuid */
             id: string;
-            gym: string;
+            name: string;
+            club_type: string;
+            status: string;
+            /** Format: date-time */
+            joined_at: string;
+        };
+        /**
+         * @description Pase drop-in del pasaporte: EL MISMO contrato que el resto de la API + el gym.
+         *
+         *     Un pase viajaba con DOS formas distintas según la ruta que lo devolviera: la de
+         *     `dropins.DropinPurchaseSerializer` (compra y `/sync/batch`) y un diccionario
+         *     armado a mano en el pasaporte y en `/sync/since`, con otros nombres para lo
+         *     mismo — `gym` era ahí el NOMBRE del gimnasio y no su id como en el resto de la
+         *     API — y sin `payment_id`, `amount` ni `created_at`. Aquí se hereda la fuente
+         *     única y solo se AÑADE lo que el pasaporte necesita para pintar el pase sin otra
+         *     consulta: `gym_id`, `gym_name` y `type` del producto.
+         *
+         *     Del padre vienen los dos campos que deciden si el QR ABRE LA PUERTA, porque
+         *     vigencia y consumo son cosas distintas (`dropins.models`): `uses_left`
+         *     (entradas restantes; `null` = ilimitadas dentro de la vigencia, NO cero) e
+         *     `is_usable` (pagado + vigente + con entradas). Sin ellos la app pintaba el QR a
+         *     ciegas y el atleta se enteraba en la recepción del box.
+         */
+        PassportDropin: {
             /** Format: uuid */
-            qr_token: string;
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            /** Format: uuid */
+            readonly dropin_product: string;
+            readonly product_name: string;
+            /** Format: uuid */
+            readonly payment_id: string;
+            readonly payment_status: string;
+            /** Format: decimal */
+            readonly amount: string;
+            /** Format: uuid */
+            readonly qr_token: string;
             /** Format: date-time */
-            valid_from: string;
+            readonly valid_from: string;
             /** Format: date-time */
-            valid_to: string;
+            readonly valid_to: string;
+            readonly max_uses: number | null;
+            readonly uses_count: number;
+            readonly uses_left: number | null;
+            readonly is_usable: boolean;
             /** Format: date-time */
-            used_at: string | null;
-            payment_status: string | null;
+            readonly used_at: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: uuid */
+            readonly gym_id: string;
+            readonly gym_name: string;
+            readonly type: string;
+        };
+        PassportStreak: {
+            gym_name: string;
+            current_count: number;
+            best_count: number;
+            /** Format: date-time */
+            last_activity_at?: string | null;
+        };
+        /** @description Cambio de contraseña por el usuario autenticado (incl. cambio forzado). */
+        PasswordChange: {
+            current_password?: string;
+            new_password: string;
         };
         /** @description Valida el token firmado y establece una contraseña nueva. */
         PasswordResetConfirm: {
@@ -1625,9 +8184,10 @@ export interface components {
             token: string;
             password: string;
         };
-        /** @description Acepta teléfono o correo sin revelar si la cuenta existe. */
+        /** @description Solicita recuperación por correo sin revelar si la cuenta existe. */
         PasswordResetRequest: {
-            identifier: string;
+            /** Format: email */
+            email: string;
         };
         PatchedAthlete: {
             /** Format: uuid */
@@ -1636,8 +8196,7 @@ export interface components {
             last_name?: string;
             /** Format: date */
             birth_date?: string | null;
-            /** Format: uri */
-            photo_url?: string;
+            readonly photo_url?: string;
             emergency_contact?: unknown;
             /** Format: uuid */
             readonly global_qr_token?: string;
@@ -1645,9 +8204,165 @@ export interface components {
             goals?: string;
             readonly global_points?: number;
             readonly profile_completeness?: number;
+            auto_charge_consent?: boolean;
+            readonly has_payment_method?: boolean;
+        };
+        /** @description Edición desde el panel de los datos globales básicos del atleta (G7). */
+        PatchedAthleteAdminEdit: {
+            first_name?: string;
+            last_name?: string;
+            /** Format: date */
+            birth_date?: string | null;
+            emergency_contact?: unknown;
+        };
+        PatchedAthletePR: {
+            /** Format: uuid */
+            readonly id?: string;
+            pr_type?: string;
+            value?: string;
+            /** Format: date-time */
+            achieved_at?: string;
+            /** Format: uuid */
+            readonly validated_by_coach?: string | null;
+            /** Format: uuid */
+            readonly validated_at_gym?: string | null;
+            is_public?: boolean;
+            readonly is_locked?: boolean;
+            /** Format: date-time */
+            readonly created_at?: string;
+        };
+        PatchedAthletePostCreate: {
+            body?: string;
+            /** Format: uri */
+            photo?: string;
+        };
+        /** @description Entrada del triage. Todo opcional: se aplica solo lo que venga. */
+        PatchedBugReportTriage: {
+            status?: components["schemas"]["ReportStatus"];
+            kind?: components["schemas"]["ReportKind"];
+            severity?: components["schemas"]["ReportSeverity"];
+            operator_notes?: string;
+        };
+        /** @description Plantilla del horario semanal (una celda de la cuadrícula). */
+        PatchedClassSchedule: {
+            /** Format: uuid */
+            readonly id?: string;
+            /** Format: uuid */
+            readonly gym?: string;
+            /** Format: uuid */
+            branch?: string | null;
+            /** Format: uuid */
+            service_type?: string;
+            readonly service_type_name?: string;
+            readonly color?: string;
+            readonly requires_wod?: boolean;
+            /**
+             * Format: int64
+             * @description 0=Lunes … 6=Domingo
+             */
+            weekday?: number;
+            /** Format: time */
+            start_time?: string;
+            /** Format: int64 */
+            duration_min?: number;
+            /** Format: int64 */
+            capacity?: number;
+            level?: string;
+            /** Format: decimal */
+            cost?: string;
+            included_in_plan?: boolean;
+            /** Format: uuid */
+            default_coach?: string | null;
+            /** Format: int64 */
+            assignment_lead_min?: number;
+            /** Format: date */
+            valid_from?: string;
+            /** Format: date */
+            valid_until?: string | null;
+            readonly is_open_ended?: boolean;
+            is_active?: boolean;
+            /** Format: date-time */
+            readonly updated_at?: string;
+        };
+        /**
+         * @description Lo que el club_admin puede editar de su perfil público.
+         *
+         *     `is_public` y `status` quedan fuera a propósito: son la decisión del gym, y
+         *     apagarlos desde el club rompería sus propias actividades y retos.
+         */
+        PatchedClubProfileUpdate: {
+            /** Format: uuid */
+            readonly id?: string;
+            name?: string;
+            club_type?: string;
+            /** @description Descripción pública del club (perfil compartible). */
+            description?: string;
+            /** Format: uri */
+            photo?: string | null;
+        };
+        /** @description Perfil profesional editable por el propio coach (global, no por gym). */
+        PatchedCoachBio: {
+            /** @description Título corto, ej. 'Coach de Halterofilia'. */
+            headline?: string;
+            bio?: string;
+            specialties?: unknown;
+            certifications?: string;
+            /** Format: int64 */
+            years_experience?: number;
+        };
+        /**
+         * @description El coach ofrece (o deja de ofrecer) personal trainer en un gym + su precio.
+         *
+         *     La comisión la fija el admin del gym; aquí el coach solo propone disponibilidad
+         *     y precio.
+         */
+        PatchedCoachOfferPt: {
+            /** Format: uuid */
+            gym?: string;
+            offers_pt?: boolean;
+            /** Format: decimal */
+            pt_price?: string;
+        };
+        PatchedCoachUpdate: {
+            pay_type?: components["schemas"]["PayTypeEnum"];
+            /** Format: decimal */
+            per_class_rate?: string;
+            /** Format: decimal */
+            fixed_amount?: string;
+            is_active?: boolean;
+            offers_pt?: boolean;
+            /** Format: decimal */
+            pt_price?: string;
+            /** Format: decimal */
+            pt_commission_pct?: string;
         };
         PatchedConsentUpdate: {
             consents?: components["schemas"]["ConsentUpdateItem"][];
+        };
+        PatchedDropinProduct: {
+            /** Format: uuid */
+            readonly id?: string;
+            /** Format: uuid */
+            readonly gym?: string;
+            type?: components["schemas"]["DropinProductTypeEnum"];
+            readonly type_label?: string;
+            name?: string;
+            description?: string;
+            /** Format: decimal */
+            price?: string;
+            /** Format: int64 */
+            max_uses?: number | null;
+            readonly effective_max_uses?: number | null;
+            is_active?: boolean;
+        };
+        PatchedFeedCommentCreate: {
+            feed_item_id?: string;
+            /** Format: uuid */
+            gym_id?: string;
+            /** @default  */
+            body: string;
+            /** Format: uri */
+            image?: string | null;
         };
         /** @description Edición por admin gym / superadmin (incluye config sensible). */
         PatchedGymAdmin: {
@@ -1668,22 +8383,315 @@ export interface components {
             business_hours?: unknown;
             class_types?: unknown;
             is_public?: boolean;
-            saas_plan?: components["schemas"]["SaasPlanEnum"];
+            allow_future_reservations?: boolean;
+            /** @description Días sin asistir a ESTE gimnasio para considerar al atleta en riesgo de abandono (motor de retención). */
+            risk_inactivity_days?: number;
+            /** @description Días de mora tolerados antes del corte automático de la membresía (ACTIVE → vencida). El corte es reversible: al pagar vuelve a activa. */
+            overdue_grace_days?: number;
+            readonly saas_plan?: components["schemas"]["SaasPlanEnum"];
             /** Format: decimal */
-            platform_commission_pct?: string;
+            readonly platform_commission_pct?: string;
             /** Format: decimal */
-            fixed_fee?: string | null;
+            readonly fixed_fee?: string | null;
             fiscal_data?: unknown;
             payout_config?: unknown;
+            readonly is_active?: boolean;
             readonly subscription?: components["schemas"]["Subscription"];
         };
+        PatchedGymBranch: {
+            /** Format: uuid */
+            readonly id?: string;
+            name?: string;
+            location_text?: string;
+            /** Format: decimal */
+            lat?: string | null;
+            /** Format: decimal */
+            lng?: string | null;
+            /** Format: date-time */
+            readonly created_at?: string;
+        };
+        PatchedGymClass: {
+            /** Format: uuid */
+            readonly id?: string;
+            /** Format: uuid */
+            readonly gym?: string;
+            readonly gym_name?: string;
+            /** Format: uuid */
+            branch?: string | null;
+            /** Format: uuid */
+            service_type?: string | null;
+            readonly service_type_name?: string;
+            /** @default  */
+            readonly color: string;
+            /** Format: uuid */
+            schedule?: string | null;
+            readonly needs_wod?: boolean;
+            class_type?: string;
+            /** Format: uuid */
+            coach?: string | null;
+            readonly coach_name?: string;
+            /** @description Avatar del coach (desde su perfil de atleta). Para mostrarlo en la clase. */
+            readonly coach_photo?: string;
+            /** Format: date-time */
+            starts_at?: string;
+            /** Format: int64 */
+            duration_min?: number;
+            /** Format: int64 */
+            capacity?: number;
+            readonly reserved_count?: number;
+            readonly has_capacity?: boolean;
+            level?: string;
+            /** Format: decimal */
+            cost?: string;
+            included_in_plan?: boolean;
+            cancellation_policy?: unknown;
+            status?: string;
+            /** Format: int64 */
+            assignment_lead_min?: number;
+            /** Format: date-time */
+            readonly assignment_deadline_at?: string;
+            readonly is_past_assignment_deadline?: boolean;
+            readonly needs_coach?: boolean;
+            readonly allow_future_reservations?: boolean;
+            readonly is_reservable?: boolean;
+            /** @default 5 */
+            readonly completion_points: number;
+            readonly reserved_by_me?: boolean;
+            /**
+             * @description `reserved` | `waitlist` | `no_show`, o `null` si no tengo reserva viva.
+             *
+             *     Es el estado REAL: `reserved_by_me` (que se conserva para las pantallas que
+             *     ya lo usan) colapsa cupo y lista de espera en un booleano, así que el atleta
+             *     en espera veía "Reservada" y se presentaba a una clase sin lugar. Las
+             *     canceladas no aparecen; `no_show` sí, para el historial.
+             */
+            readonly my_reservation_status?: string;
+            readonly my_waitlist_position?: number;
+            readonly is_past?: boolean;
+            readonly rated_by_me?: boolean;
+            readonly my_rating?: number;
+            /** Format: double */
+            readonly rating?: number;
+            readonly rating_count?: number;
+            readonly attended?: boolean;
+            pay_extra?: boolean;
+            /** Format: decimal */
+            extra_amount?: string;
+            /** Format: date-time */
+            readonly updated_at?: string;
+        };
+        PatchedPlan: {
+            /** Format: uuid */
+            readonly id?: string;
+            /** Format: uuid */
+            readonly gym?: string;
+            name?: string;
+            /** Format: decimal */
+            price?: string;
+            /** Format: int64 */
+            duration_days?: number;
+            auto_renew_default?: boolean;
+            /** Format: int64 */
+            class_limit?: number | null;
+            special_classes_access?: boolean;
+            open_gym_access?: boolean;
+            noshow_penalty?: unknown;
+            /** Format: decimal */
+            discount_allowed?: string | null;
+            benefits?: unknown;
+            service_types?: string[];
+            readonly service_type_names?: string[];
+            is_active?: boolean;
+        };
+        PatchedPlanOffer: {
+            /** Format: uuid */
+            readonly id?: string;
+            /** Format: uuid */
+            readonly gym?: string;
+            /** Format: uuid */
+            plan?: string | null;
+            readonly plan_name?: string;
+            name?: string;
+            offer_type?: components["schemas"]["OfferTypeEnum"];
+            /**
+             * Format: decimal
+             * @description percent: 0-100; free_months: cantidad de meses gratis.
+             */
+            value?: string;
+            /** Format: date */
+            valid_from?: string | null;
+            /** Format: date */
+            valid_to?: string | null;
+            is_active?: boolean;
+            /** Format: date-time */
+            readonly created_at?: string;
+        };
+        PatchedProduct: {
+            /** Format: uuid */
+            readonly id?: string;
+            name?: string;
+            sku?: string;
+            category?: components["schemas"]["ProductCategory"];
+            /** Format: decimal */
+            sale_price?: string;
+            /** Format: decimal */
+            cost_price?: string;
+            readonly stock_qty?: number;
+            /** Format: int64 */
+            reorder_level?: number;
+            /** Format: decimal */
+            readonly margin_unit?: string;
+            readonly needs_reorder?: boolean;
+            show_in_marketplace?: boolean;
+            description?: string;
+            /** Format: uri */
+            photo?: string | null;
+            readonly images?: {
+                [key: string]: unknown;
+            }[];
+            sizes?: unknown;
+            colors?: unknown;
+            /** Format: int64 */
+            delivery_days?: number;
+            is_upcoming?: boolean;
+            /** Format: date */
+            launch_date?: string | null;
+            readonly components?: components["schemas"]["ProductComponentRead"][];
+            readonly is_composite?: boolean;
+            is_active?: boolean;
+            /** Format: date-time */
+            readonly created_at?: string;
+        };
+        /** @description El panel transiciona el seguimiento (preparar / enviar / entregar / cancelar). */
+        PatchedProductOrderUpdate: {
+            status?: components["schemas"]["ProductOrderUpdateStatusEnum"];
+            tracking_code?: string;
+            /** @default  */
+            note: string;
+        };
+        /**
+         * @description Catálogo de servicios/tipos de clase del gym (entidad única de servicio).
+         *
+         *     Incluye la capa de cobro/inscripción (status draft/active, access_type,
+         *     charge_type, price) y la asignación a planes (`plans`) que se configura desde
+         *     Membresías. Un servicio nace `draft` y solo se activa cuando su configuración
+         *     de membresía está bien (precio si es extra, o un plan si es incluido).
+         */
+        PatchedServiceType: {
+            /** Format: uuid */
+            readonly id?: string;
+            /** Format: uuid */
+            readonly gym?: string;
+            name?: string;
+            /** @description Hex para el calendario, ej. #1B7FA6 */
+            color?: string;
+            icon?: string;
+            description?: string;
+            /** Format: uri */
+            photo?: string | null;
+            how_it_works?: string;
+            /** @description Si es True, las clases de este servicio llevan WOD y board. */
+            requires_wod?: boolean;
+            default_score_type?: components["schemas"]["ScoreType"];
+            /** Format: int64 */
+            default_duration_min?: number;
+            /** Format: int64 */
+            default_capacity?: number;
+            default_level?: string;
+            included_in_plan?: boolean;
+            readonly included_in_my_plan?: boolean;
+            /** Format: double */
+            readonly rating?: number;
+            readonly rating_count?: number;
+            /** Format: decimal */
+            default_cost?: string;
+            /** Format: int64 */
+            completion_points?: number;
+            status?: components["schemas"]["ServiceTypeStatusEnum"];
+            access_type?: components["schemas"]["AccessTypeEnum"];
+            charge_type?: components["schemas"]["ChargeTypeEnum"];
+            /** Format: decimal */
+            price?: string;
+            /** Format: int64 */
+            duration_days?: number;
+            plans?: string[];
+            is_active?: boolean;
+            /** Format: date-time */
+            readonly updated_at?: string;
+        };
+        PatchedSupplier: {
+            /** Format: uuid */
+            readonly id?: string;
+            name?: string;
+            contact_name?: string;
+            phone?: string;
+            /** Format: email */
+            email?: string;
+            tax_id?: string;
+            notes?: string;
+            is_active?: boolean;
+            /** Format: date-time */
+            readonly created_at?: string;
+        };
+        PatchedTicketStatus: {
+            status?: components["schemas"]["TicketStatusStatusEnum"];
+        };
+        /** @description WOD del día (lectura/escritura del coach o admin). */
+        PatchedWod: {
+            /** Format: uuid */
+            readonly id?: string;
+            /** Format: uuid */
+            readonly gym?: string;
+            /**
+             * Format: uuid
+             * @description Track del WOD. Vacío = WOD general del gym ese día.
+             */
+            service_type?: string | null;
+            /** @default  */
+            readonly service_type_name: string;
+            /** Format: date */
+            date?: string;
+            title?: string;
+            description?: string;
+            score_type?: components["schemas"]["ScoreType"];
+            /** Format: int64 */
+            time_cap_min?: number | null;
+            /** @description Lista de movimientos/estructura. */
+            movements?: unknown;
+            published?: boolean;
+            is_benchmark?: boolean;
+            readonly results_count?: number;
+            /** Format: date-time */
+            readonly updated_at?: string;
+        };
+        /**
+         * @description Congelar la membresía: motivo (viaje, lesión…) y retorno previsto, ambos opcionales.
+         *
+         *     La validación de negocio (la fecha debe ser futura, la relación debe estar activa)
+         *     la impone `memberships/services.py:pausar_membresia`, no el cliente.
+         */
+        PauseMembership: {
+            reason?: string;
+            /** Format: date */
+            return_date?: string | null;
+        };
+        /**
+         * @description * `per_class` - Por clase
+         *     * `fixed` - Fijo
+         * @enum {string}
+         */
+        PayTypeEnum: "per_class" | "fixed";
         Payment: {
             /** Format: uuid */
             readonly id: string;
             /** Format: uuid */
             athlete: string;
+            /** @description Nombre del atleta dueño del pago (el queryset ya trae `athlete`). */
+            readonly athlete_name: string;
             /** Format: uuid */
             gym: string;
+            /** @default  */
+            readonly gym_name: string;
             /** Format: uuid */
             membership?: string | null;
             concept?: components["schemas"]["PaymentConceptEnum"];
@@ -1696,11 +8704,31 @@ export interface components {
             gateway_reference?: string;
             /** Format: decimal */
             platform_commission?: string;
+            /** Format: decimal */
+            readonly surcharge: string;
+            /** Format: decimal */
+            readonly total_charged: string;
             split_applied?: boolean;
             /** Format: uri */
             proof_url?: string;
             /** Format: uri */
             proof_file?: string;
+            failure_code?: string;
+            failure_message?: string;
+            /** Format: int64 */
+            attempts_count?: number;
+            /** Format: date-time */
+            last_attempt_at?: string | null;
+            /**
+             * @description True si es un cobro por pasarela que el atleta todavía puede reintentar.
+             *
+             *     La tienda es la excepción: un rechazo CANCELA el pedido y libera el stock
+             *     apartado (`cobrar_marketplace_pagalo` solo acepta PENDING), así que un pago
+             *     de marketplace en `failed` no se reintenta — el atleta vuelve a comprar.
+             *     Decirlo aquí evita que cada cliente tenga que replicar la regla.
+             */
+            readonly can_retry: boolean;
+            readonly attempts: components["schemas"]["PaymentAttempt"][];
             fel_status?: components["schemas"]["FelStatusEnum"];
             fel_reference?: string;
             /** Format: uri */
@@ -1715,14 +8743,32 @@ export interface components {
             readonly created_at: string;
         };
         /**
+         * @description Un intento de cobro (para mostrar el historial de reintentos al atleta).
+         *
+         *     No expone `raw_error` (detalle interno para soporte); solo el código y el mensaje
+         *     amigable que se mostró.
+         */
+        PaymentAttempt: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly attempt_number: number;
+            readonly status: components["schemas"]["PaymentTxStatus"];
+            readonly gateway_code: string;
+            readonly message: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /**
          * @description * `membership` - Membresía
          *     * `drop_in` - Drop-in
          *     * `special_class` - Clase especial
          *     * `personal_training` - Personal training
          *     * `marketplace` - Marketplace
+         *     * `retail` - Venta de mostrador (ERP)
+         *     * `service` - Servicio del gym
          * @enum {string}
          */
-        PaymentConceptEnum: "membership" | "drop_in" | "special_class" | "personal_training" | "marketplace";
+        PaymentConceptEnum: "membership" | "drop_in" | "special_class" | "personal_training" | "marketplace" | "retail" | "service";
         /**
          * @description * `card` - Tarjeta
          *     * `cash` - Efectivo
@@ -1730,6 +8776,24 @@ export interface components {
          * @enum {string}
          */
         PaymentMethod: "card" | "cash" | "bank_transfer";
+        /**
+         * @description Desglose de un cobro ANTES de pagar: precio base, recargo Nucleo y total a la tarjeta.
+         *
+         *     La app lo usa para mostrar 'Precio / Cargo por servicio Nucleo / Total' sin calcular
+         *     dinero en el cliente (la fórmula vive en el backend).
+         */
+        PaymentQuote: {
+            concept: string;
+            /** Format: decimal */
+            base: string;
+            /** Format: decimal */
+            surcharge: string;
+            /** Format: decimal */
+            rate: string;
+            /** Format: decimal */
+            total: string;
+            currency: string;
+        };
         /**
          * @description * `up_to_date` - Al día
          *     * `due_soon` - Por vencer
@@ -1745,6 +8809,84 @@ export interface components {
          * @enum {string}
          */
         PaymentTxStatus: "pending" | "succeeded" | "failed" | "refunded";
+        /** @description Depósito de Nucleo al gym por un periodo (desglose congelado al generarlo). */
+        Payout: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            /** @default  */
+            readonly gym_name: string;
+            readonly period: string;
+            /** Format: date */
+            readonly period_start: string | null;
+            /** Format: date */
+            readonly period_end: string | null;
+            /** Format: decimal */
+            readonly amount: string;
+            /** Format: decimal */
+            readonly gross_charged: string;
+            /** Format: decimal */
+            readonly platform_surcharge: string;
+            /** Format: decimal */
+            readonly refunds_total: string;
+            readonly payments_count: number;
+            readonly refunds_count: number;
+            readonly status: components["schemas"]["PayoutStatusEnum"];
+            readonly reference: string;
+            readonly notes: string;
+            /** Format: date-time */
+            readonly executed_at: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /** @description Genera (o refresca) el payout de un gym para un periodo. */
+        PayoutCreate: {
+            /** Format: uuid */
+            gym_id: string;
+            period: string;
+        };
+        /** @description Marca el depósito como ejecutado con su referencia bancaria (obligatoria). */
+        PayoutPay: {
+            reference: string;
+            /** Format: date-time */
+            executed_at?: string;
+            notes?: string;
+        };
+        /**
+         * @description * `pending` - Pendiente
+         *     * `executed` - Depositado
+         * @enum {string}
+         */
+        PayoutStatusEnum: "pending" | "executed";
+        /** @description Un contador del resumen, ya abierto: cuántos son, qué son y qué los apaga. */
+        PendingGroup: {
+            key: string;
+            label: string;
+            action: string;
+            count: number;
+            items: components["schemas"]["PendingItem"][];
+        };
+        /**
+         * @description Una fila concreta detrás de un contador del resumen.
+         *
+         *     `entity` dice QUÉ es (join_request, coach_request, post, comment, appeal,
+         *     ticket, class, order, club, membership) para que el cliente sepa a dónde
+         *     llevar el toque; `id` es el id de ese objeto. `extra` trae los ids sueltos
+         *     que hagan falta para la acción (p. ej. la fecha y el servicio del WOD que
+         *     cubriría una clase).
+         */
+        PendingItem: {
+            id: string;
+            entity: string;
+            title: string;
+            subtitle: string;
+            /** Format: date-time */
+            when: string | null;
+            extra?: {
+                [key: string]: string;
+            };
+        };
         Plan: {
             /** Format: uuid */
             readonly id: string;
@@ -1764,11 +8906,580 @@ export interface components {
             /** Format: decimal */
             discount_allowed?: string | null;
             benefits?: unknown;
+            service_types?: string[];
+            readonly service_type_names: string[];
             is_active?: boolean;
         };
+        PlanOffer: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            /** Format: uuid */
+            plan?: string | null;
+            readonly plan_name: string;
+            name: string;
+            offer_type: components["schemas"]["OfferTypeEnum"];
+            /**
+             * Format: decimal
+             * @description percent: 0-100; free_months: cantidad de meses gratis.
+             */
+            value: string;
+            /** Format: date */
+            valid_from?: string | null;
+            /** Format: date */
+            valid_to?: string | null;
+            is_active?: boolean;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /** @description Estado de cuenta de todos los gyms del periodo + totales de la plataforma. */
+        PlatformStatement: {
+            period: string;
+            /** Format: date */
+            period_start: string;
+            /** Format: date */
+            period_end: string;
+            currency: string;
+            gyms: components["schemas"]["GymStatement"][];
+            totals: components["schemas"]["PlatformTotals"];
+        };
+        /** @description Totales de la red en el periodo (incluye lo que ganó Nucleo). */
+        PlatformTotals: {
+            /** Format: decimal */
+            gross_charged: string;
+            /** Format: decimal */
+            gym_revenue: string;
+            /** Format: decimal */
+            refunds_total: string;
+            /** Format: decimal */
+            platform_earned: string;
+            /** Format: decimal */
+            net_to_deposit: string;
+            gyms_count: number;
+        };
+        /** @description Documenta la respuesta del dashboard de rentabilidad en OpenAPI. */
+        PnlReport: {
+            /**
+             * From
+             * Format: date
+             */
+            from_: string;
+            /** Format: date */
+            to: string;
+            branch: string | null;
+            /** Format: decimal */
+            membership_revenue: string;
+            /** Format: decimal */
+            service_revenue: string;
+            /** Format: decimal */
+            retail_revenue: string;
+            /** Format: decimal */
+            counter_revenue: string;
+            /** Format: decimal */
+            marketplace_revenue: string;
+            /** Format: decimal */
+            gross_revenue: string;
+            /** Format: decimal */
+            cogs: string;
+            /** Format: decimal */
+            direct_cost: string;
+            /** Format: decimal */
+            gross_margin: string;
+            /** Format: double */
+            gross_margin_pct: number;
+            /** Format: decimal */
+            losses: string;
+            /** Format: decimal */
+            expenses: string;
+            /** Format: decimal */
+            net_profit: string;
+            /** Format: double */
+            net_margin_pct: number;
+            previous: {
+                [key: string]: unknown;
+            };
+            /** Format: double */
+            delta_revenue_pct: number | null;
+            /** Format: double */
+            delta_net_pct: number | null;
+            revenue_lines: {
+                [key: string]: unknown;
+            }[];
+            revenue_by_category: {
+                [key: string]: unknown;
+            }[];
+            revenue_by_method: {
+                [key: string]: unknown;
+            }[];
+            expenses_by_category: {
+                [key: string]: unknown;
+            }[];
+            active_members: number;
+            new_members: number;
+            inventory_purchases_units: number;
+            /** Format: decimal */
+            inventory_purchases_cost: string;
+            /** Format: decimal */
+            inventory_expensed_excluded: string;
+            top_products: {
+                [key: string]: unknown;
+            }[];
+        };
+        PointTransaction: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly scope: components["schemas"]["ScopeEnum"];
+            readonly action: string;
+            readonly points: number;
+            readonly gym_name: string | null;
+            readonly reference: unknown;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        PostMedia: {
+            readonly url: string;
+            kind?: components["schemas"]["PostMediaKindEnum"];
+        };
+        /**
+         * @description * `image` - Foto
+         *     * `video` - Video
+         * @enum {string}
+         */
+        PostMediaKindEnum: "image" | "video";
+        /** @description El atleta denuncia un post; el motivo es opcional. */
+        PostReport: {
+            reason?: string;
+        };
+        Product: {
+            /** Format: uuid */
+            readonly id: string;
+            name: string;
+            sku?: string;
+            category?: components["schemas"]["ProductCategory"];
+            /** Format: decimal */
+            sale_price: string;
+            /** Format: decimal */
+            cost_price?: string;
+            readonly stock_qty: number;
+            /** Format: int64 */
+            reorder_level?: number;
+            /** Format: decimal */
+            readonly margin_unit: string;
+            readonly needs_reorder: boolean;
+            show_in_marketplace?: boolean;
+            description?: string;
+            /** Format: uri */
+            photo?: string | null;
+            readonly images: {
+                [key: string]: unknown;
+            }[];
+            sizes?: unknown;
+            colors?: unknown;
+            /** Format: int64 */
+            delivery_days?: number;
+            is_upcoming?: boolean;
+            /** Format: date */
+            launch_date?: string | null;
+            readonly components: components["schemas"]["ProductComponentRead"][];
+            readonly is_composite: boolean;
+            is_active?: boolean;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /**
+         * @description * `supplement` - Suplemento
+         *     * `merch` - Merch
+         *     * `drink` - Bebida
+         *     * `gear` - Equipamiento
+         *     * `service` - Servicio
+         *     * `other` - Otro
+         * @enum {string}
+         */
+        ProductCategory: "supplement" | "merch" | "drink" | "gear" | "service" | "other";
+        /** @description Insumo de una receta (BOM) tal como lo lee el cliente. */
+        ProductComponentRead: {
+            /** Format: uuid */
+            component: string;
+            component_name: string;
+            qty: number;
+        };
+        ProductOrder: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            readonly gym_name: string;
+            /** Format: uuid */
+            readonly product: string;
+            readonly product_name: string;
+            readonly product_photo: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            readonly qty: number;
+            readonly size: string;
+            readonly color: string;
+            /** Format: decimal */
+            readonly unit_price: string;
+            /** Format: decimal */
+            readonly subtotal: string;
+            /** Format: decimal */
+            readonly shipping_cost: string;
+            /** Format: decimal */
+            readonly total: string;
+            readonly surcharge: string;
+            readonly total_charged: string;
+            readonly kind: components["schemas"]["ProductOrderKindEnum"];
+            readonly status: components["schemas"]["StatusF86Enum"];
+            /** Format: uuid */
+            readonly payment: string | null;
+            readonly delivery_days: number;
+            readonly delivery_method: components["schemas"]["DeliveryMethodEnum"];
+            readonly shipping_recipient: string;
+            readonly shipping_phone: string;
+            readonly shipping_address: string;
+            readonly shipping_city: string;
+            readonly shipping_notes: string;
+            readonly tracking_code: string;
+            readonly return_status: components["schemas"]["ReturnStatusEnum"] | components["schemas"]["BlankEnum"];
+            readonly return_reason: string;
+            /** Format: date-time */
+            readonly return_requested_at: string | null;
+            /** Format: date-time */
+            readonly return_resolved_at: string | null;
+            readonly return_resolution_note: string;
+            /**
+             * @description Si la app debe mostrar el botón «Solicitar devolución» (la autoridad
+             *     sigue siendo el backend: el endpoint revalida todo).
+             */
+            readonly can_request_return: boolean;
+            readonly items_count: number;
+            readonly lines: components["schemas"]["ProductOrderLine"][];
+            readonly events: components["schemas"]["ProductOrderEvent"][];
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /** @description Compat: pedido de un solo producto (endpoint ya publicado en la app). */
+        ProductOrderCreate: {
+            /** @default 1 */
+            qty: number;
+            /** @default  */
+            size: string;
+            /** @default  */
+            color: string;
+        };
+        ProductOrderEvent: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly status: components["schemas"]["StatusF86Enum"];
+            readonly status_label: string;
+            readonly note: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /**
+         * @description * `purchase` - Compra
+         *     * `preorder` - Apartado
+         * @enum {string}
+         */
+        ProductOrderKindEnum: "purchase" | "preorder";
+        ProductOrderLine: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly product: string;
+            readonly product_name: string;
+            readonly product_photo: string;
+            readonly qty: number;
+            readonly size: string;
+            readonly color: string;
+            /** Format: decimal */
+            readonly unit_price: string;
+            /** Format: decimal */
+            readonly subtotal: string;
+            readonly delivery_days: number;
+        };
+        /**
+         * @description * `preparing` - preparing
+         *     * `shipped` - shipped
+         *     * `delivered` - delivered
+         *     * `cancelled` - cancelled
+         * @enum {string}
+         */
+        ProductOrderUpdateStatusEnum: "preparing" | "shipped" | "delivered" | "cancelled";
+        /**
+         * @description * `google` - google
+         *     * `apple` - apple
+         *     * `facebook` - facebook
+         * @enum {string}
+         */
+        ProviderEnum: "google" | "apple" | "facebook";
+        PtAvailability: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly coach: string;
+            /**
+             * Format: int64
+             * @description 0=Lunes … 6=Domingo
+             */
+            weekday: number;
+            /** Format: time */
+            start_time: string;
+            /** Format: time */
+            end_time: string;
+            /** Format: date */
+            valid_from?: string | null;
+            /** Format: date */
+            valid_until?: string | null;
+            readonly is_active: boolean;
+        };
+        /** @description Coach que ofrece personal trainer en un gym (vista del atleta). */
+        PtCoach: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly staff_role: string;
+            readonly name: string;
+            readonly photo: string;
+            /** Format: decimal */
+            readonly pt_price: string;
+            /** Format: double */
+            readonly rating: number | null;
+            readonly rating_count: number;
+            /** Format: double */
+            readonly pt_rating: number | null;
+            readonly pt_rating_count: number;
+            /** @description ¿El coach ya cargó su agenda? Sin bloques no hay slots que ofrecer. */
+            readonly has_availability: boolean;
+        };
+        PtDaySlots: {
+            /** Format: date */
+            date: string;
+            slots: components["schemas"]["PtSlot"][];
+        };
+        PtRating: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly session: string;
+            /** Format: uuid */
+            readonly coach: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            readonly stars: number;
+            readonly comment: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        PtSlot: {
+            /** Format: date-time */
+            start: string;
+            /** Format: date-time */
+            end: string;
+            label: string;
+        };
+        PtSlotsResponse: {
+            /** Format: uuid */
+            coach: string;
+            duration_min: number;
+            cancel_window_hours: number;
+            days: components["schemas"]["PtDaySlots"][];
+        };
+        PtTimeOff: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly coach: string;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            reason?: string;
+            readonly is_active: boolean;
+        };
+        /**
+         * @description Plan VENDIBLE tal como lo ve alguien que todavía no pertenece al gimnasio.
+         *
+         *     Es vitrina: qué compra y cuánto cuesta. Quedan fuera a propósito los campos
+         *     internos de negociación (`discount_allowed`, el margen que el admin puede
+         *     conceder) y de política operativa (`noshow_penalty`, `auto_renew_default`).
+         */
+        PublicPlan: {
+            /** Format: uuid */
+            readonly id: string;
+            name: string;
+            /** Format: decimal */
+            price: string;
+            /** Format: int64 */
+            duration_days?: number;
+            /** Format: int64 */
+            class_limit?: number | null;
+            special_classes_access?: boolean;
+            open_gym_access?: boolean;
+            benefits?: unknown;
+            readonly service_type_names: string[];
+        };
+        /** @description Promoción vigente del gym. `plan = null` = aplicable a cualquier plan. */
+        PublicPlanOffer: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            plan?: string | null;
+            readonly plan_name: string;
+            name: string;
+            offer_type: components["schemas"]["OfferTypeEnum"];
+            /**
+             * Format: decimal
+             * @description percent: 0-100; free_months: cantidad de meses gratis.
+             */
+            value: string;
+            /** Format: date */
+            valid_from?: string | null;
+            /** Format: date */
+            valid_to?: string | null;
+        };
+        PurchaseOrder: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly supplier: string;
+            readonly supplier_name: string;
+            /** Format: uuid */
+            readonly branch: string | null;
+            readonly status: components["schemas"]["PurchaseOrderStatusEnum"];
+            readonly reference: string;
+            /** Format: date */
+            readonly expected_on: string | null;
+            /** Format: date */
+            readonly ordered_on: string | null;
+            /** Format: date-time */
+            readonly received_at: string | null;
+            readonly note: string;
+            /** Format: decimal */
+            readonly total: string;
+            /** Format: decimal */
+            readonly received_total: string;
+            readonly cancel_reason: string;
+            readonly lines: components["schemas"]["PurchaseOrderLine"][];
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        PurchaseOrderCancel: {
+            reason?: string;
+        };
+        PurchaseOrderCreate: {
+            /** Format: uuid */
+            supplier_id: string;
+            /** Format: uuid */
+            branch_id?: string | null;
+            /** @default draft */
+            status: components["schemas"]["PurchaseOrderCreateStatusEnum"];
+            reference?: string;
+            /** Format: date */
+            expected_on?: string | null;
+            /** Format: date */
+            ordered_on?: string | null;
+            note?: string;
+            lines: components["schemas"]["PurchaseOrderLineInput"][];
+        };
+        /**
+         * @description * `draft` - Borrador
+         *     * `ordered` - Ordenada
+         * @enum {string}
+         */
+        PurchaseOrderCreateStatusEnum: "draft" | "ordered";
+        PurchaseOrderLine: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly product: string;
+            readonly product_name: string;
+            readonly qty: number;
+            /** Format: decimal */
+            readonly unit_cost: string;
+            readonly received_qty: number;
+            readonly pending_qty: number;
+            /** Format: decimal */
+            readonly subtotal: string;
+        };
+        PurchaseOrderLineInput: {
+            /** Format: uuid */
+            product_id: string;
+            qty: number;
+            /** Format: decimal */
+            unit_cost?: string | null;
+        };
+        /** @description Recepción de una orden: líneas concretas (o vacío = todo lo pendiente). */
+        PurchaseOrderReceive: {
+            items?: components["schemas"]["PurchaseOrderReceiveItem"][];
+            /** @default true */
+            update_cost: boolean;
+            note?: string;
+        };
+        PurchaseOrderReceiveItem: {
+            /** Format: uuid */
+            line_id: string;
+            qty: number;
+        };
+        /**
+         * @description * `draft` - Borrador
+         *     * `ordered` - Ordenada
+         *     * `partial` - Recibida parcial
+         *     * `received` - Recibida
+         *     * `cancelled` - Anulada
+         * @enum {string}
+         */
+        PurchaseOrderStatusEnum: "draft" | "ordered" | "partial" | "received" | "cancelled";
+        RatePtSession: {
+            stars: number;
+            comment?: string;
+        };
+        /**
+         * @description Credencial del atleta que recepción marca presente: socio O visitante.
+         *
+         *     Exactamente UNA de las dos. `membership_id` es el socio del gym (contrato
+         *     anterior, intacto); `dropin_purchase_id` es el pase drop-in del visitante, que
+         *     antes no tenía forma de anotarse en la lista de asistencia.
+         */
         ReceptionCheckinAction: {
             /** Format: uuid */
-            membership_id: string;
+            membership_id?: string;
+            /** Format: uuid */
+            dropin_purchase_id?: string;
+        };
+        /** @description Crea clases repetidas (ej. 6:00-7:00 lun-vie por un rango de fechas). */
+        RecurringClass: {
+            class_type: string;
+            start_time: string;
+            /** @default 60 */
+            duration_min: number;
+            /** @default 20 */
+            capacity: number;
+            /** @description 0=Lunes … 6=Domingo */
+            weekdays: number[];
+            /** Format: date */
+            from_date: string;
+            /** Format: date */
+            to_date?: string | null;
+            /** @default false */
+            open_ended: boolean;
+            /** Format: uuid */
+            coach_id?: string | null;
+            /** Format: uuid */
+            branch_id?: string | null;
+            /** @default 60 */
+            assignment_lead_min: number;
+            level?: string;
+            /**
+             * Format: decimal
+             * @default 0.00
+             */
+            cost: string;
+            /** @default true */
+            included_in_plan: boolean;
         };
         /** @description Conciliación administrativa append-only de un reembolso ya autorizado. */
         RefundPayment: {
@@ -1776,25 +9487,53 @@ export interface components {
             amount: string;
             reference?: string;
         };
-        /** @description Auto-registro: teléfono + contraseña. Crea el atleta (decisión 1). */
+        /** @description Auto-registro: correo + contraseña. Crea el atleta, salvo que sea coach. */
         Register: {
-            phone: string;
-            password: string;
             /** Format: email */
-            email?: string;
+            email: string;
+            password: string;
+            phone?: string;
+            /** @default  */
             first_name: string;
+            /** @default  */
             last_name: string;
+            /** @default athlete */
+            account_type: components["schemas"]["AccountTypeEnum"];
         };
-        /** @description Datos globales no sensibles visibles dentro de la relación con el gym. */
+        /**
+         * @description Datos globales no sensibles visibles dentro de la relación con el gym.
+         *
+         *     Solo lo consume `MembershipDetailAdminSerializer`, es decir la ficha de UNA
+         *     membresía dentro del panel del gimnasio dueño de esa relación: por eso puede
+         *     incluir el contacto (correo/teléfono) del atleta, que el gym necesita para
+         *     cobrarle o avisarle. Ningún endpoint de atleta usa este serializer.
+         *
+         *     LEER siempre se puede; ESCRIBIR casi nunca (ver `profile_editable_by_gym`).
+         */
         RelationshipAthlete: {
             /** Format: uuid */
             id: string;
             first_name: string;
             last_name: string;
+            readonly full_name: string;
+            readonly email: string;
+            readonly phone: string;
+            /** Format: date */
+            birth_date: string | null;
+            emergency_contact: unknown;
+            readonly photo: string | null;
             /** Format: uri */
             photo_url: string;
             sport_level: string;
             goals: string;
+            /**
+             * @description `True` solo mientras el alta del gym siga sin reclamar por su dueño.
+             *
+             *     El panel usa esto para no ofrecer un formulario que el backend va a
+             *     rechazar con 403 `athlete_profile_owned`. La autoridad sigue siendo el
+             *     backend: esto es cortesía de UI, no el permiso.
+             */
+            readonly profile_editable_by_gym: boolean;
         };
         /** @description Asistencia del atleta dentro de esta membresía. */
         RelationshipCheckin: {
@@ -1827,6 +9566,75 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        /** @description Recordatorio de pago/vencimiento: mensaje opcional y medio de envío. */
+        Reminder: {
+            message?: string;
+            /** @default push */
+            channel: components["schemas"]["ChannelEnum"];
+        };
+        /**
+         * @description * `bug` - Error (bug)
+         *     * `feature` - Sugerencia / mejora
+         *     * `support` - Soporte
+         *     * `noise` - Ruido
+         *     * `duplicate` - Duplicado
+         * @enum {string}
+         */
+        ReportKind: "bug" | "feature" | "support" | "noise" | "duplicate";
+        /**
+         * @description * `low` - Baja
+         *     * `medium` - Media
+         *     * `high` - Alta
+         *     * `critical` - Crítica
+         * @enum {string}
+         */
+        ReportSeverity: "low" | "medium" | "high" | "critical";
+        /**
+         * @description * `new` - Nuevo
+         *     * `triaged` - Triaged
+         *     * `in_pr` - En PR
+         *     * `resolved` - Resuelto
+         *     * `closed` - Cerrado
+         *     * `discarded` - Descartado
+         * @enum {string}
+         */
+        ReportStatus: "new" | "triaged" | "in_pr" | "resolved" | "closed" | "discarded";
+        /**
+         * @description * `web_admin` - Admin web
+         *     * `mobile_ios` - App iOS
+         *     * `mobile_android` - App Android
+         *     * `other` - Otra
+         * @enum {string}
+         */
+        ReportSurface: "web_admin" | "mobile_ios" | "mobile_android" | "other";
+        /** @description Comentario reportado, tal como lo ve la cola de moderación del gym. */
+        ReportedComment: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            readonly body: string;
+            /** Format: uri */
+            readonly image: string;
+            readonly mine: boolean;
+            readonly hidden: boolean;
+            readonly report_count: number;
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: uuid */
+            readonly gym: string;
+            readonly feed_item_id: string;
+            /** Format: date-time */
+            readonly moderated_at: string | null;
+            readonly decision_reason: components["schemas"]["ModerationReason"];
+            readonly decision_note: string;
+            readonly reports: components["schemas"]["CommentReport"][];
+        };
+        ReschedulePtSession: {
+            /** Format: date-time */
+            scheduled_at: string;
+        };
         Reservation: {
             /** Format: uuid */
             readonly id: string;
@@ -1853,6 +9661,32 @@ export interface components {
          * @enum {string}
          */
         ReservationStatusEnum: "reserved" | "waitlist" | "cancelled" | "no_show";
+        ReturnReject: {
+            /** @default  */
+            reason: string;
+        };
+        ReturnRequest: {
+            reason: string;
+        };
+        /**
+         * @description * `` - Sin devolución
+         *     * `requested` - Devolución solicitada
+         *     * `approved` - Devolución aprobada
+         *     * `rejected` - Devolución rechazada
+         * @enum {string}
+         */
+        ReturnStatusEnum: "requested" | "approved" | "rejected";
+        /**
+         * @description Pide el roster por correo. El destinatario NO se acepta del cliente.
+         *
+         *     Dejar elegir a quién se manda convertiría el endpoint en un relay de correo
+         *     (cualquier admin podría usar el dominio de Nucleo para mandar adjuntos a
+         *     donde quisiera). Va siempre al correo de quien lo pide.
+         */
+        RosterExport: {
+            /** @default todos */
+            filter: components["schemas"]["FilterEnum"];
+        };
         /**
          * @description * `starter` - Starter
          *     * `growth` - Growth
@@ -1861,6 +9695,227 @@ export interface components {
          * @enum {string}
          */
         SaasPlanEnum: "starter" | "growth" | "pro" | "enterprise";
+        Sale: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly athlete: string | null;
+            /** Format: uuid */
+            readonly payment: string | null;
+            readonly method: components["schemas"]["SaleMethodEnum"];
+            /** Format: decimal */
+            readonly total: string;
+            /** Format: decimal */
+            readonly cogs: string;
+            /** Format: decimal */
+            readonly margin: string;
+            readonly note: string;
+            /** Format: uuid */
+            readonly return_of: string | null;
+            readonly lines: components["schemas"]["SaleLine"][];
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        SaleCreate: {
+            /** Format: uuid */
+            athlete_id?: string | null;
+            /** Format: uuid */
+            branch_id?: string | null;
+            /** @default cash */
+            method: components["schemas"]["SaleCreateMethodEnum"];
+            note?: string;
+            lines: components["schemas"]["SaleLineInput"][];
+        };
+        /**
+         * @description * `cash` - cash
+         *     * `card` - card
+         *     * `bank_transfer` - bank_transfer
+         * @enum {string}
+         */
+        SaleCreateMethodEnum: "cash" | "card" | "bank_transfer";
+        SaleLine: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly product: string;
+            readonly product_name: string;
+            readonly qty: number;
+            /** Format: decimal */
+            readonly unit_price: string;
+            /** Format: decimal */
+            readonly unit_cost: string;
+            /** Format: decimal */
+            readonly subtotal: string;
+        };
+        SaleLineInput: {
+            /** Format: uuid */
+            product_id: string;
+            qty: number;
+            /** Format: decimal */
+            unit_price?: string | null;
+        };
+        /**
+         * @description * `cash` - Efectivo
+         *     * `card` - Tarjeta
+         *     * `bank_transfer` - Transferencia
+         * @enum {string}
+         */
+        SaleMethodEnum: "cash" | "card" | "bank_transfer";
+        /** @description Devolución de una venta: items concretos (o vacío = todo lo que reste). */
+        SaleReturn: {
+            items?: components["schemas"]["SaleReturnItem"][];
+            note?: string;
+        };
+        SaleReturnItem: {
+            /** Format: uuid */
+            product_id: string;
+            qty: number;
+        };
+        /** @description Entrada one-time de tarjeta. Se cifra en reposo; no se devuelve al front. */
+        SaveCard: {
+            holder_name: string;
+            number: string;
+            exp_month: string;
+            exp_year: string;
+            cvv: string;
+            /** @default false */
+            make_default: boolean;
+        };
+        /** @description Una tarjeta guardada, tal como puede verla el front (sin PAN/CVV). */
+        SavedCardItem: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly brand: string;
+            readonly last4: string;
+            readonly exp_month: string;
+            readonly exp_year: string;
+            readonly holder_name: string;
+            readonly is_default: boolean;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /** @description Lo ÚNICO que puede ver el front: si hay tarjeta y su marca/últimos 4. */
+        SavedCardStatus: {
+            exists: boolean;
+            brand: string;
+            last4: string;
+        };
+        /**
+         * @description * `global` - Global
+         *     * `community` - Comunidad
+         * @enum {string}
+         */
+        ScopeEnum: "global" | "community";
+        /**
+         * @description * `none` - Sin score (clase normal)
+         *     * `for_time` - Por tiempo (menor gana)
+         *     * `amrap` - AMRAP — reps (mayor gana)
+         *     * `rounds_reps` - Rounds + reps (mayor gana)
+         *     * `load` - Carga / peso (mayor gana)
+         *     * `emom` - EMOM
+         *     * `points` - Puntos (mayor gana)
+         * @enum {string}
+         */
+        ScoreType: "none" | "for_time" | "amrap" | "rounds_reps" | "load" | "emom" | "points";
+        /**
+         * @description Catálogo de servicios/tipos de clase del gym (entidad única de servicio).
+         *
+         *     Incluye la capa de cobro/inscripción (status draft/active, access_type,
+         *     charge_type, price) y la asignación a planes (`plans`) que se configura desde
+         *     Membresías. Un servicio nace `draft` y solo se activa cuando su configuración
+         *     de membresía está bien (precio si es extra, o un plan si es incluido).
+         */
+        ServiceType: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            name: string;
+            /** @description Hex para el calendario, ej. #1B7FA6 */
+            color?: string;
+            icon?: string;
+            description?: string;
+            /** Format: uri */
+            photo?: string | null;
+            how_it_works?: string;
+            /** @description Si es True, las clases de este servicio llevan WOD y board. */
+            requires_wod?: boolean;
+            default_score_type?: components["schemas"]["ScoreType"];
+            /** Format: int64 */
+            default_duration_min?: number;
+            /** Format: int64 */
+            default_capacity?: number;
+            default_level?: string;
+            included_in_plan?: boolean;
+            readonly included_in_my_plan: boolean;
+            /** Format: double */
+            readonly rating: number;
+            readonly rating_count: number;
+            /** Format: decimal */
+            default_cost?: string;
+            /** Format: int64 */
+            completion_points?: number;
+            status?: components["schemas"]["ServiceTypeStatusEnum"];
+            access_type?: components["schemas"]["AccessTypeEnum"];
+            charge_type?: components["schemas"]["ChargeTypeEnum"];
+            /** Format: decimal */
+            price?: string;
+            /** Format: int64 */
+            duration_days?: number;
+            plans?: string[];
+            is_active?: boolean;
+            /** Format: date-time */
+            readonly updated_at: string;
+        };
+        /**
+         * @description * `draft` - Pendiente de configurar
+         *     * `active` - Activo
+         * @enum {string}
+         */
+        ServiceTypeStatusEnum: "draft" | "active";
+        /** @description Selección manual del atleta del mes por tipo de clase (athlete=null → limpiar). */
+        SetAthleteOfMonth: {
+            /** @default  */
+            class_type: string;
+            /** Format: uuid */
+            athlete_id?: string | null;
+            period?: string;
+            /** @default false */
+            replace: boolean;
+        };
+        /** @description Config de envío a domicilio de la tienda. La app la lee para el checkout. */
+        ShippingSetting: {
+            enabled?: boolean;
+            /** Format: decimal */
+            cost?: string;
+            /** Format: decimal */
+            free_over?: string | null;
+            /** Format: int64 */
+            eta_days?: number;
+            note?: string;
+        };
+        /** @description Login/registro social. `token` es el id_token (Google/Apple) o access_token (Facebook). */
+        SocialLogin: {
+            provider: components["schemas"]["ProviderEnum"];
+            token: string;
+            /** @default  */
+            first_name: string;
+            /** @default  */
+            last_name: string;
+            /** @default athlete */
+            account_type: components["schemas"]["AccountTypeEnum"];
+        };
+        SocialLoginResponse: {
+            access: string;
+            refresh: string;
+            created: boolean;
+        };
+        /**
+         * @description * `self_report` - Autodeclarado
+         *     * `activity_attendance` - Asistencia validada
+         * @enum {string}
+         */
+        SourceEnum: "self_report" | "activity_attendance";
         StaffRole: {
             role: string;
             /** Format: uuid */
@@ -1868,6 +9923,18 @@ export interface components {
             /** Format: uuid */
             club_id: string | null;
         };
+        /**
+         * @description * `pending_payment` - Pago pendiente
+         *     * `reserved` - Apartado
+         *     * `paid` - Pagado
+         *     * `preparing` - En preparación
+         *     * `shipped` - En camino
+         *     * `delivered` - Entregado
+         *     * `cancelled` - Cancelado
+         *     * `returned` - Devuelto
+         * @enum {string}
+         */
+        StatusF86Enum: "pending_payment" | "reserved" | "paid" | "preparing" | "shipped" | "delivered" | "cancelled" | "returned";
         Subscription: {
             /** Format: uuid */
             readonly id: string;
@@ -1880,19 +9947,44 @@ export interface components {
             /** Format: date */
             next_billing_date?: string | null;
         };
+        Supplier: {
+            /** Format: uuid */
+            readonly id: string;
+            name: string;
+            contact_name?: string;
+            phone?: string;
+            /** Format: email */
+            email?: string;
+            tax_id?: string;
+            notes?: string;
+            is_active?: boolean;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
         SyncActionInput: {
             client_id: string;
-            action: components["schemas"]["ActionEnum"];
+            action: components["schemas"]["SyncActionInputActionEnum"];
             /** Format: uuid */
             class_id?: string;
             data?: unknown;
         };
+        /**
+         * @description * `reserve_class` - reserve_class
+         *     * `cancel_reservation` - cancel_reservation
+         *     * `create_pr` - create_pr
+         *     * `join_gym` - join_gym
+         *     * `update_consents` - update_consents
+         *     * `purchase_dropin` - purchase_dropin
+         * @enum {string}
+         */
+        SyncActionInputActionEnum: "reserve_class" | "cancel_reservation" | "create_pr" | "join_gym" | "update_consents" | "purchase_dropin";
         SyncActionResult: {
             client_id: string;
             action: string;
             status: components["schemas"]["SyncActionResultStatusEnum"];
             data?: unknown;
             code?: string;
+            reason?: string;
             detail?: string;
         };
         /**
@@ -1919,8 +10011,59 @@ export interface components {
             consents: components["schemas"]["Consent"][];
             dropins: components["schemas"]["PassportDropin"][];
         };
+        /**
+         * @description * `billing` - Cobros/pagos
+         *     * `facilities` - Instalaciones
+         *     * `classes` - Clases/horarios
+         *     * `staff` - Personal
+         *     * `safety` - Seguridad
+         *     * `other` - Otro
+         * @enum {string}
+         */
+        TicketCategory: "billing" | "facilities" | "classes" | "staff" | "safety" | "other";
+        TicketCreate: {
+            category?: components["schemas"]["TicketCategory"];
+            subject: string;
+            body: string;
+            /** Format: uri */
+            photo?: string;
+        };
+        TicketMessage: {
+            /** Format: uuid */
+            readonly id: string;
+            body: string;
+            /** Format: uri */
+            readonly photo: string;
+            readonly author_name: string;
+            readonly is_staff: boolean;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        TicketMessageCreate: {
+            body: string;
+            /** Format: uri */
+            photo?: string;
+        };
+        /** @description Body de la denuncia de un mensaje: el motivo es opcional. */
+        TicketMessageReportCreate: {
+            reason?: string;
+        };
+        /**
+         * @description * `open` - Abierto
+         *     * `in_progress` - En progreso
+         *     * `resolved` - Resuelto
+         * @enum {string}
+         */
+        TicketStatus: "open" | "in_progress" | "resolved";
+        /**
+         * @description * `open` - open
+         *     * `in_progress` - in_progress
+         *     * `resolved` - resolved
+         * @enum {string}
+         */
+        TicketStatusStatusEnum: "open" | "in_progress" | "resolved";
         TokenObtainPair: {
-            phone: string;
+            email: string;
             password: string;
             readonly access: string;
             readonly refresh: string;
@@ -1933,16 +10076,139 @@ export interface components {
             readonly access: string;
             refresh: string;
         };
+        TrainingSession: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly coach: string | null;
+            readonly coach_name: string;
+            /** Format: uuid */
+            readonly gym: string | null;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            /** Format: decimal */
+            readonly price: string;
+            /** Format: uuid */
+            readonly payment: string | null;
+            /** Format: date-time */
+            readonly scheduled_at: string;
+            /** Format: date-time */
+            readonly ends_at: string;
+            /** @description Duración de la sesión en minutos. */
+            readonly duration_min: number;
+            readonly status: components["schemas"]["TrainingSessionStatusEnum"];
+            /** Format: date-time */
+            readonly cancelled_at: string | null;
+            readonly cancellation_reason: string;
+            readonly reschedule_count: number;
+            readonly can_cancel: boolean;
+            readonly can_reschedule: boolean;
+            readonly can_rate: boolean;
+            /** @description ¿Cancelar AHORA devuelve el dinero? (falso dentro de la ventana). */
+            readonly refund_on_cancel: boolean;
+            readonly my_rating: number | null;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
         /**
-         * @description * `one_class` - Una clase
-         *     * `day` - Un día
-         *     * `week` - Una semana
-         *     * `open_gym` - Open gym
-         *     * `special` - Clase especial
-         *     * `free_trial` - Prueba gratuita
+         * @description * `pending_payment` - Pendiente de pago
+         *     * `scheduled` - Programada
+         *     * `completed` - Completada
+         *     * `cancelled` - Cancelada
+         *     * `no_show` - No-show
          * @enum {string}
          */
-        TypeEnum: "one_class" | "day" | "week" | "open_gym" | "special" | "free_trial";
+        TrainingSessionStatusEnum: "pending_payment" | "scheduled" | "completed" | "cancelled" | "no_show";
+        /** @description WOD del día (lectura/escritura del coach o admin). */
+        Wod: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            /**
+             * Format: uuid
+             * @description Track del WOD. Vacío = WOD general del gym ese día.
+             */
+            service_type: string | null;
+            /** @default  */
+            readonly service_type_name: string;
+            /** Format: date */
+            date: string;
+            title: string;
+            description?: string;
+            score_type?: components["schemas"]["ScoreType"];
+            /** Format: int64 */
+            time_cap_min?: number | null;
+            /** @description Lista de movimientos/estructura. */
+            movements?: unknown;
+            published?: boolean;
+            is_benchmark?: boolean;
+            readonly results_count: number;
+            /** Format: date-time */
+            readonly updated_at: string;
+        };
+        /** @description Una fila del board. `rank` lo inyecta la vista al ordenar. */
+        WodResult: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            wod: string;
+            /**
+             * Format: uuid
+             * @description Ocurrencia donde se registró (para board por clase).
+             */
+            gym_class?: string | null;
+            /** Format: uuid */
+            athlete: string;
+            readonly athlete_name: string;
+            /** @description Score mostrado, ej. '3:21' o '120'. */
+            raw_score: string;
+            /**
+             * Format: decimal
+             * @description Numérico normalizado para rankear.
+             */
+            readonly score_value: string;
+            scaling?: components["schemas"]["WodResultScalingEnum"];
+            notes?: string;
+            did_not_complete?: boolean;
+            readonly rank: number;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /** @description Captura de resultado por el coach/recepción o por el atleta. */
+        WodResultInput: {
+            /** Format: uuid */
+            athlete_id?: string;
+            /** Format: uuid */
+            gym_class_id?: string | null;
+            raw_score: string;
+            /** @default rx */
+            scaling: components["schemas"]["WodResultInputScalingEnum"];
+            /** @default  */
+            notes: string;
+        };
+        /**
+         * @description * `rx` - rx
+         *     * `scaled` - scaled
+         *     * `foundations` - foundations
+         * @enum {string}
+         */
+        WodResultInputScalingEnum: "rx" | "scaled" | "foundations";
+        /**
+         * @description * `rx` - RX
+         *     * `scaled` - Scaled
+         *     * `foundations` - Foundations
+         * @enum {string}
+         */
+        WodResultScalingEnum: "rx" | "scaled" | "foundations";
+        /**
+         * @description * `ok` - ok
+         *     * `draft` - draft
+         *     * `none` - none
+         * @enum {string}
+         */
+        WodStatusEnum: "ok" | "draft" | "none";
     };
     responses: never;
     parameters: never;
@@ -1952,6 +10218,30 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    auth_account_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DeleteAccount"];
+                "application/x-www-form-urlencoded": components["schemas"]["DeleteAccount"];
+                "multipart/form-data": components["schemas"]["DeleteAccount"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     auth_claim_create: {
         parameters: {
             query?: never;
@@ -2002,6 +10292,55 @@ export interface operations {
             };
         };
     };
+    auth_logout_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Logout"];
+                "application/x-www-form-urlencoded": components["schemas"]["Logout"];
+                "multipart/form-data": components["schemas"]["Logout"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_password_change_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChange"];
+                "application/x-www-form-urlencoded": components["schemas"]["PasswordChange"];
+                "multipart/form-data": components["schemas"]["PasswordChange"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPair"];
+                };
+            };
+        };
+    };
     auth_password_reset_create: {
         parameters: {
             query?: never;
@@ -2041,12 +10380,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TokenPair"];
+                };
             };
         };
     };
@@ -2100,6 +10440,51 @@ export interface operations {
             };
         };
     };
+    auth_social_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SocialLogin"];
+                "application/x-www-form-urlencoded": components["schemas"]["SocialLogin"];
+                "multipart/form-data": components["schemas"]["SocialLogin"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SocialLoginResponse"];
+                };
+            };
+        };
+    };
+    classes_attendees_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     classes_cancel_create: {
         parameters: {
             query?: never;
@@ -2147,6 +10532,47 @@ export interface operations {
             };
         };
     };
+    classes_handoff_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassHandoff"];
+                };
+            };
+        };
+    };
+    classes_rate_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     classes_reserve_create: {
         parameters: {
             query?: never;
@@ -2171,6 +10597,827 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Reservation"];
                 };
+            };
+        };
+    };
+    classes_wod_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyClassWod"];
+                };
+            };
+        };
+    };
+    classes_checkin_qr_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassQrCheckin"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClassQrCheckin"];
+                "multipart/form-data": components["schemas"]["ClassQrCheckin"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Checkin"];
+                };
+            };
+        };
+    };
+    club_activities_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedClubActivityList"];
+                };
+            };
+        };
+    };
+    club_activities_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClubActivityWrite"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClubActivityWrite"];
+                "multipart/form-data": components["schemas"]["ClubActivityWrite"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubActivityWrite"];
+                };
+            };
+        };
+    };
+    club_activities_confirm_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activity_id: string;
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClubAdminConfirmAttendance"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClubAdminConfirmAttendance"];
+                "multipart/form-data": components["schemas"]["ClubAdminConfirmAttendance"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubActivityRSVP"];
+                };
+            };
+        };
+    };
+    club_activities_rsvps_list: {
+        parameters: {
+            query?: {
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                activity_id: string;
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubActivityRSVP"][];
+                };
+            };
+        };
+    };
+    club_announcements_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedClubAnnouncementList"];
+                };
+            };
+        };
+    };
+    club_announcements_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClubAnnouncement"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClubAnnouncement"];
+                "multipart/form-data": components["schemas"]["ClubAnnouncement"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubAnnouncement"];
+                };
+            };
+        };
+    };
+    club_announcements_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    club_challenge_submissions_list: {
+        parameters: {
+            query?: {
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubChallengeSubmission"][];
+                };
+            };
+        };
+    };
+    club_challenge_submissions_review_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClubChallengeSubmissionReview"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClubChallengeSubmissionReview"];
+                "multipart/form-data": components["schemas"]["ClubChallengeSubmissionReview"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubChallengeEntry"];
+                };
+            };
+        };
+    };
+    club_challenges_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedClubChallengeList"];
+                };
+            };
+        };
+    };
+    club_challenges_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClubChallengeWrite"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClubChallengeWrite"];
+                "multipart/form-data": components["schemas"]["ClubChallengeWrite"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubChallengeWrite"];
+                };
+            };
+        };
+    };
+    club_challenges_leaderboard_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                challenge_id: string;
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubChallengeEntry"][];
+                };
+            };
+        };
+    };
+    club_profile_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubProfileUpdate"];
+                };
+            };
+        };
+    };
+    club_profile_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClubProfileUpdate"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClubProfileUpdate"];
+                "multipart/form-data": components["schemas"]["ClubProfileUpdate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubProfileUpdate"];
+                };
+            };
+        };
+    };
+    club_profile_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedClubProfileUpdate"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedClubProfileUpdate"];
+                "multipart/form-data": components["schemas"]["PatchedClubProfileUpdate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubProfileUpdate"];
+                };
+            };
+        };
+    };
+    clubs_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedClubList"];
+                };
+            };
+        };
+    };
+    clubs_activities_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedClubActivityList"];
+                };
+            };
+        };
+    };
+    clubs_activities_rsvp_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activity_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubActivityRSVPToggleResponse"];
+                };
+            };
+        };
+    };
+    clubs_announcements_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedClubAnnouncementList"];
+                };
+            };
+        };
+    };
+    clubs_challenges_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedClubChallengeList"];
+                };
+            };
+        };
+    };
+    clubs_challenges_join_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                challenge_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubChallengeEntry"];
+                };
+            };
+        };
+    };
+    clubs_challenges_leaderboard_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                challenge_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubChallengeEntry"][];
+                };
+            };
+        };
+    };
+    clubs_challenges_progress_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                challenge_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClubChallengeProgress"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClubChallengeProgress"];
+                "multipart/form-data": components["schemas"]["ClubChallengeProgress"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubChallengeProgressResponse"];
+                };
+            };
+        };
+    };
+    clubs_content_report_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                content_id: string;
+                id: string;
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ClubContentReportInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClubContentReportInput"];
+                "multipart/form-data": components["schemas"]["ClubContentReportInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubContentReportResponse"];
+                };
+            };
+        };
+    };
+    clubs_feed_list: {
+        parameters: {
+            query?: {
+                /** @description Máximo de ítems (1-100, def. 40). */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubFeedItem"][];
+                };
+            };
+        };
+    };
+    clubs_join_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubMembership"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubMembership"];
+                };
+            };
+        };
+    };
+    clubs_posts_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ClubPostCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClubPostCreate"];
+                "multipart/form-data": components["schemas"]["ClubPostCreate"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubPost"];
+                };
+            };
+        };
+    };
+    clubs_profile_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubPublicProfile"];
+                };
+            };
+        };
+    };
+    clubs_create_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClubCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClubCreate"];
+                "multipart/form-data": components["schemas"]["ClubCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Club"];
+                };
+            };
+        };
+    };
+    contact_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Contact"];
+                "application/x-www-form-urlencoded": components["schemas"]["Contact"];
+                "multipart/form-data": components["schemas"]["Contact"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -2219,6 +11466,235 @@ export interface operations {
             };
         };
     };
+    gym_admins_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymStaffAdmin"][];
+                };
+            };
+        };
+    };
+    gym_admins_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteGymAdmin"];
+                "application/x-www-form-urlencoded": components["schemas"]["InviteGymAdmin"];
+                "multipart/form-data": components["schemas"]["InviteGymAdmin"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymStaffAdmin"];
+                };
+            };
+        };
+    };
+    gym_announcements_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedGymAnnouncementList"];
+                };
+            };
+        };
+    };
+    gym_announcements_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GymAnnouncement"];
+                "application/x-www-form-urlencoded": components["schemas"]["GymAnnouncement"];
+                "multipart/form-data": components["schemas"]["GymAnnouncement"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymAnnouncement"];
+                };
+            };
+        };
+    };
+    gym_appeals_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationAppeal"][];
+                };
+            };
+        };
+    };
+    gym_appeals_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: string;
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AppealDecision"];
+                "application/x-www-form-urlencoded": components["schemas"]["AppealDecision"];
+                "multipart/form-data": components["schemas"]["AppealDecision"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationAppeal"];
+                };
+            };
+        };
+    };
+    gym_athlete_of_month_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AthleteOfMonth"];
+                };
+            };
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_athlete_of_month_compute_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["GymComputeAthleteOfMonth"];
+                "application/x-www-form-urlencoded": components["schemas"]["GymComputeAthleteOfMonth"];
+                "multipart/form-data": components["schemas"]["GymComputeAthleteOfMonth"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AthleteOfMonth"];
+                };
+            };
+        };
+    };
+    gym_athlete_of_month_suggestions_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AthleteOfMonthSuggestions"];
+                };
+            };
+        };
+    };
     gym_athletes_list: {
         parameters: {
             query?: {
@@ -2243,6 +11719,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedMembershipAdminList"];
+                };
+            };
+        };
+    };
+    gym_athletes_of_month_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AthleteOfMonth"][];
+                };
+            };
+        };
+    };
+    gym_athletes_of_month_set_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SetAthleteOfMonth"];
+                "application/x-www-form-urlencoded": components["schemas"]["SetAthleteOfMonth"];
+                "multipart/form-data": components["schemas"]["SetAthleteOfMonth"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AthleteOfMonth"];
                 };
             };
         };
@@ -2298,7 +11822,28 @@ export interface operations {
             };
         };
     };
-    gym_classes_list: {
+    gym_billing_statement_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymStatement"];
+                };
+            };
+        };
+    };
+    gym_branches_list: {
         parameters: {
             query?: {
                 /** @description The pagination cursor value. */
@@ -2321,7 +11866,137 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedGymClassList"];
+                    "application/json": components["schemas"]["PaginatedGymBranchList"];
+                };
+            };
+        };
+    };
+    gym_branches_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GymBranch"];
+                "application/x-www-form-urlencoded": components["schemas"]["GymBranch"];
+                "multipart/form-data": components["schemas"]["GymBranch"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymBranch"];
+                };
+            };
+        };
+    };
+    gym_branches_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bid: string;
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GymBranch"];
+                "application/x-www-form-urlencoded": components["schemas"]["GymBranch"];
+                "multipart/form-data": components["schemas"]["GymBranch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymBranch"];
+                };
+            };
+        };
+    };
+    gym_branches_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bid: string;
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_branches_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bid: string;
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedGymBranch"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedGymBranch"];
+                "multipart/form-data": components["schemas"]["PatchedGymBranch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymBranch"];
+                };
+            };
+        };
+    };
+    gym_classes_list: {
+        parameters: {
+            query?: {
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymClass"][];
                 };
             };
         };
@@ -2344,6 +12019,99 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymClass"];
+                };
+            };
+        };
+    };
+    gym_classes_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymClass"];
+                };
+            };
+        };
+    };
+    gym_classes_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_classes_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedGymClass"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedGymClass"];
+                "multipart/form-data": components["schemas"]["PatchedGymClass"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymClass"];
+                };
+            };
+        };
+    };
+    gym_classes_cancel_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2385,7 +12153,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": components["schemas"]["ReceptionCheckinAction"];
                 "application/x-www-form-urlencoded": components["schemas"]["ReceptionCheckinAction"];
@@ -2400,6 +12168,511 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["GymCheckin"];
                 };
+            };
+        };
+    };
+    gym_classes_offer_coverage_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CoachOffer"];
+                "application/x-www-form-urlencoded": components["schemas"]["CoachOffer"];
+                "multipart/form-data": components["schemas"]["CoachOffer"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassHandoff"];
+                };
+            };
+        };
+    };
+    gym_classes_qr_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassQr"];
+                };
+            };
+        };
+    };
+    gym_classes_recurring_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecurringClass"];
+                "application/x-www-form-urlencoded": components["schemas"]["RecurringClass"];
+                "multipart/form-data": components["schemas"]["RecurringClass"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymClass"][];
+                };
+            };
+        };
+    };
+    gym_club_content_list: {
+        parameters: {
+            query?: {
+                /** @description Acota a un club del gym. */
+                club_id?: string;
+                /** @description announcement | activity | challenge | post */
+                kind?: string;
+                /** @description true = sólo lo denunciado por miembros. */
+                reported?: boolean;
+                /** @description approved | rejected */
+                status?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubContentModeration"][];
+                };
+            };
+        };
+    };
+    gym_club_content_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: string;
+                gym_id: string;
+                id: string;
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ModerationDecisionInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["ModerationDecisionInput"];
+                "multipart/form-data": components["schemas"]["ModerationDecisionInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubContentModeration"];
+                };
+            };
+        };
+    };
+    gym_clubs_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedClubList"];
+                };
+            };
+        };
+    };
+    gym_clubs_decide_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: string;
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Club"];
+                };
+            };
+        };
+    };
+    gym_clubs_create_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GymClubCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["GymClubCreate"];
+                "multipart/form-data": components["schemas"]["GymClubCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Club"];
+                };
+            };
+        };
+    };
+    gym_coach_invitations_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteCoach"];
+                "application/x-www-form-urlencoded": components["schemas"]["InviteCoach"];
+                "multipart/form-data": components["schemas"]["InviteCoach"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachRequest"];
+                };
+            };
+        };
+    };
+    gym_coach_payouts_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPayout"][];
+                };
+            };
+        };
+    };
+    gym_coach_payouts_earnings_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachEarning"][];
+                };
+            };
+        };
+    };
+    gym_coach_payouts_pay_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPayout"];
+                };
+            };
+        };
+    };
+    gym_coach_payouts_generate_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeneratePayout"];
+                "application/x-www-form-urlencoded": components["schemas"]["GeneratePayout"];
+                "multipart/form-data": components["schemas"]["GeneratePayout"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPayout"][];
+                };
+            };
+        };
+    };
+    gym_coach_requests_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachRequest"][];
+                };
+            };
+        };
+    };
+    gym_coach_requests_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: string;
+                gym_id: string;
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachRequest"];
+                };
+            };
+        };
+    };
+    gym_coaches_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Coach"][];
+                };
+            };
+        };
+    };
+    gym_coaches_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                staff_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedCoachUpdate"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedCoachUpdate"];
+                "multipart/form-data": components["schemas"]["PatchedCoachUpdate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Coach"];
+                };
+            };
+        };
+    };
+    gym_coaches_profile_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                staff_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPublicProfile"];
+                };
+            };
+        };
+    };
+    gym_coaches_info_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachInfo"][];
+                };
+            };
+        };
+    };
+    gym_comments_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: string;
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ModerationDecisionInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["ModerationDecisionInput"];
+                "multipart/form-data": components["schemas"]["ModerationDecisionInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportedComment"];
+                };
+            };
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -2420,6 +12693,1095 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GymDashboard"];
+                };
+            };
+        };
+    };
+    gym_dropin_products_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedDropinProductList"];
+                };
+            };
+        };
+    };
+    gym_dropin_products_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DropinProduct"];
+                "application/x-www-form-urlencoded": components["schemas"]["DropinProduct"];
+                "multipart/form-data": components["schemas"]["DropinProduct"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DropinProduct"];
+                };
+            };
+        };
+    };
+    gym_dropin_products_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DropinProduct"];
+                };
+            };
+        };
+    };
+    gym_dropin_products_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_dropin_products_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedDropinProduct"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedDropinProduct"];
+                "multipart/form-data": components["schemas"]["PatchedDropinProduct"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DropinProduct"];
+                };
+            };
+        };
+    };
+    gym_dropins_validate_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DropinValidateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["DropinValidateRequest"];
+                "multipart/form-data": components["schemas"]["DropinValidateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DropinValidation"];
+                };
+            };
+        };
+    };
+    gym_erp_expenses_list: {
+        parameters: {
+            query?: {
+                /**
+                 * @description * `rent` - Renta
+                 *     * `utilities` - Servicios
+                 *     * `equipment` - Equipo
+                 *     * `marketing` - Marketing
+                 *     * `payroll` - Nómina
+                 *     * `inventory` - Compra de inventario
+                 *     * `other` - Otro
+                 */
+                category?: "equipment" | "inventory" | "marketing" | "other" | "payroll" | "rent" | "utilities";
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedExpenseList"];
+                };
+            };
+        };
+    };
+    gym_erp_expenses_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Expense"];
+                "application/x-www-form-urlencoded": components["schemas"]["Expense"];
+                "multipart/form-data": components["schemas"]["Expense"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Expense"];
+                };
+            };
+        };
+    };
+    gym_erp_expenses_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Expense"];
+                };
+            };
+        };
+    };
+    gym_erp_expenses_correct_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ExpenseCorrect"];
+                "application/x-www-form-urlencoded": components["schemas"]["ExpenseCorrect"];
+                "multipart/form-data": components["schemas"]["ExpenseCorrect"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Expense"];
+                };
+            };
+        };
+    };
+    gym_erp_expenses_proof_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseProof"];
+                "application/x-www-form-urlencoded": components["schemas"]["ExpenseProof"];
+                "multipart/form-data": components["schemas"]["ExpenseProof"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Expense"];
+                };
+            };
+        };
+    };
+    gym_erp_expenses_void_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ExpenseVoid"];
+                "application/x-www-form-urlencoded": components["schemas"]["ExpenseVoid"];
+                "multipart/form-data": components["schemas"]["ExpenseVoid"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Expense"];
+                };
+            };
+        };
+    };
+    gym_erp_inventory_movements_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                product?: string;
+                /** @description A search term. */
+                search?: string;
+                /**
+                 * @description * `purchase` - Compra (entrada)
+                 *     * `sale` - Venta (salida)
+                 *     * `adjustment` - Ajuste
+                 *     * `loss` - Merma
+                 *     * `return` - Devolución (entrada)
+                 */
+                type?: "adjustment" | "loss" | "purchase" | "return" | "sale";
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedInventoryMovementList"];
+                };
+            };
+        };
+    };
+    gym_erp_inventory_movements_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MovementCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["MovementCreate"];
+                "multipart/form-data": components["schemas"]["MovementCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryMovement"];
+                };
+            };
+        };
+    };
+    gym_erp_products_list: {
+        parameters: {
+            query?: {
+                /**
+                 * @description * `supplement` - Suplemento
+                 *     * `merch` - Merch
+                 *     * `drink` - Bebida
+                 *     * `gear` - Equipamiento
+                 *     * `service` - Servicio
+                 *     * `other` - Otro
+                 */
+                category?: "drink" | "gear" | "merch" | "other" | "service" | "supplement";
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                is_active?: boolean;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedProductList"];
+                };
+            };
+        };
+    };
+    gym_erp_products_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Product"];
+                "application/x-www-form-urlencoded": components["schemas"]["Product"];
+                "multipart/form-data": components["schemas"]["Product"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+        };
+    };
+    gym_erp_products_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+        };
+    };
+    gym_erp_products_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Product"];
+                "application/x-www-form-urlencoded": components["schemas"]["Product"];
+                "multipart/form-data": components["schemas"]["Product"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+        };
+    };
+    gym_erp_products_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_erp_products_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedProduct"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedProduct"];
+                "multipart/form-data": components["schemas"]["PatchedProduct"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+        };
+    };
+    gym_erp_products_images_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+        };
+    };
+    gym_erp_products_images_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_erp_purchase_orders_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+                /**
+                 * @description * `draft` - Borrador
+                 *     * `ordered` - Ordenada
+                 *     * `partial` - Recibida parcial
+                 *     * `received` - Recibida
+                 *     * `cancelled` - Anulada
+                 */
+                status?: "cancelled" | "draft" | "ordered" | "partial" | "received";
+                supplier?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedPurchaseOrderList"];
+                };
+            };
+        };
+    };
+    gym_erp_purchase_orders_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurchaseOrderCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["PurchaseOrderCreate"];
+                "multipart/form-data": components["schemas"]["PurchaseOrderCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrder"];
+                };
+            };
+        };
+    };
+    gym_erp_purchase_orders_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrder"];
+                };
+            };
+        };
+    };
+    gym_erp_purchase_orders_cancel_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PurchaseOrderCancel"];
+                "application/x-www-form-urlencoded": components["schemas"]["PurchaseOrderCancel"];
+                "multipart/form-data": components["schemas"]["PurchaseOrderCancel"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrder"];
+                };
+            };
+        };
+    };
+    gym_erp_purchase_orders_receive_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PurchaseOrderReceive"];
+                "application/x-www-form-urlencoded": components["schemas"]["PurchaseOrderReceive"];
+                "multipart/form-data": components["schemas"]["PurchaseOrderReceive"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrder"];
+                };
+            };
+        };
+    };
+    gym_erp_reports_inventory_valuation_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryValuation"];
+                };
+            };
+        };
+    };
+    gym_erp_reports_pnl_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PnlReport"];
+                };
+            };
+        };
+    };
+    gym_erp_sales_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedSaleList"];
+                };
+            };
+        };
+    };
+    gym_erp_sales_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaleCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["SaleCreate"];
+                "multipart/form-data": components["schemas"]["SaleCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sale"];
+                };
+            };
+        };
+    };
+    gym_erp_sales_return_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SaleReturn"];
+                "application/x-www-form-urlencoded": components["schemas"]["SaleReturn"];
+                "multipart/form-data": components["schemas"]["SaleReturn"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sale"];
+                };
+            };
+        };
+    };
+    gym_erp_suppliers_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                is_active?: boolean;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedSupplierList"];
+                };
+            };
+        };
+    };
+    gym_erp_suppliers_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Supplier"];
+                "application/x-www-form-urlencoded": components["schemas"]["Supplier"];
+                "multipart/form-data": components["schemas"]["Supplier"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Supplier"];
+                };
+            };
+        };
+    };
+    gym_erp_suppliers_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Supplier"];
+                };
+            };
+        };
+    };
+    gym_erp_suppliers_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Supplier"];
+                "application/x-www-form-urlencoded": components["schemas"]["Supplier"];
+                "multipart/form-data": components["schemas"]["Supplier"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Supplier"];
+                };
+            };
+        };
+    };
+    gym_erp_suppliers_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_erp_suppliers_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedSupplier"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedSupplier"];
+                "multipart/form-data": components["schemas"]["PatchedSupplier"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Supplier"];
+                };
+            };
+        };
+    };
+    gym_feed_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"][];
+                };
+            };
+        };
+    };
+    gym_handoffs_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedClassHandoffList"];
+                };
+            };
+        };
+    };
+    gym_handoffs_accept_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassHandoff"];
                 };
             };
         };
@@ -2470,11 +13832,12 @@ export interface operations {
                  *     * `paused` - Pausada
                  *     * `expired` - Vencida
                  *     * `rejected` - Rechazada
+                 *     * `pending_leave` - Baja pendiente
                  *     * `former_member` - Exmiembro
                  *     * `blocked` - Bloqueada
                  *     * `drop_in` - Drop-in
                  */
-                status?: "active" | "approved_no_plan" | "blocked" | "drop_in" | "expired" | "former_member" | "invited" | "paused" | "pending_approval" | "rejected" | "requested" | "trial";
+                status?: "active" | "approved_no_plan" | "blocked" | "drop_in" | "expired" | "former_member" | "invited" | "paused" | "pending_approval" | "pending_leave" | "rejected" | "requested" | "trial";
             };
             header?: never;
             path: {
@@ -2522,6 +13885,186 @@ export interface operations {
             };
         };
     };
+    gym_marketplace_orders_list: {
+        parameters: {
+            query?: {
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOrder"][];
+                };
+            };
+        };
+    };
+    gym_marketplace_orders_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedProductOrderUpdate"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedProductOrderUpdate"];
+                "multipart/form-data": components["schemas"]["PatchedProductOrderUpdate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOrder"];
+                };
+            };
+        };
+    };
+    gym_marketplace_orders_refund_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOrder"];
+                };
+            };
+        };
+    };
+    gym_marketplace_orders_return_approve_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReturnReject"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReturnReject"];
+                "multipart/form-data": components["schemas"]["ReturnReject"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOrder"];
+                };
+            };
+        };
+    };
+    gym_marketplace_orders_return_reject_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReturnReject"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReturnReject"];
+                "multipart/form-data": components["schemas"]["ReturnReject"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOrder"];
+                };
+            };
+        };
+    };
+    gym_marketplace_shipping_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingSetting"];
+                };
+            };
+        };
+    };
+    gym_marketplace_shipping_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ShippingSetting"];
+                "application/x-www-form-urlencoded": components["schemas"]["ShippingSetting"];
+                "multipart/form-data": components["schemas"]["ShippingSetting"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingSetting"];
+                };
+            };
+        };
+    };
     gym_memberships_list: {
         parameters: {
             query?: {
@@ -2548,11 +14091,12 @@ export interface operations {
                  *     * `paused` - Pausada
                  *     * `expired` - Vencida
                  *     * `rejected` - Rechazada
+                 *     * `pending_leave` - Baja pendiente
                  *     * `former_member` - Exmiembro
                  *     * `blocked` - Bloqueada
                  *     * `drop_in` - Drop-in
                  */
-                status?: "active" | "approved_no_plan" | "blocked" | "drop_in" | "expired" | "former_member" | "invited" | "paused" | "pending_approval" | "rejected" | "requested" | "trial";
+                status?: "active" | "approved_no_plan" | "blocked" | "drop_in" | "expired" | "former_member" | "invited" | "paused" | "pending_approval" | "pending_leave" | "rejected" | "requested" | "trial";
             };
             header?: never;
             path: {
@@ -2622,6 +14166,202 @@ export interface operations {
             };
         };
     };
+    gym_memberships_athlete_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedAthleteAdminEdit"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedAthleteAdminEdit"];
+                "multipart/form-data": components["schemas"]["PatchedAthleteAdminEdit"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipDetailAdmin"];
+                };
+            };
+        };
+    };
+    gym_memberships_leave_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: string;
+                gym_id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipAdmin"];
+                };
+            };
+        };
+    };
+    gym_memberships_pause_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PauseMembership"];
+                "application/x-www-form-urlencoded": components["schemas"]["PauseMembership"];
+                "multipart/form-data": components["schemas"]["PauseMembership"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipAdmin"];
+                };
+            };
+        };
+    };
+    gym_memberships_reminder_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Reminder"];
+                "application/x-www-form-urlencoded": components["schemas"]["Reminder"];
+                "multipart/form-data": components["schemas"]["Reminder"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_memberships_reset_password_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_memberships_resume_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipAdmin"];
+                };
+            };
+        };
+    };
+    gym_memberships_export_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RosterExport"];
+                "application/x-www-form-urlencoded": components["schemas"]["RosterExport"];
+                "multipart/form-data": components["schemas"]["RosterExport"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_moderation_signals_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationSignal"][];
+                };
+            };
+        };
+    };
     gym_overdue_list: {
         parameters: {
             query?: {
@@ -2659,8 +14399,10 @@ export interface operations {
                  *     * `special_class` - Clase especial
                  *     * `personal_training` - Personal training
                  *     * `marketplace` - Marketplace
+                 *     * `retail` - Venta de mostrador (ERP)
+                 *     * `service` - Servicio del gym
                  */
-                concept?: "drop_in" | "marketplace" | "membership" | "personal_training" | "special_class";
+                concept?: "drop_in" | "marketplace" | "membership" | "personal_training" | "retail" | "service" | "special_class";
                 /** @description The pagination cursor value. */
                 cursor?: string;
                 /**
@@ -2754,6 +14496,53 @@ export interface operations {
             };
         };
     };
+    gym_pending_detail_retrieve: {
+        parameters: {
+            query?: {
+                /** @description Claves a desglosar, separadas por coma (por defecto, todas). Las desconocidas se ignoran. */
+                keys?: string;
+                /** @description Filas de ejemplo por grupo (máx. 50). `count` es el total real. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymPendingDetail"];
+                };
+            };
+        };
+    };
+    gym_pending_summary_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymPendingSummary"];
+                };
+            };
+        };
+    };
     gym_plans_list: {
         parameters: {
             query?: {
@@ -2809,6 +14598,272 @@ export interface operations {
             };
         };
     };
+    gym_plans_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Plan"];
+                "application/x-www-form-urlencoded": components["schemas"]["Plan"];
+                "multipart/form-data": components["schemas"]["Plan"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+        };
+    };
+    gym_plans_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_plans_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedPlan"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedPlan"];
+                "multipart/form-data": components["schemas"]["PatchedPlan"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+        };
+    };
+    gym_plans_offers_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedPlanOfferList"];
+                };
+            };
+        };
+    };
+    gym_plans_offers_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanOffer"];
+                "application/x-www-form-urlencoded": components["schemas"]["PlanOffer"];
+                "multipart/form-data": components["schemas"]["PlanOffer"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOffer"];
+                };
+            };
+        };
+    };
+    gym_plans_offers_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                oid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanOffer"];
+                "application/x-www-form-urlencoded": components["schemas"]["PlanOffer"];
+                "multipart/form-data": components["schemas"]["PlanOffer"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOffer"];
+                };
+            };
+        };
+    };
+    gym_plans_offers_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                oid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_plans_offers_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                oid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedPlanOffer"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedPlanOffer"];
+                "multipart/form-data": components["schemas"]["PatchedPlanOffer"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOffer"];
+                };
+            };
+        };
+    };
+    gym_posts_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAthletePostList"];
+                };
+            };
+        };
+    };
+    gym_posts_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: string;
+                gym_id: string;
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ModerationDecisionInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["ModerationDecisionInput"];
+                "multipart/form-data": components["schemas"]["ModerationDecisionInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AthletePost"];
+                };
+            };
+        };
+    };
     gym_prs_validate_create: {
         parameters: {
             query?: never;
@@ -2859,6 +14914,108 @@ export interface operations {
             };
         };
     };
+    gym_pt_coaches_list: {
+        parameters: {
+            query?: {
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PtCoach"][];
+                };
+            };
+        };
+    };
+    gym_pt_coaches_book_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                staff_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookPt"];
+                "application/x-www-form-urlencoded": components["schemas"]["BookPt"];
+                "multipart/form-data": components["schemas"]["BookPt"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingSession"];
+                };
+            };
+        };
+    };
+    gym_pt_coaches_slots_retrieve: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM-DD (por defecto hoy). */
+                date_from?: string;
+                /** @description Días a devolver (1-45, por defecto 7). */
+                days?: number;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+                staff_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PtSlotsResponse"];
+                };
+            };
+        };
+    };
+    gym_reported_comments_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportedComment"][];
+                };
+            };
+        };
+    };
     gym_retention_at_risk_list: {
         parameters: {
             query?: {
@@ -2883,6 +15040,617 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedMembershipAdminList"];
+                };
+            };
+        };
+    };
+    gym_schedules_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedClassScheduleList"];
+                };
+            };
+        };
+    };
+    gym_schedules_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassSchedule"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClassSchedule"];
+                "multipart/form-data": components["schemas"]["ClassSchedule"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassSchedule"];
+                };
+            };
+        };
+    };
+    gym_schedules_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassSchedule"];
+                };
+            };
+        };
+    };
+    gym_schedules_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_schedules_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedClassSchedule"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedClassSchedule"];
+                "multipart/form-data": components["schemas"]["PatchedClassSchedule"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassSchedule"];
+                };
+            };
+        };
+    };
+    gym_schedules_materialize_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_service_types_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedServiceTypeList"];
+                };
+            };
+        };
+    };
+    gym_service_types_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceType"];
+                "application/x-www-form-urlencoded": components["schemas"]["ServiceType"];
+                "multipart/form-data": components["schemas"]["ServiceType"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceType"];
+                };
+            };
+        };
+    };
+    gym_service_types_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceType"];
+                };
+            };
+        };
+    };
+    gym_service_types_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_service_types_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedServiceType"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedServiceType"];
+                "multipart/form-data": components["schemas"]["PatchedServiceType"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceType"];
+                };
+            };
+        };
+    };
+    gym_service_types_public_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceType"][];
+                };
+            };
+        };
+    };
+    gym_services_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymServiceAthlete"][];
+                };
+            };
+        };
+    };
+    gym_tickets_list: {
+        parameters: {
+            query?: {
+                /**
+                 * @description * `billing` - Cobros/pagos
+                 *     * `facilities` - Instalaciones
+                 *     * `classes` - Clases/horarios
+                 *     * `staff` - Personal
+                 *     * `safety` - Seguridad
+                 *     * `other` - Otro
+                 */
+                category?: "billing" | "classes" | "facilities" | "other" | "safety" | "staff";
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+                /**
+                 * @description * `open` - Abierto
+                 *     * `in_progress` - En progreso
+                 *     * `resolved` - Resuelto
+                 */
+                status?: "in_progress" | "open" | "resolved";
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedGymTicketList"];
+                };
+            };
+        };
+    };
+    gym_tickets_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                tid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymTicket"];
+                };
+            };
+        };
+    };
+    gym_tickets_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                tid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedTicketStatus"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedTicketStatus"];
+                "multipart/form-data": components["schemas"]["PatchedTicketStatus"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymTicket"];
+                };
+            };
+        };
+    };
+    gym_tickets_messages_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                tid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketMessageCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["TicketMessageCreate"];
+                "multipart/form-data": components["schemas"]["TicketMessageCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymTicket"];
+                };
+            };
+        };
+    };
+    gym_wods_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedWodList"];
+                };
+            };
+        };
+    };
+    gym_wods_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Wod"];
+                "application/x-www-form-urlencoded": components["schemas"]["Wod"];
+                "multipart/form-data": components["schemas"]["Wod"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Wod"];
+                };
+            };
+        };
+    };
+    gym_wods_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Wod"];
+                };
+            };
+        };
+    };
+    gym_wods_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_wods_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedWod"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedWod"];
+                "multipart/form-data": components["schemas"]["PatchedWod"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Wod"];
+                };
+            };
+        };
+    };
+    gym_wods_results_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WodResult"][];
+                };
+            };
+        };
+    };
+    gym_wods_results_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WodResultInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["WodResultInput"];
+                "multipart/form-data": components["schemas"]["WodResultInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WodResult"];
                 };
             };
         };
@@ -2967,10 +15735,20 @@ export interface operations {
             query?: {
                 /** @description The pagination cursor value. */
                 cursor?: string;
+                /** @description Latitud del cliente (con `lng`). */
+                lat?: number;
+                /** @description Longitud del cliente (con `lat`). */
+                lng?: number;
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
+                /** @description Texto libre: nombre, ubicación o dirección. */
+                q?: string;
+                /** @description Radio máximo en km (requiere `lat` y `lng`). */
+                radius_km?: number;
                 /** @description A search term. */
                 search?: string;
+                /** @description Filtra por tipo de clase del gimnasio. */
+                type?: string;
             };
             header?: never;
             path?: never;
@@ -3071,6 +15849,124 @@ export interface operations {
             };
         };
     };
+    gyms_marketplace_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketProduct"][];
+                };
+            };
+        };
+    };
+    gyms_marketplace_order_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ProductOrderCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["ProductOrderCreate"];
+                "multipart/form-data": components["schemas"]["ProductOrderCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOrder"];
+                };
+            };
+        };
+    };
+    gyms_marketplace_orders_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CartOrderCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["CartOrderCreate"];
+                "multipart/form-data": components["schemas"]["CartOrderCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOrder"];
+                };
+            };
+        };
+    };
+    gyms_marketplace_shipping_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingSetting"];
+                };
+            };
+        };
+    };
+    gyms_public_profile_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymPublicProfile"];
+                };
+            };
+        };
+    };
     gyms_retrieve: {
         parameters: {
             query?: never;
@@ -3136,6 +16032,114 @@ export interface operations {
             };
         };
     };
+    me_attendance_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_badges_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAthleteBadgeList"];
+                };
+            };
+        };
+    };
+    me_blocks_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AthleteBlock"][];
+                };
+            };
+        };
+    };
+    me_blocks_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AthleteBlockCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["AthleteBlockCreate"];
+                "multipart/form-data": components["schemas"]["AthleteBlockCreate"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AthleteBlock"];
+                };
+            };
+        };
+    };
+    me_blocks_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                athlete_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     me_classes_list: {
         parameters: {
             query?: {
@@ -3158,6 +16162,521 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedGymClassList"];
+                };
+            };
+        };
+    };
+    me_classes_history_list: {
+        parameters: {
+            query?: {
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymClass"][];
+                };
+            };
+        };
+    };
+    me_club_requests_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedClubRequestList"];
+                };
+            };
+        };
+    };
+    me_clubs_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedClubMembershipList"];
+                };
+            };
+        };
+    };
+    me_coach_applications_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachRequest"][];
+                };
+            };
+        };
+    };
+    me_coach_applications_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyCoach"];
+                "application/x-www-form-urlencoded": components["schemas"]["ApplyCoach"];
+                "multipart/form-data": components["schemas"]["ApplyCoach"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachRequest"];
+                };
+            };
+        };
+    };
+    me_coach_invitations_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachRequest"][];
+                };
+            };
+        };
+    };
+    me_coach_invitations_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: string;
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachRequest"];
+                };
+            };
+        };
+    };
+    me_coach_posts_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoachPostCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["CoachPostCreate"];
+                "multipart/form-data": components["schemas"]["CoachPostCreate"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_coach_stats_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachStats"];
+                };
+            };
+        };
+    };
+    me_coach_bio_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachBio"];
+                };
+            };
+        };
+    };
+    me_coach_bio_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedCoachBio"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedCoachBio"];
+                "multipart/form-data": components["schemas"]["PatchedCoachBio"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachBio"];
+                };
+            };
+        };
+    };
+    me_coach_classes_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymClass"][];
+                };
+            };
+        };
+    };
+    me_coach_feed_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"][];
+                };
+            };
+        };
+    };
+    me_coach_handoffs_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassHandoff"][];
+                };
+            };
+        };
+    };
+    me_coach_pt_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPtRow"][];
+                };
+            };
+        };
+    };
+    me_coach_pt_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedCoachOfferPt"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedCoachOfferPt"];
+                "multipart/form-data": components["schemas"]["PatchedCoachOfferPt"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPtConfig"];
+                };
+            };
+        };
+    };
+    me_coach_pt_availability_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PtAvailability"][];
+                };
+            };
+        };
+    };
+    me_coach_pt_availability_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PtAvailability"];
+                "application/x-www-form-urlencoded": components["schemas"]["PtAvailability"];
+                "multipart/form-data": components["schemas"]["PtAvailability"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PtAvailability"];
+                };
+            };
+        };
+    };
+    me_coach_pt_availability_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_coach_pt_sessions_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_coach_pt_sessions_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_coach_pt_time_off_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PtTimeOff"];
+                "application/x-www-form-urlencoded": components["schemas"]["PtTimeOff"];
+                "multipart/form-data": components["schemas"]["PtTimeOff"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PtTimeOff"];
+                };
+            };
+        };
+    };
+    me_coach_pt_time_off_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_coach_uncovered_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymClass"][];
                 };
             };
         };
@@ -3206,6 +16725,168 @@ export interface operations {
             };
         };
     };
+    me_feed_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"][];
+                };
+            };
+        };
+    };
+    me_feed_comments_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedComment"][];
+                };
+            };
+        };
+    };
+    me_feed_comments_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedCommentCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["FeedCommentCreate"];
+                "multipart/form-data": components["schemas"]["FeedCommentCreate"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedComment"];
+                };
+            };
+        };
+    };
+    me_feed_comments_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_feed_comments_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedFeedCommentCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedFeedCommentCreate"];
+                "multipart/form-data": components["schemas"]["PatchedFeedCommentCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedComment"];
+                };
+            };
+        };
+    };
+    me_feed_comments_report_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CommentReport"];
+                "application/x-www-form-urlencoded": components["schemas"]["CommentReport"];
+                "multipart/form-data": components["schemas"]["CommentReport"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedComment"];
+                };
+            };
+        };
+    };
+    me_feed_reactions_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedReactionToggle"];
+                "application/x-www-form-urlencoded": components["schemas"]["FeedReactionToggle"];
+                "multipart/form-data": components["schemas"]["FeedReactionToggle"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedReactionToggleResponse"];
+                };
+            };
+        };
+    };
     me_join_requests_list: {
         parameters: {
             query?: {
@@ -3228,6 +16909,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedJoinRequestList"];
+                };
+            };
+        };
+    };
+    me_marketplace_orders_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedProductOrderList"];
+                };
+            };
+        };
+    };
+    me_marketplace_orders_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOrder"];
+                };
+            };
+        };
+    };
+    me_marketplace_orders_cancel_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOrder"];
+                };
+            };
+        };
+    };
+    me_marketplace_orders_return_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReturnRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReturnRequest"];
+                "multipart/form-data": components["schemas"]["ReturnRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOrder"];
                 };
             };
         };
@@ -3258,6 +17034,182 @@ export interface operations {
             };
         };
     };
+    me_membership_leave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipSelf"];
+                };
+            };
+        };
+    };
+    me_membership_leave_decision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipSelf"];
+                };
+            };
+        };
+    };
+    me_moderation_appeals_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationAppealCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["ModerationAppealCreate"];
+                "multipart/form-data": components["schemas"]["ModerationAppealCreate"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationAppeal"];
+                };
+            };
+        };
+    };
+    me_moderation_appeals_escalate_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationAppeal"];
+                };
+            };
+        };
+    };
+    me_moderation_status_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationDecision"][];
+                };
+            };
+        };
+    };
+    me_notifications_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+                /** @description Si es true, solo devuelve las no leídas. */
+                unread?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedNotificationList"];
+                };
+            };
+        };
+    };
+    me_notifications_read_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Notification"];
+                };
+            };
+        };
+    };
+    me_notifications_read_all_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationsReadAllResponse"];
+                };
+            };
+        };
+    };
     me_passport_retrieve: {
         parameters: {
             query?: never;
@@ -3277,6 +17229,135 @@ export interface operations {
             };
         };
     };
+    me_payment_card_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedCardStatus"];
+                };
+            };
+        };
+    };
+    me_payment_card_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveCard"];
+                "application/x-www-form-urlencoded": components["schemas"]["SaveCard"];
+                "multipart/form-data": components["schemas"]["SaveCard"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedCardStatus"];
+                };
+            };
+        };
+    };
+    me_payment_cards_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedCardItem"][];
+                };
+            };
+        };
+    };
+    me_payment_cards_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveCard"];
+                "application/x-www-form-urlencoded": components["schemas"]["SaveCard"];
+                "multipart/form-data": components["schemas"]["SaveCard"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedCardItem"];
+                };
+            };
+        };
+    };
+    me_payment_cards_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_payment_cards_default_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedCardItem"];
+                };
+            };
+        };
+    };
     me_payments_list: {
         parameters: {
             query?: {
@@ -3286,8 +17367,10 @@ export interface operations {
                  *     * `special_class` - Clase especial
                  *     * `personal_training` - Personal training
                  *     * `marketplace` - Marketplace
+                 *     * `retail` - Venta de mostrador (ERP)
+                 *     * `service` - Servicio del gym
                  */
-                concept?: "drop_in" | "marketplace" | "membership" | "personal_training" | "special_class";
+                concept?: "drop_in" | "marketplace" | "membership" | "personal_training" | "retail" | "service" | "special_class";
                 /** @description The pagination cursor value. */
                 cursor?: string;
                 /**
@@ -3320,6 +17403,149 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedPaymentList"];
+                };
+            };
+        };
+    };
+    me_photo_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Athlete"];
+                };
+            };
+        };
+    };
+    me_point_transactions_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedPointTransactionList"];
+                };
+            };
+        };
+    };
+    me_posts_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAthletePostList"];
+                };
+            };
+        };
+    };
+    me_posts_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AthletePostCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["AthletePostCreate"];
+                "multipart/form-data": components["schemas"]["AthletePostCreate"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AthletePostCreate"];
+                };
+            };
+        };
+    };
+    me_posts_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_posts_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedAthletePostCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedAthletePostCreate"];
+                "multipart/form-data": components["schemas"]["PatchedAthletePostCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AthletePost"];
                 };
             };
         };
@@ -3375,6 +17601,378 @@ export interface operations {
             };
         };
     };
+    me_prs_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AthletePR"];
+                };
+            };
+        };
+    };
+    me_prs_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_prs_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedAthletePR"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedAthletePR"];
+                "multipart/form-data": components["schemas"]["PatchedAthletePR"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AthletePR"];
+                };
+            };
+        };
+    };
+    me_reports_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedMyBugReportList"];
+                };
+            };
+        };
+    };
+    me_services_enroll_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_tickets_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedGymTicketList"];
+                };
+            };
+        };
+    };
+    me_tickets_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["TicketCreate"];
+                "multipart/form-data": components["schemas"]["TicketCreate"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketCreate"];
+                };
+            };
+        };
+    };
+    me_tickets_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymTicket"];
+                };
+            };
+        };
+    };
+    me_tickets_messages_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketMessageCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["TicketMessageCreate"];
+                "multipart/form-data": components["schemas"]["TicketMessageCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymTicket"];
+                };
+            };
+        };
+    };
+    me_tickets_messages_report_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mid: string;
+                tid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TicketMessageReportCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["TicketMessageReportCreate"];
+                "multipart/form-data": components["schemas"]["TicketMessageReportCreate"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymTicket"];
+                };
+            };
+        };
+    };
+    me_training_sessions_list: {
+        parameters: {
+            query?: {
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingSession"][];
+                };
+            };
+        };
+    };
+    me_training_sessions_cancel_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CancelPtSession"];
+                "application/x-www-form-urlencoded": components["schemas"]["CancelPtSession"];
+                "multipart/form-data": components["schemas"]["CancelPtSession"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingSession"];
+                };
+            };
+        };
+    };
+    me_training_sessions_rating_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RatePtSession"];
+                "application/x-www-form-urlencoded": components["schemas"]["RatePtSession"];
+                "multipart/form-data": components["schemas"]["RatePtSession"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PtRating"];
+                };
+            };
+        };
+    };
+    me_training_sessions_reschedule_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReschedulePtSession"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReschedulePtSession"];
+                "multipart/form-data": components["schemas"]["ReschedulePtSession"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingSession"];
+                };
+            };
+        };
+    };
+    me_wods_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedWodList"];
+                };
+            };
+        };
+    };
     payments_card_create: {
         parameters: {
             query?: never;
@@ -3396,6 +17994,217 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Payment"];
+                };
+            };
+        };
+    };
+    payments_quote_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentQuote"];
+                };
+            };
+        };
+    };
+    platform_appeals_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationAppeal"][];
+                };
+            };
+        };
+    };
+    platform_appeals_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AppealDecision"];
+                "application/x-www-form-urlencoded": components["schemas"]["AppealDecision"];
+                "multipart/form-data": components["schemas"]["AppealDecision"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationAppeal"];
+                };
+            };
+        };
+    };
+    platform_billing_payouts_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payout"][];
+                };
+            };
+        };
+    };
+    platform_billing_payouts_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["PayoutCreate"];
+                "multipart/form-data": components["schemas"]["PayoutCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payout"];
+                };
+            };
+        };
+    };
+    platform_billing_payouts_pay_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutPay"];
+                "application/x-www-form-urlencoded": components["schemas"]["PayoutPay"];
+                "multipart/form-data": components["schemas"]["PayoutPay"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payout"];
+                };
+            };
+        };
+    };
+    platform_billing_statements_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformStatement"];
+                };
+            };
+        };
+    };
+    platform_club_content_list: {
+        parameters: {
+            query?: {
+                /** @description announcement | activity | challenge | post */
+                kind?: string;
+                /** @description true = sólo lo denunciado por miembros. */
+                reported?: boolean;
+                /** @description approved | rejected */
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubContentModeration"][];
+                };
+            };
+        };
+    };
+    platform_club_content_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: string;
+                id: string;
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ModerationDecisionInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["ModerationDecisionInput"];
+                "multipart/form-data": components["schemas"]["ModerationDecisionInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubContentModeration"];
                 };
             };
         };
@@ -3435,9 +18244,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GymAdmin"];
-                "application/x-www-form-urlencoded": components["schemas"]["GymAdmin"];
-                "multipart/form-data": components["schemas"]["GymAdmin"];
+                "application/json": components["schemas"]["GymCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["GymCreate"];
+                "multipart/form-data": components["schemas"]["GymCreate"];
             };
         };
         responses: {
@@ -3446,7 +18255,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GymAdmin"];
+                    "application/json": components["schemas"]["GymCreated"];
                 };
             };
         };
@@ -3495,6 +18304,182 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Subscription"];
+                };
+            };
+        };
+    };
+    platform_reports_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                kind?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description Busca en descripción, correo, pantalla y gimnasio. */
+                q?: string;
+                /** @description A search term. */
+                search?: string;
+                severity?: string;
+                /** @description Estado, 'open' (default) o 'all'. */
+                status?: string;
+                /** @description web_admin | mobile_ios | mobile_android | other */
+                surface?: string;
+                /** @description Incluye `fix_prompt` en cada fila (~3 KB por reporte). */
+                with_prompt?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedBugReportConsoleListList"];
+                };
+            };
+        };
+    };
+    platform_reports_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BugReportConsoleDetail"];
+                };
+            };
+        };
+    };
+    platform_reports_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedBugReportTriage"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedBugReportTriage"];
+                "multipart/form-data": components["schemas"]["PatchedBugReportTriage"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BugReportConsoleDetail"];
+                };
+            };
+        };
+    };
+    platform_reports_resolve_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyBugReport"];
+                };
+            };
+        };
+    };
+    posts_report_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PostReport"];
+                "application/x-www-form-urlencoded": components["schemas"]["PostReport"];
+                "multipart/form-data": components["schemas"]["PostReport"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AthletePost"];
+                };
+            };
+        };
+    };
+    reports_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BugReportCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["BugReportCreate"];
+                "multipart/form-data": components["schemas"]["BugReportCreate"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BugReportCreate"];
+                };
+            };
+        };
+    };
+    reports_config_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BugReportConfig"];
                 };
             };
         };
@@ -3591,6 +18576,54 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    wods_board_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WodResult"];
+                };
+            };
+        };
+    };
+    wods_result_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WodResultInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["WodResultInput"];
+                "multipart/form-data": components["schemas"]["WodResultInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WodResult"];
+                };
             };
         };
     };

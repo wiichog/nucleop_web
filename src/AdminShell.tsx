@@ -27,6 +27,7 @@ import { PosPage } from "./pages/PosPage";
 import { ExpensesPage } from "./pages/ExpensesPage";
 import { BusinessReportPage } from "./pages/BusinessReportPage";
 import { ClubsPage } from "./pages/ClubsPage";
+import { ClubContentPage } from "./pages/ClubContentPage";
 import { ProfilePage } from "./pages/ProfilePage";
 // Mantine + datatable solo en este chunk (no en la landing pública).
 import "@mantine/core/styles.css";
@@ -85,6 +86,10 @@ export default function AdminShell() {
           <Route path="comunidad" element={<CommunityPage />} />
           <Route path="tickets" element={<TicketsPage />} />
           <Route path="clubes" element={<ClubsPage />} />
+          {/* Moderación de lo que se escribe DENTRO de los clubes. La ruta NO
+              cuelga de /panel/clubes a propósito: el `isActive` del rail usa
+              `startsWith`, y anidarla dejaría los dos ítems del menú encendidos. */}
+          <Route path="contenido-clubes" element={<ClubContentPage />} />
           <Route path="inventario" element={<InventoryPage />} />
           <Route path="pos" element={<PosPage />} />
           <Route path="gastos" element={<ExpensesPage />} />
