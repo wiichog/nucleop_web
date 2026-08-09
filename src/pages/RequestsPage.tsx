@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import {
   Button,
   Group,
+  NumberInput,
   SimpleGrid,
   Stack,
   Text,
@@ -26,6 +27,7 @@ import { GlassCard } from "../components/aurora";
 import { CountBadge, PageHeader, SectionLabel, StatusBadge } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
+import { fmtQ } from "../lib/money";
 import { sortRecords } from "../lib/sortRecords";
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
@@ -58,7 +60,9 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
   const plans = usePlans(gymId);
   const offers = usePlanOffers(gymId);
   const [planId, setPlanId] = useState<string | null>("");
-  const [customFee, setCustomFee] = useState("");
+  // Cuota personalizada en GTQ. `""` (campo vacío) significa "sin cuota propia":
+  // se manda `custom_fee: null` para QUITARLA y volver al precio del plan.
+  const [customFee, setCustomFee] = useState<string | number>("");
   const [offerId, setOfferId] = useState<string | null>("");
   const [comment, setComment] = useState("");
   const status = request.status ?? "";
@@ -84,16 +88,34 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
       },
     );
 
-  const onAssign = () =>
-    planId &&
-    membershipId &&
-    assign.mutate(
-      { membershipId, planId, customFee, offerId: offerId ?? undefined },
-      {
-        onSuccess: () => ok("Plan asignado: el atleta ya es miembro activo."),
-        onError: (error) => fail(errMsg(error, "No se pudo asignar el plan. Inténtalo de nuevo.")),
-      },
+  /**
+   * Asigna el plan. La cuota personalizada viaja SIEMPRE (nunca se omite): con un
+   * número la fija, y **vacía manda `null` para quitarla**. Antes se mandaba
+   * `customFee || null` sin que el panel dijera nada, así que borrar el campo no
+   * quitaba nada y el atleta seguía con su cuota vieja.
+   */
+  const onAssign = () => {
+    // El separador de miles es sólo presentación: el backend espera un decimal.
+    const fee =
+      typeof customFee === "number" ? String(customFee) : customFee.replace(/,/g, "").trim();
+    return (
+      planId &&
+      membershipId &&
+      assign.mutate(
+        { membershipId, planId, customFee: fee === "" ? null : fee, offerId: offerId ?? undefined },
+        {
+          onSuccess: () =>
+            ok(
+              fee === ""
+                ? "Plan asignado con el precio del plan (sin cuota personalizada). El atleta ya es miembro activo."
+                : `Plan asignado con cuota personalizada de ${fmtQ(fee, { decimals: 2 })}. El atleta ya es miembro activo.`,
+            ),
+          onError: (error) =>
+            fail(errMsg(error, "No se pudo asignar el plan. Inténtalo de nuevo.")),
+        },
+      )
     );
+  };
 
   return (
     <Stack gap="xs">
@@ -105,7 +127,9 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
           size="xs"
         />
       )}
-      <Group gap="xs">
+      {/* `flex-start`: la cuota lleva descripción debajo y con el centrado por
+          defecto los demás controles quedaban montados a media altura. */}
+      <Group gap="xs" align="flex-start">
         {canDecide && (
           <>
             <Button size="xs" loading={decide.isPending} onClick={() => onDecide("approve")}>
@@ -136,7 +160,21 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
               error={plans.isError ? "No se pudieron cargar los planes." : undefined}
               data={(plans.data ?? []).map((plan) => ({ value: plan.id, label: plan.name }))}
             />
-            <TextInput size="xs" placeholder="Cuota personalizada" value={customFee} onChange={(e) => setCustomFee(e.currentTarget.value)} w={140} />
+            {/* Numérico y con la moneda a la vista: antes era texto libre, y "350
+                al mes" o "Q350" viajaban al backend como cuota inválida. */}
+            <NumberInput
+              size="xs"
+              w={170}
+              prefix="Q"
+              min={0}
+              decimalScale={2}
+              allowNegative={false}
+              thousandSeparator=","
+              placeholder="Cuota personalizada"
+              description="Vacío = precio del plan (quita la cuota)"
+              value={customFee}
+              onChange={setCustomFee}
+            />
             <Select
               size="xs"
               placeholder="Sin oferta"
