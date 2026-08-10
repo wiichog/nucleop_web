@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import {
+  Badge,
   Button,
   Group,
   NumberInput,
@@ -53,6 +54,38 @@ function inviteErrorMessage(err: unknown): string | null {
 // Estados que siguen requiriendo gestión en la bandeja de Solicitudes. Al asignar un
 // plan la membresía pasa a "active" y la solicitud desaparece de aquí (ya es miembro).
 const ACTIONABLE_STATUSES = ["requested", "invited", "pending_approval", "approved_no_plan", "trial"];
+
+/**
+ * Identidad del solicitante. Cuando es un REINGRESO (el atleta ya fue miembro de
+ * este gimnasio) lo dice con todas sus letras y muestra lo que la relación trae
+ * consigo: sus puntos de comunidad y desde cuándo es de la casa. Aprobar a ciegas
+ * y aprobar a alguien que vuelve no son la misma decisión.
+ *
+ * Se exporta para poder probarla suelta: `mantine-datatable` no pinta celdas bajo
+ * jsdom, así que dentro de la tabla no hay nada que testear.
+ */
+export function Solicitante({ request }: { request: JoinRequest }) {
+  if (!request.is_rejoin) return <>{request.athlete_name}</>;
+  // `member_since` es "YYYY-MM-DD": el año basta y evita el corrimiento de un día
+  // que produce `new Date("2023-05-01")` al pasarlo a la zona de Guatemala.
+  const desde = request.member_since?.slice(0, 4);
+  return (
+    <Stack gap={4}>
+      <Text fw={500} size="sm">
+        {request.athlete_name}
+      </Text>
+      <Group gap={6} wrap="wrap">
+        <Badge size="xs" color="grape" variant="light">
+          Reingreso
+        </Badge>
+        <Text size="xs" c="dimmed">
+          {request.community_points} pts de comunidad
+          {desde ? ` · en el gym desde ${desde}` : ""}
+        </Text>
+      </Group>
+    </Stack>
+  );
+}
 
 function RequestActions({ request, gymId }: { request: JoinRequest; gymId: string }) {
   const decide = useDecideJoinRequest(gymId);
@@ -310,6 +343,16 @@ export function RequestsPage() {
         />
       </Group>
 
+      {/* Se dice UNA vez y solo cuando hay alguno: es la información que cambia la
+          decisión (no es un alta nueva, es alguien de la casa que vuelve). */}
+      {bandeja.some((r) => r.is_rejoin) && (
+        <Text c="dimmed" size="sm" mb={10}>
+          Un <strong>reingreso</strong> reabre la relación que el atleta ya tuvo con el gimnasio:
+          al aprobarlo conserva sus puntos de comunidad, su antigüedad y su historial. No empieza
+          de cero ni se le crea una ficha nueva.
+        </Text>
+      )}
+
       <GlassCard padding={10} delay={0.72}>
         <DataTable<JoinRequest>
           minHeight={160}
@@ -322,7 +365,12 @@ export function RequestsPage() {
           sortStatus={sortStatus}
           onSortStatusChange={setSortStatus}
           columns={[
-            { accessor: "athlete_name", title: "Atleta", sortable: true },
+            {
+              accessor: "athlete_name",
+              title: "Atleta",
+              sortable: true,
+              render: (r) => <Solicitante request={r} />,
+            },
             {
               accessor: "status",
               title: "Estado",

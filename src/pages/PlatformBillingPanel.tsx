@@ -40,6 +40,11 @@ function periodoDe(d: Date | null): string | undefined {
  * Estado de cuenta de la red (solo superadmin): cuánto entró por la pasarela, qué
  * le toca a cada gym y CUÁNTO GANÓ NUCLEO por recargo. Solo cuenta el dinero que
  * pasó por Pagalo: los pagos manuales ya los cobró el gym y no generan recargo.
+ *
+ * El margen que se pinta es el REAL: `platform_earned` ya viene neto de los
+ * reembolsos y de la comisión que se queda el proveedor de la pasarela. Antes esta
+ * pantalla presentaba el recargo íntegro como ganancia, así que el margen se veía
+ * más gordo de lo que era.
  */
 export function PlatformBillingPanel() {
   const [mes, setMes] = useState<Date | null>(new Date());
@@ -97,7 +102,9 @@ export function PlatformBillingPanel() {
             </Title>
             <Text c="dimmed" size="sm">
               Solo el dinero cobrado por la pasarela. El recargo de Nucleo va SUMADO encima del
-              precio del gym: el gym recibe su base y la plataforma se queda el recargo.
+              precio del gym: el gym recibe su base y la plataforma se queda el recargo.{" "}
+              <strong>Ese recargo no es la ganancia</strong>: la pasarela cobra su comisión sobre
+              cada cobro y ese costo sale del recargo, nunca del dinero del gym.
             </Text>
           </div>
           <MonthPickerInput
@@ -130,7 +137,7 @@ export function PlatformBillingPanel() {
               label="Ganancia de Nucleo"
               value={fmtQ(data.totals.platform_earned)}
               fz="clamp(34px, calc(58 * var(--u)), 68px)"
-              hint="Recargo cobrado por la pasarela, ya neto de reembolsos."
+              hint="Lo que de verdad le queda a Nucleo: el recargo cobrado, ya menos los reembolsos y menos la comisión que se queda la pasarela."
               delay={1.04}
             />
             <Group
@@ -153,6 +160,31 @@ export function PlatformBillingPanel() {
                   {data.totals.gyms_count}
                 </Text>
               </div>
+              {/* El desglose del margen: cuánto pagaron de recargo los atletas y
+                  cuánto se llevó el proveedor. Solo aparece cuando el backend
+                  manda las dos cifras (ver `PlatformBillingTotals`). */}
+              {data.totals.platform_surcharge != null && (
+                <>
+                  <Divider orientation="vertical" />
+                  <div>
+                    <SectionLabel mb={4}>Recargo que pagaron los atletas</SectionLabel>
+                    <Text fw={600} className="a-tabular">
+                      {fmtQ(data.totals.platform_surcharge)}
+                    </Text>
+                  </div>
+                </>
+              )}
+              {data.totals.provider_fee_net != null && (
+                <>
+                  <Divider orientation="vertical" />
+                  <div>
+                    <SectionLabel mb={4}>Se quedó la pasarela</SectionLabel>
+                    <Text fw={600} className="a-tabular" c="var(--nucleo-danger)">
+                      −{fmtQ(data.totals.provider_fee_net)}
+                    </Text>
+                  </div>
+                </>
+              )}
             </Group>
           </GlassCard>
 
@@ -222,7 +254,17 @@ export function PlatformBillingPanel() {
                   accessor: "platform_earned",
                   title: "Ganó Nucleo",
                   textAlign: "right",
-                  render: (g) => <Money value={g.platform_earned} decimals={2} c="flame" block />,
+                  // El recargo debajo, en pequeño: es lo que pagó el atleta y no lo
+                  // que quedó. Va aquí y no en otra columna para que la diferencia
+                  // se lea de un vistazo sin ensanchar la tabla.
+                  render: (g) => (
+                    <div>
+                      <Money value={g.platform_earned} decimals={2} c="flame" block />
+                      <Text size="xs" c="dimmed" ta="right">
+                        de {fmtQ(g.platform_surcharge, { decimals: 2 })} de recargo
+                      </Text>
+                    </div>
+                  ),
                 },
                 {
                   accessor: "net_to_deposit",
@@ -297,8 +339,11 @@ export function PlatformBillingPanel() {
                     render: (p) => <Money value={p.amount} decimals={2} block />,
                   },
                   {
+                    // Es el recargo COBRADO al atleta, congelado al generar el
+                    // depósito — no lo que ganó Nucleo (de ahí sale la comisión de
+                    // la pasarela). El título lo dice para no volver a confundirlos.
                     accessor: "platform_surcharge",
-                    title: "Recargo Nucleo",
+                    title: "Recargo cobrado",
                     textAlign: "right",
                     render: (p) => <Money value={p.platform_surcharge} decimals={2} block />,
                   },

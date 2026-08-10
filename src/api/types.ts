@@ -412,7 +412,11 @@ export interface GymStatement {
   payout: Payout | null;
 }
 
-/** Totales de la red en el periodo (incluye lo que ganó Nucleo). */
+/**
+ * Totales de la red en el periodo. `platform_earned` es el margen REAL: el recargo
+ * cobrado menos los reembolsos y menos la comisión que se quedó el proveedor de la
+ * pasarela (`Payment.gateway_fee`).
+ */
 export interface PlatformBillingTotals {
   gross_charged: string;
   gym_revenue: string;
@@ -420,6 +424,17 @@ export interface PlatformBillingTotals {
   platform_earned: string;
   net_to_deposit: string;
   gyms_count: number;
+  /**
+   * Desglose del margen: recargo bruto que pagaron los atletas y costo de la
+   * pasarela del periodo. `PlatformTotalsSerializer` ya los expone, así que la
+   * cabecera pinta el desglose.
+   *
+   * Siguen **opcionales a propósito**: el panel se despliega en Amplify y la API en
+   * EC2, por separado. Si la web sale primero, estas dos cifras todavía no vienen y
+   * el desglose se omite solo en vez de pintar "Q NaN".
+   */
+  platform_surcharge?: string;
+  provider_fee_net?: string;
 }
 
 /** Liquidación de TODOS los gyms del periodo (solo superadmin). */

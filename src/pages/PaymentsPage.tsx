@@ -1,5 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import {
+  Anchor,
   Badge,
   Button,
   FileInput,
@@ -7,18 +8,20 @@ import {
   Group,
   Select,
   SimpleGrid,
+  Stack,
   Text,
   TextInput,
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
-import { Download, Landmark, Paperclip } from "lucide-react";
+import { Download, FileText, Landmark, Paperclip } from "lucide-react";
 import {
   useGymPayments,
   useGymStatement,
   useMemberships,
   useRegisterManualPayment,
+  useRetryFel,
 } from "../api/hooks";
 import type { Membership, Payment } from "../api/types";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
@@ -232,12 +235,92 @@ function EstadoDeCuenta({ gymId }: { gymId: string }) {
   );
 }
 
+/** Serie y número de la factura ("A-1234"); `""` si el certificador no los dio. */
+function serieYNumero(payment: Payment): string {
+  return [payment.fel_serie, payment.fel_number].filter(Boolean).join("-");
+}
+
+/**
+ * Celda de la factura electrónica. Antes solo pintaba el ESTADO ("Emitida"), que
+ * para contabilidad no sirve de nada: la serie, el número y la referencia de la
+ * SAT son los datos con los que se concilia, y sin el enlace al documento el gym
+ * no podía ni descargar la factura. Cuando la emisión falló, el botón reintenta
+ * desde aquí (antes eso solo existía en el Django admin).
+ *
+ * Se exporta para poder probarla suelta: `mantine-datatable` no pinta celdas bajo
+ * jsdom, así que dentro de la tabla no hay nada que testear.
+ */
+export function CeldaFactura({
+  payment,
+  onRetry,
+  retrying,
+}: {
+  payment: Payment;
+  onRetry: () => void;
+  retrying: boolean;
+}) {
+  const emitida = payment.fel_status === "issued";
+  const folio = serieYNumero(payment);
+  const documento = payment.fel_document_url || "";
+  return (
+    <Stack gap={2} style={{ minWidth: 150 }}>
+      {emitida && folio ? (
+        documento ? (
+          <Anchor href={documento} target="_blank" rel="noreferrer" size="sm" fw={600}>
+            <Group gap={4} wrap="nowrap" component="span">
+              <FileText size={13} />
+              {folio}
+            </Group>
+          </Anchor>
+        ) : (
+          <Text size="sm" fw={600}>
+            {folio}
+          </Text>
+        )
+      ) : (
+        <Text size="sm">{label(FEL_STATUS, payment.fel_status)}</Text>
+      )}
+      {payment.fel_reference && (
+        <Text size="xs" c="dimmed" lineClamp={1} title={payment.fel_reference}>
+          Ref. {payment.fel_reference}
+        </Text>
+      )}
+      {payment.fel_status === "failed" && payment.fel_message && (
+        <Text size="xs" c="red" lineClamp={2} title={payment.fel_message}>
+          {payment.fel_message}
+        </Text>
+      )}
+      {payment.can_retry_fel && (
+        <Button
+          size="compact-xs"
+          variant="light"
+          mt={2}
+          loading={retrying}
+          onClick={onRetry}
+          style={{ alignSelf: "flex-start" }}
+        >
+          {/* Tres situaciones distintas bajo el mismo botón: una emitida
+              "reintentable" es la que perdió el documento (no se vuelve a
+              certificar, solo se recupera el enlace); una pendiente nunca llegó a
+              la SAT (típico si el worker no corrió), así que se EMITE. */}
+          {emitida
+            ? "Recuperar documento"
+            : payment.fel_status === "failed"
+              ? "Reintentar factura"
+              : "Emitir factura"}
+        </Button>
+      )}
+    </Stack>
+  );
+}
+
 export function PaymentsPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
   const payments = useGymPayments(gymId);
   const memberships = useMemberships(gymId);
   const registerManual = useRegisterManualPayment(gymId);
+  const retryFel = useRetryFel(gymId);
 
   const [membershipId, setMembershipId] = useState<string | null>("");
   const [amount, setAmount] = useState("");
@@ -268,6 +351,30 @@ export function PaymentsPage() {
       notifications.show({
         color: "red",
         message: errMsg(error, "No se pudo registrar el pago. Verifica los datos."),
+      });
+    }
+  };
+
+  /**
+   * Reintenta la emisión y dice QUÉ pasó. Un 502 trae el motivo del certificador
+   * en `detail`: mostrarlo es la diferencia entre "no se pudo" y saber si hay que
+   * corregir el NIT del atleta o esperar a que la SAT vuelva.
+   */
+  const onRetryFel = async (payment: Payment) => {
+    try {
+      const actualizado = await retryFel.mutateAsync(payment.id);
+      const folio = serieYNumero(actualizado);
+      notifications.show({
+        color: "teal",
+        message:
+          actualizado.fel_status === "issued"
+            ? `Factura lista${folio ? `: ${folio}` : ""}.`
+            : "Se reintentó la emisión de la factura.",
+      });
+    } catch (error) {
+      notifications.show({
+        color: "red",
+        message: errMsg(error, "No se pudo emitir la factura. Inténtalo de nuevo."),
       });
     }
   };
@@ -428,7 +535,20 @@ export function PaymentsPage() {
                 onClick={() =>
                   downloadCsv(
                     "pagos-nucleo.csv",
-                    ["fecha", "concepto", "monto", "método", "estado", "factura"],
+                    // La conciliación contable se hace con serie, número y
+                    // referencia de la SAT: exportar solo el estado obligaba a
+                    // copiarlos a mano de la pantalla.
+                    [
+                      "fecha",
+                      "concepto",
+                      "monto",
+                      "método",
+                      "estado",
+                      "factura",
+                      "serie",
+                      "número",
+                      "referencia",
+                    ],
                     (payments.data ?? []).map((payment) => [
                       new Date(payment.created_at).toLocaleString("es-GT"),
                       payment.concept,
@@ -436,6 +556,9 @@ export function PaymentsPage() {
                       label(PAYMENT_METHOD, payment.method),
                       label(PAYMENT_TX_STATUS, payment.status),
                       label(FEL_STATUS, payment.fel_status),
+                      payment.fel_serie,
+                      payment.fel_number,
+                      payment.fel_reference,
                     ]),
                   )
                 }
@@ -506,7 +629,13 @@ export function PaymentsPage() {
                   accessor: "fel_status",
                   title: "Factura (FEL)",
                   sortable: true,
-                  render: (p) => label(FEL_STATUS, p.fel_status),
+                  render: (p) => (
+                    <CeldaFactura
+                      payment={p}
+                      onRetry={() => onRetryFel(p)}
+                      retrying={retryFel.isPending && retryFel.variables === p.id}
+                    />
+                  ),
                 },
               ]}
             />

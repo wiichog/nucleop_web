@@ -251,6 +251,30 @@ export function useRefundPayment(gymId: string) {
   });
 }
 
+/**
+ * Reintenta la emisión de la factura electrónica (FEL) de un pago desde el panel.
+ * Hasta ahora una FEL fallida solo se podía reintentar desde el Django admin, que
+ * el staff del gimnasio no tiene.
+ *
+ * Es IDEMPOTENTE: una factura ya certificada NO se vuelve a mandar a la SAT; a lo
+ * sumo repone el enlace al documento si faltaba. Tampoco toca el dinero del pago
+ * (`amount`, `status`, recargo): solo su estado de emisión.
+ * 400 `fel_not_applicable` (pago no exitoso o monto ≤ 0) · 502 `fel_failed` con el
+ * motivo del certificador en `detail`.
+ */
+export function useRetryFel(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (paymentId: string) =>
+      (await api.post<Payment>(`/gym/${gymId}/payments/${paymentId}/fel/retry`, {})).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["payments", gymId] });
+      // El reintento deja rastro en la bitácora (`fel_retry` / `fel_retry_failed`).
+      qc.invalidateQueries({ queryKey: ["audit", gymId] });
+    },
+  });
+}
+
 export function usePasswordResetRequest() {
   return useMutation({
     mutationFn: async (email: string) =>

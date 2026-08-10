@@ -2581,6 +2581,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/payments/{id}/fel/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Reintenta la emisión de la factura de un pago desde el panel del gym.
+         *
+         *     Hasta ahora una FEL fallida solo se podía reintentar entrando al Django admin, que
+         *     el staff del gimnasio no tiene. Aislamiento doble: el rol se valida contra el
+         *     `gym_id` de la URL y el pago se busca por `(pk, gym_id)`, así que el admin de un gym
+         *     no puede reintentar —ni ver— la factura de otro (404, no 403: ni siquiera confirma
+         *     que exista).
+         *
+         *     No edita el pago para "arreglar" la factura: el dinero (`amount`,
+         *     `platform_commission`, `status`) queda intacto y solo se reescribe el estado de
+         *     emisión (`fel_*`), que es otra cosa. Idempotente: si ya está certificada no se
+         *     vuelve a mandar a la SAT; a lo sumo repone el enlace al documento si faltaba.
+         */
+        post: operations["gym_payments_fel_retry_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/payments/{id}/refund": {
         parameters: {
             query?: never;
@@ -7152,6 +7182,11 @@ export interface components {
             /** Format: date-time */
             readonly created_at: string;
             readonly history: components["schemas"]["MembershipStatusHistory"][];
+            /** @description True si esta solicitud reabre una relación que el atleta ya tuvo aquí. */
+            readonly is_rejoin: boolean;
+            readonly community_points: number;
+            /** Format: date */
+            readonly member_since: string | null;
         };
         JoinRequestCreate: {
             level?: string;
@@ -8731,10 +8766,13 @@ export interface components {
             readonly attempts: components["schemas"]["PaymentAttempt"][];
             fel_status?: components["schemas"]["FelStatusEnum"];
             fel_reference?: string;
-            /** Format: uri */
-            fel_document_url?: string;
+            /** @description Enlace vigente al documento certificado (se re-firma si es del almacenamiento). */
+            readonly fel_document_url: string;
             fel_serie?: string;
             fel_number?: string;
+            fel_message?: string;
+            /** @description Si el gym puede reintentar la emisión desde el panel (la regla vive en fel.py). */
+            readonly can_retry_fel: boolean;
             /** Format: date-time */
             paid_at?: string | null;
             /** Format: uuid */
@@ -14437,6 +14475,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedPaymentList"];
+                };
+            };
+        };
+    };
+    gym_payments_fel_retry_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
                 };
             };
         };

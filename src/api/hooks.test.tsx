@@ -24,6 +24,7 @@ import {
   useGymClasses,
   useGymClubContent,
   useRegisterManualPayment,
+  useRetryFel,
 } from "./hooks";
 
 function wrapper() {
@@ -160,6 +161,30 @@ describe("cola de contenido de clubes", () => {
     const keys = spy.mock.calls.map((call) => JSON.stringify(call[0]?.queryKey));
     expect(keys).toContain(JSON.stringify(["gym-club-content", "gym-1"]));
     expect(keys).toContain(JSON.stringify(["pending-summary", "gym-1"]));
+  });
+});
+
+/**
+ * Reintento de la factura electrónica. La ruta lleva el `gym_id` dentro: es el
+ * aislamiento por gimnasio del backend, y si el panel la arma sin él (o contra
+ * otro gym) el reintento se cae con 403/404 en vez de emitir.
+ */
+describe("useRetryFel", () => {
+  it("pega al pago DE ESE gym y refresca el historial", async () => {
+    post.mockReset().mockResolvedValue({ data: { id: "p1", fel_status: "issued" } });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useRetryFel("gym-1"), {
+      wrapper: ({ children }: { children: React.ReactNode }) => (
+        <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+      ),
+    });
+    await act(async () => {
+      await result.current.mutateAsync("p1");
+    });
+    expect(post).toHaveBeenCalledWith("/gym/gym-1/payments/p1/fel/retry", {});
+    const keys = spy.mock.calls.map((call) => JSON.stringify(call[0]?.queryKey));
+    expect(keys).toContain(JSON.stringify(["payments", "gym-1"]));
   });
 });
 
