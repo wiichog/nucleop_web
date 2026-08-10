@@ -72,8 +72,9 @@ export function PrivacyPage() {
               y su ausencia es causa habitual de rechazo en App Review. */}
           <p>
             <strong className="text-white/90">Si entras con Google, Apple o Facebook:</strong>{" "}
-            recibimos del proveedor tu nombre, tu correo electrónico y tu foto de perfil pública, y
-            los usamos únicamente para crear o vincular tu cuenta de Nucleo y mostrar tu perfil. No
+            recibimos del proveedor tu nombre, tu correo electrónico y, cuando el proveedor la
+            ofrece, tu foto de perfil pública (Apple no la entrega). Los usamos únicamente para
+            crear o vincular tu cuenta de Nucleo y mostrar tu perfil. No
             publicamos nada en tus redes, no accedemos a tu lista de contactos ni a tus amistades, y
             no usamos esos datos para publicidad. Puedes revocar el acceso cuando quieras desde los
             ajustes de tu cuenta de Google, Apple o Facebook.
