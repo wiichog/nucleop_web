@@ -70,6 +70,14 @@ interface Me {
   is_superuser: boolean;
   must_change_password?: boolean;
   roles: Role[];
+  // El backend (`AthleteMeSerializer`) siempre manda este bloque; el panel no lo
+  // declaraba y por eso no podía saludar a nadie por su nombre. Es `null` sólo si
+  // la cuenta no tiene perfil de atleta.
+  athlete?: {
+    first_name: string;
+    last_name: string;
+    photo_url: string | null;
+  } | null;
 }
 
 // Trae la lista COMPLETA siguiendo la paginación por cursor del backend (DRF

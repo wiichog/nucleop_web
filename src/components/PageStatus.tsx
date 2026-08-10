@@ -1,5 +1,6 @@
-import { Button, Center, Group, Stack, Text } from "@mantine/core";
+import { Avatar, Button, Center, Group, Stack, Text } from "@mantine/core";
 import { AlertTriangle } from "lucide-react";
+import { useMe } from "../api/hooks";
 import { AtomLogo } from "../landing/AtomLogo";
 import { GlassCard } from "./aurora";
 
@@ -71,8 +72,55 @@ export function PageError({
   );
 }
 
+/**
+ * Cuenta autenticada que todavía no tiene acceso a ningún gimnasio.
+ *
+ * Antes esto era un `PageError` —triángulo de alerta y "Algo salió mal"—, así que
+ * quien entraba por primera vez creía que el panel estaba roto cuando en realidad
+ * su cuenta se había creado bien y solo faltaba que un gimnasio le diera acceso.
+ * Le pasa a todo el staff nuevo, y a cualquiera que entre con Google o Facebook.
+ *
+ * Saluda por su nombre y muestra su foto y su correo: confirma que la sesión quedó
+ * abierta y a nombre de quién, que es justo lo que la persona necesita saber para
+ * pedirle acceso a alguien.
+ */
 export function NoGymAssigned() {
+  const { data } = useMe();
+  const nombre = [data?.athlete?.first_name, data?.athlete?.last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const iniciales =
+    [data?.athlete?.first_name?.[0], data?.athlete?.last_name?.[0]].filter(Boolean).join("") ||
+    (data?.email?.[0] ?? "?").toUpperCase();
+
   return (
-    <PageError message="No tienes un gimnasio asignado. Contacta al administrador de Nucleo." />
+    <Center mih={260}>
+      <GlassCard className="a-rise" style={{ maxWidth: 520 }}>
+        <Stack align="center" gap="md" p="lg">
+          <Avatar src={data?.athlete?.photo_url || undefined} size={72} radius="50%">
+            {iniciales}
+          </Avatar>
+          <Stack align="center" gap={4}>
+            <Text fw={600} size="lg">
+              {nombre ? `Hola, ${nombre}` : "Tu cuenta está lista"}
+            </Text>
+            {data?.email && (
+              <Text c="dimmed" size="sm">
+                {data.email}
+              </Text>
+            )}
+          </Stack>
+          <Text c="dimmed" size="sm" ta="center">
+            Tu cuenta de Nucleo quedó creada, pero todavía ningún gimnasio te ha dado acceso a su
+            panel. Pídele al administrador de tu gimnasio que te invite con este correo y podrás
+            entrar de inmediato.
+          </Text>
+          <Text c="dimmed" size="xs" ta="center">
+            ¿Eres atleta? El panel es para gimnasios: tu experiencia está en la app de Nucleo.
+          </Text>
+        </Stack>
+      </GlassCard>
+    </Center>
   );
 }
