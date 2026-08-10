@@ -147,3 +147,50 @@ export function label(map: Record<string, string>, value?: string | null): strin
   if (!value) return "—";
   return map[value] ?? value;
 }
+
+/**
+ * Estado de un contracargo (disputa de tarjeta). No se mezcla con
+ * `PAYMENT_TX_STATUS`: "Reembolsado" es una decisión del gym y esto es un fallo
+ * del banco, y confundirlos es lo que hacía invisible la pérdida.
+ */
+export const CHARGEBACK_STATUS: Record<string, string> = {
+  open: "Recibido",
+  submitted: "Evidencia enviada",
+  won: "Ganado",
+  lost: "Perdido",
+};
+
+export const CHARGEBACK_STATUS_COLOR: Record<string, string> = {
+  open: "red",
+  submitted: "yellow",
+  won: "teal",
+  lost: "gray",
+};
+
+/** Tipos del ledger de inventario (kardex). */
+export const MOVEMENT_TYPE: Record<string, string> = {
+  purchase: "Entrada / compra",
+  sale: "Venta",
+  adjustment: "Ajuste por conteo",
+  loss: "Merma",
+  return: "Devolución",
+};
+
+export const MOVEMENT_TYPE_COLOR: Record<string, string> = {
+  purchase: "teal",
+  sale: "blue",
+  adjustment: "yellow",
+  loss: "red",
+  return: "grape",
+};
+
+/** Concepto del cobro (`Payment.concept`). Se mostraba crudo ("membership"). */
+export const PAYMENT_CONCEPT: Record<string, string> = {
+  membership: "Membresía",
+  drop_in: "Drop-in",
+  special_class: "Clase especial",
+  personal_training: "Personal trainer",
+  marketplace: "Tienda",
+  retail: "Venta en recepción",
+  service: "Servicio extra",
+};

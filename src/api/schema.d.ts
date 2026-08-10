@@ -868,6 +868,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/access/admit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description `POST /gym/{gym_id}/access/admit` — marcar presente, socio o visitante.
+         *
+         *     `class_checkin` registra la asistencia a una clase (y consume la entrada del pase
+         *     si el acceso lo autoriza un drop-in); `dropin_entry` registra la entrada del
+         *     visitante que llega sin clase. Con esto un drop-in PAGADO por fin se puede marcar
+         *     presente: antes no se podía ni escaneando ni a mano.
+         */
+        post: operations["gym_access_admit_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/access/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description `POST /gym/{gym_id}/access/resolve` — el ÚNICO lector de códigos del producto.
+         *
+         *     Recibe lo que sea que leyó la cámara y contesta qué es (carnet, pase drop-in o
+         *     QR de clase), quién es, su situación **con este gimnasio** y qué se puede hacer.
+         *     No escribe nada: admitir es una decisión aparte, para que apuntar la cámara nunca
+         *     le gaste una entrada a nadie.
+         *
+         *     El carnet cruza gimnasios (es el Athlete Passport), pero el aislamiento no: de un
+         *     atleta ajeno salen sus datos públicos y una relación `kind="none"` con la acción
+         *     de cobrarle un drop-in. Un código ilegible responde 200 con `kind="unknown"`.
+         */
+        post: operations["gym_access_resolve_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/access/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description `GET /gym/{gym_id}/access/search?q=` — respaldo manual acotado al gimnasio.
+         *
+         *     Las cámaras fallan y los teléfonos se descargan; sin respaldo la recepción se
+         *     traba. Busca por nombre o teléfono SOLO entre quienes ya tienen relación con este
+         *     gym (membresía, viva o no, o una compra de drop-in), y devuelve la misma ficha
+         *     que el resolvedor para que el cliente reutilice la tarjeta.
+         */
+        get: operations["gym_access_search_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/admins": {
         parameters: {
             query?: never;
@@ -914,6 +990,86 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/announcements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Ver, corregir y dar de baja un anuncio del gym.
+         *
+         *     Un anuncio publicado con un error —y que además ya mandó push a todo el gym— no
+         *     puede ser irreversible: hasta ahora sólo se podía crear. Se sigue el patrón de
+         *     `clubs.ClubAdminAnnouncementDetailView` (baja por el dueño del ámbito), con dos
+         *     diferencias deliberadas:
+         *
+         *     - La baja es SOFT (`GymAnnouncement` hereda `SoftDeleteModel`): el anuncio sale
+         *       del feed y del panel, pero queda el rastro de que se publicó.
+         *     - Editar NO vuelve a notificar. El push ya salió; repetirlo por corregir una
+         *       tilde convierte cada corrección en spam para todo el gimnasio.
+         *
+         *     El aislamiento por gym es el `gym_id` de la URL dentro del `get_object`: un
+         *     admin no puede alcanzar el anuncio de otro gimnasio ni sabiendo su id.
+         */
+        get: operations["gym_announcements_retrieve"];
+        /**
+         * @description Ver, corregir y dar de baja un anuncio del gym.
+         *
+         *     Un anuncio publicado con un error —y que además ya mandó push a todo el gym— no
+         *     puede ser irreversible: hasta ahora sólo se podía crear. Se sigue el patrón de
+         *     `clubs.ClubAdminAnnouncementDetailView` (baja por el dueño del ámbito), con dos
+         *     diferencias deliberadas:
+         *
+         *     - La baja es SOFT (`GymAnnouncement` hereda `SoftDeleteModel`): el anuncio sale
+         *       del feed y del panel, pero queda el rastro de que se publicó.
+         *     - Editar NO vuelve a notificar. El push ya salió; repetirlo por corregir una
+         *       tilde convierte cada corrección en spam para todo el gimnasio.
+         *
+         *     El aislamiento por gym es el `gym_id` de la URL dentro del `get_object`: un
+         *     admin no puede alcanzar el anuncio de otro gimnasio ni sabiendo su id.
+         */
+        put: operations["gym_announcements_update"];
+        post?: never;
+        /**
+         * @description Ver, corregir y dar de baja un anuncio del gym.
+         *
+         *     Un anuncio publicado con un error —y que además ya mandó push a todo el gym— no
+         *     puede ser irreversible: hasta ahora sólo se podía crear. Se sigue el patrón de
+         *     `clubs.ClubAdminAnnouncementDetailView` (baja por el dueño del ámbito), con dos
+         *     diferencias deliberadas:
+         *
+         *     - La baja es SOFT (`GymAnnouncement` hereda `SoftDeleteModel`): el anuncio sale
+         *       del feed y del panel, pero queda el rastro de que se publicó.
+         *     - Editar NO vuelve a notificar. El push ya salió; repetirlo por corregir una
+         *       tilde convierte cada corrección en spam para todo el gimnasio.
+         *
+         *     El aislamiento por gym es el `gym_id` de la URL dentro del `get_object`: un
+         *     admin no puede alcanzar el anuncio de otro gimnasio ni sabiendo su id.
+         */
+        delete: operations["gym_announcements_destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * @description Ver, corregir y dar de baja un anuncio del gym.
+         *
+         *     Un anuncio publicado con un error —y que además ya mandó push a todo el gym— no
+         *     puede ser irreversible: hasta ahora sólo se podía crear. Se sigue el patrón de
+         *     `clubs.ClubAdminAnnouncementDetailView` (baja por el dueño del ámbito), con dos
+         *     diferencias deliberadas:
+         *
+         *     - La baja es SOFT (`GymAnnouncement` hereda `SoftDeleteModel`): el anuncio sale
+         *       del feed y del panel, pero queda el rastro de que se publicó.
+         *     - Editar NO vuelve a notificar. El push ya salió; repetirlo por corregir una
+         *       tilde convierte cada corrección en spam para todo el gimnasio.
+         *
+         *     El aislamiento por gym es el `gym_id` de la URL dentro del `get_object`: un
+         *     admin no puede alcanzar el anuncio de otro gimnasio ni sabiendo su id.
+         */
+        patch: operations["gym_announcements_partial_update"];
         trace?: never;
     };
     "/api/v1/gym/{gym_id}/appeals": {
@@ -1083,6 +1239,50 @@ export interface paths {
         get: operations["gym_audit_export_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/billing/chargebacks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Contracargos que sufrió ESTE gimnasio (`?status=`).
+         *
+         *     Aislamiento: el `gym_id` sale de la URL, el rol se valida contra ese gym y el
+         *     queryset filtra por él, así que un admin nunca ve la disputa de otro gimnasio.
+         */
+        get: operations["gym_billing_chargebacks_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/billing/chargebacks/{id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description El gym responde la disputa con su evidencia (asistencias, contrato, conversación).
+         *
+         *     La evidencia la tiene el gimnasio, pero el dinero lo perdió Nucleo: esto deja el
+         *     expediente listo para que la plataforma lo presente ante el proveedor.
+         */
+        post: operations["gym_billing_chargebacks_evidence_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1839,6 +2039,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/erp/inventory/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Ajuste por conteo físico de un producto.
+         *
+         *     El panel manda lo CONTADO; la diferencia contra el stock la calcula el backend
+         *     (ver `services.ajustar_por_conteo`). Responde 201 con el asiento cuando hubo
+         *     diferencia y 200 sin asiento cuando el conteo cuadró.
+         */
+        post: operations["gym_erp_inventory_count_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/erp/inventory/movements": {
         parameters: {
             query?: never;
@@ -2397,6 +2620,32 @@ export interface paths {
         patch: operations["gym_memberships_athlete_partial_update"];
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/memberships/{mid}/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Bloquear el acceso de un socio (sanción del gimnasio).
+         *
+         *     Hasta ahora el bloqueo solo existía como acción del Django admin y, encima, era
+         *     un callejón sin salida (`blocked` no tenía transiciones de vuelta). Ahora lo hace
+         *     el panel y se levanta con `/unblock`.
+         *
+         *     El aislamiento por gym lo da la URL: la membresía se busca por `(mid, gym_id)`,
+         *     así que un gimnasio no puede sancionar la relación de otro (404).
+         */
+        post: operations["gym_memberships_block_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/memberships/{mid}/leave/{action}": {
         parameters: {
             query?: never;
@@ -2490,6 +2739,23 @@ export interface paths {
         put?: never;
         /** @description Reanudar una membresía pausada: corre el vencimiento los días que duró la pausa. */
         post: operations["gym_memberships_resume_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/memberships/{mid}/unblock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Levantar el bloqueo: la membresía vuelve al estado que tenía ANTES de la sanción. */
+        post: operations["gym_memberships_unblock_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3999,6 +4265,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/global-standing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Mi reputación global: puntos, posición, nivel e insignias globales.
+         *
+         *     Endpoint aparte del ranking porque el pasaporte lo necesita sin traerse el
+         *     tablero entero.
+         */
+        get: operations["me_global_standing_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/join-requests": {
         parameters: {
             query?: never;
@@ -4503,6 +4791,51 @@ export interface paths {
         patch: operations["me_prs_partial_update"];
         trace?: never;
     };
+    "/api/v1/me/ranking-visibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Aparecer o no en el ranking global. Mismo contrato que `/me/consents`.
+         *
+         *     Es opt-out (ver el razonamiento en `ranking.py`), y por eso el atleta recibe un
+         *     aviso la primera vez que entra al tablero: `notified_at` deja constancia.
+         */
+        get: operations["me_ranking_visibility_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * @description Aparecer o no en el ranking global. Mismo contrato que `/me/consents`.
+         *
+         *     Es opt-out (ver el razonamiento en `ranking.py`), y por eso el atleta recibe un
+         *     aviso la primera vez que entra al tablero: `notified_at` deja constancia.
+         */
+        patch: operations["me_ranking_visibility_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/me/referrals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Pantalla "Invita y gana" del atleta en sesión. */
+        get: operations["me_referrals_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/reports": {
         parameters: {
             query?: never;
@@ -4774,6 +5107,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/platform/billing/chargebacks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Todos los contracargos de la red (`?status=&gym_id=`). Solo superadmin.
+         *
+         *     Es la bandeja de la pérdida: con custodia puente el descubierto lo absorbe Nucleo,
+         *     así que la plataforma —no el gym— es quien tiene que estar mirando esta lista.
+         */
+        get: operations["platform_billing_chargebacks_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/billing/chargebacks/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Cierra la disputa con el fallo del banco (`won`/`lost`). Solo superadmin. */
+        post: operations["platform_billing_chargebacks_resolve_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/platform/billing/payouts": {
         parameters: {
             query?: never;
@@ -4914,6 +5286,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/platform/referrals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Bandeja de referidos de TODA la red (superadmin). Sólo lectura, por cursor.
+         *
+         *     Existe para vigilar el programa: ver rachas raras, banderas de riesgo y motivos
+         *     de rechazo. No aprueba ni revierte nada — las reglas deciden solas.
+         */
+        get: operations["platform_referrals_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/platform/reports": {
         parameters: {
             query?: never;
@@ -5001,6 +5395,55 @@ export interface paths {
          *     revisión del admin y lleva la cuenta de reportes. Un reporte por atleta y post.
          */
         post: operations["posts_report_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ranking/global": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Ranking GLOBAL de la red, paginado por cursor.
+         *
+         *     Global a propósito: cruza gimnasios. Por eso mismo cada fila lleva sólo
+         *     identidad pública y puntos globales — nunca datos de la relación de nadie con
+         *     ningún gym. Toda la lógica (consentimiento, cursor, bloqueos) vive en
+         *     `ranking.py`; esta vista sólo traduce query params.
+         *
+         *     Query: `?period=AAAA-MM` (opcional, tablero del mes), `?cursor=`, `?limit=`.
+         */
+        get: operations["ranking_global_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/referrals/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description El invitado canjea el código de su padrino.
+         *
+         *     Es el único camino de escritura del programa: el registro de cuenta no pide
+         *     código, así que un atleta puede canjearlo después de instalar el app (dentro de
+         *     la ventana de `antifraud.VENTANA_ATRIBUCION_DIAS`).
+         */
+        post: operations["referrals_claim_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5118,6 +5561,12 @@ export interface paths {
          *
          *     Procesa tanto la confirmación como el RECHAZO asíncrono: un estado fallido marca el
          *     pago como fallido (con motivo), avisa a soporte y notifica al atleta (si es su cuota).
+         *
+         *     ⚠️ ORDEN DE LAS RAMAS: los eventos de CONTRACARGO se resuelven ANTES del corte de
+         *     idempotencia ("un pago ya exitoso no se reprocesa"). Un contracargo llega justamente
+         *     sobre un pago exitoso, así que ese corte lo mandaba a la basura con un 200 "ya
+         *     procesado": el banco le quitaba el dinero a Nucleo y no quedaba ni el registro ni el
+         *     aviso. No muevas la rama de contracargo debajo del corte.
          */
         post: operations["webhooks_pagalo_create"];
         delete?: never;
@@ -5164,6 +5613,152 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description Qué puede hacer recepción con esta persona, ahora mismo.
+         *
+         *     `via="admit"` se ejecuta con `POST /gym/{gym_id}/access/admit` mandando este
+         *     mismo `action`; `via="client"` lo resuelve el cliente con un flujo que ya existe
+         *     (vender un pase drop-in, abrir el buscador).
+         */
+        AccessAction: {
+            /** @description class_checkin | dropin_entry | sell_dropin | search */
+            action: string;
+            label: string;
+            /** @description admit | client */
+            via: string;
+            enabled: boolean;
+            reason: string;
+            reason_message: string;
+            /** Format: uuid */
+            gym_class_id: string | null;
+            /** Format: uuid */
+            dropin_purchase_id: string | null;
+        };
+        /** @description Resultado de admitir: qué quedó registrado, además de la ficha actualizada. */
+        AccessAdmit: {
+            athlete: components["schemas"]["AccessAthlete"] | null;
+            relationship: components["schemas"]["AccessRelationship"] | null;
+            dropin: components["schemas"]["AccessDropin"] | null;
+            gym_class: components["schemas"]["AccessClass"] | null;
+            actions: components["schemas"]["AccessAction"][];
+            granted: boolean;
+            code: string;
+            message: string;
+            already_registered: boolean;
+            /** Format: uuid */
+            checkin_id: string | null;
+            /** Format: uuid */
+            entry_id: string | null;
+        };
+        /**
+         * @description Acción elegida sobre una ficha ya resuelta.
+         *
+         *     La persona se identifica por `code` (re-escaneo) **o** por `athlete_id` (salido
+         *     del resolvedor o del buscador). Que exista el `athlete_id` no autoriza nada: el
+         *     acceso lo siguen validando `validar_acceso` / `pase_vigente` contra ESTE gym.
+         */
+        AccessAdmitRequest: {
+            /** @description class_checkin | dropin_entry */
+            action: string;
+            code?: string;
+            /** Format: uuid */
+            athlete_id?: string | null;
+            /** Format: uuid */
+            gym_class_id?: string | null;
+        };
+        /** @description Datos PÚBLICOS del atleta: lo único que ve un gym que no es el suyo. */
+        AccessAthlete: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            photo: string | null;
+        };
+        /** @description Clase con la ventana de asistencia abierta (o la que resolvió el QR). */
+        AccessClass: {
+            /** Format: uuid */
+            id: string;
+            class_type: string;
+            /** Format: date-time */
+            starts_at: string;
+            duration_min: number;
+            coach_name: string | null;
+            checkin_window_open: boolean;
+            reserved_by_athlete: boolean | null;
+            already_checked_in: boolean | null;
+        };
+        /** @description Pase drop-in relevante para esta puerta (el escaneado o el vigente). */
+        AccessDropin: {
+            /** Format: uuid */
+            purchase_id: string;
+            product_name: string;
+            type: string;
+            /** Format: date-time */
+            valid_from: string;
+            /** Format: date-time */
+            valid_to: string;
+            uses_left: number | null;
+            usable: boolean;
+            reason: string;
+            reason_message: string;
+        };
+        /** @description La relación del atleta con ESTE gimnasio. Nunca con otro. */
+        AccessRelationship: {
+            /** @description member | visitor | past | none */
+            kind: string;
+            label: string;
+            is_member: boolean;
+            /** Format: uuid */
+            membership_id: string | null;
+            status: string | null;
+            status_label: string | null;
+            plan_name: string | null;
+            payment_status: string | null;
+            /** Format: date */
+            renewal_date: string | null;
+            /** Format: date */
+            since: string | null;
+        };
+        /** @description Respuesta del resolvedor. Siempre 200: un código ilegible es una respuesta. */
+        AccessResolve: {
+            athlete: components["schemas"]["AccessAthlete"] | null;
+            relationship: components["schemas"]["AccessRelationship"] | null;
+            dropin: components["schemas"]["AccessDropin"] | null;
+            gym_class: components["schemas"]["AccessClass"] | null;
+            actions: components["schemas"]["AccessAction"][];
+            /** @description athlete_card | dropin_pass | class_qr | unknown */
+            kind: string;
+            code: string;
+            resolved: boolean;
+            message: string;
+            /** Format: date-time */
+            scanned_at: string;
+            open_classes: components["schemas"]["AccessClass"][];
+        };
+        /** @description Lo que manda el lector: el texto escaneado tal cual salió de la cámara. */
+        AccessResolveRequest: {
+            /** @description Texto crudo del QR (token, URL o deep link). Se extrae el UUID. */
+            code: string;
+            /**
+             * Format: uuid
+             * @description Clase que recepción está pasando; si falta, se propone la abierta más cercana.
+             */
+            gym_class_id?: string | null;
+        };
+        AccessSearch: {
+            query: string;
+            count: number;
+            results: components["schemas"]["AccessSearchResult"][];
+            open_classes: components["schemas"]["AccessClass"][];
+        };
+        /** @description Ficha de un resultado del buscador + la pista para desambiguar homónimos. */
+        AccessSearchResult: {
+            athlete: components["schemas"]["AccessAthlete"] | null;
+            relationship: components["schemas"]["AccessRelationship"] | null;
+            dropin: components["schemas"]["AccessDropin"] | null;
+            gym_class: components["schemas"]["AccessClass"] | null;
+            actions: components["schemas"]["AccessAction"][];
+            phone_hint: string;
+        };
         /**
          * @description * `included` - Incluido en la membresía
          *     * `extra` - Requiere pago extra
@@ -5382,6 +5977,16 @@ export interface components {
         /** @enum {unknown} */
         BlankEnum: "";
         /**
+         * @description Bloquear / desbloquear el acceso del socio. El motivo es opcional.
+         *
+         *     No hay campo `reason` en `Membership` a propósito: el motivo queda en el
+         *     comentario de `MembershipStatusHistory` (append-only, ya visible en la ficha del
+         *     panel), así que no se puede reescribir después de aplicada la sanción.
+         */
+        BlockMembership: {
+            reason?: string;
+        };
+        /**
          * @description Reserva de una sesión de personal trainer con un coach del gym.
          *
          *     La DURACIÓN no la elige el cliente: el precio del coach es por sesión, así que
@@ -5565,6 +6170,76 @@ export interface components {
          * @enum {string}
          */
         ChargeTypeEnum: "recurring" | "one_time";
+        /**
+         * @description Expediente de una disputa de tarjeta (append-only: todo es de solo lectura).
+         *
+         *     Los montos viajan en POSITIVO (`amount` base del gym, `surcharge` recargo de Nucleo,
+         *     `total_lost` la suma); el movimiento negativo que descuenta del depósito es
+         *     `reversal`, un `Payment` aparte.
+         */
+        Chargeback: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly payment: string;
+            /** Format: uuid */
+            readonly reversal: string | null;
+            /** Format: uuid */
+            readonly gym: string;
+            /** @default  */
+            readonly gym_name: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly athlete_name: string;
+            /** Format: uuid */
+            readonly membership: string | null;
+            /** @default  */
+            readonly concept: string;
+            /** Format: decimal */
+            readonly amount: string;
+            /** Format: decimal */
+            readonly surcharge: string;
+            /** Format: decimal */
+            readonly total_lost: string;
+            readonly currency: string;
+            readonly case_reference: string;
+            readonly reason_code: string;
+            readonly reason: string;
+            readonly status: components["schemas"]["ChargebackStatusEnum"];
+            /** Format: date-time */
+            readonly evidence_due_at: string | null;
+            /** Format: date-time */
+            readonly evidence_submitted_at: string | null;
+            readonly evidence_notes: string;
+            /** Format: uri */
+            readonly evidence_url: string;
+            /** @description Si todavía se está a tiempo de responder la disputa (la regla vive en services). */
+            readonly can_submit_evidence: boolean;
+            /** Format: date-time */
+            readonly resolved_at: string | null;
+            readonly resolution_notes: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /** @description Evidencia con la que el gym responde una disputa. */
+        ChargebackEvidence: {
+            notes?: string;
+            /** Format: uri */
+            evidence_url?: string;
+        };
+        /** @description Fallo del banco sobre la disputa. */
+        ChargebackResolve: {
+            result: components["schemas"]["ResultEnum"];
+            notes?: string;
+        };
+        /**
+         * @description * `open` - Recibido
+         *     * `submitted` - Evidencia enviada
+         *     * `won` - Ganado
+         *     * `lost` - Perdido
+         * @enum {string}
+         */
+        ChargebackStatusEnum: "open" | "submitted" | "won" | "lost";
         Checkin: {
             /** Format: uuid */
             readonly id: string;
@@ -6649,6 +7324,46 @@ export interface components {
             /** Format: uuid */
             coach_id?: string | null;
         };
+        GlobalRanking: {
+            period: string;
+            results: components["schemas"]["GlobalRankingRow"][];
+            next_cursor: string | null;
+            me: components["schemas"]["MyRankingPosition"] | null;
+        };
+        /**
+         * @description Una fila del ranking global.
+         *
+         *     Identidad pública + puntos globales y NADA MÁS. Ningún campo de aquí puede
+         *     depender de `Membership`: el ranking cruza gimnasios a propósito, y por eso
+         *     mismo no puede filtrar la relación de nadie con ninguno (ni gym, ni plan, ni
+         *     cuota, ni asistencia).
+         */
+        GlobalRankingRow: {
+            rank: number;
+            /** Format: uuid */
+            athlete_id: string;
+            name: string;
+            photo_url: string | null;
+            points: number;
+            level: number;
+            level_name: string;
+            is_me: boolean;
+        };
+        /** @description Mi reputación global para el pasaporte: puntos, posición, nivel e insignias. */
+        GlobalStanding: {
+            points: number;
+            rank: number | null;
+            visible: boolean;
+            peak_points: number;
+            level: number;
+            level_name: string;
+            level_min_points: number;
+            next_level: number | null;
+            next_level_name: string | null;
+            next_level_points: number | null;
+            points_to_next: number | null;
+            badges: components["schemas"]["AthleteBadge"][];
+        };
         /** @description Edición por admin gym / superadmin (incluye config sensible). */
         GymAdmin: {
             /** Format: uuid */
@@ -6695,6 +7410,8 @@ export interface components {
             video?: string | null;
             /** Format: date-time */
             readonly created_at: string;
+            /** Format: date-time */
+            readonly updated_at: string;
         };
         GymAthletePR: {
             /** Format: uuid */
@@ -7067,6 +7784,11 @@ export interface components {
             /** Format: decimal */
             refunds_surcharge: string;
             /** Format: decimal */
+            chargebacks_total: string;
+            /** Format: decimal */
+            chargebacks_surcharge: string;
+            chargebacks_count: number;
+            /** Format: decimal */
             net_to_deposit: string;
             /** Format: decimal */
             platform_earned: string;
@@ -7093,6 +7815,28 @@ export interface components {
             readonly messages: components["schemas"]["TicketMessage"][];
             /** Format: date-time */
             readonly created_at: string;
+        };
+        /**
+         * @description Ajuste por conteo físico: se manda lo CONTADO, no la diferencia.
+         *
+         *     La diferencia la calcula el backend contra el stock del momento (§18): el
+         *     cliente no hace cuentas de negocio ni escribe el stock.
+         */
+        InventoryCount: {
+            /** Format: uuid */
+            product_id: string;
+            counted_qty: number;
+            note?: string;
+        };
+        /** @description Resultado del conteo: qué había, qué se contó y qué se asentó. */
+        InventoryCountResult: {
+            /** Format: uuid */
+            product: string;
+            previous_qty: number;
+            counted_qty: number;
+            delta: number;
+            stock_qty: number;
+            movement: components["schemas"]["InventoryMovement"] | null;
         };
         InventoryMovement: {
             /** Format: uuid */
@@ -7161,6 +7905,11 @@ export interface components {
             last_name: string;
             /** @default  */
             phone: string;
+        };
+        InvitedBy: {
+            name: string;
+            status: components["schemas"]["ReferralStatus"];
+            points: number;
         };
         JoinRequest: {
             /** Format: uuid */
@@ -7537,6 +8286,13 @@ export interface components {
          * @enum {string}
          */
         ModerationStatus: "pending" | "approved" | "rejected";
+        /**
+         * @description Asiento manual del kardex.
+         *
+         *     `qty` va en positivo salvo en el **ajuste**, el único tipo que corre en los dos
+         *     sentidos: un conteo puede encontrar de más o de menos. El signo definitivo lo
+         *     pone el service (`_signed_qty`), que es la autoridad.
+         */
         MovementCreate: {
             /** Format: uuid */
             product_id: string;
@@ -7571,6 +8327,28 @@ export interface components {
             window_open: boolean;
             /** Format: date-time */
             window_closes_at: string | null;
+        };
+        /** @description Mi posición. `visible=False` = me oculté; el rank es el que tendría. */
+        MyRankingPosition: {
+            points: number;
+            rank: number | null;
+            visible: boolean;
+            level: number;
+            level_name: string;
+        };
+        /** @description Respuesta de `GET /me/referrals` (pantalla "Invita y gana"). */
+        MyReferrals: {
+            code: string;
+            is_active: boolean;
+            points_referrer: number;
+            points_referred: number;
+            maturity_days: number;
+            can_claim: boolean;
+            invited_by: components["schemas"]["InvitedBy"] | null;
+            totals: {
+                [key: string]: number;
+            };
+            referrals: components["schemas"]["ReferralItem"][];
         };
         /** @description Item de la bandeja del atleta. `read` evita que el cliente interprete fechas. */
         Notification: {
@@ -7681,6 +8459,19 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["BugReportConsoleList"][];
+        };
+        PaginatedChargebackList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["Chargeback"][];
         };
         PaginatedClassHandoffList: {
             /**
@@ -8019,6 +8810,19 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["PlanOffer"][];
+        };
+        PaginatedPlatformReferralList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["PlatformReferral"][];
         };
         PaginatedPointTransactionList: {
             /**
@@ -8433,6 +9237,21 @@ export interface components {
             readonly is_active?: boolean;
             readonly subscription?: components["schemas"]["Subscription"];
         };
+        PatchedGymAnnouncement: {
+            /** Format: uuid */
+            readonly id?: string;
+            title?: string;
+            body?: string;
+            class_type?: string;
+            /** Format: uri */
+            photo?: string | null;
+            /** Format: uri */
+            video?: string | null;
+            /** Format: date-time */
+            readonly created_at?: string;
+            /** Format: date-time */
+            readonly updated_at?: string;
+        };
         PatchedGymBranch: {
             /** Format: uuid */
             readonly id?: string;
@@ -8603,6 +9422,9 @@ export interface components {
             tracking_code?: string;
             /** @default  */
             note: string;
+        };
+        PatchedRankingVisibilityUpdate: {
+            granted?: boolean;
         };
         /**
          * @description Catálogo de servicios/tipos de clase del gym (entidad única de servicio).
@@ -8777,6 +9599,8 @@ export interface components {
             paid_at?: string | null;
             /** Format: uuid */
             refund_of?: string | null;
+            /** @description True si esta fila negativa la generó una disputa de tarjeta, no un reembolso. */
+            readonly is_chargeback: boolean;
             /** Format: date-time */
             readonly created_at: string;
         };
@@ -8868,8 +9692,11 @@ export interface components {
             readonly platform_surcharge: string;
             /** Format: decimal */
             readonly refunds_total: string;
+            /** Format: decimal */
+            readonly chargebacks_total: string;
             readonly payments_count: number;
             readonly refunds_count: number;
+            readonly chargebacks_count: number;
             readonly status: components["schemas"]["PayoutStatusEnum"];
             readonly reference: string;
             readonly notes: string;
@@ -8971,6 +9798,37 @@ export interface components {
             /** Format: date-time */
             readonly created_at: string;
         };
+        /**
+         * @description Fila de la bandeja del superadmin (monitoreo de fraude, sólo lectura).
+         *
+         *     Lee directo del `Referral` para que la paginación por cursor del proyecto y el
+         *     OpenAPI queden coherentes: los clientes generan sus tipos de aquí.
+         */
+        PlatformReferral: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly status: components["schemas"]["ReferralStatus"];
+            /** Format: email */
+            readonly referrer_email: string;
+            /** Format: email */
+            readonly referred_email: string;
+            readonly code: string;
+            readonly device_id: string;
+            readonly attributed_ip: string | null;
+            readonly risk_flags: {
+                [key: string]: unknown;
+            } | null;
+            readonly rejection_reason: string;
+            readonly gym_id: string | null;
+            readonly points_referrer: number;
+            readonly points_referred: number;
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: date-time */
+            readonly qualified_at: string | null;
+            /** Format: date-time */
+            readonly awarded_at: string | null;
+        };
         /** @description Estado de cuenta de todos los gyms del periodo + totales de la plataforma. */
         PlatformStatement: {
             period: string;
@@ -8982,7 +9840,15 @@ export interface components {
             gyms: components["schemas"]["GymStatement"][];
             totals: components["schemas"]["PlatformTotals"];
         };
-        /** @description Totales de la red en el periodo (incluye lo que ganó Nucleo). */
+        /**
+         * @description Totales de la red en el periodo (incluye lo que ganó Nucleo).
+         *
+         *     `platform_earned` es el margen REAL: el recargo cobrado, menos los recargos
+         *     devueltos, menos la comisión que se quedó el proveedor de la pasarela. Sus dos
+         *     términos viajan aparte (`platform_surcharge` y `provider_fee_net`) porque el panel
+         *     de la plataforma los desglosa: sin ellos la pantalla presenta un margen sin
+         *     explicar de dónde sale.
+         */
         PlatformTotals: {
             /** Format: decimal */
             gross_charged: string;
@@ -8990,6 +9856,13 @@ export interface components {
             gym_revenue: string;
             /** Format: decimal */
             refunds_total: string;
+            /** Format: decimal */
+            chargebacks_total: string;
+            chargebacks_count: number;
+            /** Format: decimal */
+            platform_surcharge: string;
+            /** Format: decimal */
+            provider_fee_net: string;
             /** Format: decimal */
             platform_earned: string;
             /** Format: decimal */
@@ -9471,6 +10344,11 @@ export interface components {
          * @enum {string}
          */
         PurchaseOrderStatusEnum: "draft" | "ordered" | "partial" | "received" | "cancelled";
+        RankingVisibility: {
+            granted: boolean;
+            /** Format: date-time */
+            notified_at: string | null;
+        };
         RatePtSession: {
             stars: number;
             comment?: string;
@@ -9519,6 +10397,46 @@ export interface components {
             /** @default true */
             included_in_plan: boolean;
         };
+        /** @description Entrada de `POST /referrals/claim`. */
+        ReferralClaim: {
+            code: string;
+            device_id?: string;
+        };
+        /** @description Respuesta de `POST /referrals/claim`. */
+        ReferralClaimResponse: {
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["ReferralStatus"];
+            referrer_name: string;
+            code: string;
+            points_referrer: number;
+            points_referred: number;
+            message: string;
+        };
+        /** @description Una invitación en la lista del padrino. */
+        ReferralItem: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            status: components["schemas"]["ReferralStatus"];
+            status_display: string;
+            points: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            qualified_at: string | null;
+            /** Format: date-time */
+            awarded_at: string | null;
+        };
+        /**
+         * @description * `pending` - Invitado registrado, sin activar
+         *     * `awaiting_maturity` - Activó: madurando
+         *     * `awarded` - Puntos otorgados
+         *     * `rejected` - Rechazado por antifraude
+         *     * `expired` - Vencido
+         * @enum {string}
+         */
+        ReferralStatus: "pending" | "awaiting_maturity" | "awarded" | "rejected" | "expired";
         /** @description Conciliación administrativa append-only de un reembolso ya autorizado. */
         RefundPayment: {
             /** Format: decimal */
@@ -9699,6 +10617,12 @@ export interface components {
          * @enum {string}
          */
         ReservationStatusEnum: "reserved" | "waitlist" | "cancelled" | "no_show";
+        /**
+         * @description * `won` - won
+         *     * `lost` - lost
+         * @enum {string}
+         */
+        ResultEnum: "won" | "lost";
         ReturnReject: {
             /** @default  */
             reason: string;
@@ -11504,6 +12428,81 @@ export interface operations {
             };
         };
     };
+    gym_access_admit_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessAdmitRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["AccessAdmitRequest"];
+                "multipart/form-data": components["schemas"]["AccessAdmitRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessAdmit"];
+                };
+            };
+        };
+    };
+    gym_access_resolve_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessResolveRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["AccessResolveRequest"];
+                "multipart/form-data": components["schemas"]["AccessResolveRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessResolve"];
+                };
+            };
+        };
+    };
+    gym_access_search_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessSearch"];
+                };
+            };
+        };
+    };
     gym_admins_list: {
         parameters: {
             query?: never;
@@ -11598,6 +12597,105 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymAnnouncement"];
+                };
+            };
+        };
+    };
+    gym_announcements_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymAnnouncement"];
+                };
+            };
+        };
+    };
+    gym_announcements_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GymAnnouncement"];
+                "application/x-www-form-urlencoded": components["schemas"]["GymAnnouncement"];
+                "multipart/form-data": components["schemas"]["GymAnnouncement"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymAnnouncement"];
+                };
+            };
+        };
+    };
+    gym_announcements_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_announcements_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedGymAnnouncement"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedGymAnnouncement"];
+                "multipart/form-data": components["schemas"]["PatchedGymAnnouncement"];
+            };
+        };
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11856,6 +12954,69 @@ export interface operations {
                 };
                 content: {
                     "text/csv": string;
+                };
+            };
+        };
+    };
+    gym_billing_chargebacks_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+                /**
+                 * @description * `open` - Recibido
+                 *     * `submitted` - Evidencia enviada
+                 *     * `won` - Ganado
+                 *     * `lost` - Perdido
+                 */
+                status?: "lost" | "open" | "submitted" | "won";
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedChargebackList"];
+                };
+            };
+        };
+    };
+    gym_billing_chargebacks_evidence_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ChargebackEvidence"];
+                "application/x-www-form-urlencoded": components["schemas"]["ChargebackEvidence"];
+                "multipart/form-data": components["schemas"]["ChargebackEvidence"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chargeback"];
                 };
             };
         };
@@ -13059,6 +14220,41 @@ export interface operations {
             };
         };
     };
+    gym_erp_inventory_count_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryCount"];
+                "application/x-www-form-urlencoded": components["schemas"]["InventoryCount"];
+                "multipart/form-data": components["schemas"]["InventoryCount"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryCountResult"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryCountResult"];
+                };
+            };
+        };
+    };
     gym_erp_inventory_movements_list: {
         parameters: {
             query?: {
@@ -14232,6 +15428,34 @@ export interface operations {
             };
         };
     };
+    gym_memberships_block_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["BlockMembership"];
+                "application/x-www-form-urlencoded": components["schemas"]["BlockMembership"];
+                "multipart/form-data": components["schemas"]["BlockMembership"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipAdmin"];
+                };
+            };
+        };
+    };
     gym_memberships_leave_create: {
         parameters: {
             query?: never;
@@ -14342,6 +15566,34 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipAdmin"];
+                };
+            };
+        };
+    };
+    gym_memberships_unblock_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["BlockMembership"];
+                "application/x-www-form-urlencoded": components["schemas"]["BlockMembership"];
+                "multipart/form-data": components["schemas"]["BlockMembership"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -16947,6 +18199,25 @@ export interface operations {
             };
         };
     };
+    me_global_standing_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlobalStanding"];
+                };
+            };
+        };
+    };
     me_join_requests_list: {
         parameters: {
             query?: {
@@ -17729,6 +19000,69 @@ export interface operations {
             };
         };
     };
+    me_ranking_visibility_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingVisibility"];
+                };
+            };
+        };
+    };
+    me_ranking_visibility_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedRankingVisibilityUpdate"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedRankingVisibilityUpdate"];
+                "multipart/form-data": components["schemas"]["PatchedRankingVisibilityUpdate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingVisibility"];
+                };
+            };
+        };
+    };
+    me_referrals_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReferrals"];
+                };
+            };
+        };
+    };
     me_reports_list: {
         parameters: {
             query?: {
@@ -18124,6 +19458,59 @@ export interface operations {
             };
         };
     };
+    platform_billing_chargebacks_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedChargebackList"];
+                };
+            };
+        };
+    };
+    platform_billing_chargebacks_resolve_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChargebackResolve"];
+                "application/x-www-form-urlencoded": components["schemas"]["ChargebackResolve"];
+                "multipart/form-data": components["schemas"]["ChargebackResolve"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chargeback"];
+                };
+            };
+        };
+    };
     platform_billing_payouts_list: {
         parameters: {
             query?: never;
@@ -18368,6 +19755,36 @@ export interface operations {
             };
         };
     };
+    platform_referrals_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description Busca por correo de padrino o invitado. */
+                q?: string;
+                /** @description A search term. */
+                search?: string;
+                /** @description Estado del referido, o 'all'. */
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedPlatformReferralList"];
+                };
+            };
+        };
+    };
     platform_reports_list: {
         parameters: {
             query?: {
@@ -18496,6 +19913,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AthletePost"];
+                };
+            };
+        };
+    };
+    ranking_global_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlobalRanking"];
+                };
+            };
+        };
+    };
+    referrals_claim_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReferralClaim"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReferralClaim"];
+                "multipart/form-data": components["schemas"]["ReferralClaim"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralClaimResponse"];
                 };
             };
         };

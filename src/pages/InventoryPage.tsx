@@ -32,6 +32,7 @@ import {
   useUploadProductPhoto,
 } from "../api/hooks";
 import type { ErpProduct } from "../api/types";
+import { InventoryLedgerPanel } from "./InventoryLedgerPanel";
 import { InventoryValuationPanel } from "./InventoryValuationPanel";
 import { PurchaseOrdersPanel } from "./PurchaseOrdersPanel";
 import { StoreOrdersPanel } from "./StoreOrdersPanel";
@@ -198,6 +199,7 @@ export function InventoryPage() {
       >
         <Tabs.List mb="lg">
           <Tabs.Tab value="productos">Productos</Tabs.Tab>
+          <Tabs.Tab value="kardex">Kardex, mermas y ajustes</Tabs.Tab>
           <Tabs.Tab value="compras">Compras a proveedor</Tabs.Tab>
           <Tabs.Tab value="proveedores">Proveedores</Tabs.Tab>
           <Tabs.Tab value="valuacion">Valuación</Tabs.Tab>
@@ -452,6 +454,10 @@ export function InventoryPage() {
           ]}
         />
       </GlassCard>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="kardex">
+          <InventoryLedgerPanel gymId={gymId} />
         </Tabs.Panel>
 
         <Tabs.Panel value="compras">

@@ -25,6 +25,8 @@ import {
   useDecideAppeal,
   useDecideComment,
   useDecidePost,
+  useDeleteAnnouncement,
+  useGymAnnouncements,
   useGymAppeals,
   useGymClasses,
   useGymFeed,
@@ -34,9 +36,10 @@ import {
   useModerationSignals,
   usePostAnnouncement,
   useSetAthleteOfMonth,
+  useUpdateAnnouncement,
 } from "../api/hooks";
 import { MOTIVOS_MODERACION } from "../api/types";
-import type { Appeal, MotivoModeracion, ReportedComment } from "../api/types";
+import type { Appeal, GymAnnouncement, MotivoModeracion, ReportedComment } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PageHeader, SectionLabel } from "../components/ui";
@@ -100,6 +103,248 @@ function thumb(size: number, round = false) {
     border: "1px solid var(--a-line)",
     display: "block",
   };
+}
+
+/**
+ * Anuncios ya publicados, con corrección y baja.
+ *
+ * Hasta ahora el panel sólo sabía CREAR: un anuncio con la hora equivocada —que
+ * además ya salió por push a todo el gimnasio— era irreversible, y la única
+ * salida era publicar otro encima. Corregir NO vuelve a notificar (repetir el
+ * push por arreglar una tilde es spam) y la baja es en blando: el anuncio
+ * desaparece del feed y del panel, pero queda el rastro de que se publicó.
+ */
+function AnunciosPublicados({
+  gymId,
+  classTypes,
+}: {
+  gymId: string;
+  classTypes: string[];
+}) {
+  const anuncios = useGymAnnouncements(gymId);
+  const actualizar = useUpdateAnnouncement(gymId);
+  const borrar = useDeleteAnnouncement(gymId);
+
+  const [editando, setEditando] = useState<GymAnnouncement | null>(null);
+  const [titulo, setTitulo] = useState("");
+  const [cuerpo, setCuerpo] = useState("");
+  const [segmento, setSegmento] = useState<string | null>("");
+  const [foto, setFoto] = useState<File | null>(null);
+  const [video, setVideo] = useState<File | null>(null);
+
+  const abrir = (a: GymAnnouncement) => {
+    setEditando(a);
+    setTitulo(a.title);
+    setCuerpo(a.body);
+    setSegmento(a.class_type ?? "");
+    setFoto(null);
+    setVideo(null);
+  };
+
+  const guardar = async () => {
+    if (!editando) return;
+    try {
+      await actualizar.mutateAsync({
+        id: editando.id,
+        title: titulo,
+        body: cuerpo,
+        class_type: segmento ?? "",
+        photo: foto,
+        video,
+      });
+      setEditando(null);
+      notifications.show({
+        color: "teal",
+        message: "Anuncio corregido. No se volvió a notificar a nadie.",
+      });
+    } catch (e) {
+      notifications.show({
+        color: "red",
+        message: errMsg(e, "No se pudo corregir el anuncio."),
+      });
+    }
+  };
+
+  const darDeBaja = (a: GymAnnouncement) => {
+    if (
+      !window.confirm(
+        `¿Quitar del feed el anuncio "${a.title}"?\n\nDeja de verse en la app. El push que ya salió no se puede deshacer.`,
+      )
+    )
+      return;
+    borrar.mutate(a.id, {
+      onSuccess: () =>
+        notifications.show({ color: "teal", message: "Anuncio quitado del feed." }),
+      onError: (e) =>
+        notifications.show({ color: "red", message: errMsg(e, "No se pudo quitar el anuncio.") }),
+    });
+  };
+
+  const filas = anuncios.data ?? [];
+  // Publicar y corregir anuncios es del `gym_admin`; un coach entra a esta misma
+  // pantalla por la cola de moderación. Un 403 no es una falla que reportarle.
+  if ((anuncios.error as { response?: { status?: number } })?.response?.status === 403) return null;
+
+  return (
+    <GlassCard padding={24} delay={0.9} style={{ marginTop: "calc(20 * var(--u))" }}>
+      <SectionLabel as="h2" mb={8}>
+        Anuncios publicados
+      </SectionLabel>
+      <Text c="dimmed" size="sm" mb="md">
+        Lo que ya está en el feed de tus atletas. Corrige el texto sin volver a notificar, o quítalo
+        si se publicó por error.
+      </Text>
+
+      {anuncios.isError ? (
+        <PageError
+          message="No se pudieron cargar los anuncios publicados."
+          onRetry={() => anuncios.refetch()}
+        />
+      ) : anuncios.isLoading ? (
+        <PageLoading />
+      ) : !filas.length ? (
+        <Text c="dimmed" size="sm">
+          Todavía no has publicado ningún anuncio.
+        </Text>
+      ) : (
+        <Table.ScrollContainer minWidth={640}>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Publicado</Table.Th>
+                <Table.Th>Anuncio</Table.Th>
+                <Table.Th>Segmento</Table.Th>
+                <Table.Th />
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {filas.map((a) => (
+                <Table.Tr key={a.id}>
+                  <Table.Td>
+                    <Text size="sm">{new Date(a.created_at).toLocaleDateString("es-GT")}</Text>
+                    {a.updated_at && a.updated_at !== a.created_at && (
+                      <Text size="xs" c="dimmed">
+                        Corregido el {new Date(a.updated_at).toLocaleDateString("es-GT")}
+                      </Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap="sm" wrap="nowrap" align="flex-start">
+                      {a.photo && <img src={a.photo} alt="" style={thumb(44)} />}
+                      <div style={{ minWidth: 0 }}>
+                        <Text size="sm" fw={600}>
+                          {a.title}
+                        </Text>
+                        <Text size="xs" c="dimmed" lineClamp={2}>
+                          {a.body}
+                        </Text>
+                      </div>
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge variant="light" color={a.class_type ? "flame" : "gray"} size="sm">
+                      {a.class_type || "Todo el gym"}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap={6} wrap="nowrap" justify="flex-end">
+                      <Button size="compact-xs" variant="light" onClick={() => abrir(a)}>
+                        Editar
+                      </Button>
+                      <Button
+                        size="compact-xs"
+                        variant="light"
+                        color="red"
+                        loading={borrar.isPending && borrar.variables === a.id}
+                        onClick={() => darDeBaja(a)}
+                      >
+                        Quitar
+                      </Button>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
+
+      <Modal
+        opened={!!editando}
+        onClose={() => setEditando(null)}
+        title="Corregir anuncio"
+        centered
+        size="lg"
+      >
+        <Text c="dimmed" size="sm" mb="md">
+          Los atletas verán el texto corregido en el feed. <strong>No se envía otro push</strong>: la
+          notificación original ya salió.
+        </Text>
+        <TextInput
+          label="Título"
+          value={titulo}
+          onChange={(e) => setTitulo(e.currentTarget.value)}
+          mb="sm"
+        />
+        <Textarea
+          label="Mensaje"
+          value={cuerpo}
+          onChange={(e) => setCuerpo(e.currentTarget.value)}
+          autosize
+          minRows={3}
+          mb="sm"
+        />
+        <Select
+          label="Segmento"
+          value={segmento}
+          onChange={setSegmento}
+          data={[
+            { value: "", label: "Todo el gym" },
+            ...classTypes.map((ct) => ({ value: ct, label: `Solo ${ct}` })),
+          ]}
+          mb="sm"
+        />
+        {editando?.photo && !foto && (
+          <Group gap="sm" mb="xs">
+            <img src={editando.photo} alt="" style={thumb(56)} />
+            <Text c="dimmed" size="xs">
+              Foto actual — sube otra para reemplazarla.
+            </Text>
+          </Group>
+        )}
+        <Group grow align="flex-start" mb="md">
+          <FileInput
+            label="Reemplazar foto"
+            placeholder="Subir imagen"
+            accept="image/*"
+            clearable
+            value={foto}
+            onChange={setFoto}
+          />
+          <FileInput
+            label="Reemplazar video"
+            placeholder="Subir video"
+            accept="video/*"
+            clearable
+            value={video}
+            onChange={setVideo}
+          />
+        </Group>
+        <Group justify="flex-end">
+          <Button variant="default" onClick={() => setEditando(null)}>
+            Cancelar
+          </Button>
+          <Button
+            loading={actualizar.isPending}
+            disabled={!titulo.trim() || !cuerpo.trim()}
+            onClick={guardar}
+          >
+            Guardar cambios
+          </Button>
+        </Group>
+      </Modal>
+    </GlassCard>
+  );
 }
 
 export function CommunityPage() {
@@ -528,6 +773,8 @@ export function CommunityPage() {
           </GlassCard>
         </Grid.Col>
       </Grid>
+
+      <AnunciosPublicados gymId={gymId} classTypes={classTypes} />
 
       <GlassCard padding={24} delay={0.96} style={{ marginTop: "calc(20 * var(--u))" }}>
         <SectionLabel as="h2" mb={8}>Histórico de atletas del mes</SectionLabel>

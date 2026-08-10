@@ -402,9 +402,13 @@ export interface GymStatement {
   gross_charged: string;
   gym_revenue: string;
   platform_surcharge: string;
-  /** Negativo o cero. */
+  /** Negativo o cero. **Ya incluye los contracargos**: no los restes otra vez. */
   refunds_total: string;
   refunds_surcharge: string;
+  /** Negativo o cero. Parte de `refunds_total` que impuso el banco, no el gym. */
+  chargebacks_total: string;
+  chargebacks_surcharge: string;
+  chargebacks_count: number;
   net_to_deposit: string;
   platform_earned: string;
   payments_count: number;
@@ -1305,3 +1309,31 @@ export interface BugReportDetail extends BugReport {
   duplicate_of: string | null;
   fix_prompt: string;
 }
+
+// --- Contracargos (disputas de tarjeta) ---------------------------------------
+// Un contracargo NO es un reembolso: el reembolso lo decide el gym y el
+// contracargo se lo impone el banco del atleta. Los dos aparecen como un
+// `Payment` negativo, y `Payment.is_chargeback` es lo único que los distingue en
+// el historial. Los montos del expediente viajan en POSITIVO: el signo negativo
+// vive en `reversal`, que es el movimiento de dinero.
+
+export type ChargebackStatus = "open" | "submitted" | "won" | "lost";
+
+export type Chargeback = components["schemas"]["Chargeback"];
+
+// --- Inventario: kardex, mermas y ajustes -------------------------------------
+
+/** Tipos del ledger de inventario (`InventoryMovement.type`). */
+export type MovementType = "purchase" | "sale" | "adjustment" | "loss" | "return";
+
+/**
+ * Resultado del conteo físico. El panel manda lo CONTADO y el backend calcula la
+ * diferencia contra el stock del momento; `movement` es `null` cuando el conteo
+ * cuadró (no hay asiento que hacer).
+ */
+export type InventoryCountResult = components["schemas"]["InventoryCountResult"];
+
+// --- Anuncios del gym ---------------------------------------------------------
+
+/** Anuncio publicado al feed del gimnasio (editable y dado de baja en blando). */
+export type GymAnnouncement = components["schemas"]["GymAnnouncement"];

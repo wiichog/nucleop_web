@@ -27,10 +27,12 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Bell,
+  Ban,
   CalendarClock,
   Download,
   Eye,
   KeyRound,
+  LockOpen,
   LogOut,
   Mail,
   MoreVertical,
@@ -42,16 +44,21 @@ import {
   TrendingDown,
 } from "lucide-react";
 import {
+  useAssignPlan,
   useAtRisk,
+  useBlockMembership,
   useEditAthleteProfile,
   useGymConfig,
   useGymLeaveDecision,
   useMembershipDetail,
   useMemberships,
   usePauseMembership,
+  usePlanOffers,
+  usePlans,
   useResetAthletePassword,
   useResumeMembership,
   useSendReminder,
+  useUnblockMembership,
   useUpdateGymConfig,
   useUpdateMembershipBilling,
 } from "../api/hooks";
@@ -64,6 +71,7 @@ import { useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
 import { errMsg } from "../lib/errors";
 import { MEMBERSHIP_STATUS, PAYMENT_METHOD, PAYMENT_STATUS, label } from "../lib/labels";
+import { fmtQ } from "../lib/money";
 import { sortRecords } from "../lib/sortRecords";
 import type { Membership } from "../api/types";
 
@@ -92,7 +100,77 @@ const FILTROS = [
   { value: "en_riesgo", label: "En riesgo" },
   { value: "bajas", label: "Bajas" },
   { value: "pausadas", label: "Congeladas" },
+  // Sin este segmento, un socio bloqueado quedaba enterrado en el padrón: nadie
+  // sabía a quién tenía sancionado el gimnasio ni desde cuándo.
+  { value: "bloqueadas", label: "Bloqueadas" },
 ];
+
+/**
+ * Estados desde los que el backend acepta bloquear (`ESTADOS_BLOQUEABLES`): los
+ * que tienen relación viva. Una solicitud o una invitación no se bloquean, se
+ * rechazan en la bandeja de Solicitudes; y a un exmiembro no hay qué bloquearle.
+ * Se replica aquí solo para no ofrecer un botón que el servidor va a rechazar —
+ * la autoridad sigue siendo el backend, que revalida.
+ */
+const BLOQUEABLES = new Set(["active", "trial", "paused", "expired"]);
+
+/**
+ * Estados en los que asignar plan/cuota es SOLO eso. En cualquier otro de los
+ * asignables (`approved_no_plan`, `trial`, `expired`, `paused`) el backend
+ * además ACTIVA la membresía y le fija un vencimiento nuevo desde hoy, así que
+ * el formulario tiene que avisarlo antes de guardar.
+ */
+const PLAN_SIN_EFECTOS = new Set(["active", "drop_in"]);
+
+/** Estados donde ni siquiera tiene sentido ofrecer el cambio de plan. */
+const PLAN_NO_EDITABLE = new Set([
+  "blocked",
+  "former_member",
+  "rejected",
+  "requested",
+  "invited",
+  "pending_leave",
+]);
+
+/**
+ * Qué le pasa REALMENTE a la relación si se guarda plan o cuota, según el estado
+ * en que está. Es la advertencia que el operador necesita antes de apretar
+ * Guardar, y espeja lo que hace `AssignPlanView` en el backend:
+ *
+ *  - `cerrado`  → ni se ofrece el formulario;
+ *  - `solo_plan`→ cambia plan y cuota, y nada más (el vencimiento no se mueve);
+ *  - `activa`   → además la ACTIVA y le fija vencimiento nuevo desde hoy;
+ *  - `activa_y_descongela` → lo anterior Y se come el congelamiento: los días
+ *    que el atleta tenía guardados se pierden, cosa que "Reanudar" sí respeta.
+ *
+ * Vive fuera del componente para poder probarla suelta: el formulario está
+ * dentro de un drawer al que solo se llega por una celda de `mantine-datatable`,
+ * y esas no se pintan bajo jsdom.
+ */
+export type EfectoDePlan = "cerrado" | "solo_plan" | "activa" | "activa_y_descongela";
+
+export function efectoDeAsignarPlan(status?: string | null): EfectoDePlan {
+  const estado = status ?? "";
+  if (PLAN_NO_EDITABLE.has(estado)) return "cerrado";
+  if (PLAN_SIN_EFECTOS.has(estado)) return "solo_plan";
+  if (estado === "paused") return "activa_y_descongela";
+  return "activa";
+}
+
+/**
+ * La sanción vigente dentro del historial de estados. El bloqueo no tiene campo
+ * propio: su motivo viaja en el comentario de `MembershipStatusHistory`, que es
+ * append-only. Hay que quedarse con la ENTRADA MÁS RECIENTE a "blocked" — a un
+ * socio se le puede haber sancionado antes, y mostrar el motivo viejo le pondría
+ * al gimnasio una razón equivocada delante de una conversación difícil.
+ */
+export function ultimoBloqueo<T extends { to_status: string; changed_at: string }>(
+  historial: T[] | undefined,
+): T | undefined {
+  return [...(historial ?? [])]
+    .filter((h) => h.to_status === "blocked")
+    .sort((a, b) => (a.changed_at < b.changed_at ? 1 : -1))[0];
+}
 
 function DueBadge({ days, date }: { days?: number | null; date?: string | null }) {
   if (days == null) return <Text c="dimmed">—</Text>;
@@ -134,6 +212,11 @@ export function AthletesPage() {
   const resume = useResumeMembership(gymId);
   const gymConfig = useGymConfig(gymId);
   const updateGymConfig = useUpdateGymConfig(gymId);
+  const plans = usePlans(gymId);
+  const offers = usePlanOffers(gymId);
+  const assignPlan = useAssignPlan(gymId);
+  const block = useBlockMembership(gymId);
+  const unblock = useUnblockMembership(gymId);
   // El filtro vive en la URL: así los pendientes ("bajas por confirmar",
   // "morosos") abren el padrón YA filtrado en vez de dejar al admin buscando.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -184,6 +267,30 @@ export function AthletesPage() {
   const [pauseOpen, setPauseOpen] = useState(false);
   const [pauseForm, setPauseForm] = useState({ reason: "", return_date: "" });
 
+  /**
+   * Plan y cuota de la relación abierta. Hasta ahora solo se podían fijar al dar
+   * de alta al socio (bandeja de Solicitudes); cambiárselos a un socio que ya
+   * está adentro obligaba a entrar al Django admin.
+   *
+   * La cuota vacía significa "sin cuota propia": se manda `custom_fee: null` para
+   * QUITARLA y volver al precio del plan. No es lo mismo que no tocarla.
+   */
+  const [planForm, setPlanForm] = useState<{
+    planId: string | null;
+    fee: string | number;
+    offerId: string | null;
+  }>({ planId: null, fee: "", offerId: null });
+  useEffect(() => {
+    const m = detail.data;
+    if (!m) return;
+    setPlanForm({ planId: m.plan ?? null, fee: m.custom_fee ?? "", offerId: null });
+  }, [detail.data?.id, detail.data?.plan, detail.data?.custom_fee]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bloqueo: sanción reversible. El motivo va al historial de la membresía
+  // (append-only), no a un campo editable.
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [blockReason, setBlockReason] = useState("");
+
   // Umbral de riesgo del gym: días sin asistir A ESTE gym para marcar "en riesgo".
   // Vive junto al filtro porque es el número que define quién sale en esa lista.
   const [riesgoOpen, setRiesgoOpen] = useState(false);
@@ -233,6 +340,88 @@ export function AthletesPage() {
       ok("Membresía reanudada. El vencimiento se corrió los días de la pausa.");
     } catch (error) {
       fail(errMsg(error, "No se pudo reanudar la membresía."));
+    }
+  };
+
+  /**
+   * Guarda plan y cuota de un socio que YA está adentro.
+   *
+   * Dos cuidados que no son cosméticos:
+   *  - la cuota vacía manda `custom_fee: null` (quitarla), no se omite: omitirla
+   *    dejaría la cuota vieja cobrándose y el panel diría que se guardó;
+   *  - se VERIFICA contra la respuesta del servidor antes de cantar éxito, y el
+   *    mensaje nombra el estado que devolvió la API, porque asignar plan a una
+   *    relación no activa la ACTIVA (y eso el operador tiene que verlo escrito).
+   */
+  const onGuardarPlan = async (nombre: string) => {
+    if (!planForm.planId) return;
+    // El separador de miles es presentación: el backend espera un decimal.
+    const cuota =
+      typeof planForm.fee === "number" ? String(planForm.fee) : planForm.fee.replace(/,/g, "").trim();
+    try {
+      const saved = await assignPlan.mutateAsync({
+        membershipId: selectedMembershipId,
+        planId: planForm.planId,
+        customFee: cuota === "" ? null : cuota,
+        offerId: planForm.offerId ?? undefined,
+      });
+      if (saved.plan !== planForm.planId) {
+        fail("La API no guardó el plan. Avisa a soporte de Nucleo.");
+        return;
+      }
+      const plan = (plans.data ?? []).find((p) => p.id === planForm.planId);
+      const activada =
+        saved.status === "active" && efectoDeAsignarPlan(detail.data?.status) !== "solo_plan";
+      // La cuota se lee de la RESPUESTA, no de lo que se escribió: una oferta de
+      // porcentaje la recalcula en el servidor, así que repetir lo tecleado le
+      // diría al operador un número que el gimnasio no va a cobrar.
+      const cuotaGuardada = saved.custom_fee ?? null;
+      ok(
+        `${nombre}: plan ${plan?.name ?? "actualizado"}` +
+          (cuotaGuardada === null
+            ? " con el precio del plan (sin cuota personalizada)."
+            : ` con cuota de ${fmtQ(cuotaGuardada, { decimals: 2 })}.`) +
+          (activada ? ` La membresía quedó activa y vence el ${saved.renewal_date}.` : ""),
+      );
+    } catch (error) {
+      fail(errMsg(error, "No se pudo guardar el plan."));
+    }
+  };
+
+  /**
+   * Bloquea el acceso del socio. NO es una baja ni un corte por mora: la relación
+   * sigue viva (puntos, antigüedad e historial intactos) pero sin entrar, y se
+   * levanta desde la misma ficha.
+   */
+  const onBloquear = async (nombre: string) => {
+    try {
+      await block.mutateAsync({ membershipId: selectedMembershipId, reason: blockReason.trim() });
+      setBlockOpen(false);
+      setBlockReason("");
+      ok(`Acceso de ${nombre} bloqueado. Se le avisó y no podrá reservar ni entrar.`);
+    } catch (error) {
+      fail(errMsg(error, "No se pudo bloquear la membresía."));
+    }
+  };
+
+  /**
+   * Levanta el bloqueo. El backend devuelve la membresía al estado que tenía
+   * ANTES de la sanción, no la "activa": por eso el mensaje sale de la respuesta
+   * y no de una suposición del panel (a un vencido se le devuelve su deuda).
+   */
+  const onDesbloquear = async (nombre: string) => {
+    if (!window.confirm(`¿Levantar el bloqueo de ${nombre}? Volverá al estado que tenía antes.`))
+      return;
+    try {
+      const saved = await unblock.mutateAsync({ membershipId: selectedMembershipId });
+      ok(
+        `Bloqueo levantado. ${nombre} queda con la membresía ${label(
+          MEMBERSHIP_STATUS,
+          saved.status,
+        ).toLowerCase()}.`,
+      );
+    } catch (error) {
+      fail(errMsg(error, "No se pudo levantar el bloqueo."));
     }
   };
 
@@ -398,6 +587,12 @@ export function AthletesPage() {
   if (!gymId) return <NoGymAssigned />;
   if (isError) return <PageError onRetry={() => refetch()} />;
 
+  // Motivo de la sanción vigente (vive en el historial, no en un campo editable).
+  const bloqueo =
+    detail.data?.status === "blocked" ? ultimoBloqueo(detail.data.status_history) : undefined;
+  // Qué le pasa a ESTA relación si se guarda plan o cuota.
+  const efectoPlan = efectoDeAsignarPlan(detail.data?.status);
+
   // Retención y morosidad vive aquí: filtra el padrón por estado de pago / riesgo.
   const atRiskIds = new Set((atRisk.data ?? []).map((m) => m.id));
   const q = search.trim().toLowerCase();
@@ -406,6 +601,7 @@ export function AthletesPage() {
     if (filtro === "por_vencer" && m.payment_status !== "due_soon") return false;
     if (filtro === "en_riesgo" && !atRiskIds.has(m.id)) return false;
     if (filtro === "pausadas" && m.status !== "paused") return false;
+    if (filtro === "bloqueadas" && (m.status as string) !== "blocked") return false;
     // Baja pedida por el atleta: espera que el gym la confirme o la cancele.
     if (filtro === "bajas" && (m.status as string) !== "pending_leave") return false;
     if (q && !(m.athlete_name ?? "").toLowerCase().includes(q) && !(m.plan_name ?? "").toLowerCase().includes(q))
@@ -419,6 +615,7 @@ export function AthletesPage() {
   const morosos = padron.filter((m) => m.payment_status === "overdue").length;
   const porVencer = padron.filter((m) => m.payment_status === "due_soon").length;
   const congeladas = padron.filter((m) => m.status === "paused").length;
+  const bloqueadas = padron.filter((m) => (m.status as string) === "blocked").length;
 
   const rows =
     sortStatus.columnAccessor === "payment_priority"
@@ -520,9 +717,17 @@ export function AthletesPage() {
               <Text size="sm" fw={600} mt="lg" mb={4}>
                 Gracia de morosidad
               </Text>
+              {/* Precisión que importa: la gracia mueve el CORTE, no la etiqueta.
+                  El backend marca "moroso" el día 1 de vencido pase lo que pase
+                  (`membresias_morosas`) y solo retrasa el paso a vencida
+                  (`membresias_para_corte_por_mora`). Prometer que sube el umbral
+                  de la lista haría que el gym la subiera y siguiera viendo
+                  morosos al día siguiente. */}
               <Text size="xs" c="dimmed" mb="sm" maw={280}>
-                Días de atraso que tolera el gimnasio antes de cortar el acceso y marcar la
-                membresía como morosa.
+                Días de atraso que tolera el gimnasio antes de que la membresía pase
+                automáticamente a <strong>vencida</strong>. El corte es reversible: al registrar el
+                pago vuelve a activa. Ojo: el atleta aparece en <strong>Morosos</strong> desde el
+                primer día de atraso, sin esperar la gracia.
               </Text>
               <Group gap="xs" align="flex-end" wrap="nowrap">
                 <NumberInput
@@ -621,6 +826,17 @@ export function AthletesPage() {
             value={congeladas}
             icon={<Snowflake size={16} strokeWidth={1.8} />}
           />
+          {/* Solo aparece si hay alguna: una sanción vigente es información que
+              el gimnasio tiene que ver, pero un "0 bloqueadas" permanente sería
+              ruido en la retícula. */}
+          {bloqueadas > 0 && (
+            <MetricTile
+              label="Bloqueadas"
+              value={bloqueadas}
+              icon={<Ban size={16} strokeWidth={1.8} />}
+              tone="var(--nucleo-danger)"
+            />
+          )}
         </Stagger>
       </div>
 
@@ -890,6 +1106,91 @@ export function AthletesPage() {
             </Text>
           </SimpleGrid>
 
+          {/* Plan y cuota de un socio que YA está adentro. Antes esto solo se
+              podía fijar al darlo de alta (bandeja de Solicitudes): subirle la
+              cuota a un socio o pasarlo a otro plan obligaba al Django admin. */}
+          <SectionLabel mt="lg" as="h2">Plan y cuota</SectionLabel>
+          <Card padding="sm">
+            {efectoPlan === "cerrado" ? (
+              <Text size="sm" c="dimmed">
+                Esta relación está{" "}
+                {label(MEMBERSHIP_STATUS, detail.data.status).toLowerCase()}: no se le asigna plan
+                desde aquí.{" "}
+                {detail.data.status === "blocked"
+                  ? "Levanta el bloqueo primero."
+                  : "Gestiónala en la bandeja de Solicitudes."}
+              </Text>
+            ) : (
+              <>
+                <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+                  <Select
+                    label="Plan"
+                    placeholder="Selecciona plan"
+                    value={planForm.planId}
+                    onChange={(planId) => setPlanForm({ ...planForm, planId })}
+                    // Sin catálogo el selector queda vacío y parece que el gym no
+                    // tiene planes: hay que decir que la carga falló.
+                    error={plans.isError ? "No se pudieron cargar los planes." : undefined}
+                    data={(plans.data ?? []).map((p) => ({
+                      value: p.id,
+                      label: `${p.name} · ${fmtQ(p.price, { decimals: 2 })}`,
+                    }))}
+                    comboboxProps={{ withinPortal: true }}
+                  />
+                  <NumberInput
+                    label="Cuota personalizada"
+                    description="Vacío = precio del plan (la quita)"
+                    prefix="Q"
+                    min={0}
+                    decimalScale={2}
+                    allowNegative={false}
+                    thousandSeparator=","
+                    placeholder={
+                      (plans.data ?? []).find((p) => p.id === planForm.planId)?.price ?? "0.00"
+                    }
+                    value={planForm.fee}
+                    onChange={(fee) => setPlanForm({ ...planForm, fee })}
+                  />
+                  <Select
+                    label="Oferta (opcional)"
+                    // La oferta no se suma a la cuota: la de % la RECALCULA (pisa
+                    // lo que se escribió al lado) y la de meses gratis empuja el
+                    // vencimiento. Sin decirlo, el operador escribe una cuota, ve
+                    // otra guardada y no sabe quién se la cambió.
+                    description="% recalcula la cuota; meses gratis corre el vencimiento"
+                    placeholder="Sin oferta"
+                    value={planForm.offerId}
+                    onChange={(offerId) => setPlanForm({ ...planForm, offerId })}
+                    clearable
+                    data={(offers.data ?? [])
+                      .filter((o) => o.is_active && (!o.plan || o.plan === planForm.planId))
+                      .map((o) => ({
+                        value: o.id,
+                        label: `${o.name} (${o.offer_type === "percent" ? `${o.value}%` : `${o.value} meses`})`,
+                      }))}
+                    comboboxProps={{ withinPortal: true }}
+                  />
+                </SimpleGrid>
+                <Group justify="space-between" align="center" mt="sm" wrap="wrap" gap="sm">
+                  <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 240 }}>
+                    {efectoPlan === "solo_plan"
+                      ? `Cobra ${fmtQ(detail.data.effective_fee, { decimals: 2 })} hoy. Cambiar el plan o la cuota NO mueve el vencimiento (${detail.data.renewal_date ?? "sin fecha"}): aplica desde el próximo cobro.`
+                      : "⚠️ Esta relación todavía no está activa: al guardar, la membresía queda ACTIVA y se le fija un vencimiento nuevo contado desde hoy. No registra ningún pago."}
+                    {efectoPlan === "activa_y_descongela" &&
+                      " Además se pierde el congelamiento: si solo querías reanudarla, usa “Reanudar membresía”, que sí le devuelve los días."}
+                  </Text>
+                  <Button
+                    disabled={!planForm.planId}
+                    loading={assignPlan.isPending}
+                    onClick={() => onGuardarPlan(detail.data!.athlete_name)}
+                  >
+                    Guardar plan y cuota
+                  </Button>
+                </Group>
+              </>
+            )}
+          </Card>
+
           <SectionLabel mt="lg" as="h2">Cobro y renovación</SectionLabel>
           {/* El vidrio lo pone el tema (`Card` → `.a-glass-card`): sin `withBorder`,
               que duplicaría el hairline del material. */}
@@ -976,6 +1277,67 @@ export function AthletesPage() {
               <Text size="sm" c="dimmed">
                 Solo se puede congelar una membresía activa. Esta está{" "}
                 {label(MEMBERSHIP_STATUS, detail.data.status).toLowerCase()}.
+              </Text>
+            )}
+          </Card>
+
+          {/* Bloqueo: sanción por conducta. Es la tercera cosa distinta que le
+              puede pasar a una relación y hay que no confundirla con las otras
+              dos — la mora corta sola y se revierte al pagar; la salida es el
+              handoff de baja. El bloqueo deja la relación viva pero sin entrar. */}
+          <SectionLabel mt="lg" as="h2">Acceso al gimnasio</SectionLabel>
+          <Card padding="sm">
+            {detail.data.status === "blocked" ? (
+              <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <Text size="sm" fw={600}>
+                    Acceso bloqueado.
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    {bloqueo
+                      ? `${bloqueo.comment || "Sin motivo registrado."} (${new Date(
+                          bloqueo.changed_at,
+                        ).toLocaleDateString("es-GT")})`
+                      : "Sin motivo registrado."}
+                  </Text>
+                  <Text size="xs" c="dimmed" mt={4}>
+                    No reserva clases ni entra, y no se le generan cobros. Conserva sus puntos de
+                    comunidad, su antigüedad y su historial: al levantarlo vuelve al estado que
+                    tenía antes, no a “al día”.
+                  </Text>
+                </div>
+                <Button
+                  leftSection={<LockOpen size={16} />}
+                  loading={unblock.isPending}
+                  onClick={() => onDesbloquear(detail.data!.athlete_name)}
+                >
+                  Levantar bloqueo
+                </Button>
+              </Group>
+            ) : BLOQUEABLES.has(detail.data.status ?? "") ? (
+              <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
+                <Text size="sm" c="dimmed" style={{ flex: 1, minWidth: 220 }}>
+                  Bloquea el acceso por conducta o por un acuerdo pendiente. No es una baja: la
+                  relación sigue viva y el bloqueo se levanta desde aquí mismo. Para cerrar la
+                  relación usa <strong>Desligar</strong>; para una deuda, el corte por mora ya
+                  ocurre solo.
+                </Text>
+                <Button
+                  variant="default"
+                  color="red"
+                  leftSection={<Ban size={16} />}
+                  onClick={() => {
+                    setBlockReason("");
+                    setBlockOpen(true);
+                  }}
+                >
+                  Bloquear acceso
+                </Button>
+              </Group>
+            ) : (
+              <Text size="sm" c="dimmed">
+                Solo se bloquea una relación viva (activa, en prueba, congelada o vencida). Esta
+                está {label(MEMBERSHIP_STATUS, detail.data.status).toLowerCase()}.
               </Text>
             )}
           </Card>
@@ -1134,6 +1496,47 @@ export function AthletesPage() {
             onClick={() => onPausar(detail.data?.athlete_name ?? "el atleta")}
           >
             Congelar membresía
+          </Button>
+        </Group>
+      </Modal>
+
+      {/* Bloquear: el motivo queda en el historial de la membresía, que es
+          append-only. Se pide aparte (y no con un `confirm`) porque lo que se
+          escriba aquí es el registro permanente de POR QUÉ se sancionó. */}
+      <Modal
+        opened={blockOpen}
+        onClose={() => setBlockOpen(false)}
+        title={`Bloquear el acceso de ${detail.data?.athlete_name ?? "este atleta"}`}
+        centered
+        zIndex={400}
+      >
+        <Text size="sm" c="dimmed" mb="md">
+          Deja de entrar y de reservar, y no se le generan cobros, pero <strong>sigue siendo de la
+          casa</strong>: conserva sus puntos de comunidad, su antigüedad y su historial. Se le avisa
+          por la app. El bloqueo se levanta desde esta misma ficha.
+        </Text>
+        <Textarea
+          label="Motivo"
+          description="Queda registrado en el historial de la membresía y ya no se puede editar."
+          placeholder="Incumplimiento del reglamento, acuerdo pendiente…"
+          maxLength={200}
+          autosize
+          minRows={2}
+          value={blockReason}
+          onChange={(e) => setBlockReason(e.currentTarget.value)}
+          mb="lg"
+        />
+        <Group justify="flex-end" gap="sm">
+          <Button variant="default" onClick={() => setBlockOpen(false)}>
+            Cancelar
+          </Button>
+          <Button
+            color="red"
+            leftSection={<Ban size={16} />}
+            loading={block.isPending}
+            onClick={() => onBloquear(detail.data?.athlete_name ?? "el atleta")}
+          >
+            Bloquear acceso
           </Button>
         </Group>
       </Modal>

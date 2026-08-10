@@ -17,6 +17,7 @@ import { CoachPayrollPage } from "./pages/CoachPayrollPage";
 import { AuditPage } from "./pages/AuditPage";
 import { PasswordResetConfirmPage } from "./pages/PasswordResetConfirmPage";
 import { PlatformAppealsPage } from "./pages/PlatformAppealsPage";
+import { PlatformChargebacksPage } from "./pages/PlatformChargebacksPage";
 import { PlatformGymsPage } from "./pages/PlatformGymsPage";
 import { PlatformReportsPage } from "./pages/PlatformReportsPage";
 import { CommunityPage } from "./pages/CommunityPage";
@@ -29,6 +30,7 @@ import { BusinessReportPage } from "./pages/BusinessReportPage";
 import { ClubsPage } from "./pages/ClubsPage";
 import { ClubContentPage } from "./pages/ClubContentPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { GymProfilePage } from "./pages/GymProfilePage";
 // Mantine + datatable solo en este chunk (no en la landing pública).
 import "@mantine/core/styles.css";
 import "@mantine/dates/styles.css";
@@ -74,6 +76,9 @@ export default function AdminShell() {
           {/* Retención y morosidad se consolidó en Atletas (filtros por pago/riesgo). */}
           <Route path="retencion" element={<Navigate to="/panel/atletas" replace />} />
           <Route path="perfil" element={<ProfilePage />} />
+          {/* La ficha del gimnasio (lo que el atleta ve). Distinta de "perfil",
+              que es la cuenta de quien entró al panel. */}
+          <Route path="gimnasio" element={<GymProfilePage />} />
           <Route path="atletas" element={<AthletesPage />} />
           <Route path="pagos" element={<PaymentsPage />} />
           <Route path="planes" element={<PlansPage />} />
@@ -101,6 +106,7 @@ export default function AdminShell() {
           <Route path="auditoria" element={<AuditPage />} />
           <Route path="plataforma/gyms" element={<PlatformGymsPage />} />
           <Route path="plataforma/apelaciones" element={<PlatformAppealsPage />} />
+          <Route path="plataforma/contracargos" element={<PlatformChargebacksPage />} />
           <Route path="plataforma/reportes" element={<PlatformReportsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

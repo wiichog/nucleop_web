@@ -1,5 +1,8 @@
 import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, tokenStore } from "./client";
+// Contrato generado del OpenAPI (`npm run gen:api`). Se usa para los componentes
+// que aún no tienen alias en `types.ts` (puerta de recepción `Access*`).
+import type { components } from "./schema";
 import {
   AltaGimnasio,
   Appeal,
@@ -46,10 +49,15 @@ import {
   ClubContentKind,
   ClubContentRow,
   ClubProfileEditable,
+  Chargeback,
+  ChargebackStatus,
   ErpPurchaseOrder,
   ErpSupplier,
   ExpenseCategoryInput,
+  GymAnnouncement,
   GymStatement,
+  InventoryCountResult,
+  MovementType,
   InventoryValuation,
   Payout,
   PlatformStatements,
@@ -403,11 +411,16 @@ export function useEditAthleteProfile(gymId: string) {
  *                   personalizada y volver al precio del plan.
  *   - `"350.00"`  → se fija esa cuota.
  *
- * ⚠️ Dependencia del backend: hoy `AssignPlanView` hace `if custom_fee is not None`,
- * así que el `null` explícito lo IGNORA y la cuota no se puede quitar desde el
- * panel. El arreglo es leer la presencia de la clave
- * (`if "custom_fee" in serializer.validated_data`), no su valor. Mientras eso no
- * esté, quitar la cuota es un no-op silencioso del lado del servidor.
+ * El backend ya lee la PRESENCIA de la clave (`if "custom_fee" in validated_data`),
+ * así que el `null` explícito sí quita la cuota. Además rechaza importes negativos
+ * con 400: un dedazo de signo en la cuota es un cobro con signo invertido.
+ *
+ * Sirve igual para un socio ACTIVO (cambiarle plan o cuota a mitad de ciclo) que
+ * para una alta nueva, pero **no hace lo mismo**: sobre una relación activa solo
+ * cambia el plan y la cuota, mientras que sobre una que aún no lo está
+ * (`approved_no_plan`, `trial`, `expired`, `paused`) la ACTIVA y le fija un
+ * vencimiento nuevo contado desde hoy. Quien pinte el formulario tiene que
+ * decírselo al operador antes de que apriete Guardar.
  */
 export function useAssignPlan(gymId: string) {
   const qc = useQueryClient();
@@ -1343,8 +1356,14 @@ export function useUpdateGymConfig(gymId: string) {
       /** Días sin asistir a ESTE gym para marcar "en riesgo" (1..365). */
       risk_inactivity_days?: number;
       /**
-       * Días de mora tolerados antes del corte automático (1..365, def. 30).
+       * Días de mora tolerados antes del CORTE automático (1..365, def. 30).
        * Fuera de rango el backend responde 400 `{detail, code, message}`.
+       *
+       * ⚠️ Calibra el corte (`membresias_para_corte_por_mora`: ACTIVE → vencida,
+       * reversible al pagar), **no la etiqueta**: `membresias_morosas` marca
+       * moroso desde el día 1 de vencido sin mirar la gracia. Quien escriba la
+       * ayuda de esta perilla no puede prometer que sube el umbral de la lista
+       * de morosos, porque no lo hace.
        */
       overdue_grace_days?: number;
     }) => (await api.patch<GymConfig>(`/gym/${gymId}`, body)).data,
@@ -1352,8 +1371,8 @@ export function useUpdateGymConfig(gymId: string) {
       qc.invalidateQueries({ queryKey: ["gym-config", gymId] });
       // El umbral de riesgo redefine quién sale en retención y en el badge.
       qc.invalidateQueries({ queryKey: ["at-risk", gymId] });
-      // La gracia de morosidad redefine QUIÉN está moroso: cambia la bandeja de
-      // morosos, el listado de membresías que lo pinta y el contador del badge.
+      // La gracia mueve el corte, que sí cambia el ESTADO de las membresías
+      // cortadas (y con él la bandeja de morosos y el contador del badge).
       qc.invalidateQueries({ queryKey: ["overdue", gymId] });
       qc.invalidateQueries({ queryKey: ["memberships", gymId] });
       invalidarPendientes(qc, gymId);
@@ -1451,7 +1470,11 @@ export function usePostAnnouncement(gymId: string) {
       if (input.video) form.append("video", input.video);
       return (await api.post(`/gym/${gymId}/announcements`, form)).data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-feed", gymId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-feed", gymId] });
+      // …y la lista de publicados, desde donde ahora se corrige o se da de baja.
+      qc.invalidateQueries({ queryKey: ["gym-announcements", gymId] });
+    },
   });
 }
 
@@ -1935,8 +1958,11 @@ export function useCreateErpMovement(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: {
+      // `adjustment` es el ÚNICO tipo que corre en los dos sentidos (un conteo
+      // puede encontrar de más o de menos); el resto va siempre en positivo y el
+      // signo lo pone el backend. Ver `useInventoryCount` para el conteo físico.
       product_id: string;
-      type: "purchase" | "adjustment" | "loss";
+      type: "purchase" | "adjustment" | "loss" | "return";
       qty: number;
       unit_cost?: string;
       note?: string;
@@ -1946,6 +1972,9 @@ export function useCreateErpMovement(gymId: string) {
       qc.invalidateQueries({ queryKey: ["erp-pnl", gymId] });
       // Mover el ledger de inventario cambia el valor del stock.
       qc.invalidateQueries({ queryKey: ["erp-valuation", gymId] });
+      // …y el kardex es justamente ese ledger: sin esto la merma recién
+      // registrada no aparecía en la lista hasta recargar la página.
+      qc.invalidateQueries({ queryKey: ["erp-movements", gymId] });
     },
   });
 }
@@ -2828,6 +2857,358 @@ export function useTriagePlatformReport() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["platform-reports"] });
       qc.setQueryData(["platform-report", data.id], data);
+    },
+  });
+}
+
+// ===========================================================================
+// Lo que hasta hoy obligaba a entrar al Django admin
+// (bloqueo de membresías · ficha pública del gimnasio · puerta de recepción)
+// ===========================================================================
+
+/**
+ * Bloquea el acceso de un socio: **sanción**, no baja ni corte por mora.
+ *
+ * Tres cosas distintas que el panel no debe confundir:
+ *  - **mora** → corte automático a "vencida", que se revierte sola al pagar;
+ *  - **salida** → handoff de baja (`useGymLeaveDecision`), que cierra la relación;
+ *  - **bloqueo** → esto: la relación sigue viva (conserva puntos de comunidad,
+ *    antigüedad e historial) pero sin acceso, y se levanta con `useUnblockMembership`.
+ *
+ * El `motivo` NO tiene campo propio: viaja en el comentario de
+ * `MembershipStatusHistory`, que es append-only y ya llega en `status_history` de
+ * la ficha. Queda registrado quién y por qué, sin poder reescribirse después.
+ *
+ * Idempotente: bloquear dos veces devuelve 200 y deja UNA sola fila de historial.
+ * 400 `block_invalid` si el estado no admite bloqueo (solo activa, en prueba,
+ * pausada o vencida) · 404 si la membresía no es de ESTE gym · 403 si no es
+ * `gym_admin` de él.
+ */
+export function useBlockMembership(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ membershipId, reason }: { membershipId: string; reason?: string }) =>
+      (
+        await api.post<Membership>(`/gym/${gymId}/memberships/${membershipId}/block`, {
+          reason: reason ?? "",
+        })
+      ).data,
+    onSuccess: (_d, vars) => invalidarMembresia(qc, gymId, vars.membershipId),
+  });
+}
+
+/**
+ * Levanta el bloqueo. El backend devuelve la membresía al estado que tenía ANTES
+ * de la sanción (lo lee del historial), no la "activa": desbloquear a un socio
+ * vencido lo deja vencido. Por eso el panel no promete un estado concreto y
+ * muestra el que responde el servidor.
+ *
+ * 400 `unblock_invalid` si la membresía no estaba bloqueada.
+ */
+export function useUnblockMembership(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ membershipId, reason }: { membershipId: string; reason?: string }) =>
+      (
+        await api.post<Membership>(`/gym/${gymId}/memberships/${membershipId}/unblock`, {
+          reason: reason ?? "",
+        })
+      ).data,
+    onSuccess: (_d, vars) => invalidarMembresia(qc, gymId, vars.membershipId),
+  });
+}
+
+/**
+ * Ficha PÚBLICA del gimnasio: exactamente lo que el atleta ve en la app (nombre,
+ * logo, descripción, ubicación, contacto y horarios).
+ *
+ * Va por el mismo `PATCH /gym/{id}` que `useUpdateGymConfig`, pero se mantiene
+ * aparte a propósito: aquello son perillas de operación (reservas futuras, riesgo,
+ * gracia de mora) y esto es la cara del gimnasio hacia afuera. Mezclarlas haría
+ * que un error al guardar la descripción reviviera el umbral de riesgo del
+ * formulario de al lado.
+ *
+ * `is_active`, `platform_commission_pct`, `fixed_fee` y `saas_plan` NO se mandan
+ * nunca desde aquí: son de plataforma y el backend los ignora en silencio
+ * (responde 200 sin aplicarlos), que es la peor forma de fallar.
+ */
+export function useUpdateGymProfile(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      name?: string;
+      location_text?: string;
+      address?: string;
+      description?: string;
+      /** URL absoluta del logo (el backend valida el formato: es un `URLField`). */
+      logo_url?: string;
+      lat?: string | null;
+      lng?: string | null;
+      contact?: Record<string, unknown> | null;
+      business_hours?: Record<string, unknown> | null;
+      is_public?: boolean;
+    }) => (await api.patch<GymAdmin>(`/gym/${gymId}`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-config", gymId] });
+      // El nombre del gym también vive en el selector de contexto del header.
+      qc.invalidateQueries({ queryKey: ["me"] });
+      qc.invalidateQueries({ queryKey: ["platform-gyms"] });
+    },
+  });
+}
+
+// --- Puerta del gimnasio (recepción) ---------------------------------------
+// `/gym/{id}/access/*`: un solo resolvedor para el carnet del atleta, el pase
+// drop-in y el QR de la clase. El panel usa por ahora el BUSCADOR y la admisión;
+// el lector de cámara vive en el app.
+
+export type AccessSearch = components["schemas"]["AccessSearch"];
+export type AccessSearchResult = components["schemas"]["AccessSearchResult"];
+export type AccessAdmit = components["schemas"]["AccessAdmit"];
+
+/**
+ * Buscador de recepción acotado a la gente de ESTE gimnasio (socios de cualquier
+ * estado y visitantes que compraron un drop-in aquí). Devuelve la misma ficha que
+ * el lector de QR, así que dice de un vistazo si la persona ya reservó la clase y
+ * si ya está marcada presente — cosa que el selector del padrón no podía decir.
+ *
+ * El backend ignora las búsquedas de menos de 2 caracteres (contesta 200 con
+ * `results: []`), así que el hook no consulta hasta que hay algo que buscar.
+ * Del teléfono solo vuelven los últimos 4 dígitos (`phone_hint`), lo justo para
+ * desempatar homónimos.
+ */
+export function useAccessSearch(gymId: string, texto: string, gymClassId?: string) {
+  const q = texto.trim();
+  const qs = new URLSearchParams({ q });
+  if (gymClassId) qs.set("gym_class_id", gymClassId);
+  return useQuery({
+    queryKey: ["access-search", gymId, q, gymClassId ?? ""],
+    queryFn: async () =>
+      (await api.get<AccessSearch>(`/gym/${gymId}/access/search?${qs.toString()}`)).data,
+    enabled: !!gymId && q.length >= 2,
+    staleTime: 15_000,
+  });
+}
+
+/**
+ * Marca presente desde recepción, socio o visitante con pase.
+ *
+ * A diferencia de `useReceptionCheckin` (que exige la credencial exacta) aquí se
+ * manda el `athlete_id` y **el backend decide** qué pase se consume: si hay
+ * membresía al día la usa, y si no, el drop-in vigente. El panel nunca elige la
+ * credencial — hacerlo sería mover una regla de negocio al cliente.
+ *
+ * 201 con `granted:true`. 400 `{detail, code, message, granted:false}` con
+ * `code`: `no_access`, `checkin_duplicate`, `checkin_window_closed`, `class_full`,
+ * `membership_overdue`, `plan_service_not_included`, `plan_class_limit_reached`,
+ * `no_open_class`, `dropin_none`. 404 `athlete_not_found`.
+ */
+export function useAccessAdmit(gymId: string, gymClassId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      athleteId,
+      action = "class_checkin",
+    }: {
+      athleteId: string;
+      action?: "class_checkin" | "dropin_entry";
+    }) =>
+      (
+        await api.post<AccessAdmit>(`/gym/${gymId}/access/admit`, {
+          action,
+          athlete_id: athleteId,
+          gym_class_id: gymClassId || null,
+        })
+      ).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["class-checkins", gymId, gymClassId] });
+      qc.invalidateQueries({ queryKey: ["access-search", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-classes", gymId] });
+    },
+  });
+}
+
+// =============================================================================
+// Contracargos (disputas de tarjeta), kardex de inventario y anuncios del gym.
+// =============================================================================
+
+/**
+ * Contracargos que sufrió ESTE gimnasio. El aislamiento lo impone el backend con
+ * el `gym_id` de la URL; aquí solo se filtra por estado.
+ */
+export function useGymChargebacks(gymId: string, status?: ChargebackStatus | "") {
+  const qs = status ? `?status=${status}` : "";
+  return useQuery({
+    queryKey: ["chargebacks", gymId, status ?? ""],
+    queryFn: () => getList<Chargeback>(`/gym/${gymId}/billing/chargebacks${qs}`),
+    enabled: !!gymId,
+  });
+}
+
+/**
+ * El gym responde la disputa con su evidencia (asistencias, contrato, chats).
+ * Deja el expediente listo y con fecha: el envío al banco lo hace Nucleo por el
+ * canal del proveedor, porque Pagalo todavía no expone API de disputas.
+ *
+ * 400 `chargeback_invalid` si la ventana venció, si el caso ya se resolvió o si
+ * no se mandó ni nota ni enlace.
+ */
+export function useSubmitChargebackEvidence(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      chargebackId,
+      notes,
+      evidence_url,
+    }: {
+      chargebackId: string;
+      notes?: string;
+      evidence_url?: string;
+    }) =>
+      (
+        await api.post<Chargeback>(
+          `/gym/${gymId}/billing/chargebacks/${chargebackId}/evidence`,
+          { notes, evidence_url },
+        )
+      ).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chargebacks", gymId] }),
+  });
+}
+
+/** Bandeja de contracargos de TODA la red (superadmin). Con custodia puente el descubierto lo absorbe Nucleo. */
+export function usePlatformChargebacks(
+  filtros: { status?: string; gym_id?: string },
+  enabled: boolean,
+) {
+  const qs = new URLSearchParams(
+    Object.entries(filtros).filter(([, v]) => !!v) as [string, string][],
+  ).toString();
+  return useQuery({
+    queryKey: ["platform-chargebacks", filtros],
+    queryFn: () => getList<Chargeback>(`/platform/billing/chargebacks${qs ? `?${qs}` : ""}`),
+    enabled,
+  });
+}
+
+/**
+ * Cierra la disputa con el fallo del banco. `won` registra un pago POSITIVO de
+ * compensación (el negativo no se edita: histórico inmutable) y `lost` deja la
+ * pérdida firme.
+ */
+export function useResolvePlatformChargeback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      chargebackId,
+      result,
+      notes,
+    }: {
+      chargebackId: string;
+      result: "won" | "lost";
+      notes?: string;
+    }) =>
+      (
+        await api.post<Chargeback>(`/platform/billing/chargebacks/${chargebackId}/resolve`, {
+          result,
+          notes,
+        })
+      ).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform-chargebacks"] });
+      qc.invalidateQueries({ queryKey: ["platform-statements"] });
+    },
+  });
+}
+
+/**
+ * Kardex: el ledger de inventario del gym (`?product=&type=`). `Product.stock_qty`
+ * es la suma denormalizada de ESTAS filas, así que es la única forma de auditar
+ * por qué el stock dice lo que dice.
+ */
+export function useErpMovements(
+  gymId: string,
+  filtros: { product?: string; type?: MovementType | "" } = {},
+) {
+  const qs = new URLSearchParams(
+    Object.entries(filtros).filter(([, v]) => !!v) as [string, string][],
+  ).toString();
+  return useQuery({
+    queryKey: ["erp-movements", gymId, filtros.product ?? "", filtros.type ?? ""],
+    queryFn: () => getList<ErpMovement>(`/gym/${gymId}/erp/inventory/movements${qs ? `?${qs}` : ""}`),
+    enabled: !!gymId,
+  });
+}
+
+/**
+ * Ajuste por conteo físico. Se manda lo CONTADO, nunca la diferencia: si la
+ * restara el panel, una venta ocurrida entre leer el stock y mandar el ajuste
+ * quedaría borrada. Responde 200 sin asiento cuando el conteo cuadró.
+ */
+export function useInventoryCount(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { product_id: string; counted_qty: number; note?: string }) =>
+      (await api.post<InventoryCountResult>(`/gym/${gymId}/erp/inventory/count`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["erp-products", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-movements", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-valuation", gymId] });
+      qc.invalidateQueries({ queryKey: ["erp-pnl", gymId] });
+    },
+  });
+}
+
+/** Anuncios publicados por el gym (los dados de baja ya no vienen). */
+export function useGymAnnouncements(gymId: string) {
+  return useQuery({
+    queryKey: ["gym-announcements", gymId],
+    queryFn: () => getList<GymAnnouncement>(`/gym/${gymId}/announcements`),
+    enabled: !!gymId,
+  });
+}
+
+/**
+ * Corrige un anuncio ya publicado. **No vuelve a notificar**: el push ya salió y
+ * repetirlo por corregir una tilde sería spam para todo el gimnasio.
+ */
+export function useUpdateAnnouncement(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...input
+    }: {
+      id: string;
+      title?: string;
+      body?: string;
+      class_type?: string;
+      photo?: File | null;
+      video?: File | null;
+    }) => {
+      const form = new FormData();
+      if (input.title !== undefined) form.append("title", input.title);
+      if (input.body !== undefined) form.append("body", input.body);
+      if (input.class_type !== undefined) form.append("class_type", input.class_type);
+      if (input.photo) form.append("photo", input.photo);
+      if (input.video) form.append("video", input.video);
+      return (await api.patch<GymAnnouncement>(`/gym/${gymId}/announcements/${id}`, form)).data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-announcements", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-feed", gymId] });
+    },
+  });
+}
+
+/** Baja del anuncio. Es SOFT-delete: sale del feed y del panel, queda el rastro. */
+export function useDeleteAnnouncement(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      (await api.delete(`/gym/${gymId}/announcements/${id}`)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-announcements", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-feed", gymId] });
     },
   });
 }

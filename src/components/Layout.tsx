@@ -15,14 +15,17 @@ import {
   Bell,
   BellRing,
   Bug,
+  Building2,
   CalendarDays,
   Check,
   CheckCircle2,
   ChevronDown,
   CreditCard,
   Dumbbell,
+  Gavel,
   Globe,
   Handshake,
+  History,
   LayoutDashboard,
   LogOut,
   type LucideIcon,
@@ -78,6 +81,14 @@ const GROUPS: NavGroup[] = [
       { to: "/panel/clases", label: "Clases", icon: CalendarDays },
       { to: "/panel/coaches", label: "Coaches", icon: UserCog },
       { to: "/panel/tickets", label: "Reportes / tickets", icon: LifeBuoy },
+      // La bitácora estaba construida y funcionando pero SIN un solo enlace en
+      // todo el panel: sólo se llegaba escribiendo la URL a mano. Es la prueba de
+      // quién cobró, quién dio de baja a quién y quién exportó datos; sin entrada
+      // en el menú, para el gimnasio simplemente no existía.
+      { to: "/panel/actividad", label: "Bitácora de actividad", icon: History },
+      // Nombre, logo, descripción y ubicación: lo que el atleta ve del gimnasio.
+      // Se editaba SOLO en el Django admin, al que el staff del gym no entra.
+      { to: "/panel/gimnasio", label: "Ficha del gimnasio", icon: Building2 },
     ],
   },
   {
@@ -313,6 +324,9 @@ export function Layout() {
       items: [
         { to: "/panel/plataforma/gyms", label: "Gimnasios", icon: Globe },
         { to: "/panel/plataforma/apelaciones", label: "Apelaciones", icon: Scale },
+        // Con la custodia puente el contracargo se lo cobran a Nucleo, no al gym:
+        // la bandeja de la pérdida vive en plataforma.
+        { to: "/panel/plataforma/contracargos", label: "Contracargos", icon: Gavel },
         // Fallas del software reportadas desde el app y el panel (apps.bugreports).
         // No es la bandeja de soporte del gym: esa es /panel/tickets (GymTicket).
         { to: "/panel/plataforma/reportes", label: "Reportes del app", icon: Bug },

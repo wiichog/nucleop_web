@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { describe, expect, it, vi } from "vitest";
 import type { Payment } from "../api/types";
-import { CeldaFactura } from "./PaymentsPage";
+import { CeldaFactura, EstadoDePago } from "./PaymentsPage";
 
 /**
  * La celda de factura del historial de pagos. Se prueba lo único cuyo fallo es
@@ -118,5 +118,47 @@ describe("PaymentsPage · celda de factura (FEL)", () => {
 
     expect(screen.getByRole("button", { name: /Emitir factura/ })).toBeTruthy();
     expect(screen.getByText("Pendiente")).toBeTruthy();
+  });
+});
+
+/**
+ * Contracargo vs. reembolso. Los dos llegan como un `Payment` NEGATIVO en estado
+ * `refunded`, así que sin `is_chargeback` el panel le decía "Reembolsado" al gym
+ * sobre plata que él nunca devolvió: se la quitó el banco del atleta. Para el
+ * gimnasio no son lo mismo — uno lo decidió él y el otro se lo impusieron y
+ * todavía puede pelearlo con evidencia dentro de una ventana.
+ */
+describe("PaymentsPage · un contracargo no se pinta como reembolso", () => {
+  it("la fila de una disputa dice Contracargo, nunca Reembolsado", () => {
+    render(
+      <MantineProvider>
+        <EstadoDePago payment={pago({ status: "refunded", is_chargeback: true })} />
+      </MantineProvider>,
+    );
+
+    expect(screen.getByText("Contracargo")).toBeTruthy();
+    expect(screen.queryByText("Reembolsado")).toBeNull();
+  });
+
+  it("un reembolso de verdad (el gym lo decidió) sigue diciendo Reembolsado", () => {
+    render(
+      <MantineProvider>
+        <EstadoDePago payment={pago({ status: "refunded", is_chargeback: false })} />
+      </MantineProvider>,
+    );
+
+    expect(screen.getByText("Reembolsado")).toBeTruthy();
+    expect(screen.queryByText("Contracargo")).toBeNull();
+  });
+
+  it("un cobro normal no se confunde con ninguno de los dos", () => {
+    render(
+      <MantineProvider>
+        <EstadoDePago payment={pago()} />
+      </MantineProvider>,
+    );
+
+    expect(screen.getByText("Exitoso")).toBeTruthy();
+    expect(screen.queryByText("Contracargo")).toBeNull();
   });
 });

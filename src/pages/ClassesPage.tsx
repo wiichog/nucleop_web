@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import {
   Alert,
+  Avatar,
   Badge,
   Button,
   Card,
@@ -12,6 +13,7 @@ import {
   SegmentedControl,
   Select,
   SimpleGrid,
+  Stack,
   Switch,
   Table,
   Tabs,
@@ -26,6 +28,8 @@ import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import QRCode from "react-qr-code";
 import { AxiosError } from "axios";
 import {
+  useAccessAdmit,
+  useAccessSearch,
   useAddWodResult,
   useCancelClass,
   useClassCheckins,
@@ -46,7 +50,6 @@ import {
   useGymPastClasses,
   useMaterializeSchedules,
   useMemberships,
-  useReceptionCheckin,
   useSchedules,
   useServiceTypes,
   useUpdateClass,
@@ -994,7 +997,6 @@ function ScheduleTab({ gymId }: { gymId: string }) {
 function ClassesTab({ gymId }: { gymId: string }) {
   const classes = useGymClasses(gymId);
   const pastClasses = useGymPastClasses(gymId);
-  const memberships = useMemberships(gymId);
   const coaches = useGymCoaches(gymId);
   const updateClass = useUpdateClass(gymId);
   const cancelClass = useCancelClass(gymId);
@@ -1013,10 +1015,8 @@ function ClassesTab({ gymId }: { gymId: string }) {
   const updateConfig = useUpdateGymConfig(gymId);
   const allowFuture = config.data?.allow_future_reservations ?? true;
   const [selectedClassId, setSelectedClassId] = useState("");
-  const [membershipId, setMembershipId] = useState<string | null>("");
   const [editing, setEditing] = useState<ClassRow | null>(null);
   const checkins = useClassCheckins(gymId, selectedClassId);
-  const reception = useReceptionCheckin(gymId, selectedClassId);
   // Visitantes: check-ins sin membresía, o sea los que entraron con un pase drop-in.
   const visitantes = useMemo(
     () => (checkins.data ?? []).filter((c) => !c.membership).length,
@@ -1364,6 +1364,20 @@ function ClassesTab({ gymId }: { gymId: string }) {
         size="lg"
         centered
       >
+        {/* Qué clase es y cómo va la sala. La diferencia entre reservados y
+            presentes es la pregunta que trae al operador aquí: cuántos de los
+            que dijeron que venían todavía no aparecen. */}
+        {selectedClass && (
+          <Text size="sm" c="dimmed" mb="sm">
+            {selectedClass.class_type} ·{" "}
+            {new Date(selectedClass.starts_at).toLocaleString("es-GT")} ·{" "}
+            <strong>
+              {selectedClass.reserved_count} de {selectedClass.capacity} reservados
+            </strong>
+            {" · "}
+            {(checkins.data ?? []).length} presentes
+          </Text>
+        )}
         {/* Registrar asistencia SOLO dentro de la ventana (ni pasadas ni futuras). */}
         {asistenciaAbierta ? (
           <>
@@ -1371,41 +1385,7 @@ function ClassesTab({ gymId }: { gymId: string }) {
             <Title order={4} mt="md" mb="xs">
               Check-in desde recepción
             </Title>
-            <Group
-              align="flex-end"
-              component="form"
-              onSubmit={async (event: FormEvent) => {
-                event.preventDefault();
-                if (!membershipId) return;
-                try {
-                  await reception.mutateAsync(membershipId);
-                  ok("Check-in registrado.");
-                  setMembershipId("");
-                } catch (error) {
-                  fail(error, "No se pudo registrar el check-in.");
-                }
-              }}
-            >
-              <Select
-                label="Atleta activo"
-                placeholder="Selecciona un atleta"
-                value={membershipId}
-                onChange={setMembershipId}
-                searchable
-                style={{ flex: 1 }}
-                error={
-                  memberships.isError
-                    ? "No se pudo cargar el padrón: la lista quedó vacía."
-                    : undefined
-                }
-                data={(memberships.data ?? [])
-                  .filter((m) => !!m.status && ["active", "trial"].includes(m.status))
-                  .map((m) => ({ value: m.id, label: m.athlete_name }))}
-              />
-              <Button type="submit" disabled={!membershipId} loading={reception.isPending}>
-                Registrar check-in
-              </Button>
-            </Group>
+            {selectedClassId && <RecepcionBuscador gymId={gymId} classId={selectedClassId} />}
           </>
         ) : (
           <Alert color="gray" variant="light">
@@ -1471,6 +1451,165 @@ function ClassesTab({ gymId }: { gymId: string }) {
           </Table>
         )}
       </Modal>
+    </>
+  );
+}
+
+/**
+ * Recepción: buscar a la persona y marcarla presente sin salir de la clase.
+ *
+ * Sustituye al selector que listaba TODO el padrón activo, que tenía dos huecos
+ * de operación: no incluía al visitante con pase drop-in (el gym le cobraba y no
+ * le quedaba registro de que entró) y no decía nada de la persona — ni si ya
+ * había reservado esta clase, ni si ya estaba marcada, ni por qué el backend le
+ * iba a negar el acceso. Se enteraba después de apretar el botón.
+ *
+ * Va contra `/gym/{id}/access/search`, la misma puerta que lee el QR, así que la
+ * ficha y las reglas son idénticas a las del escaneo: el botón habilitado no
+ * miente porque el backend calcula el permiso con `validar_acceso`, el mismo que
+ * usa la escritura. El panel no elige qué pase se consume — eso sería mover una
+ * regla de negocio al cliente.
+ *
+ * Se exporta para poder probarlo suelto: vive dentro del modal de asistencia, al
+ * que sólo se llega por una celda de `mantine-datatable`, y esas no se pintan
+ * bajo jsdom.
+ */
+export function RecepcionBuscador({ gymId, classId }: { gymId: string; classId: string }) {
+  const [texto, setTexto] = useState("");
+  const busqueda = useAccessSearch(gymId, texto, classId);
+  const admitir = useAccessAdmit(gymId, classId);
+  const [admitiendo, setAdmitiendo] = useState("");
+
+  const onAdmitir = async (athleteId: string, nombre: string) => {
+    setAdmitiendo(athleteId);
+    try {
+      const r = await admitir.mutateAsync({ athleteId });
+      // El backend contesta 201 también cuando el pase ya se había consumido:
+      // decir "listo" a secas haría creer que se le gastó una entrada de más.
+      ok(
+        r.already_registered
+          ? `${nombre} ya estaba marcado presente.`
+          : `${nombre}: asistencia registrada.`,
+      );
+    } catch (error) {
+      // Marcar dos veces al mismo es 400 `checkin_duplicate`, y NO es un fallo:
+      // la persona está adentro, que es lo que recepción quería. Pintarlo en rojo
+      // haría que el operador lo reintentara buscando un error que no existe.
+      const code = (error as AxiosError<{ code?: string }>)?.response?.data?.code;
+      if (code === "checkin_duplicate") ok(`${nombre} ya estaba marcado presente.`);
+      else fail(error, `No se pudo marcar presente a ${nombre}.`);
+    } finally {
+      setAdmitiendo("");
+    }
+  };
+
+  const resultados = busqueda.data?.results ?? [];
+  const corto = texto.trim().length > 0 && texto.trim().length < 2;
+
+  return (
+    <>
+      <TextInput
+        label="Buscar a quien llegó"
+        description="Nombre o últimos dígitos del teléfono. Encuentra socios de cualquier estado y visitantes con pase de este gimnasio."
+        placeholder="Ana, Pérez, 4512…"
+        value={texto}
+        onChange={(e) => setTexto(e.currentTarget.value)}
+      />
+      {corto && (
+        <Text size="xs" c="dimmed" mt={6}>
+          Escribe al menos dos letras.
+        </Text>
+      )}
+      {busqueda.isError && (
+        <Text size="sm" c="red" mt="xs">
+          {/* Sin esto una búsqueda caída se ve idéntica a "no existe esa persona"
+              y recepción concluye que el atleta no es del gimnasio. */}
+          No se pudo buscar. Reintenta o usa el QR de la clase.
+        </Text>
+      )}
+      {!busqueda.isError && !corto && texto.trim().length >= 2 && (
+        <Stack gap="xs" mt="sm">
+          {busqueda.isFetching && resultados.length === 0 && (
+            <Text size="sm" c="dimmed">
+              Buscando…
+            </Text>
+          )}
+          {!busqueda.isFetching && resultados.length === 0 && (
+            <Text size="sm" c="dimmed">
+              Nadie con ese nombre tiene relación con este gimnasio. Si viene de otro box, véndele
+              un pase drop-in.
+            </Text>
+          )}
+          {resultados.map((r) => {
+            const atleta = r.athlete;
+            if (!atleta) return null;
+            const accion = r.actions.find((a) => a.action === "class_checkin" && a.via === "admit");
+            const vender = r.actions.find((a) => a.action === "sell_dropin");
+            const yaPresente = r.gym_class?.already_checked_in === true;
+            const reservo = r.gym_class?.reserved_by_athlete === true;
+            return (
+              <Card key={atleta.id} padding="sm">
+                <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
+                  <Group gap="sm" wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
+                    <Avatar src={atleta.photo} color="flame" radius="xl" size={38}>
+                      {atleta.name?.[0]?.toUpperCase()}
+                    </Avatar>
+                    <div style={{ minWidth: 0 }}>
+                      <Text size="sm" fw={600}>
+                        {atleta.name}
+                      </Text>
+                      <Group gap={6} wrap="wrap" mt={2}>
+                        <Badge size="xs" variant="light" color={r.relationship?.is_member ? "gray" : "cyan"}>
+                          {r.relationship?.label ?? "Sin relación"}
+                        </Badge>
+                        {reservo && (
+                          <Badge size="xs" variant="light" color="teal">
+                            Reservó
+                          </Badge>
+                        )}
+                        {yaPresente && (
+                          <Badge size="xs" variant="light" color="teal">
+                            Ya presente
+                          </Badge>
+                        )}
+                        {r.phone_hint && (
+                          <Text size="xs" c="dimmed">
+                            {r.phone_hint}
+                          </Text>
+                        )}
+                      </Group>
+                      {/* El motivo del rechazo lo redacta el backend: repetirlo
+                          aquí en otras palabras las desincronizaría. */}
+                      {accion && !accion.enabled && accion.reason_message && (
+                        <Text size="xs" c="dimmed" mt={4}>
+                          {accion.reason_message}
+                        </Text>
+                      )}
+                    </div>
+                  </Group>
+                  <Group gap="xs">
+                    {vender && (
+                      <Tooltip label="Se cobra desde Planes y cuotas → Pases drop-in." withinPortal>
+                        <Badge variant="light" color="orange">
+                          Requiere pase
+                        </Badge>
+                      </Tooltip>
+                    )}
+                    <Button
+                      size="xs"
+                      disabled={!accion?.enabled || yaPresente}
+                      loading={admitir.isPending && admitiendo === atleta.id}
+                      onClick={() => onAdmitir(atleta.id, atleta.name)}
+                    >
+                      {yaPresente ? "Presente" : "Marcar presente"}
+                    </Button>
+                  </Group>
+                </Group>
+              </Card>
+            );
+          })}
+        </Stack>
+      )}
     </>
   );
 }
