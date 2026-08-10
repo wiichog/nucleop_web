@@ -63,6 +63,7 @@ export function Footer() {
             <FLink href="#funciones">Funciones</FLink>
             <FLink href="#contacto">Contacto</FLink>
             <FLink to="/privacidad">Privacidad</FLink>
+            <FLink to="/terminos">Términos</FLink>
             <FLink to="/eliminar-cuenta">Eliminar cuenta</FLink>
             <FLink to="/login">Portal Admin</FLink>
           </Col>

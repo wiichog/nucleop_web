@@ -8,7 +8,7 @@ import { AtomLogo } from "./AtomLogo";
 // siempre carga, mientras que un .html estático queda sombreado por ese mismo rewrite.
 // Apple y Google exigen una URL pública y VIVA de privacidad antes de revisar.
 
-const UPDATED = "15 de junio de 2026";
+const UPDATED = "10 de agosto de 2026";
 const CONTACT_EMAIL = "jgarcia@devpackgroup.com";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -52,7 +52,12 @@ export function PrivacyPage() {
             Nucleo es una red deportiva que conecta gimnasios y boxes de CrossFit con atletas,
             coaches y clubes en Guatemala. Operamos la aplicación móvil del atleta y el panel web
             para gimnasios. Esta política explica qué datos recopilamos, cómo los usamos y con quién
-            los compartimos. El responsable del tratamiento es Devpack Group.
+            los compartimos. El responsable del tratamiento es Devpack Group. El uso de la
+            plataforma se rige además por nuestros{" "}
+            <Link to="/terminos" className="text-nucleo-flame hover:underline">
+              términos de servicio
+            </Link>
+            .
           </p>
         </Section>
 
@@ -61,6 +66,17 @@ export function PrivacyPage() {
             <strong className="text-white/90">Datos de cuenta:</strong> correo electrónico
             (identificador de inicio de sesión), nombre y, de forma opcional, número de teléfono y
             fecha de nacimiento.
+          </p>
+          {/* Divulgar QUÉ se recibe de cada proveedor de login social no es opcional:
+              Meta revisa que la política declare los datos obtenidos vía Facebook Login,
+              y su ausencia es causa habitual de rechazo en App Review. */}
+          <p>
+            <strong className="text-white/90">Si entras con Google, Apple o Facebook:</strong>{" "}
+            recibimos del proveedor tu nombre, tu correo electrónico y tu foto de perfil pública, y
+            los usamos únicamente para crear o vincular tu cuenta de Nucleo y mostrar tu perfil. No
+            publicamos nada en tus redes, no accedemos a tu lista de contactos ni a tus amistades, y
+            no usamos esos datos para publicidad. Puedes revocar el acceso cuando quieras desde los
+            ajustes de tu cuenta de Google, Apple o Facebook.
           </p>
           <p>
             <strong className="text-white/90">Datos deportivos:</strong> tus récords personales
@@ -98,8 +114,8 @@ export function PrivacyPage() {
               <strong className="text-white/90">Pagalo</strong> — procesamiento de pagos con tarjeta.
             </li>
             <li>
-              <strong className="text-white/90">Google Firebase (FCM)</strong> — envío de
-              notificaciones push.
+              <strong className="text-white/90">Expo</strong> — entrega de las notificaciones push a
+              tu dispositivo, y distribución de la aplicación.
             </li>
             <li>
               <strong className="text-white/90">Mailgun</strong> — envío de correos transaccionales.
@@ -140,14 +156,23 @@ export function PrivacyPage() {
 
         <Section title="7. Tus derechos y eliminación de la cuenta">
           <p>
-            Puedes solicitar el acceso, la corrección o la eliminación de tus datos personales. Para
-            eliminar tu cuenta y los datos personales asociados, escríbenos a{" "}
+            Puedes solicitar el acceso, la corrección o la eliminación de tus datos personales.
+            Puedes eliminar tu cuenta tú mismo desde{" "}
+            <strong className="text-white/90">Perfil → Eliminar cuenta</strong> en la app: la
+            eliminación es inmediata. El detalle completo de qué se borra, qué se conserva y cómo
+            pedirlo si ya no puedes entrar está en la página{" "}
+            <Link to="/eliminar-cuenta" className="text-nucleo-flame hover:underline">
+              eliminar tu cuenta y tus datos
+            </Link>
+            .
+          </p>
+          <p>
+            También puedes escribirnos a{" "}
             <a href={`mailto:${CONTACT_EMAIL}`} className="text-nucleo-flame hover:underline">
               {CONTACT_EMAIL}
             </a>{" "}
-            desde el correo de tu cuenta, o solicítalo desde el perfil dentro de la app. Atenderemos
-            la solicitud en un plazo razonable, salvo los registros que debamos conservar por
-            obligación legal.
+            desde el correo de tu cuenta. Atenderemos la solicitud en un plazo máximo de 30 días
+            naturales, salvo los registros que debamos conservar por obligación legal.
           </p>
         </Section>
 
