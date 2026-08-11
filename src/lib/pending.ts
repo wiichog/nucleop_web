@@ -17,6 +17,14 @@ export type PendingKey = Exclude<keyof PendingSummary, "total">;
 export const PENDING_ITEMS: { key: PendingKey; label: string; to: string }[] = [
   { key: "solicitudes", label: "Solicitudes por revisar", to: "/panel/solicitudes" },
   { key: "coaches", label: "Coaches por aprobar", to: "/panel/coaches" },
+  // Un coach pidió una clase concreta sin asignar: pedir NO asigna nada, así que
+  // si el gym no responde la clase se queda sin coach. Va a su pestaña, no al
+  // calendario "en general": lo que se decide es quién da esa franja.
+  {
+    key: "solicitudes_clase",
+    label: "Coaches que piden clase",
+    to: "/panel/clases?tab=requests",
+  },
   { key: "posts", label: "Posts en moderación", to: "/panel/comunidad" },
   // Un comentario reportado ya está OCULTO del feed: si no aparece aquí, nadie se
   // entera de que hay algo esperando revisión salvo que entre a Comunidad.

@@ -34,6 +34,7 @@ import {
   ErpPnl,
   ErpBranch,
   GymClub,
+  ClassAssignmentRequest,
   Coach,
   CoachPayout,
   CoachRequest,
@@ -1037,6 +1038,45 @@ export function useUpdateCoach(gymId: string) {
       }>;
     }) => (await api.patch(`/gym/${gymId}/coaches/${staffId}`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["gym-coaches", gymId] }),
+  });
+}
+
+/**
+ * Postulaciones de coaches a clases sin asignar (bandeja del gym).
+ *
+ * Es la contraparte del handoff: allí el gym ya se quedó sin coach y corre un
+ * reloj de 20 minutos; aquí un coach pidió una clase futura y **nadie queda
+ * asignado hasta que el gimnasio apruebe**.
+ */
+export function useClassRequests(gymId: string, status = "pending") {
+  return useQuery({
+    queryKey: ["class-requests", gymId, status],
+    queryFn: () =>
+      getList<ClassAssignmentRequest>(`/gym/${gymId}/class-requests?status=${status}`),
+    enabled: !!gymId,
+  });
+}
+
+export function useDecideClassRequest(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      requestId,
+      action,
+      note,
+    }: {
+      requestId: string;
+      action: "approve" | "reject";
+      note?: string;
+    }) =>
+      (await api.post(`/gym/${gymId}/class-requests/${requestId}/${action}`, { note: note ?? "" }))
+        .data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["class-requests", gymId] });
+      // Aprobar ASIGNA la clase: el calendario cambia con la misma llamada.
+      qc.invalidateQueries({ queryKey: ["gym-classes", gymId] });
+      invalidarPendientes(qc, gymId);
+    },
   });
 }
 

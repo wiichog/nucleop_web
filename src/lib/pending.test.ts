@@ -21,7 +21,7 @@ describe("PENDING_ITEMS", () => {
     // Si un pendiente suma al badge pero no está aquí, la campana marca un
     // número y el desplegable dice "todo al día".
     const listados = PENDING_ITEMS.map((i) => i.key);
-    for (const key of ["solicitudes", "coaches", "posts", "tickets", "clases_sin_wod", "pedidos", "clubes", "bajas", "morosos"]) {
+    for (const key of ["solicitudes", "coaches", "solicitudes_clase", "posts", "tickets", "clases_sin_wod", "pedidos", "clubes", "bajas", "morosos"]) {
       expect(listados).toContain(key);
     }
   });
@@ -31,6 +31,9 @@ describe("PENDING_ITEMS", () => {
     expect(pedidos?.to).toBe("/panel/inventario?tab=pedidos");
     const bajas = PENDING_ITEMS.find((i) => i.key === "bajas");
     expect(bajas?.to).toBe("/panel/atletas?filtro=bajas");
+    // La postulación se decide viendo la franja: su pestaña, no el calendario.
+    const clase = PENDING_ITEMS.find((i) => i.key === "solicitudes_clase");
+    expect(clase?.to).toBe("/panel/clases?tab=requests");
   });
 });
 

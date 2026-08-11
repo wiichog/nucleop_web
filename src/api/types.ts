@@ -329,6 +329,12 @@ export interface Dashboard {
 export interface PendingSummary {
   solicitudes: number;
   coaches: number;
+  /**
+   * Coaches que se postularon a una clase concreta sin asignar y esperan que el
+   * gimnasio decida. Suma a `total`: pedir NO asigna nada, así que si el gym no
+   * responde la clase se queda sin coach. Falta si el backend es viejo.
+   */
+  solicitudes_clase?: number;
   posts: number;
   /**
    * Comentarios del feed ocultos por reporte (moderación reactiva), esperando
@@ -887,6 +893,14 @@ export interface CoachRequest {
   message: string;
   created_at: string;
 }
+
+/**
+ * Postulación de un coach a una clase concreta que el gym todavía no asignó.
+ *
+ * No confundir con `CoachRequest`, que es el alta del coach EN el gimnasio. Aquí
+ * el coach ya trabaja ahí y pide una franja: aprobarla asigna la clase.
+ */
+export type ClassAssignmentRequest = components["schemas"]["ClassAssignmentRequest"];
 
 export interface CoachPayout {
   id: string;

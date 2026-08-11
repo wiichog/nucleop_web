@@ -24,6 +24,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { DateInput, TimeInput } from "@mantine/dates";
+import { useSearchParams } from "react-router-dom";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import QRCode from "react-qr-code";
 import { AxiosError } from "axios";
@@ -50,6 +51,7 @@ import {
   useGymPastClasses,
   useMaterializeSchedules,
   useMemberships,
+  usePendingSummary,
   useSchedules,
   useServiceTypes,
   useUpdateClass,
@@ -75,7 +77,8 @@ import type {
 import { notifications } from "@mantine/notifications";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { RowActions } from "../components/RowActions";
-import { Money, PageHeader, SectionLabel } from "../components/ui";
+import { CountBadge, Money, PageHeader, SectionLabel } from "../components/ui";
+import { ClassRequestsTab } from "./classes/ClassRequestsTab";
 import { BigMetric, GlassCard, MetricTile, Stagger, delayVar } from "../components/aurora";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
@@ -125,6 +128,14 @@ type ClassRow = GymClass & ClassCoachFields;
 export function ClassesPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
+  // El contador va en la pestaña porque la solicitud NO se resuelve sola: hasta
+  // que el gym decida, la clase se queda sin coach.
+  const pendientes = usePendingSummary(gymId).data?.solicitudes_clase ?? 0;
+  // La pestaña vive en la URL (mismo patrón que Inventario): así el pendiente
+  // «coaches que piden clase» abre directamente donde se resuelve, en vez de
+  // dejar al admin buscando la pestaña que acaba de tocar.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") || "schedule";
 
   if (!gymId) return <NoGymAssigned />;
 
@@ -135,12 +146,23 @@ export function ClassesPage() {
         title="Clases y rutinas"
         subtitle="Define servicios, arma el horario semanal, registra asistencia y publica la rutina del día."
       />
-      <Tabs defaultValue="schedule">
+      <Tabs
+        value={tab}
+        onChange={(v) => setSearchParams(v && v !== "schedule" ? { tab: v } : {})}
+      >
         {/* Las pestañas entran justo después del hairline del hero. */}
         <Tabs.List mb="lg" className="a-rise" style={delayVar(0.5)}>
           <Tabs.Tab value="services">Servicios</Tabs.Tab>
           <Tabs.Tab value="schedule">Horario semanal</Tabs.Tab>
           <Tabs.Tab value="classes">Clases</Tabs.Tab>
+          {/* Junto al calendario y no en Coaches: lo que se decide aquí es QUIÉN
+              da una franja concreta, y para decidirlo hay que ver la franja. */}
+          <Tabs.Tab value="requests">
+            <Group gap={6}>
+              Solicitudes
+              {pendientes ? <CountBadge count={pendientes} /> : null}
+            </Group>
+          </Tabs.Tab>
           <Tabs.Tab value="wod">Rutina</Tabs.Tab>
           <Tabs.Tab value="dropins">Drop-ins / Pases</Tabs.Tab>
         </Tabs.List>
@@ -153,6 +175,9 @@ export function ClassesPage() {
         </Tabs.Panel>
         <Tabs.Panel value="classes">
           <ClassesTab gymId={gymId} />
+        </Tabs.Panel>
+        <Tabs.Panel value="requests">
+          <ClassRequestsTab gymId={gymId} />
         </Tabs.Panel>
         <Tabs.Panel value="wod">
           <WodTab gymId={gymId} />

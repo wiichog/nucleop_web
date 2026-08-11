@@ -1350,6 +1350,46 @@ export interface paths {
         patch: operations["gym_branches_partial_update"];
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/class-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Panel del gym: postulaciones de coaches a clases sin coach.
+         *
+         *     Por defecto las pendientes —que es la bandeja de trabajo—; `?status=` abre el
+         *     histórico. Sólo las de ESTE gimnasio: el aislamiento lo impone el filtro, no
+         *     el cliente.
+         */
+        get: operations["gym_class_requests_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/class-requests/{id}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El gym aprueba (asigna la clase) o rechaza la postulación de un coach. */
+        post: operations["gym_class_requests_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/classes": {
         parameters: {
             query?: never;
@@ -3929,7 +3969,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Analítica y nivel del coach. */
+        /**
+         * @description Analítica y nivel del coach: el tablero de SU trabajo, no el del gimnasio.
+         *
+         *     Las cifras que responden a lo que el coach se pregunta al abrir el app: qué
+         *     tengo por delante, cuánta gente vino a lo que di, qué tan llenas van mis
+         *     clases, qué me deben y qué está esperando decisión. Nada de facturación,
+         *     morosidad ni retención: eso es el tablero del dueño y aquí no aplica.
+         */
         get: operations["me_coach_stats_retrieve"];
         put?: never;
         post?: never;
@@ -3955,6 +4002,41 @@ export interface paths {
         head?: never;
         /** @description El coach lee y edita su perfil profesional global (bio, especialidades…). */
         patch: operations["me_coach_bio_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/me/coach/class-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Postulaciones del coach a clases sin coach: listarlas y crear una nueva. */
+        get: operations["me_coach_class_requests_list"];
+        put?: never;
+        /** @description Postulaciones del coach a clases sin coach: listarlas y crear una nueva. */
+        post: operations["me_coach_class_requests_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach/class-requests/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El coach retira una postulación suya que aún nadie decidió. */
+        post: operations["me_coach_class_requests_cancel_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/me/coach/classes": {
@@ -4000,6 +4082,29 @@ export interface paths {
         };
         /** @description Solicitudes de cobertura pendientes en los gyms del coach. */
         get: operations["me_coach_handoffs_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach/open-classes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Clases FUTURAS sin coach en sus gyms: la agenda a la que puede postularse.
+         *
+         *     Distinto de `uncovered`, que es la ventana de emergencia (incluye la que
+         *     arrancó hace diez minutos y se cubre sola con un toque). Aquí el coach mira
+         *     hacia adelante y **pide**; la reparte el gimnasio.
+         */
+        get: operations["me_coach_open_classes_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4491,7 +4596,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Bandeja del atleta autenticado (§7.2). Solo las propias, nunca las de otro. */
+        /**
+         * @description Bandeja del usuario autenticado (§7.2). Solo las propias, nunca las de otro.
+         *
+         *     `?audience=` la acota al perfil desde el que se está mirando (el app bifurca
+         *     atleta / coach / admin). Sin el parámetro devuelve todo: es el contrato viejo
+         *     y una build desplegada que aún no lo manda no se queda sin bandeja.
+         */
         get: operations["me_notifications_list"];
         put?: never;
         post?: never;
@@ -4530,9 +4641,11 @@ export interface paths {
         /**
          * @description Marca TODA la bandeja del atleta como leída (idempotente).
          *
-         *     Ruta fija (`/me/notifications/read-all`), sin parámetros: un 404 aquí sólo
-         *     puede venir de un backend que todavía no tenga la ruta desplegada, nunca de
-         *     los datos del que llama.
+         *     Ruta fija (`/me/notifications/read-all`); un 404 aquí sólo puede venir de un
+         *     backend que todavía no tenga la ruta desplegada, nunca de los datos del que
+         *     llama. `?audience=` la acota al perfil desde el que se pulsó: vaciar la
+         *     bandeja del coach no debe dar por leídos los avisos de atleta de la misma
+         *     persona (que es lo único que evita que el badge del otro modo mienta).
          */
         post: operations["me_notifications_read_all_create"];
         delete?: never;
@@ -5961,6 +6074,13 @@ export interface components {
             /** Format: uri */
             photo?: string;
         };
+        /**
+         * @description * `athlete` - Atleta
+         *     * `coach` - Coach
+         *     * `admin` - Administración
+         * @enum {string}
+         */
+        AudienceEnum: "athlete" | "coach" | "admin";
         AuditLog: {
             /** Format: uuid */
             readonly id: string;
@@ -6284,6 +6404,43 @@ export interface components {
             password: string;
             uid?: string;
             token?: string;
+        };
+        /** @description Motivo opcional de la decisión del gym (viaja al aviso del coach). */
+        ClassAssignmentDecision: {
+            note?: string;
+        };
+        /** @description Postulación de un coach a una clase sin coach (la lee el coach y el gym). */
+        ClassAssignmentRequest: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym_class: string;
+            /** Format: uuid */
+            readonly gym: string;
+            readonly gym_name: string;
+            readonly class_type: string;
+            /** Format: date-time */
+            readonly starts_at: string;
+            readonly duration_min: number;
+            readonly capacity: number;
+            readonly reserved_count: number;
+            /** Format: uuid */
+            readonly coach: string;
+            readonly coach_name: string;
+            readonly coach_photo: string;
+            readonly status: string;
+            readonly message: string;
+            readonly decision_note: string;
+            /** Format: date-time */
+            readonly decided_at: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /** @description El coach pide una clase concreta, con una nota opcional para el gym. */
+        ClassAssignmentRequestCreate: {
+            /** Format: uuid */
+            class_id: string;
+            message?: string;
         };
         ClassDemand: {
             class_type: string;
@@ -6975,6 +7132,10 @@ export interface components {
          * @enum {string}
          */
         CoachRequestStatusEnum: "pending" | "accepted" | "rejected" | "cancelled";
+        /**
+         * @description Tablero del COACH. No es el del gimnasio: aquí no hay ingresos del box,
+         *     morosidad ni retención, sino lo que responde «¿cómo voy yo?».
+         */
         CoachStats: {
             classes_taught: number;
             upcoming_classes: number;
@@ -6982,6 +7143,27 @@ export interface components {
             handoffs_accepted: number;
             level: components["schemas"]["CoachLevel"];
             gyms: components["schemas"]["CoachGym"][];
+            classes_this_week: number;
+            classes_this_month: number;
+            athletes_expected: number;
+            unique_athletes: number;
+            /** Format: double */
+            occupancy_rate: number | null;
+            /** Format: double */
+            attendance_rate: number | null;
+            /** Format: double */
+            rating: number | null;
+            rating_count: number;
+            /** Format: decimal */
+            pending_earnings: string;
+            /** Format: decimal */
+            paid_last_30d: string;
+            uncovered_now: number;
+            pending_class_requests: number;
+            pt_sessions_upcoming: number;
+            next_class?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * @description Denuncia sobre un comentario.
@@ -7684,6 +7866,7 @@ export interface components {
         GymPendingSummary: {
             solicitudes: number;
             coaches: number;
+            solicitudes_clase: number;
             posts: number;
             comentarios: number;
             apelaciones: number;
@@ -8357,11 +8540,16 @@ export interface components {
             /** Format: uuid */
             readonly id: string;
             category: components["schemas"]["NotificationCategory"];
+            audience?: components["schemas"]["AudienceEnum"];
             type: string;
             /**
              * @description Mismo título (con emoji) que mostró el push, para que la bandeja no
              *     contradiga a la barra de notificaciones. El cliente no vuelve a mapear
              *     tipo → texto: si el tipo es nuevo, aquí ya cae al genérico.
+             *
+             *     Los avisos de trabajo (coach / administración) traen su título escrito por
+             *     quien los disparó —«Nueva solicitud», «Clase sin coach»—; ese gana, que es
+             *     exactamente lo que se mostró en la barra del sistema.
              */
             readonly title: string;
             payload?: unknown;
@@ -8474,6 +8662,19 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["Chargeback"][];
+        };
+        PaginatedClassAssignmentRequestList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["ClassAssignmentRequest"][];
         };
         PaginatedClassHandoffList: {
             /**
@@ -13182,6 +13383,63 @@ export interface operations {
             };
         };
     };
+    gym_class_requests_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedClassAssignmentRequestList"];
+                };
+            };
+        };
+    };
+    gym_class_requests_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: string;
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ClassAssignmentDecision"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClassAssignmentDecision"];
+                "multipart/form-data": components["schemas"]["ClassAssignmentDecision"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassAssignmentRequest"];
+                };
+            };
+        };
+    };
     gym_classes_list: {
         parameters: {
             query?: {
@@ -17734,6 +17992,71 @@ export interface operations {
             };
         };
     };
+    me_coach_class_requests_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassAssignmentRequest"][];
+                };
+            };
+        };
+    };
+    me_coach_class_requests_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassAssignmentRequestCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClassAssignmentRequestCreate"];
+                "multipart/form-data": components["schemas"]["ClassAssignmentRequestCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassAssignmentRequest"];
+                };
+            };
+        };
+    };
+    me_coach_class_requests_cancel_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassAssignmentRequest"];
+                };
+            };
+        };
+    };
     me_coach_classes_list: {
         parameters: {
             query?: never;
@@ -17787,6 +18110,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClassHandoff"][];
+                };
+            };
+        };
+    };
+    me_coach_open_classes_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymClass"][];
                 };
             };
         };
@@ -18484,6 +18826,8 @@ export interface operations {
     me_notifications_list: {
         parameters: {
             query?: {
+                /** @description Perfiles a los que habla el aviso, separados por coma (athlete, coach, admin). Sin este filtro se devuelve todo. */
+                audience?: string;
                 /** @description The pagination cursor value. */
                 cursor?: string;
                 /** @description Which field to use when ordering the results. */
@@ -18532,7 +18876,10 @@ export interface operations {
     };
     me_notifications_read_all_create: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Perfiles a marcar, separados por coma (athlete, coach, admin). Sin este filtro se marca toda la bandeja. */
+                audience?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
