@@ -6594,6 +6594,7 @@ export interface components {
             gym_id: string | null;
             title: string;
             body: string;
+            photo_url: string | null;
             author_email: string;
             moderation_status: string;
             moderation_label: string;
@@ -7691,6 +7692,7 @@ export interface components {
             clases_sin_coach: number;
             pedidos: number;
             clubes: number;
+            denuncias_club: number;
             bajas: number;
             morosos: number;
             en_riesgo: number;
@@ -10675,6 +10677,10 @@ export interface components {
             /** Format: uuid */
             readonly return_of: string | null;
             readonly lines: components["schemas"]["SaleLine"][];
+            /** Format: date */
+            readonly occurred_on: string | null;
+            /** Format: date */
+            readonly fecha: string;
             /** Format: date-time */
             readonly created_at: string;
         };
@@ -10686,6 +10692,8 @@ export interface components {
             /** @default cash */
             method: components["schemas"]["SaleCreateMethodEnum"];
             note?: string;
+            /** Format: date */
+            occurred_on?: string | null;
             lines: components["schemas"]["SaleLineInput"][];
         };
         /**

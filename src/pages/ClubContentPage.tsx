@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Group,
+  Image,
   Modal,
   SegmentedControl,
   Select,
@@ -140,10 +141,34 @@ function FilaDeContenido({
         <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
           {fila.body}
         </Text>
-      ) : (
+      ) : fila.photo_url ? null : (
+        // "(sin texto)" sólo cuando de verdad no hay NADA. Antes se pintaba
+        // también sobre una publicación que era una foto, así que la única señal
+        // que recibía el moderador sobre una imagen era la palabra "(sin texto)".
         <Text size="sm" c="dimmed">
           (sin texto)
         </Text>
+      )}
+
+      {/* LA FOTO. Es lo que faltaba para que esta cola sirva a su propósito: el
+          gimnasio no tiene otra vía de ver una imagen publicada en un club —el
+          feed del club le responde 403 a propósito—, así que sin esto el peor
+          caso que el dueño describió en el ticket 99d9ab2e no lo miraba nadie.
+
+          Con tope de ancho y no a sangre: en un escritorio ancho una foto de
+          1200 px empujaría el resto de la fila fuera de la vista, y la cola se
+          recorre comparando filas. */}
+      {fila.photo_url && (
+        <Image
+          src={fila.photo_url}
+          alt="Imagen de la publicación"
+          radius="md"
+          fit="cover"
+          h={200}
+          w="auto"
+          maw={360}
+          mt={8}
+        />
       )}
 
       <Text size="xs" c="dimmed" mt={6}>
