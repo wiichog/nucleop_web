@@ -1515,6 +1515,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/classes/{id}/checkins/{cid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Deshace un check-in mal puesto (y devuelve los puntos que otorgó). */
+        delete: operations["gym_classes_checkins_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/classes/{id}/offer-coverage": {
         parameters: {
             query?: never;
@@ -1548,6 +1565,30 @@ export interface paths {
          *     verlo. Los alumnos lo escanean y registran su check-in (method=class_qr).
          */
         get: operations["gym_classes_qr_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/classes/{id}/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description A quién le toca estar en ESTA clase, para pasar lista.
+         *
+         *     Reemplaza al padrón completo del gimnasio que pedía la hoja de asistencia del
+         *     coach: allí salían los 200 socios en orden de inscripción, sin buscador, y con
+         *     la cuota y las notas internas de cada uno. Aquí salen los inscritos —que son
+         *     los que el coach espera— y, sólo si busca, el que llegó sin reservar.
+         */
+        get: operations["gym_classes_roster_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2592,6 +2633,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description Padrón del gym. **Cuánto se ve depende del rol**, no sólo de tener uno.
+         *
+         *     El permiso es `HasGymRole` sin `required_roles`, o sea cualquier rol activo
+         *     del gimnasio —y eso incluye al coach, que necesita la lista para pasar lista
+         *     a mano—. Servirle a todos el serializer de administración le entregaba al
+         *     coach la cuota personalizada, el descuento, el estado de pago y las notas
+         *     internas de cada socio: información de la relación económica con el gym, que
+         *     no es asunto de quien da la clase. Ver `MembershipCoachSerializer`.
+         */
         get: operations["gym_memberships_list"];
         put?: never;
         post?: never;
@@ -4056,6 +4107,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/coach/classes/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Las clases que el coach YA dio, con cuánta gente le llegó.
+         *
+         *     `CoachClassesView` sólo devuelve lo vigente —hasta que cierra la ventana de
+         *     asistencia—, así que a las dos horas de terminar la clase el app le decía "Sin
+         *     clases asignadas" a alguien que había dado tres esa mañana. Su trabajo hecho
+         *     no existía en ninguna pantalla, y es justo lo que sostiene su nivel y su pago.
+         */
+        get: operations["me_coach_classes_history_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/coach/feed": {
         parameters: {
             query?: never;
@@ -4257,7 +4332,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Clases sin coach en los gyms del coach (por cubrir) todavía cubribles. */
+        /**
+         * @description TODAS las clases sin coach de sus gyms, desde hace 20 min hacia adelante.
+         *
+         *     Ojo con el nombre: esto **no** es "lo que puede cubrir ahora". El único corte
+         *     es por abajo (`now - HANDOFF_GRACE_MIN`), así que la lista incluye la agenda
+         *     futura entera, no sólo lo urgente. Quien la consuma tiene que separar las dos
+         *     cosas —tomar de un botón vs. postularse— porque son vías distintas: cubrir
+         *     asigna al instante y sólo aplica con handoff pendiente o clase recién
+         *     arrancada; pedir la reparte el gimnasio (`ClassAssignmentRequest`).
+         *
+         *     Leer este nombre como "cubribles" ya costó un defecto en el app: toda la
+         *     agenda cayó en la sección de emergencia —que sólo muestra botón si un atleta
+         *     pidió cobertura— y no quedó forma de solicitar una clase. El reparto correcto
+         *     vive en `nucleo-app-mobile/src/lib/coachClases.ts`.
+         */
         get: operations["me_coach_uncovered_list"];
         put?: never;
         post?: never;
@@ -6488,6 +6577,22 @@ export interface components {
             /** Format: uuid */
             qr_token: string;
         };
+        /**
+         * @description Una fila de la hoja de asistencia: quién es y si ya entró. Nada más.
+         *
+         *     Deliberadamente sin cuota, mora ni notas internas: pasar lista no necesita la
+         *     relación económica del socio con el gimnasio, y la hoja la abre un coach.
+         */
+        ClassRosterRow: {
+            membership: string | null;
+            athlete: string;
+            name: string;
+            photo: string | null;
+            reserved: boolean;
+            waitlist: boolean;
+            checked_in: boolean;
+            checkin: string | null;
+        };
         /** @description Plantilla del horario semanal (una celda de la cuadrícula). */
         ClassSchedule: {
             /** Format: uuid */
@@ -8199,7 +8304,9 @@ export interface components {
         /**
          * @description Vista del panel del gym: capa de relación de ESTE gym (decisión 3).
          *
-         *     NUNCA expone datos de la vida del atleta en otros gimnasios.
+         *     NUNCA expone datos de la vida del atleta en otros gimnasios. Y dentro del
+         *     gimnasio tampoco la ve cualquiera: es para quien ADMINISTRA. Un coach recibe
+         *     `MembershipCoachSerializer`, que no trae dinero ni notas internas.
          */
         MembershipAdmin: {
             /** Format: uuid */
@@ -13636,6 +13743,28 @@ export interface operations {
             };
         };
     };
+    gym_classes_checkins_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     gym_classes_offer_coverage_create: {
         parameters: {
             query?: never;
@@ -13682,6 +13811,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClassQr"];
+                };
+            };
+        };
+    };
+    gym_classes_roster_list: {
+        parameters: {
+            query?: {
+                /** @description Busca socios activos que NO reservaron (el que llegó sin anotarse). */
+                q?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassRosterRow"][];
                 };
             };
         };
@@ -18058,6 +18212,25 @@ export interface operations {
         };
     };
     me_coach_classes_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymClass"][];
+                };
+            };
+        };
+    };
+    me_coach_classes_history_list: {
         parameters: {
             query?: never;
             header?: never;
