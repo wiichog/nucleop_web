@@ -1532,6 +1532,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/classes/{id}/invite-coach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description El gimnasio le OFRECE la clase a un coach en vez de imponérsela.
+         *
+         *     Asignar directo sigue existiendo (`PATCH` de la clase) y es lo correcto cuando
+         *     ya está hablado. Esto es para cuando no: la clase queda pendiente de que el
+         *     coach acepte, y el gimnasio se entera de que no puede a tiempo de repartirla.
+         */
+        post: operations["gym_classes_invite_coach_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/classes/{id}/offer-coverage": {
         parameters: {
             query?: never;
@@ -1546,7 +1569,8 @@ export interface paths {
          *     coach→coach). El traspaso solo se concreta si el otro coach acepta.
          */
         post: operations["gym_classes_offer_coverage_create"];
-        delete?: never;
+        /** @description Retira la oferta mientras nadie la haya tomado (la clase sigue siendo suya). */
+        delete: operations["gym_classes_offer_coverage_destroy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1567,6 +1591,23 @@ export interface paths {
         get: operations["gym_classes_qr_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/classes/{id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El coach deja una clase suya: se queda sin coach y el gimnasio se entera. */
+        post: operations["gym_classes_release_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4073,7 +4114,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/me/coach/class-requests/{id}/cancel": {
+    "/api/v1/me/coach/class-requests/{id}/{action}": {
         parameters: {
             query?: never;
             header?: never;
@@ -4082,8 +4123,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description El coach retira una postulación suya que aún nadie decidió. */
-        post: operations["me_coach_class_requests_cancel_create"];
+        /**
+         * @description Lo que el coach puede hacer con una fila suya de clase pendiente.
+         *
+         *     `cancel` retira una postulación propia; `accept`/`reject` contestan una
+         *     invitación del gimnasio. Es una sola puerta porque es una sola tabla: lo único
+         *     que cambia es de qué lado nació la conversación.
+         */
+        post: operations["me_coach_class_request_action"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6498,10 +6545,17 @@ export interface components {
         ClassAssignmentDecision: {
             note?: string;
         };
-        /** @description Postulación de un coach a una clase sin coach (la lee el coach y el gym). */
+        /**
+         * @description Una clase esperando decisión entre un coach y su gimnasio.
+         *
+         *     `kind` dice a quién le toca: `request` la decide el gimnasio, `invite` la
+         *     decide el coach. Es el mismo modelo en los dos sentidos, así que la misma
+         *     fila la leen las dos pantallas.
+         */
         ClassAssignmentRequest: {
             /** Format: uuid */
             readonly id: string;
+            readonly kind: string;
             /** Format: uuid */
             readonly gym_class: string;
             /** Format: uuid */
@@ -6524,6 +6578,8 @@ export interface components {
             readonly decided_at: string;
             /** Format: date-time */
             readonly created_at: string;
+            /** Format: decimal */
+            readonly pay_amount: string | null;
         };
         /** @description El coach pide una clase concreta, con una nota opcional para el gym. */
         ClassAssignmentRequestCreate: {
@@ -6559,6 +6615,12 @@ export interface components {
             /** Format: date-time */
             readonly created_at: string;
         };
+        /** @description El gym le ofrece la clase a un coach concreto, con un recado opcional. */
+        ClassInviteCreate: {
+            /** Format: uuid */
+            coach_id: string;
+            message?: string;
+        };
         /** @description QR de asistencia que el coach/admin muestra o reenvía. */
         ClassQr: {
             /** Format: uuid */
@@ -6576,6 +6638,10 @@ export interface components {
         ClassQrCheckin: {
             /** Format: uuid */
             qr_token: string;
+        };
+        /** @description Por qué el coach deja la clase; el gimnasio lo lee en su aviso. */
+        ClassRelease: {
+            reason?: string;
         };
         /**
          * @description Una fila de la hoja de asistencia: quién es y si ya entró. Nada más.
@@ -7265,6 +7331,7 @@ export interface components {
             paid_last_30d: string;
             uncovered_now: number;
             pending_class_requests: number;
+            pending_class_invites: number;
             pt_sessions_upcoming: number;
             next_class?: {
                 [key: string]: unknown;
@@ -13495,10 +13562,14 @@ export interface operations {
             query?: {
                 /** @description The pagination cursor value. */
                 cursor?: string;
+                /** @description request (decide el gym) | invite (decide el coach) */
+                kind?: string;
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
                 /** @description A search term. */
                 search?: string;
+                /** @description pending (por defecto) | approved | rejected | cancelled */
+                status?: string;
             };
             header?: never;
             path: {
@@ -13765,6 +13836,34 @@ export interface operations {
             };
         };
     };
+    gym_classes_invite_coach_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassInviteCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClassInviteCreate"];
+                "multipart/form-data": components["schemas"]["ClassInviteCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassAssignmentRequest"];
+                };
+            };
+        };
+    };
     gym_classes_offer_coverage_create: {
         parameters: {
             query?: never;
@@ -13793,6 +13892,27 @@ export interface operations {
             };
         };
     };
+    gym_classes_offer_coverage_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     gym_classes_qr_retrieve: {
         parameters: {
             query?: never;
@@ -13811,6 +13931,34 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClassQr"];
+                };
+            };
+        };
+    };
+    gym_classes_release_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ClassRelease"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClassRelease"];
+                "multipart/form-data": components["schemas"]["ClassRelease"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymClass"];
                 };
             };
         };
@@ -18190,16 +18338,23 @@ export interface operations {
             };
         };
     };
-    me_coach_class_requests_cancel_create: {
+    me_coach_class_request_action: {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                action: string;
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ClassAssignmentDecision"];
+                "application/x-www-form-urlencoded": components["schemas"]["ClassAssignmentDecision"];
+                "multipart/form-data": components["schemas"]["ClassAssignmentDecision"];
+            };
+        };
         responses: {
             200: {
                 headers: {

@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   ColorInput,
+  Divider,
   FileInput,
   Group,
   Modal,
@@ -47,6 +48,7 @@ import {
   useDeleteWod,
   useGymCoaches,
   useGymClasses,
+  useInviteCoachToClass,
   useGymConfig,
   useGymPastClasses,
   useMaterializeSchedules,
@@ -1367,6 +1369,7 @@ function ClassesTab({ gymId }: { gymId: string }) {
 
       <AssignCoachModal
         gymClass={editing}
+        gymId={gymId}
         coaches={coaches.data ?? []}
         onClose={() => setEditing(null)}
         onSave={async (body) => {
@@ -2099,12 +2102,14 @@ type CoachOpt = { staff_role: string; name: string; email: string; pay_type: "pe
 
 function AssignCoachModal({
   gymClass,
+  gymId,
   coaches,
   onClose,
   onSave,
   saving,
 }: {
   gymClass: ClassRow | null;
+  gymId: string;
   coaches: CoachOpt[];
   onClose: () => void;
   onSave: (body: {
@@ -2119,8 +2124,10 @@ function AssignCoachModal({
   const [lead, setLead] = useState<number | string>(60);
   const [payExtra, setPayExtra] = useState(false);
   const [extra, setExtra] = useState<number | string>(0);
+  const [recado, setRecado] = useState("");
   const [error, setError] = useState("");
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
+  const invitar = useInviteCoachToClass(gymId);
 
   // Prefill cuando se abre con una clase distinta.
   if (gymClass && hydratedFor !== gymClass.id) {
@@ -2129,10 +2136,14 @@ function AssignCoachModal({
     setLead(gymClass.assignment_lead_min ?? 60);
     setPayExtra(gymClass.pay_extra ?? false);
     setExtra(gymClass.extra_amount ?? 0);
+    setRecado("");
     setError("");
   }
 
   const selectedFixed = coaches.find((c) => c.staff_role === coach)?.pay_type === "fixed";
+  // Ofrecer sólo tiene sentido si la clase está libre y hay alguien elegido: con
+  // coach puesto, cambiarlo es asignar, no preguntar.
+  const puedeInvitar = !!gymClass && !gymClass.coach && !!coach;
 
   const save = async () => {
     setError("");
@@ -2146,6 +2157,22 @@ function AssignCoachModal({
     } catch (e) {
       const detail = (e as AxiosError<{ detail?: string }>).response?.data?.detail;
       setError(detail ?? "No se pudo guardar.");
+    }
+  };
+
+  const ofrecer = async () => {
+    if (!gymClass || !coach) return;
+    setError("");
+    try {
+      await invitar.mutateAsync({ classId: gymClass.id, coachId: coach, message: recado });
+      notifications.show({
+        color: "teal",
+        message: "Invitación enviada. La clase queda libre hasta que el coach acepte.",
+      });
+      onClose();
+    } catch (e) {
+      const detail = (e as AxiosError<{ detail?: string }>).response?.data?.detail;
+      setError(detail ?? "No se pudo enviar la invitación.");
     }
   };
 
@@ -2180,6 +2207,32 @@ function AssignCoachModal({
           {payExtra && (
             <NumberInput label="Monto extra" prefix="Q" value={extra} onChange={setExtra} min={0} decimalScale={2} mb="sm" />
           )}
+        </>
+      )}
+      {/* Preguntar en vez de imponer. Poner a alguien en el horario no es lo
+          mismo que acordarlo con él: el coach puede no poder ese día, y que se
+          entere cuando la clase ya está en su agenda es como se quedan las
+          clases sin dar. Ofrecer la deja libre hasta que él acepte, y si dice
+          que no, te llega el aviso a tiempo de repartirla. */}
+      {puedeInvitar && (
+        <>
+          <Divider my="sm" label="o pregúntale primero" labelPosition="center" />
+          <TextInput
+            label="Recado para el coach (opcional)"
+            placeholder="¿Puedes con esta?"
+            value={recado}
+            onChange={(e) => setRecado(e.currentTarget.value)}
+            mb="sm"
+          />
+          <Button
+            variant="light"
+            fullWidth
+            loading={invitar.isPending}
+            onClick={ofrecer}
+            mb="sm"
+          >
+            Ofrecerle la clase (decide él)
+          </Button>
         </>
       )}
       {error && (

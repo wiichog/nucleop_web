@@ -1048,12 +1048,50 @@ export function useUpdateCoach(gymId: string) {
  * reloj de 20 minutos; aquí un coach pidió una clase futura y **nadie queda
  * asignado hasta que el gimnasio apruebe**.
  */
-export function useClassRequests(gymId: string, status = "pending") {
+/**
+ * Las clases en conversación con los coaches. `kind` separa las dos mitades:
+ * `request` (te la piden, decides tú) e `invite` (la ofreciste, decide el coach).
+ * Sin `kind` vienen las dos, que es como se lee la bandeja.
+ */
+export function useClassRequests(gymId: string, status = "pending", kind?: "request" | "invite") {
   return useQuery({
-    queryKey: ["class-requests", gymId, status],
+    queryKey: ["class-requests", gymId, status, kind ?? "todas"],
     queryFn: () =>
-      getList<ClassAssignmentRequest>(`/gym/${gymId}/class-requests?status=${status}`),
+      getList<ClassAssignmentRequest>(
+        `/gym/${gymId}/class-requests?status=${status}${kind ? `&kind=${kind}` : ""}`,
+      ),
     enabled: !!gymId,
+  });
+}
+
+/**
+ * El gimnasio le OFRECE una clase a un coach: queda pendiente de que él acepte.
+ *
+ * No es asignar (eso es el PATCH de la clase). Es la otra mitad de
+ * `useClassRequests`: la misma tabla, con la decisión del otro lado.
+ */
+export function useInviteCoachToClass(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      classId,
+      coachId,
+      message,
+    }: {
+      classId: string;
+      coachId: string;
+      message?: string;
+    }) =>
+      (
+        await api.post(`/gym/${gymId}/classes/${classId}/invite-coach`, {
+          coach_id: coachId,
+          message: message ?? "",
+        })
+      ).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["class-requests", gymId] });
+      qc.invalidateQueries({ queryKey: ["gym-classes", gymId] });
+    },
   });
 }
 
