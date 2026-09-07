@@ -332,22 +332,40 @@ export function PlatformGymsPage() {
             </Text>
             <Stack gap="md">
               <SectionLabel>Datos del gimnasio</SectionLabel>
+              {/*
+                En cada onChange el valor se lee ANTES de llamar al setter, nunca dentro del
+                updater. React pone `currentTarget` en null en cuanto el handler termina, y el
+                updater que recibe `setState` no siempre corre en ese mismo tick: si ya hay otra
+                actualización en cola, React lo difiere y para entonces `e.currentTarget` ya es
+                null. Leerlo ahí revienta con un "Cannot read properties of null" que solo
+                aparece al escribir rápido en dos campos seguidos, que es justo lo que hace la
+                gente, y sin error boundary desmonta la página entera.
+              */}
               <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
                 <TextInput
                   label="Nombre"
                   value={alta.name}
-                  onChange={(e) => setAlta((a) => ({ ...a, name: e.currentTarget.value }))}
+                  onChange={(e) => {
+                    const valor = e.currentTarget.value;
+                    setAlta((a) => ({ ...a, name: valor }));
+                  }}
                 />
                 <TextInput
                   label="Ubicación"
                   placeholder="Zona 10, Ciudad de Guatemala"
                   value={alta.location_text}
-                  onChange={(e) => setAlta((a) => ({ ...a, location_text: e.currentTarget.value }))}
+                  onChange={(e) => {
+                    const valor = e.currentTarget.value;
+                    setAlta((a) => ({ ...a, location_text: valor }));
+                  }}
                 />
                 <TextInput
                   label="Dirección"
                   value={alta.address}
-                  onChange={(e) => setAlta((a) => ({ ...a, address: e.currentTarget.value }))}
+                  onChange={(e) => {
+                    const valor = e.currentTarget.value;
+                    setAlta((a) => ({ ...a, address: valor }));
+                  }}
                 />
               </SimpleGrid>
 
@@ -363,13 +381,19 @@ export function PlatformGymsPage() {
                   label="Cuota mensual (Q)"
                   description="Lo que el gym le paga a Nucleo"
                   value={alta.monthly_price}
-                  onChange={(e) => setAlta((a) => ({ ...a, monthly_price: e.currentTarget.value }))}
+                  onChange={(e) => {
+                    const valor = e.currentTarget.value;
+                    setAlta((a) => ({ ...a, monthly_price: valor }));
+                  }}
                 />
                 <TextInput
                   label="Recargo en tarjeta"
                   description="0.0300 = 3% sumado encima del precio"
                   value={alta.commission_pct}
-                  onChange={(e) => setAlta((a) => ({ ...a, commission_pct: e.currentTarget.value }))}
+                  onChange={(e) => {
+                    const valor = e.currentTarget.value;
+                    setAlta((a) => ({ ...a, commission_pct: valor }));
+                  }}
                 />
               </SimpleGrid>
 
@@ -378,13 +402,19 @@ export function PlatformGymsPage() {
                 <TextInput
                   label="Nombre del plan"
                   value={alta.plan_name}
-                  onChange={(e) => setAlta((a) => ({ ...a, plan_name: e.currentTarget.value }))}
+                  onChange={(e) => {
+                    const valor = e.currentTarget.value;
+                    setAlta((a) => ({ ...a, plan_name: valor }));
+                  }}
                 />
                 <TextInput
                   label="Precio del plan (Q)"
                   description="Lo que el atleta paga al gym"
                   value={alta.plan_price}
-                  onChange={(e) => setAlta((a) => ({ ...a, plan_price: e.currentTarget.value }))}
+                  onChange={(e) => {
+                    const valor = e.currentTarget.value;
+                    setAlta((a) => ({ ...a, plan_price: valor }));
+                  }}
                 />
               </SimpleGrid>
 
@@ -397,26 +427,34 @@ export function PlatformGymsPage() {
                 <TextInput
                   label="Correo"
                   value={alta.admin_email}
-                  onChange={(e) => setAlta((a) => ({ ...a, admin_email: e.currentTarget.value }))}
+                  onChange={(e) => {
+                    const valor = e.currentTarget.value;
+                    setAlta((a) => ({ ...a, admin_email: valor }));
+                  }}
                 />
                 <TextInput
                   label="Nombre"
                   value={alta.admin_first_name}
-                  onChange={(e) =>
-                    setAlta((a) => ({ ...a, admin_first_name: e.currentTarget.value }))
-                  }
+                  onChange={(e) => {
+                    const valor = e.currentTarget.value;
+                    setAlta((a) => ({ ...a, admin_first_name: valor }));
+                  }}
                 />
                 <TextInput
                   label="Apellido"
                   value={alta.admin_last_name}
-                  onChange={(e) =>
-                    setAlta((a) => ({ ...a, admin_last_name: e.currentTarget.value }))
-                  }
+                  onChange={(e) => {
+                    const valor = e.currentTarget.value;
+                    setAlta((a) => ({ ...a, admin_last_name: valor }));
+                  }}
                 />
                 <TextInput
                   label="Teléfono"
                   value={alta.admin_phone}
-                  onChange={(e) => setAlta((a) => ({ ...a, admin_phone: e.currentTarget.value }))}
+                  onChange={(e) => {
+                    const valor = e.currentTarget.value;
+                    setAlta((a) => ({ ...a, admin_phone: valor }));
+                  }}
                 />
               </SimpleGrid>
 

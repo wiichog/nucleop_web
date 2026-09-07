@@ -427,11 +427,23 @@ export function InventoryPage() {
               title: "Reabastecer",
               render: (p) => (
                 <Group gap={6} wrap="nowrap">
+                {/*
+                  En cada onChange el valor se lee ANTES de llamar al setter, nunca dentro del
+                  updater. React pone `currentTarget` en null en cuanto el handler termina, y el
+                  updater que recibe `setState` no siempre corre en ese mismo tick: si ya hay otra
+                  actualización en cola, React lo difiere y para entonces `e.currentTarget` ya es
+                  null. Leerlo ahí revienta con un "Cannot read properties of null" que solo
+                  aparece al escribir rápido en dos campos seguidos, que es justo lo que hace la
+                  gente, y sin error boundary desmonta la página entera.
+                */}
                   <TextInput
                     w={70}
                     placeholder="Qty"
                     value={restock[p.id] ?? ""}
-                    onChange={(e) => setRestock((prev) => ({ ...prev, [p.id]: e.currentTarget.value }))}
+                    onChange={(e) => {
+                      const valor = e.currentTarget.value;
+                      setRestock((prev) => ({ ...prev, [p.id]: valor }));
+                    }}
                   />
                   <Button variant="default" size="xs" onClick={() => onRestock(p.id)} loading={createMovement.isPending}>
                     Entrada

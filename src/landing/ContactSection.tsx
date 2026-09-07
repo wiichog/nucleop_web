@@ -58,8 +58,16 @@ export function ContactSection() {
     }
   }, []);
 
-  const set = (k: keyof typeof form) => (e: { currentTarget: { value: string } }) =>
-    setForm((f) => ({ ...f, [k]: e.currentTarget.value }));
+  // El valor se lee ANTES de llamar a `setForm`, no dentro del updater. React
+  // pone `currentTarget` en null en cuanto el handler termina, y el updater que
+  // se le pasa a `setState` no siempre corre en ese mismo tick: si ya hay otra
+  // actualización en cola, React lo difiere y para entonces `e.currentTarget` ya
+  // es null. Se cae con un "Cannot read properties of null" que solo aparece al
+  // escribir rápido en dos campos seguidos, que es justo lo que hace la gente.
+  const set = (k: keyof typeof form) => (e: { currentTarget: { value: string } }) => {
+    const valor = e.currentTarget.value;
+    setForm((f) => ({ ...f, [k]: valor }));
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();

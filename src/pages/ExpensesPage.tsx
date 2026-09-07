@@ -503,6 +503,15 @@ export function ExpensesPage() {
             corregidos. Ambos quedan enlazados en el histórico.
           </Text>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+            {/*
+              En cada onChange el valor se lee ANTES de llamar al setter, nunca dentro del
+              updater. React pone `currentTarget` en null en cuanto el handler termina, y el
+              updater que recibe `setState` no siempre corre en ese mismo tick: si ya hay otra
+              actualización en cola, React lo difiere y para entonces `e.currentTarget` ya es
+              null. Leerlo ahí revienta con un "Cannot read properties of null" que solo
+              aparece al escribir rápido en dos campos seguidos, que es justo lo que hace la
+              gente, y sin error boundary desmonta la página entera.
+            */}
             <Select
               label="Categoría"
               value={correccion.category}
@@ -512,12 +521,18 @@ export function ExpensesPage() {
             <TextInput
               label="Monto (Q)"
               value={correccion.amount}
-              onChange={(e) => setCorreccion((c) => ({ ...c, amount: e.currentTarget.value }))}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setCorreccion((c) => ({ ...c, amount: valor }));
+              }}
             />
             <TextInput
               label="Descripción"
               value={correccion.description}
-              onChange={(e) => setCorreccion((c) => ({ ...c, description: e.currentTarget.value }))}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setCorreccion((c) => ({ ...c, description: valor }));
+              }}
             />
             <DateInput
               label="Fecha"

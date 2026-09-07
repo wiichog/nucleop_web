@@ -155,35 +155,62 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
         </Text>
         <Stack gap="md">
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+          {/*
+            En cada onChange el valor se lee ANTES de llamar al setter, nunca dentro del
+            updater. React pone `currentTarget` en null en cuanto el handler termina, y el
+            updater que recibe `setState` no siempre corre en ese mismo tick: si ya hay otra
+            actualización en cola, React lo difiere y para entonces `e.currentTarget` ya es
+            null. Leerlo ahí revienta con un "Cannot read properties of null" que solo
+            aparece al escribir rápido en dos campos seguidos, que es justo lo que hace la
+            gente, y sin error boundary desmonta la página entera.
+          */}
             <TextInput
               label="Nombre"
               value={alta.name}
-              onChange={(e) => setAlta((f) => ({ ...f, name: e.currentTarget.value }))}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setAlta((f) => ({ ...f, name: valor }));
+              }}
             />
             <TextInput
               label="Contacto"
               value={alta.contact_name}
-              onChange={(e) => setAlta((f) => ({ ...f, contact_name: e.currentTarget.value }))}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setAlta((f) => ({ ...f, contact_name: valor }));
+              }}
             />
             <TextInput
               label="Teléfono"
               value={alta.phone}
-              onChange={(e) => setAlta((f) => ({ ...f, phone: e.currentTarget.value }))}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setAlta((f) => ({ ...f, phone: valor }));
+              }}
             />
             <TextInput
               label="Correo"
               value={alta.email}
-              onChange={(e) => setAlta((f) => ({ ...f, email: e.currentTarget.value }))}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setAlta((f) => ({ ...f, email: valor }));
+              }}
             />
             <TextInput
               label="NIT"
               value={alta.tax_id}
-              onChange={(e) => setAlta((f) => ({ ...f, tax_id: e.currentTarget.value }))}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setAlta((f) => ({ ...f, tax_id: valor }));
+              }}
             />
             <TextInput
               label="Notas"
               value={alta.notes}
-              onChange={(e) => setAlta((f) => ({ ...f, notes: e.currentTarget.value }))}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setAlta((f) => ({ ...f, notes: valor }));
+              }}
             />
           </SimpleGrid>
           <Group justify="flex-end">
@@ -287,33 +314,51 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
             <TextInput
               label="Nombre"
               value={edicion.name}
-              onChange={(e) => setEdicion((f) => ({ ...f, name: e.currentTarget.value }))}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setEdicion((f) => ({ ...f, name: valor }));
+              }}
             />
             <TextInput
               label="Contacto"
               value={edicion.contact_name}
-              onChange={(e) => setEdicion((f) => ({ ...f, contact_name: e.currentTarget.value }))}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setEdicion((f) => ({ ...f, contact_name: valor }));
+              }}
             />
             <TextInput
               label="Teléfono"
               value={edicion.phone}
-              onChange={(e) => setEdicion((f) => ({ ...f, phone: e.currentTarget.value }))}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setEdicion((f) => ({ ...f, phone: valor }));
+              }}
             />
             <TextInput
               label="Correo"
               value={edicion.email}
-              onChange={(e) => setEdicion((f) => ({ ...f, email: e.currentTarget.value }))}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setEdicion((f) => ({ ...f, email: valor }));
+              }}
             />
             <TextInput
               label="NIT"
               value={edicion.tax_id}
-              onChange={(e) => setEdicion((f) => ({ ...f, tax_id: e.currentTarget.value }))}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setEdicion((f) => ({ ...f, tax_id: valor }));
+              }}
             />
           </SimpleGrid>
           <Textarea
             label="Notas"
             value={edicion.notes}
-            onChange={(e) => setEdicion((f) => ({ ...f, notes: e.currentTarget.value }))}
+            onChange={(e) => {
+              const valor = e.currentTarget.value;
+              setEdicion((f) => ({ ...f, notes: valor }));
+            }}
             autosize
             minRows={2}
           />
