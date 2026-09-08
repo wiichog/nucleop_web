@@ -550,11 +550,16 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
                   w={110}
                   placeholder="Del catálogo"
                   value={l.unit_cost}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    // El valor se lee ANTES de llamar al setter: React pone
+                    // `currentTarget` en null al terminar el handler y difiere el
+                    // updater si ya hay otra actualización en cola. Ver el guardia
+                    // en lib/onChangeSeguro.test.ts.
+                    const valor = e.currentTarget.value;
                     setLineas((ls) =>
-                      ls.map((x, j) => (j === i ? { ...x, unit_cost: e.currentTarget.value } : x)),
-                    )
-                  }
+                      ls.map((x, j) => (j === i ? { ...x, unit_cost: valor } : x)),
+                    );
+                  }}
                 />
                 <ActionIcon
                   variant="subtle"
