@@ -118,6 +118,11 @@ function EstadoDeCuenta({ gymId }: { gymId: string }) {
   const statement = useGymStatement(gymId, period);
   const st = statement.data;
   const payout = st?.payout ?? null;
+  // Qué modalidad firmó el gimnasio, deducida del propio estado de cuenta: en la
+  // absorbida el costo viaja en `platform_fee_absorbed_net` y el recargo al atleta es 0.
+  // Se mira el importe y no un flag para que un periodo viejo se siga explicando con las
+  // cifras que tuvo, no con la modalidad que el gimnasio tenga hoy.
+  const absorbe = Number(st?.platform_fee_absorbed_net ?? 0) > 0;
 
   return (
     <div style={{ marginBottom: "calc(20 * var(--u))" }}>
@@ -228,12 +233,34 @@ function EstadoDeCuenta({ gymId }: { gymId: string }) {
                 value={st.gym_revenue}
                 hint="La parte que es tuya (el precio de tus planes, servicios y productos). El recargo de Nucleo nunca sale de aquí."
               />
-              <Cifra
-                label="Recargo Nucleo"
-                value={st.platform_surcharge}
-                hint="Recargo de plataforma SUMADO encima de tu precio y pagado por el atleta. Nunca se deposita ni se te descuenta."
-                tone="var(--mantine-color-dimmed)"
-              />
+              {/* Las dos modalidades no se explican con la misma cifra. Si el gimnasio
+                  firmó ABSORBIDA, `platform_surcharge` vale siempre 0 y esa tarjeta le
+                  decía "Recargo Nucleo Q0.00" junto a un depósito más bajo que su
+                  ingreso, sin nada que explicara la diferencia. Lo que le falta ver es
+                  lo que se le dedujo — y cuánto de eso ya facturó Nucleo al atleta,
+                  porque de ahí sale qué documenta él. */}
+              {absorbe ? (
+                <Cifra
+                  label="Costo que absorbes"
+                  value={st.platform_fee_absorbed_net}
+                  hint="Costo de cobrar con tarjeta. Tú lo pagas (el atleta pagó solo tu precio de lista), y por eso se resta de lo que se te deposita."
+                  tone="var(--mantine-color-dimmed)"
+                  foot={
+                    Number(st.nucleo_commission ?? 0) > 0
+                      ? `De eso, ${fmtQ(st.nucleo_commission, {
+                          decimals: 2,
+                        })} es la comisión de Nucleo, ya facturada al atleta`
+                      : undefined
+                  }
+                />
+              ) : (
+                <Cifra
+                  label="Recargo Nucleo"
+                  value={st.platform_surcharge}
+                  hint="Recargo de plataforma SUMADO encima de tu precio y pagado por el atleta. Nunca se deposita ni se te descuenta."
+                  tone="var(--mantine-color-dimmed)"
+                />
+              )}
               {/* El backend YA suma los contracargos dentro de `refunds_total`:
                   restarlos aparte sería contarlos dos veces. Por eso la cifra se
                   llama por lo que es y el pie dice cuánto de eso no lo decidió el

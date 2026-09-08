@@ -237,6 +237,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/billing/payouts/{id}/document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Descarga del comprobante de una liquidación.
+         *
+         *     Lo puede bajar el administrador de ESE gimnasio —es su comprobante, y sin él la
+         *     liquidación es una transferencia sin explicación— y plataforma. El aislamiento por
+         *     gym se impone leyendo el gym del payout, no de la URL: pedir el comprobante de otro
+         *     gimnasio devuelve 403 aunque se adivine el identificador.
+         *
+         *     Se transmite por aquí en vez de redirigir al storage: en producción esa URL es una
+         *     prefirmada de S3 que seguiría sirviendo el documento a quien la tenga.
+         */
+        get: operations["billing_payouts_document_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/classes/{id}/attendees": {
         parameters: {
             query?: never;
@@ -1303,6 +1330,8 @@ export interface paths {
          *     un admin nunca ve la liquidación de otro gimnasio. Solo cuenta el dinero que pasó
          *     por la pasarela (lo que Nucleo tiene en custodia); los pagos manuales ya los cobró
          *     el gym y viven en su historial de pagos.
+         *
+         *     Si el periodo ya se depositó, devuelve el desglose CONGELADO del payout (`frozen`).
          */
         get: operations["gym_billing_statement_retrieve"];
         put?: never;
@@ -4202,7 +4231,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Solicitudes de cobertura pendientes en los gyms del coach. */
+        /**
+         * @description Coberturas pendientes que ESTE coach puede tomar, en todos sus gyms.
+         *
+         *     Excluye lo que ofreció él mismo: `AcceptHandoffView` rechaza tomar la propia
+         *     clase ("No puedes tomar tu propia clase"), así que listarla sólo servía para
+         *     ofrecerle un botón que siempre falla. Su propia oferta la ve donde importa —
+         *     en el detalle de la clase, que es donde también puede retirarla.
+         */
         get: operations["me_coach_handoffs_list"];
         put?: never;
         post?: never;
@@ -5283,6 +5319,153 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/onboarding/applications/{id}/documents/{field}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Descarga de un archivo del expediente. Solo plataforma.
+         *
+         *     Se transmite por aquí y no se redirige a la URL del storage: en producción esa URL
+         *     es una prefirmada de S3 que seguiría sirviendo el documento a quien la tenga hasta
+         *     que caduque, aunque esa persona ya no tuviera acceso al panel.
+         */
+        get: operations["onboarding_applications_documents_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/contract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description El articulado completo, sus renuncias y el hash que hay que devolver al firmar. */
+        get: operations["onboarding_contract_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/gym-application": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Recibe el contrato firmado. NO crea el gimnasio: crea una solicitud. */
+        post: operations["onboarding_gym_application_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/gym-application/{id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Subida del expediente, justo después de firmar.
+         *
+         *     Autentica con el MISMO enlace aunque ya esté consumido: el enlace se gasta al enviar
+         *     el contrato y los archivos suben un segundo después. Lo que se exige es que sea el
+         *     enlace de ESA solicitud y que no lo hayan revocado ni haya vencido.
+         */
+        post: operations["onboarding_gym_application_documents_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/invitation/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Estado del enlace. SIEMPRE responde 200: el motivo es el contenido, no el código.
+         *
+         *     Un 404 seco no le dice a la persona si se equivocó de dirección o si se le pasó la
+         *     fecha, y esas dos cosas se resuelven distinto.
+         */
+        get: operations["onboarding_invitation_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/invitation/{token}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Avance del formulario. Solo NOMBRES de campo; el porcentaje lo calcula el servidor.
+         *
+         *     Nunca devuelve 4xx por un enlace inválido: esto es telemetría de fondo, y un error
+         *     aquí no puede interrumpir a quien está escribiendo.
+         */
+        post: operations["onboarding_invitation_progress_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Condiciones comerciales vigentes.
+         *
+         *     La página muestra EXACTAMENTE las mismas cifras que el servidor va a estampar,
+         *     porque salen de la misma función: así el número publicado y el registrado no se
+         *     pueden desincronizar.
+         */
+        get: operations["onboarding_terms_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments/card": {
         parameters: {
             query?: never;
@@ -5487,6 +5670,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/platform/gym-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Bandeja de solicitudes. Se leen y se anotan; jamás se borran (son evidencia). */
+        get: operations["platform_gym_applications_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/gym-applications/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Bandeja de solicitudes. Se leen y se anotan; jamás se borran (son evidencia). */
+        get: operations["platform_gym_applications_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Bandeja de solicitudes. Se leen y se anotan; jamás se borran (son evidencia). */
+        patch: operations["platform_gym_applications_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/platform/gym-applications/{id}/provision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Monta el gimnasio. Con `dry_run` enseña qué crearía sin crear nada. */
+        post: operations["platform_gym_applications_provision_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/platform/gyms": {
         parameters: {
             query?: never;
@@ -5528,6 +5763,117 @@ export interface paths {
         get: operations["platform_gyms_subscription_retrieve"];
         /** @description Consulta y guarda configuración local de la suscripción SaaS del gym. */
         put: operations["platform_gyms_subscription_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/onboarding-invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Enlaces privados. Se crean, se reenvían y se revocan; no se editan ni se borran.
+         *
+         *     Un enlace es evidencia de a quién se le mandó qué y cuándo: dejarlo editable haría
+         *     que el seguimiento dejara de significar nada.
+         */
+        get: operations["platform_onboarding_invitations_list"];
+        put?: never;
+        /**
+         * @description Enlaces privados. Se crean, se reenvían y se revocan; no se editan ni se borran.
+         *
+         *     Un enlace es evidencia de a quién se le mandó qué y cuándo: dejarlo editable haría
+         *     que el seguimiento dejara de significar nada.
+         */
+        post: operations["platform_onboarding_invitations_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/onboarding-invitations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Enlaces privados. Se crean, se reenvían y se revocan; no se editan ni se borran.
+         *
+         *     Un enlace es evidencia de a quién se le mandó qué y cuándo: dejarlo editable haría
+         *     que el seguimiento dejara de significar nada.
+         */
+        get: operations["platform_onboarding_invitations_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/onboarding-invitations/{id}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Enlaces privados. Se crean, se reenvían y se revocan; no se editan ni se borran.
+         *
+         *     Un enlace es evidencia de a quién se le mandó qué y cuándo: dejarlo editable haría
+         *     que el seguimiento dejara de significar nada.
+         */
+        post: operations["platform_onboarding_invitations_resend_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/onboarding-invitations/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Enlaces privados. Se crean, se reenvían y se revocan; no se editan ni se borran.
+         *
+         *     Un enlace es evidencia de a quién se le mandó qué y cuándo: dejarlo editable haría
+         *     que el seguimiento dejara de significar nada.
+         */
+        post: operations["platform_onboarding_invitations_revoke_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/onboarding/pipeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Embudo del alta y la lista de quién abrió su enlace y no lo terminó. */
+        get: operations["platform_onboarding_pipeline_retrieve"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -6048,6 +6394,157 @@ export interface components {
          * @enum {string}
          */
         AppealStatus: "pending" | "escalated" | "accepted" | "rejected";
+        /** @description Una sede. Siembra un `GymBranch` al montar. */
+        ApplicationBranch: {
+            name: string;
+            /** @default branch */
+            kind: components["schemas"]["ApplicationBranchKindEnum"];
+            address: string;
+            municipality: string;
+            capacity?: number | null;
+        };
+        /**
+         * @description * `main` - Principal
+         *     * `branch` - Sucursal
+         * @enum {string}
+         */
+        ApplicationBranchKindEnum: "main" | "branch";
+        ApplicationDetail: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly folio: number;
+            readonly status: components["schemas"]["GymApplicationStatus"];
+            readonly gym_name: string;
+            readonly gym_municipality: string;
+            readonly gym_department: string;
+            readonly contact_name: string;
+            /** Format: email */
+            readonly contact_email: string;
+            readonly contact_phone: string;
+            readonly estimated_members: number | null;
+            readonly commission_mode: components["schemas"]["CommissionMode"];
+            readonly enable_online_payments: boolean;
+            /** Format: date-time */
+            readonly accepted_at: string | null;
+            /** Format: uuid */
+            readonly gym_id: string;
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly gym_legal_name: string;
+            readonly gym_nit: string;
+            readonly organization_name: string;
+            readonly branches_count: number | null;
+            readonly contact_role: string;
+            readonly has_legal_personality: boolean;
+            readonly signer_name: string;
+            readonly signer_position: string;
+            /** Format: decimal */
+            readonly platform_commission_pct: string;
+            /** Format: decimal */
+            readonly platform_nucleo_pct: string;
+            /** Format: decimal */
+            readonly platform_gateway_pct: string;
+            readonly saas_plan: string;
+            /** Format: decimal */
+            readonly saas_monthly_price: string;
+            readonly settlement_business_hours: number;
+            readonly terms_version: string;
+            readonly contract_hash: string;
+            readonly accepted_waivers: unknown;
+            readonly accepted_ip: string;
+            readonly accepted_user_agent: string;
+            readonly review_notes: string;
+            /** Format: date-time */
+            readonly reviewed_at: string | null;
+            readonly data: unknown;
+            /**
+             * @description Rutas del endpoint PROTEGIDO, nunca la URL del archivo.
+             *
+             *     En producción el storage devuelve una URL prefirmada de S3. Si se enviara aquí,
+             *     cualquiera con el JSON tendría el DPI hasta que la firma caduque, y además el
+             *     cliente axios del panel le mandaría el token de sesión a AWS.
+             */
+            readonly documents: unknown[];
+            readonly waivers: unknown[];
+            /**
+             * @description ¿El articulado que aceptó sigue siendo el vigente?
+             *
+             *     Si es `False` no hay nada roto: significa que el contrato cambió después de que
+             *     esta persona firmara, y que lo que vale es el PDF congelado.
+             */
+            readonly contract_matches_current: boolean;
+        };
+        /** @description Subida del expediente. Un archivo por petición, o los dos si caben. */
+        ApplicationDocuments: {
+            /** Format: uri */
+            doc_patente?: string;
+            /** Format: uri */
+            doc_signer_id?: string;
+        };
+        /** @description Un servicio que se cobra aparte de la membresía. Siembra `GymService`. */
+        ApplicationExtraService: {
+            name: string;
+            /** Format: decimal */
+            amount: string;
+            /** @default one_time */
+            charge_type: components["schemas"]["ApplicationExtraServiceChargeTypeEnum"];
+        };
+        /**
+         * @description * `recurring` - Mensual
+         *     * `one_time` - Pase único
+         * @enum {string}
+         */
+        ApplicationExtraServiceChargeTypeEnum: "recurring" | "one_time";
+        ApplicationList: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly folio: number;
+            readonly status: components["schemas"]["GymApplicationStatus"];
+            readonly gym_name: string;
+            readonly gym_municipality: string;
+            readonly gym_department: string;
+            readonly contact_name: string;
+            /** Format: email */
+            readonly contact_email: string;
+            readonly contact_phone: string;
+            readonly estimated_members: number | null;
+            readonly commission_mode: components["schemas"]["CommissionMode"];
+            readonly enable_online_payments: boolean;
+            /** Format: date-time */
+            readonly accepted_at: string | null;
+            /** Format: uuid */
+            readonly gym_id: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /** @description Alguien que va a entrar al panel. Siembra usuario + rol al montar. */
+        ApplicationPanelUser: {
+            name: string;
+            /** Format: email */
+            email: string;
+            /** @default  */
+            phone: string;
+            /** @default gym_admin */
+            role: components["schemas"]["RoleEnum"];
+        };
+        /** @description Una disciplina. Siembra `ServiceType` y, con los horarios, `ClassSchedule`. */
+        ApplicationServiceType: {
+            name: string;
+            /** @default false */
+            requires_wod: boolean;
+            /** Format: time */
+            opening_time?: string | null;
+            /** Format: time */
+            closing_time?: string | null;
+            available_weekdays?: number[];
+            /** @default  */
+            rules: string;
+        };
+        ApplicationUpdate: {
+            status?: components["schemas"]["GymApplicationStatus"];
+            review_notes?: string;
+            gym_name: string;
+        };
         ApplyCoach: {
             /** Format: uuid */
             gym_id: string;
@@ -6421,12 +6918,6 @@ export interface components {
          */
         ChannelEnum: "push" | "email" | "both";
         /**
-         * @description * `recurring` - Membresía recurrente
-         *     * `one_time` - Pase único
-         * @enum {string}
-         */
-        ChargeTypeEnum: "recurring" | "one_time";
-        /**
          * @description Expediente de una disputa de tarjeta (append-only: todo es de solo lectura).
          *
          *     Los montos viajan en POSITIVO (`amount` base del gym, `surcharge` recargo de Nucleo,
@@ -6529,6 +7020,13 @@ export interface components {
          * @enum {string}
          */
         CheckinMethod: "athlete_qr" | "class_qr" | "manual" | "reception";
+        /**
+         * @description * `qr` - Código QR
+         *     * `manual` - Manual
+         *     * `none` - Sin control
+         * @enum {string}
+         */
+        CheckinMethodEnum: "qr" | "manual" | "none";
         /**
          * @description Datos del reclamo de cuenta invitada. La DECISIÓN vive en
          *     `accounts/services.py:reclamar_cuenta` (regla del repo: el negocio no va en el
@@ -7357,6 +7855,12 @@ export interface components {
             /** Format: date-time */
             readonly created_at: string;
         };
+        /**
+         * @description * `passed_on` - Trasladada al atleta
+         *     * `absorbed` - Absorbida por el gimnasio
+         * @enum {string}
+         */
+        CommissionMode: "passed_on" | "absorbed";
         Consent: {
             /** Format: uuid */
             readonly id: string;
@@ -7386,6 +7890,26 @@ export interface components {
             message: string;
             /** @default  */
             recaptcha_token: string;
+        };
+        /**
+         * @description * `whatsapp` - WhatsApp
+         *     * `email` - Correo
+         *     * `phone` - Llamada
+         * @enum {string}
+         */
+        ContactPreferredChannelEnum: "whatsapp" | "email" | "phone";
+        CreateInvitation: {
+            /** Format: email */
+            email: string;
+            /** @default  */
+            contact_name: string;
+            /** @default  */
+            gym_name: string;
+            /** @default  */
+            note: string;
+            days_valid?: number | null;
+            /** @default true */
+            send_email: boolean;
         };
         /**
          * @description * `approve` - approve
@@ -7768,6 +8292,156 @@ export interface components {
             /** Format: date-time */
             readonly updated_at: string;
         };
+        /**
+         * @description El contrato de alta tal como lo llena el gimnasio.
+         *
+         *     Las cifras comerciales NO están aquí a propósito: la tasa, la licencia mensual y el
+         *     plazo de liquidación los pone el servidor desde settings al guardar. Lo único que se
+         *     le cree al cliente sobre las condiciones es qué VERSIÓN tenía a la vista, y eso solo
+         *     para dejar constancia si no coincide con la vigente.
+         */
+        GymApplication: {
+            /** @default false */
+            manages_multiple_gyms: boolean;
+            /** @default  */
+            organization_name: string;
+            /** @default  */
+            organization_legal_name: string;
+            /** @default  */
+            organization_nit: string;
+            gym_name: string;
+            /** @default crossfit_box */
+            gym_type: components["schemas"]["GymTypeEnum"];
+            /** @default  */
+            gym_legal_name: string;
+            gym_nit: string;
+            /** @default true */
+            has_legal_personality: boolean;
+            /** @default  */
+            registry_details: string;
+            gym_address_line: string;
+            /** @default  */
+            gym_zone: string;
+            gym_municipality: string;
+            gym_department: components["schemas"]["GymDepartmentEnum"];
+            /** @default  */
+            gym_reference_point: string;
+            estimated_members?: number | null;
+            active_members?: number | null;
+            /** @default false */
+            has_branches: boolean;
+            branches?: components["schemas"]["ApplicationBranch"][];
+            contact_name: string;
+            /** Format: email */
+            contact_email: string;
+            contact_phone: string;
+            /** @default  */
+            contact_role: string;
+            /** @default whatsapp */
+            contact_preferred_channel: components["schemas"]["ContactPreferredChannelEnum"];
+            /** @default  */
+            legal_representative_name: string;
+            /** @default  */
+            legal_representative_id: string;
+            panel_users?: components["schemas"]["ApplicationPanelUser"][];
+            base_plan_name: string;
+            /** Format: decimal */
+            base_plan_amount: string;
+            /** @default monthly */
+            plan_interval: components["schemas"]["PlanIntervalEnum"];
+            cutoff_day_of_month?: number | null;
+            grace_days?: number | null;
+            /** Format: decimal */
+            dropin_price?: string | null;
+            extra_services?: components["schemas"]["ApplicationExtraService"][];
+            /** @default false */
+            has_pending_balances: boolean;
+            /** @default  */
+            pending_balances_notes: string;
+            /**
+             * Format: email
+             * @default
+             */
+            billing_contact_email: string;
+            service_types?: components["schemas"]["ApplicationServiceType"][];
+            class_capacity?: number | null;
+            /** @default true */
+            block_reservations_when_in_arrears: boolean;
+            /** @default false */
+            enable_online_payments: boolean;
+            /** @default passed_on */
+            commission_mode: components["schemas"]["CommissionMode"];
+            offline_payment_methods?: components["schemas"]["OfflinePaymentMethodsEnum"][];
+            /** @default  */
+            settlement_bank_name: string;
+            /** @default  */
+            settlement_account_type: components["schemas"]["SettlementAccountTypeEnum"] | components["schemas"]["BlankEnum"];
+            /** @default  */
+            settlement_account_number: string;
+            /** @default  */
+            settlement_account_holder: string;
+            /** @default  */
+            settlement_account_holder_id: string;
+            /**
+             * Format: email
+             * @default
+             */
+            settlement_notification_email: string;
+            /** Format: decimal */
+            expected_monthly_collection?: string | null;
+            /** @default true */
+            has_coaches: boolean;
+            coaches_count?: number | null;
+            /** @default false */
+            enrolls_minors: boolean;
+            /** @default qr */
+            checkin_method: components["schemas"]["CheckinMethodEnum"];
+            /** @default  */
+            no_show_policy: string;
+            /** @default  */
+            office_phone: string;
+            /** @default  */
+            current_management_tool: string;
+            /** @default false */
+            data_migration_needed: boolean;
+            /** Format: date */
+            target_go_live_date?: string | null;
+            /** @default  */
+            how_did_you_hear: string;
+            /** @default  */
+            additional_notes: string;
+            signer_name: string;
+            signer_position: string;
+            signer_id_document: string;
+            is_authorized_representative: boolean;
+            accepts_terms: boolean;
+            /** @default false */
+            accepts_platform_commission: boolean;
+            /** @default false */
+            accepts_commission_mode: boolean;
+            /** @default false */
+            accepts_settlement_terms: boolean;
+            accepts_data_controller_role: boolean;
+            accepts_athlete_passport: boolean;
+            understands_manual_review: boolean;
+            /** @default false */
+            accepts_commercial_communications: boolean;
+            accepted_waivers: string[];
+            /** @default  */
+            contract_observations: string;
+            terms_version: string;
+            contract_hash: string;
+            /** @default  */
+            recaptcha_token: string;
+        };
+        /**
+         * @description * `received` - Recibida
+         *     * `in_review` - En revisión
+         *     * `approved` - Aprobada
+         *     * `rejected` - Rechazada
+         * @enum {string}
+         */
+        GymApplicationStatus: "received" | "in_review" | "approved" | "rejected";
         GymAthletePR: {
             /** Format: uuid */
             readonly athlete: string;
@@ -8016,6 +8690,32 @@ export interface components {
             servicios_activos: number;
             clases_mas_demandadas: components["schemas"]["ClassDemand"][];
         };
+        /**
+         * @description * `Alta Verapaz` - Alta Verapaz
+         *     * `Baja Verapaz` - Baja Verapaz
+         *     * `Chimaltenango` - Chimaltenango
+         *     * `Chiquimula` - Chiquimula
+         *     * `El Progreso` - El Progreso
+         *     * `Escuintla` - Escuintla
+         *     * `Guatemala` - Guatemala
+         *     * `Huehuetenango` - Huehuetenango
+         *     * `Izabal` - Izabal
+         *     * `Jalapa` - Jalapa
+         *     * `Jutiapa` - Jutiapa
+         *     * `Petén` - Petén
+         *     * `Quetzaltenango` - Quetzaltenango
+         *     * `Quiché` - Quiché
+         *     * `Retalhuleu` - Retalhuleu
+         *     * `Sacatepéquez` - Sacatepéquez
+         *     * `San Marcos` - San Marcos
+         *     * `Santa Rosa` - Santa Rosa
+         *     * `Sololá` - Sololá
+         *     * `Suchitepéquez` - Suchitepéquez
+         *     * `Totonicapán` - Totonicapán
+         *     * `Zacapa` - Zacapa
+         * @enum {string}
+         */
+        GymDepartmentEnum: "Alta Verapaz" | "Baja Verapaz" | "Chimaltenango" | "Chiquimula" | "El Progreso" | "Escuintla" | "Guatemala" | "Huehuetenango" | "Izabal" | "Jalapa" | "Jutiapa" | "Petén" | "Quetzaltenango" | "Quiché" | "Retalhuleu" | "Sacatepéquez" | "San Marcos" | "Santa Rosa" | "Sololá" | "Suchitepéquez" | "Totonicapán" | "Zacapa";
         /** @description Alta de invitado deduplicada por correo (A4 escenario B/C). */
         GymInvitation: {
             /** Format: email */
@@ -8146,6 +8846,14 @@ export interface components {
             chargebacks_surcharge: string;
             chargebacks_count: number;
             /** Format: decimal */
+            platform_fee_absorbed?: string;
+            /** Format: decimal */
+            platform_fee_absorbed_net?: string;
+            /** Format: decimal */
+            nucleo_commission?: string;
+            /** @default false */
+            frozen: boolean;
+            /** Format: decimal */
             net_to_deposit: string;
             /** Format: decimal */
             platform_earned: string;
@@ -8173,6 +8881,15 @@ export interface components {
             /** Format: date-time */
             readonly created_at: string;
         };
+        /**
+         * @description * `crossfit_box` - Box de CrossFit
+         *     * `gym` - Gimnasio tradicional
+         *     * `studio` - Estudio (pilates, yoga, funcional)
+         *     * `training_center` - Centro de alto rendimiento
+         *     * `other` - Otro
+         * @enum {string}
+         */
+        GymTypeEnum: "crossfit_box" | "gym" | "studio" | "training_center" | "other";
         /**
          * @description Ajuste por conteo físico: se manda lo CONTADO, no la diferencia.
          *
@@ -8753,11 +9470,74 @@ export interface components {
          * @enum {string}
          */
         OfferTypeEnum: "percent" | "free_months";
+        /**
+         * @description * `cash` - Efectivo
+         *     * `transfer` - Transferencia
+         *     * `card_pos` - Terminal propia
+         * @enum {string}
+         */
+        OfflinePaymentMethodsEnum: "cash" | "transfer" | "card_pos";
+        OnboardingInvitation: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly token: string;
+            readonly url: string;
+            readonly state: string;
+            /** Format: email */
+            readonly email: string;
+            readonly contact_name: string;
+            readonly gym_name: string;
+            readonly note: string;
+            /** Format: date-time */
+            readonly expires_at: string;
+            /** Format: date-time */
+            readonly sent_at: string | null;
+            /** Format: date-time */
+            readonly used_at: string | null;
+            /** Format: date-time */
+            readonly revoked_at: string | null;
+            readonly opened_count: number;
+            /** Format: date-time */
+            readonly first_opened_at: string | null;
+            /** Format: date-time */
+            readonly last_opened_at: string | null;
+            readonly progress: unknown;
+            readonly progress_percent: number;
+            /** Format: date-time */
+            readonly progress_updated_at: string | null;
+            /** Format: uuid */
+            readonly application_id: string;
+            readonly application_folio: number;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /**
+         * @description Solo NOMBRES de campo. Nunca valores.
+         *
+         *     Los topes están puestos porque el endpoint es público: sin ellos, el cuerpo de una
+         *     petición de telemetría puede tener el tamaño que a alguien se le ocurra.
+         */
+        OnboardingProgress: {
+            filled_fields: string[];
+        };
         PagaloWebhook: {
             reference: string;
             status: string;
             error_code?: unknown;
             message?: string;
+        };
+        PaginatedApplicationListList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["ApplicationList"][];
         };
         PaginatedAthleteBadgeList: {
             /**
@@ -9149,6 +9929,19 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["Notification"][];
         };
+        PaginatedOnboardingInvitationList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["OnboardingInvitation"][];
+        };
         PaginatedPaymentList: {
             /**
              * Format: uri
@@ -9404,6 +10197,11 @@ export interface components {
         PasswordResetRequest: {
             /** Format: email */
             email: string;
+        };
+        PatchedApplicationUpdate: {
+            status?: components["schemas"]["GymApplicationStatus"];
+            review_notes?: string;
+            gym_name?: string;
         };
         PatchedAthlete: {
             /** Format: uuid */
@@ -9843,7 +10641,7 @@ export interface components {
             completion_points?: number;
             status?: components["schemas"]["ServiceTypeStatusEnum"];
             access_type?: components["schemas"]["AccessTypeEnum"];
-            charge_type?: components["schemas"]["ChargeTypeEnum"];
+            charge_type?: components["schemas"]["ServiceTypeChargeTypeEnum"];
             /** Format: decimal */
             price?: string;
             /** Format: int64 */
@@ -10030,8 +10828,11 @@ export interface components {
             /** Format: decimal */
             rate: string;
             /** Format: decimal */
+            fixed_fee?: string;
+            /** Format: decimal */
             total: string;
             currency: string;
+            commission_mode?: string;
         };
         /**
          * @description * `up_to_date` - Al día
@@ -10081,6 +10882,9 @@ export interface components {
             readonly executed_at: string | null;
             /** Format: date-time */
             readonly created_at: string;
+            /** Format: decimal */
+            readonly platform_fee_absorbed_total: string;
+            readonly document_path: string | null;
         };
         /** @description Genera (o refresca) el payout de un gym para un periodo. */
         PayoutCreate: {
@@ -10152,6 +10956,13 @@ export interface components {
             readonly service_type_names: string[];
             is_active?: boolean;
         };
+        /**
+         * @description * `monthly` - Mensual
+         *     * `quarterly` - Trimestral
+         *     * `yearly` - Anual
+         * @enum {string}
+         */
+        PlanIntervalEnum: "monthly" | "quarterly" | "yearly";
         PlanOffer: {
             /** Format: uuid */
             readonly id: string;
@@ -10503,6 +11314,12 @@ export interface components {
          * @enum {string}
          */
         ProviderEnum: "google" | "apple" | "facebook";
+        Provision: {
+            /** @default false */
+            dry_run: boolean;
+            /** @default false */
+            allow_incomplete_dossier: boolean;
+        };
         PtAvailability: {
             /** Format: uuid */
             readonly id: string;
@@ -11016,6 +11833,13 @@ export interface components {
          */
         ReturnStatusEnum: "requested" | "approved" | "rejected";
         /**
+         * @description * `gym_admin` - Administración
+         *     * `coach` - Coach
+         *     * `trainer` - Entrenador personal
+         * @enum {string}
+         */
+        RoleEnum: "gym_admin" | "coach" | "trainer";
+        /**
          * @description Pide el roster por correo. El destinatario NO se acepta del cliente.
          *
          *     Dejar elegir a quién se manda convertiría el endpoint en un relay de correo
@@ -11202,7 +12026,7 @@ export interface components {
             completion_points?: number;
             status?: components["schemas"]["ServiceTypeStatusEnum"];
             access_type?: components["schemas"]["AccessTypeEnum"];
-            charge_type?: components["schemas"]["ChargeTypeEnum"];
+            charge_type?: components["schemas"]["ServiceTypeChargeTypeEnum"];
             /** Format: decimal */
             price?: string;
             /** Format: int64 */
@@ -11212,6 +12036,12 @@ export interface components {
             /** Format: date-time */
             readonly updated_at: string;
         };
+        /**
+         * @description * `recurring` - Membresía recurrente
+         *     * `one_time` - Pase único
+         * @enum {string}
+         */
+        ServiceTypeChargeTypeEnum: "recurring" | "one_time";
         /**
          * @description * `draft` - Pendiente de configurar
          *     * `active` - Activo
@@ -11228,6 +12058,12 @@ export interface components {
             /** @default false */
             replace: boolean;
         };
+        /**
+         * @description * `monetaria` - Monetaria
+         *     * `ahorro` - Ahorro
+         * @enum {string}
+         */
+        SettlementAccountTypeEnum: "monetaria" | "ahorro";
         /** @description Config de envío a domicilio de la tienda. La app la lee para el checkout. */
         ShippingSetting: {
             enabled?: boolean;
@@ -11807,6 +12643,26 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SocialLoginResponse"];
                 };
+            };
+        };
+    };
+    billing_payouts_document_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -20050,6 +20906,160 @@ export interface operations {
             };
         };
     };
+    onboarding_applications_documents_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                field: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    onboarding_contract_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    onboarding_gym_application_create: {
+        parameters: {
+            query: {
+                t: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GymApplication"];
+                "application/x-www-form-urlencoded": components["schemas"]["GymApplication"];
+                "multipart/form-data": components["schemas"]["GymApplication"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    onboarding_gym_application_documents_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["ApplicationDocuments"];
+                "application/x-www-form-urlencoded": components["schemas"]["ApplicationDocuments"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    onboarding_invitation_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    onboarding_invitation_progress_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingProgress"];
+                "application/x-www-form-urlencoded": components["schemas"]["OnboardingProgress"];
+                "multipart/form-data": components["schemas"]["OnboardingProgress"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    onboarding_terms_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     payments_card_create: {
         parameters: {
             query?: never;
@@ -20339,6 +21349,106 @@ export interface operations {
             };
         };
     };
+    platform_gym_applications_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedApplicationListList"];
+                };
+            };
+        };
+    };
+    platform_gym_applications_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationDetail"];
+                };
+            };
+        };
+    };
+    platform_gym_applications_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedApplicationUpdate"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedApplicationUpdate"];
+                "multipart/form-data": components["schemas"]["PatchedApplicationUpdate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationUpdate"];
+                };
+            };
+        };
+    };
+    platform_gym_applications_provision_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Provision"];
+                "application/x-www-form-urlencoded": components["schemas"]["Provision"];
+                "multipart/form-data": components["schemas"]["Provision"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     platform_gyms_list: {
         parameters: {
             query?: {
@@ -20435,6 +21545,138 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Subscription"];
                 };
+            };
+        };
+    };
+    platform_onboarding_invitations_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedOnboardingInvitationList"];
+                };
+            };
+        };
+    };
+    platform_onboarding_invitations_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInvitation"];
+                "application/x-www-form-urlencoded": components["schemas"]["CreateInvitation"];
+                "multipart/form-data": components["schemas"]["CreateInvitation"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingInvitation"];
+                };
+            };
+        };
+    };
+    platform_onboarding_invitations_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingInvitation"];
+                };
+            };
+        };
+    };
+    platform_onboarding_invitations_resend_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingInvitation"];
+                };
+            };
+        };
+    };
+    platform_onboarding_invitations_revoke_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingInvitation"];
+                };
+            };
+        };
+    };
+    platform_onboarding_pipeline_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

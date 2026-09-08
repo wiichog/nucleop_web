@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
+import { AndroidTestersPage } from "./landing/AndroidTestersPage";
 import { DeleteAccountPage } from "./landing/DeleteAccountPage";
 import { LandingPage } from "./landing/LandingPage";
 import { PrivacyPage } from "./landing/PrivacyPage";
@@ -8,6 +9,13 @@ import { initAnalytics, trackPageview } from "./lib/analytics";
 
 // El panel (Mantine + todas las páginas) se carga solo al salir de la landing.
 const AdminShell = lazy(() => import("./AdminShell"));
+// El contrato de alta se carga aparte: es una ruta privada por enlace, no del panel.
+const ContratoPage = lazy(() => import("./pages/ContratoPage"));
+
+// Rutas donde NO se mide nada. En /contrato se escriben el NIT del gimnasio, el
+// documento de identificación de quien firma y una cuenta bancaria: no puede haber
+// terceros observando esa página, ni siquiera contando visitas.
+const SIN_ANALITICA = ["/contrato"];
 
 function LoadingScreen() {
   return (
@@ -20,12 +28,15 @@ function LoadingScreen() {
 export default function App() {
   const location = useLocation();
 
+  const medible = !SIN_ANALITICA.some((ruta) => location.pathname.startsWith(ruta));
+
   useEffect(() => {
-    initAnalytics();
-  }, []);
+    if (medible) initAnalytics();
+  }, [medible]);
   useEffect(() => {
-    trackPageview(location.pathname + location.search);
-  }, [location.pathname, location.search]);
+    // Ni siquiera la ruta: el token del enlace viaja en el query string.
+    if (medible) trackPageview(location.pathname + location.search);
+  }, [medible, location.pathname, location.search]);
 
   return (
     <Routes>
@@ -41,6 +52,24 @@ export default function App() {
           accesible sin login y distinta de la política de privacidad. */}
       <Route path="/eliminar-cuenta" element={<DeleteAccountPage />} />
       <Route path="/delete-account" element={<DeleteAccountPage />} />
+      {/* Reclutamiento de probadores para la prueba cerrada de Google Play. Es una
+          página de campaña: vive mientras dure el reclutamiento y el backend la
+          apaga sola (`ANDROID_TESTERS_ENABLED`), respondiendo 503 al formulario.
+          Va fuera del AdminShell porque quien la abre llega por un enlace de
+          WhatsApp y no tiene sesión. */}
+      <Route path="/probar-android" element={<AndroidTestersPage />} />
+      {/* Contrato de alta de un gimnasio. Se llega SOLO por el enlace privado que
+          se manda por correo (`?t=<token>`): no hay enlaces entrantes, está en el
+          Disallow del robots.txt y la propia página inyecta `noindex`. Va fuera del
+          AdminShell porque quien la abre no tiene —ni va a tener— sesión. */}
+      <Route
+        path="/contrato"
+        element={
+          <Suspense fallback={<LoadingScreen />}>
+            <ContratoPage />
+          </Suspense>
+        }
+      />
       <Route
         path="/*"
         element={

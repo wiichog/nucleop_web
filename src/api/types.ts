@@ -391,6 +391,13 @@ export interface Payout {
   notes: string;
   executed_at: string | null;
   created_at: string;
+  /** Costo transaccional que el gym absorbió (modalidad `absorbed`). */
+  platform_fee_absorbed_total?: string;
+  /**
+   * Ruta del endpoint PROTEGIDO del comprobante, o null si aún no se depositó.
+   * Nunca es la URL del storage: en producción esa sería una prefirmada de S3.
+   */
+  document_path: string | null;
 }
 
 /**
@@ -415,10 +422,22 @@ export interface GymStatement {
   chargebacks_total: string;
   chargebacks_surcharge: string;
   chargebacks_count: number;
+  /**
+   * Costo transaccional que el gym ABSORBIÓ en el periodo (modalidad `absorbed`).
+   * Es lo único del desglose que se resta de `net_to_deposit`. Vale 0 en la trasladada.
+   */
+  platform_fee_absorbed_net?: string;
+  /**
+   * La comisión de Nucleo del periodo. El gym la necesita para saber qué facturar él:
+   * ese importe YA lleva documento tributario emitido por Nucleo a nombre del ATLETA.
+   */
+  nucleo_commission?: string;
   net_to_deposit: string;
   platform_earned: string;
   payments_count: number;
   refunds_count: number;
+  /** True si el periodo ya se depositó: entonces esto es el desglose CONGELADO. */
+  frozen?: boolean;
   payout: Payout | null;
 }
 

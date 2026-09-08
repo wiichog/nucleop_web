@@ -2,5 +2,8 @@ User-agent: *
 Allow: /
 Disallow: /panel
 Disallow: /login
+Disallow: /superadmin
+# Contrato de alta: se llega por enlace privado, no se indexa.
+Disallow: /contrato
 
 Sitemap: https://app.nucleo.fit/sitemap.xml

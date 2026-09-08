@@ -15,6 +15,7 @@ import {
 import { MonthPickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import { DataTable } from "mantine-datatable";
+import { Download } from "lucide-react";
 import {
   useGeneratePlatformPayout,
   usePayPlatformPayout,
@@ -28,6 +29,7 @@ import { RowActions } from "../components/RowActions";
 import { Money, SectionLabel } from "../components/ui";
 import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora";
 import { errMsg } from "../lib/errors";
+import { api } from "../api/client";
 import { fmtQ } from "../lib/money";
 
 /** "YYYY-MM" a partir de una fecha local (el backend valida ese formato exacto). */
@@ -56,6 +58,30 @@ export function PlatformBillingPanel() {
 
   const [pagando, setPagando] = useState<Payout | null>(null);
   const [reference, setReference] = useState("");
+
+  /**
+   * Baja el comprobante por la ruta protegida y lo entrega como archivo.
+   *
+   * Se pide como blob y no se abre la URL directa a propósito: en producción el
+   * storage devuelve una prefirmada de S3 que seguiría sirviendo el documento a
+   * quien la tuviera, y además el interceptor le mandaría el token a AWS.
+   */
+  async function descargarComprobante(p: Payout) {
+    if (!p.document_path) return;
+    try {
+      const { data } = await api.get(p.document_path, { responseType: "blob" });
+      const url = URL.createObjectURL(data as Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `liquidacion-${p.period}-${p.gym_name.replace(/\s+/g, "-")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      notifications.show({ color: "red", message: errMsg(e) });
+    }
+  }
   const [notes, setNotes] = useState("");
 
   const data = statements.data;
@@ -382,6 +408,17 @@ export function PlatformBillingPanel() {
                           }}
                         >
                           Marcar depositado
+                        </Button>
+                      ) : p.document_path ? (
+                        // El comprobante se baja por la ruta protegida, nunca por la
+                        // URL del storage: en producción esa es una prefirmada de S3.
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          leftSection={<Download size={14} />}
+                          onClick={() => descargarComprobante(p)}
+                        >
+                          Comprobante
                         </Button>
                       ) : null,
                   },

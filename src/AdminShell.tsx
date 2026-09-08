@@ -20,6 +20,7 @@ import { PlatformAppealsPage } from "./pages/PlatformAppealsPage";
 import { PlatformChargebacksPage } from "./pages/PlatformChargebacksPage";
 import { PlatformGymsPage } from "./pages/PlatformGymsPage";
 import { PlatformReportsPage } from "./pages/PlatformReportsPage";
+import { PlatformOnboardingPage } from "./pages/PlatformOnboardingPage";
 import { CommunityPage } from "./pages/CommunityPage";
 import { TicketsPage } from "./pages/TicketsPage";
 import { ClubAdminPage } from "./pages/ClubAdminPage";
@@ -108,7 +109,33 @@ export default function AdminShell() {
           <Route path="plataforma/apelaciones" element={<PlatformAppealsPage />} />
           <Route path="plataforma/contracargos" element={<PlatformChargebacksPage />} />
           <Route path="plataforma/reportes" element={<PlatformReportsPage />} />
+          <Route path="plataforma/altas" element={<PlatformOnboardingPage />} />
         </Route>
+        {/* Puerta corta de plataforma: `app.nucleo.fit/superadmin`. Es la que se
+            teclea de memoria y la que se manda por mensaje; las páginas siguen
+            viviendo bajo /panel/plataforma/* para que el rail las marque activas.
+            Entra directo a Altas: es la bandeja que se revisa a diario. */}
+        <Route path="superadmin" element={<Navigate to="/panel/plataforma/altas" replace />} />
+        <Route
+          path="superadmin/altas"
+          element={<Navigate to="/panel/plataforma/altas" replace />}
+        />
+        <Route
+          path="superadmin/gyms"
+          element={<Navigate to="/panel/plataforma/gyms" replace />}
+        />
+        <Route
+          path="superadmin/apelaciones"
+          element={<Navigate to="/panel/plataforma/apelaciones" replace />}
+        />
+        <Route
+          path="superadmin/contracargos"
+          element={<Navigate to="/panel/plataforma/contracargos" replace />}
+        />
+        <Route
+          path="superadmin/reportes"
+          element={<Navigate to="/panel/plataforma/reportes" replace />}
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </MantineProvider>

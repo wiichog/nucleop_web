@@ -22,6 +22,7 @@ import {
   ChevronDown,
   CreditCard,
   Dumbbell,
+  FileSignature,
   Gavel,
   Globe,
   Handshake,
@@ -330,6 +331,9 @@ export function Layout() {
         // Fallas del software reportadas desde el app y el panel (apps.bugreports).
         // No es la bandeja de soporte del gym: esa es /panel/tickets (GymTicket).
         { to: "/panel/plataforma/reportes", label: "Reportes del app", icon: Bug },
+        // Contratos de alta firmados y enlaces emitidos (apps.onboarding). Es la
+        // bandeja donde un gimnasio deja de ser prospecto y pasa a ser cliente.
+        { to: "/panel/plataforma/altas", label: "Altas", icon: FileSignature },
       ],
     });
   }
