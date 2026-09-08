@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
+import { AndroidTestersPage } from "./landing/AndroidTestersPage";
 import { DeleteAccountPage } from "./landing/DeleteAccountPage";
 import { LandingPage } from "./landing/LandingPage";
 import { PrivacyPage } from "./landing/PrivacyPage";
@@ -41,6 +42,12 @@ export default function App() {
           accesible sin login y distinta de la política de privacidad. */}
       <Route path="/eliminar-cuenta" element={<DeleteAccountPage />} />
       <Route path="/delete-account" element={<DeleteAccountPage />} />
+      {/* Reclutamiento de probadores para la prueba cerrada de Google Play. Es una
+          página de campaña: vive mientras dure el reclutamiento y el backend la
+          apaga sola (`ANDROID_TESTERS_ENABLED`), respondiendo 503 al formulario.
+          Va fuera del AdminShell porque quien la abre llega por un enlace de
+          WhatsApp y no tiene sesión. */}
+      <Route path="/probar-android" element={<AndroidTestersPage />} />
       <Route
         path="/*"
         element={
