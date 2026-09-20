@@ -92,7 +92,18 @@ export function Footer() {
 
         {/* Barra inferior */}
         <div className="mt-14 flex flex-col items-center gap-3 border-t border-white/10 pt-8 font-mono text-[11px] text-white/40 md:flex-row md:justify-between">
-          <span>© {year} Nucleo · Devpack Group. Todos los derechos reservados.</span>
+          <span>
+            © {year} Nucleo ·{" "}
+            <a
+              href="https://devpackgroup.com/?utm_source=nucleo&utm_medium=footer"
+              target="_blank"
+              rel="noopener"
+              className="transition-colors hover:text-white/70"
+            >
+              Devpack Group
+            </a>
+            . Todos los derechos reservados.
+          </span>
           <span>Hecho en Guatemala 🇬🇹</span>
         </div>
       </div>
