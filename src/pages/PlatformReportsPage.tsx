@@ -25,7 +25,7 @@ import {
 } from "../api/hooks";
 import type { BugReport } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
-import { PageError, PageLoading } from "../components/PageStatus";
+import { PageError, PageLoading, useCuentaSinCargar } from "../components/PageStatus";
 import { PageHeader, SectionLabel } from "../components/ui";
 import { FilterChip, GlassCard, Stagger } from "../components/aurora";
 import { errMsg } from "../lib/errors";
@@ -349,6 +349,7 @@ function DetalleReporte({ reportId }: { reportId: string }) {
 
 export function PlatformReportsPage() {
   const { isSuperuser } = useAuth();
+  const sinCuenta = useCuentaSinCargar();
   const [estado, setEstado] = useState("open");
   const [superficie, setSuperficie] = useState("");
   const [busqueda, setBusqueda] = useState("");
@@ -359,6 +360,8 @@ export function PlatformReportsPage() {
     isSuperuser,
   );
 
+  // Si /me falló, `isSuperuser` también es false: no negarle el acceso a un superadmin.
+  if (sinCuenta) return sinCuenta;
   if (!isSuperuser) {
     return (
       <Stack>

@@ -15,7 +15,7 @@ import { notifications } from "@mantine/notifications";
 import { usePlatformChargebacks, useResolvePlatformChargeback } from "../api/hooks";
 import type { Chargeback } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
-import { PageError, PageLoading } from "../components/PageStatus";
+import { PageError, PageLoading, useCuentaSinCargar } from "../components/PageStatus";
 import { Money, PageHeader, SectionLabel } from "../components/ui";
 import { GlassCard, MetricTile, Stagger } from "../components/aurora";
 import { errMsg } from "../lib/errors";
@@ -36,6 +36,7 @@ import { CHARGEBACK_STATUS, CHARGEBACK_STATUS_COLOR, PAYMENT_CONCEPT, label } fr
  */
 export function PlatformChargebacksPage() {
   const { isSuperuser } = useAuth();
+  const sinCuenta = useCuentaSinCargar();
   const [estado, setEstado] = useState<string>("");
   const casos = usePlatformChargebacks({ status: estado || undefined }, isSuperuser);
   const resolver = useResolvePlatformChargeback();
@@ -62,6 +63,8 @@ export function PlatformChargebacksPage() {
   );
   const sinResolver = filas.filter((c) => c.status === "open" || c.status === "submitted").length;
 
+  // Si /me falló, `isSuperuser` también es false: no negarle el acceso a un superadmin.
+  if (sinCuenta) return sinCuenta;
   if (!isSuperuser) {
     return (
       <Stack>

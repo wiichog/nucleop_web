@@ -3,12 +3,15 @@
  * `NoGymAssigned` es lo que pintan las páginas del gym cuando no hay gimnasio
  * activo. El `AuthProvider` deja los roles vacíos tanto si /me responde sin roles
  * como si /me FALLA, así que el componente solo puede decir «ningún gimnasio te
- * ha dado acceso» cuando la cuenta de verdad cargó.
+ * ha dado acceso» cuando la cuenta de verdad cargó. Lo mismo las pantallas que
+ * deciden por rol por su cuenta (plataforma y club): pasan por la misma guarda,
+ * `useCuentaSinCargar`, antes de negar el acceso.
  *
  * Va contra el cliente real del panel (interceptor incluido) con un adaptador
  * falso, como `src/api/client.test.ts`: el 429 del throttle de /auth/refresh le
  * llega a React Query como el 401 original de /me, y eso es lo que se reproduce.
  */
+import type { ComponentType, ReactNode } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import {
@@ -19,9 +22,15 @@ import {
   QueryClientConfig,
 } from "@tanstack/react-query";
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, tokenStore } from "../api/client";
 import { AuthProvider, useAuth } from "../lib/auth";
+import { ClubAdminPage } from "../pages/ClubAdminPage";
+import { PlatformAppealsPage } from "../pages/PlatformAppealsPage";
+import { PlatformChargebacksPage } from "../pages/PlatformChargebacksPage";
+import { PlatformGymsPage } from "../pages/PlatformGymsPage";
+import { PlatformReportsPage } from "../pages/PlatformReportsPage";
 import { NoGymAssigned } from "./PageStatus";
 
 if (!window.matchMedia) {
@@ -35,6 +44,15 @@ if (!window.matchMedia) {
     removeEventListener: () => {},
     dispatchEvent: () => false,
   })) as typeof window.matchMedia;
+}
+// Las pestañas y la tabla de las pantallas observan su tamaño; jsdom no trae
+// ResizeObserver.
+if (!window.ResizeObserver) {
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
 }
 
 type Respuesta = { status: number; data?: unknown } | "sin-red";
@@ -56,6 +74,21 @@ const CUENTA_SIN_GYM = {
   roles: [],
   athlete: { first_name: "Ana", last_name: "López", photo_url: null },
 };
+
+/** Las tres formas en que /me falla sin que la sesión haya muerto. */
+const FALLAS_DE_ME: [string, () => void][] = [
+  [
+    "429 del throttle de /auth/refresh",
+    () => {
+      guion["/me"] = [{ status: 401, data: TOKEN_INVALIDO }];
+      vi.spyOn(axios, "post").mockRejectedValue(
+        errorHttp(429, { detail: "Espera 42 segundos.", code: "throttled" }),
+      );
+    },
+  ],
+  ["502 durante un deploy", () => (guion["/me"] = [{ status: 502 }])],
+  ["red caída", () => (guion["/me"] = ["sin-red"])],
+];
 
 beforeAll(() => {
   api.defaults.adapter = async (config) => {
@@ -110,20 +143,7 @@ const SIN_GYM = /todavía ningún gimnasio te ha dado acceso/;
 
 describe("NoGymAssigned solo dice que no hay gimnasio si la cuenta cargó", () => {
   it("con un 429 del refresh, un 5xx o sin red dice que no pudo cargar, y la sesión sigue", async () => {
-    const casos: [string, () => void][] = [
-      [
-        "429 del throttle de /auth/refresh",
-        () => {
-          guion["/me"] = [{ status: 401, data: TOKEN_INVALIDO }];
-          vi.spyOn(axios, "post").mockRejectedValue(
-            errorHttp(429, { detail: "Espera 42 segundos.", code: "throttled" }),
-          );
-        },
-      ],
-      ["502 durante un deploy", () => (guion["/me"] = [{ status: 502 }])],
-      ["red caída", () => (guion["/me"] = ["sin-red"])],
-    ];
-    for (const [caso, preparar] of casos) {
+    for (const [caso, preparar] of FALLAS_DE_ME) {
       preparar();
       const { unmount } = pintar();
 
@@ -206,13 +226,13 @@ describe("NoGymAssigned solo dice que no hay gimnasio si la cuenta cargó", () =
   });
 });
 
-describe("con el AuthProvider y la compuerta del panel", () => {
-  /** El mismo corte que `Protected` (AdminShell): spinner mientras la cuenta carga. */
-  function Compuerta() {
-    const { loading } = useAuth();
-    return loading ? <p>spinner</p> : <NoGymAssigned />;
-  }
+/** El mismo corte que `Protected` (AdminShell): spinner mientras la cuenta carga. */
+function Compuerta({ children }: { children: ReactNode }) {
+  const { loading } = useAuth();
+  return loading ? <p>spinner</p> : <>{children}</>;
+}
 
+describe("con el AuthProvider y la compuerta del panel", () => {
   it("si /me falló, montar la página no lo reintenta: el error se queda a la vista", async () => {
     // Medido en el navegador con la pestaña visible: al fallar /me la página
     // montaba su propio lector de /me, que lo reintentaba; sin datos la consulta
@@ -225,7 +245,9 @@ describe("con el AuthProvider y la compuerta del panel", () => {
       <QueryClientProvider client={cliente}>
         <MantineProvider>
           <AuthProvider>
-            <Compuerta />
+            <Compuerta>
+              <NoGymAssigned />
+            </Compuerta>
           </AuthProvider>
         </MantineProvider>
       </QueryClientProvider>,
@@ -240,3 +262,131 @@ describe("con el AuthProvider y la compuerta del panel", () => {
     expect(pedidas.filter((ruta) => ruta === "/me")).toHaveLength(1);
   });
 });
+
+const SUPERADMIN = { email: "root@nucleo.app", is_superuser: true, roles: [] };
+const CLUB_ADMIN = {
+  email: "sofi@runners.gt",
+  is_superuser: false,
+  roles: [
+    { role: "club_admin", gym_id: null, gym_name: null, club_id: "club-1", club_name: "Runners 1821" },
+  ],
+};
+
+/** Lo que responde cada bandeja cuando la cuenta sí entra: vacía, pero cargada. */
+const listasVacias = (): Record<string, Respuesta[]> => ({
+  "/platform/gyms": [{ status: 200, data: [] }],
+  "/platform/appeals": [{ status: 200, data: [] }],
+  "/platform/billing/chargebacks": [{ status: 200, data: [] }],
+  "/platform/reports?status=open&with_prompt=1": [{ status: 200, data: [] }],
+  "/club/club-1/activities": [{ status: 200, data: [] }],
+});
+
+/**
+ * Las pantallas que deciden por rol sin pasar por `NoGymAssigned`. Con /me caído
+ * le negaban el acceso a quien sí lo tiene: «Acceso restringido» al superadmin,
+ * «Sin club asignado» al club_admin. Cada una con su negativa, la cuenta que sí
+ * entra y algo que solo se ve adentro.
+ */
+const PANTALLAS: {
+  nombre: string;
+  Pagina: ComponentType;
+  negativa: string;
+  conAcceso: unknown;
+  adentro: string;
+}[] = [
+  {
+    nombre: "Gimnasios de la plataforma",
+    Pagina: PlatformGymsPage,
+    negativa: "Acceso restringido",
+    conAcceso: SUPERADMIN,
+    adentro: "La red, gimnasio por gimnasio",
+  },
+  {
+    nombre: "Apelaciones escaladas",
+    Pagina: PlatformAppealsPage,
+    negativa: "Sin acceso",
+    conAcceso: SUPERADMIN,
+    adentro: "No hay apelaciones esperando a Nucleo.",
+  },
+  {
+    nombre: "Contracargos de la red",
+    Pagina: PlatformChargebacksPage,
+    negativa: "Sin acceso",
+    conAcceso: SUPERADMIN,
+    adentro: "Casos sin resolver",
+  },
+  {
+    nombre: "Reportes del app",
+    Pagina: PlatformReportsPage,
+    negativa: "Sin acceso",
+    conAcceso: SUPERADMIN,
+    adentro: "Reportes del app",
+  },
+  {
+    nombre: "Administrar club",
+    Pagina: ClubAdminPage,
+    negativa: "Sin club asignado",
+    conAcceso: CLUB_ADMIN,
+    adentro: "Administrar club",
+  },
+];
+
+/** Como en el panel: la pantalla detrás de la compuerta, con el AuthProvider real. */
+function pintarPantalla(Pagina: ComponentType) {
+  const cliente = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={cliente}>
+      <MantineProvider>
+        <MemoryRouter>
+          <AuthProvider>
+            <Compuerta>
+              <Pagina />
+            </Compuerta>
+          </AuthProvider>
+        </MemoryRouter>
+      </MantineProvider>
+    </QueryClientProvider>,
+  );
+}
+
+describe.each(PANTALLAS)(
+  "$nombre solo niega el acceso si la cuenta cargó",
+  ({ Pagina, negativa, conAcceso, adentro }) => {
+    it("con un 429 del refresh, un 5xx o sin red dice que no pudo cargar la cuenta", async () => {
+      for (const [caso, preparar] of FALLAS_DE_ME) {
+        preparar();
+        const { unmount } = pintarPantalla(Pagina);
+
+        expect(await screen.findByText(NO_CARGO), caso).toBeTruthy();
+        expect(screen.queryByText(negativa), caso).toBeNull();
+        expect(screen.getByRole("button", { name: "Reintentar" }), caso).toBeTruthy();
+
+        unmount();
+        vi.restoreAllMocks();
+      }
+    });
+
+    it("Reintentar vuelve a pedir /me y quien tiene el rol entra", async () => {
+      Object.assign(guion, listasVacias());
+      guion["/me"] = [{ status: 502 }, { status: 200, data: conAcceso }];
+      pintarPantalla(Pagina);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Reintentar" }));
+
+      // Monta la pantalla entera (tabla, formularios): con la suite en paralelo el
+      // test llegó a 1,5 s, y el plazo por defecto de `findBy` es 1 s.
+      expect(await screen.findByText(adentro, {}, { timeout: 5000 })).toBeTruthy();
+      expect(screen.queryByText(negativa)).toBeNull();
+      expect(screen.queryByText(NO_CARGO)).toBeNull();
+    });
+
+    it("a quien de verdad no tiene el rol se lo sigue negando", async () => {
+      guion["/me"] = [{ status: 200, data: CUENTA_SIN_GYM }];
+      pintarPantalla(Pagina);
+
+      expect(await screen.findByText(negativa)).toBeTruthy();
+      expect(screen.queryByText(NO_CARGO)).toBeNull();
+      expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+    });
+  },
+);

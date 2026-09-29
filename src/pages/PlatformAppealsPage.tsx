@@ -4,7 +4,7 @@ import { notifications } from "@mantine/notifications";
 import { usePlatformAppeals, useDecidePlatformAppeal } from "../api/hooks";
 import type { Appeal } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
-import { PageError, PageLoading } from "../components/PageStatus";
+import { PageError, PageLoading, useCuentaSinCargar } from "../components/PageStatus";
 import { PageHeader, SectionLabel } from "../components/ui";
 import { GlassCard } from "../components/aurora";
 import { errMsg } from "../lib/errors";
@@ -26,6 +26,7 @@ const ESTADO_COLOR: Record<string, string> = {
  */
 export function PlatformAppealsPage() {
   const { isSuperuser } = useAuth();
+  const sinCuenta = useCuentaSinCargar();
   // Sin selector de estado a propósito: el endpoint acepta cualquiera, y pedir
   // `all` traería también las apelaciones que cada gimnasio todavía está
   // resolviendo en su propio panel. Eso no es asunto de esta bandeja — aquí sólo
@@ -38,6 +39,8 @@ export function PlatformAppealsPage() {
   } | null>(null);
   const [nota, setNota] = useState("");
 
+  // Si /me falló, `isSuperuser` también es false: no negarle el acceso a un superadmin.
+  if (sinCuenta) return sinCuenta;
   if (!isSuperuser) {
     return (
       <Stack>

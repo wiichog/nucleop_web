@@ -35,7 +35,7 @@ import {
   useUpdateClubAdminProfile,
 } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
-import { PageError, PageLoading } from "../components/PageStatus";
+import { PageError, PageLoading, useCuentaSinCargar } from "../components/PageStatus";
 import { PageHeader, SectionLabel } from "../components/ui";
 import { BigMetric, GlassCard, MetricTile, Stagger, cssVars } from "../components/aurora";
 
@@ -47,11 +47,14 @@ const CARD_GAP = "calc(20 * var(--u))";
 
 export function ClubAdminPage() {
   const { primaryClubId, clubIds } = useAuth();
+  const sinCuenta = useCuentaSinCargar();
   const clubId = primaryClubId ?? "";
   // La pestaña vive en la URL para poder enlazar directo a anuncios o al perfil.
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get("tab") || "actividades";
 
+  // Si /me falló no hay roles, y tampoco club: no decirle a un club_admin que no tiene club.
+  if (sinCuenta) return sinCuenta;
   if (!clubId) {
     return (
       <EmptyState

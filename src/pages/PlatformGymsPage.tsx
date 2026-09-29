@@ -30,7 +30,7 @@ import { notifications } from "@mantine/notifications";
 import type { GymAdmin } from "../api/types";
 import { DetailSheet } from "../components/DetailSheet";
 import { EmptyState } from "../components/EmptyState";
-import { PageError } from "../components/PageStatus";
+import { PageError, useCuentaSinCargar } from "../components/PageStatus";
 import { RowActions } from "../components/RowActions";
 import { PageHeader, SectionLabel } from "../components/ui";
 import { GlassCard, MetricTile, Stagger, delayVar } from "../components/aurora";
@@ -157,6 +157,7 @@ const ALTA_VACIA = {
 export function PlatformGymsPage() {
   const navigate = useNavigate();
   const { isSuperuser, primaryGymId, setPrimaryGymId } = useAuth();
+  const sinCuenta = useCuentaSinCargar();
   const gyms = usePlatformGyms(isSuperuser);
   const crearGym = useCrearGimnasioCompleto();
   const updateGym = useUpdatePlatformGym();
@@ -179,6 +180,8 @@ export function PlatformGymsPage() {
     direction: "asc",
   });
 
+  // Si /me falló, `isSuperuser` también es false: no negarle el acceso a un superadmin.
+  if (sinCuenta) return sinCuenta;
   if (!isSuperuser)
     return <EmptyState title="Acceso restringido" description="Se requiere rol de superadmin." />;
 

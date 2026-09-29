@@ -1,5 +1,5 @@
 import { Avatar, Button, Center, Group, Stack, Text } from "@mantine/core";
-import { onlineManager } from "@tanstack/react-query";
+import { onlineManager, type UseQueryResult } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { useMe, usePlatformGyms } from "../api/hooks";
 import { AtomLogo } from "../landing/AtomLogo";
@@ -74,6 +74,50 @@ export function PageError({
 }
 
 /**
+ * Lo que se pinta mientras no se sabe quién es la persona: la consulta de la que
+ * sale su cuenta falló, o todavía no responde.
+ */
+function CuentaSinCargar({ consulta }: { consulta: UseQueryResult<unknown> }) {
+  if (consulta.isError) {
+    return (
+      <PageError
+        message="No pudimos cargar tu cuenta. Tu sesión sigue abierta: intenta de nuevo en unos segundos."
+        onRetry={() => consulta.refetch()}
+      />
+    );
+  }
+  // `paused` no siempre es falta de red: React Query también pausa los
+  // reintentos mientras la pestaña está oculta.
+  return (
+    <PageLoading
+      label={
+        consulta.fetchStatus === "paused" && !onlineManager.isOnline()
+          ? "Sin conexión. Tu cuenta se cargará en cuanto vuelva la red."
+          : "Cargando tu cuenta…"
+      }
+    />
+  );
+}
+
+/**
+ * Guarda de toda pantalla que decide por rol: lo que hay que pintar EN LUGAR de la
+ * pantalla mientras `/me` no haya respondido, o `null` cuando ya respondió. Va
+ * antes del chequeo de rol, nunca después.
+ *
+ * El `AuthProvider` deja los roles vacíos e `isSuperuser` en false también cuando
+ * `/me` FALLA —un 429 del throttle de `/auth/refresh`, que le llega a todo el box a
+ * la vez porque la cuota va por IP; un 5xx durante un deploy; la red—. Decidir con
+ * eso le dice a un superadmin «acceso restringido», a un club_admin que no tiene
+ * club y a un dueño que ningún gimnasio le ha dado acceso: los manda a pedir un
+ * acceso que ya tienen. Sin red, React Query ni siquiera marca error: deja la
+ * consulta en pausa (`pending`, sin `isLoading`) hasta que vuelva la conexión.
+ */
+export function useCuentaSinCargar() {
+  const me = useMe();
+  return me.data ? null : <CuentaSinCargar consulta={me} />;
+}
+
+/**
  * Cuenta autenticada que todavía no tiene acceso a ningún gimnasio.
  *
  * Antes esto era un `PageError` —triángulo de alerta y "Algo salió mal"—, así que
@@ -85,41 +129,16 @@ export function PageError({
  * abierta y a nombre de quién, que es justo lo que la persona necesita saber para
  * pedirle acceso a alguien.
  *
- * Solo lo afirma si `/me` de verdad respondió. El `AuthProvider` deja los roles
- * vacíos también cuando `/me` FALLA —un 429 del throttle de `/auth/refresh`, que
- * le llega a todo el box a la vez porque la cuota va por IP; un 5xx durante un
- * deploy; la red— y todas las páginas del gym caen aquí: decirle entonces a un
- * dueño que ningún gimnasio le ha dado acceso lo manda a pedir un acceso que ya
- * tiene. Lo mismo al superadmin si falló `/platform/gyms`, de donde sale su lista
- * de gimnasios. Sin red, React Query ni siquiera marca error: deja la consulta en
- * pausa (`pending`, sin `isLoading`) hasta que vuelva la conexión.
+ * Solo lo afirma si la cuenta de verdad cargó (`useCuentaSinCargar`); todas las
+ * páginas del gym caen aquí cuando `/me` falla. Del superadmin, además, si cargó
+ * `/platform/gyms`, de donde sale su lista de gimnasios.
  */
 export function NoGymAssigned() {
-  const me = useMe();
-  const catalogo = usePlatformGyms(me.data?.is_superuser ?? false);
-  const { data } = me;
-  const sinCargar = !data ? me : data.is_superuser && !catalogo.data ? catalogo : null;
-  if (sinCargar?.isError) {
-    return (
-      <PageError
-        message="No pudimos cargar tu cuenta. Tu sesión sigue abierta: intenta de nuevo en unos segundos."
-        onRetry={() => sinCargar.refetch()}
-      />
-    );
-  }
-  if (sinCargar) {
-    // `paused` no siempre es falta de red: React Query también pausa los
-    // reintentos mientras la pestaña está oculta.
-    return (
-      <PageLoading
-        label={
-          sinCargar.fetchStatus === "paused" && !onlineManager.isOnline()
-            ? "Sin conexión. Tu cuenta se cargará en cuanto vuelva la red."
-            : "Cargando tu cuenta…"
-        }
-      />
-    );
-  }
+  const sinCuenta = useCuentaSinCargar();
+  const { data } = useMe();
+  const catalogo = usePlatformGyms(data?.is_superuser ?? false);
+  if (sinCuenta) return sinCuenta;
+  if (data?.is_superuser && !catalogo.data) return <CuentaSinCargar consulta={catalogo} />;
 
   const nombre = [data?.athlete?.first_name, data?.athlete?.last_name]
     .filter(Boolean)
