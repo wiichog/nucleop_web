@@ -20,5 +20,7 @@ jobs:
       # un build roto no debe esconder qué pruebas fallan (en el backend, flake8
       # dejó a pytest en «skipped» cuatro meses).
       - run: npm test
+      # Tipos de los tests: vitest no los revisa y `tsc -b` (en el build) los excluye.
+      - run: npm run typecheck
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high

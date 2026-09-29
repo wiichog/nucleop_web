@@ -73,6 +73,7 @@ function fila(over: Partial<ClubContentRow> = {}): ClubContentRow {
     gym_id: "gym-1",
     title: "",
     body: "aquí vendemos cosas raras",
+    photo_url: null,
     author_email: "ana@demo.nucleo.fit",
     moderation_status: "approved",
     moderation_label: "",

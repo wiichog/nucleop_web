@@ -1,0 +1,12 @@
+// tsconfig.json deja fuera los tests (el build no los compila), así que ni `tsc -b`
+// ni vitest revisaban sus tipos. Este revisa todo src, tests incluidos
+// (`npm run typecheck`). El `exclude` vacío es obligatorio: sin él se hereda el de
+// tsconfig.json y los tests se quedan fuera en silencio.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src"],
+  "exclude": []
+}

@@ -74,6 +74,11 @@ function escribir(campo: HTMLElement, valor: string) {
   fireEvent.change(campo, { target: { value: valor } });
 }
 
+/** El último elemento. `.at(-1)` es de ES2022 y el proyecto compila contra ES2020. */
+function ultimo<T>(lista: readonly T[]): T | undefined {
+  return lista[lista.length - 1];
+}
+
 function pintar() {
   return render(
     <MantineProvider>
@@ -135,7 +140,7 @@ describe("ficha del gimnasio", () => {
     ]) {
       expect(prohibido in enviado).toBe(false);
     }
-    expect(avisos.show.at(-1)?.color).toBe("teal");
+    expect(ultimo(avisos.show)?.color).toBe("teal");
   });
 
   it("si la API no aplicó el cambio, NO se canta éxito", async () => {
@@ -149,8 +154,8 @@ describe("ficha del gimnasio", () => {
     fireEvent.click(screen.getByRole("button", { name: /Guardar ficha/ }));
 
     await waitFor(() => expect(avisos.show.length).toBeGreaterThan(0));
-    expect(avisos.show.at(-1)?.color).toBe("red");
-    expect(avisos.show.at(-1)?.message).toMatch(/no guardó la ficha/i);
+    expect(ultimo(avisos.show)?.color).toBe("red");
+    expect(ultimo(avisos.show)?.message).toMatch(/no guardó la ficha/i);
   });
 
   it("un nombre de puros espacios no se guarda: es lo primero que ve el atleta", async () => {
@@ -163,7 +168,7 @@ describe("ficha del gimnasio", () => {
     fireEvent.click(screen.getByRole("button", { name: /Guardar ficha/ }));
 
     expect(estado.guardado).toHaveLength(0);
-    expect(avisos.show.at(-1)?.color).toBe("red");
+    expect(ultimo(avisos.show)?.color).toBe("red");
   });
 
   it("una coordenada imposible se frena aquí y no sale a la API", async () => {
@@ -173,7 +178,7 @@ describe("ficha del gimnasio", () => {
     fireEvent.click(screen.getByRole("button", { name: /Guardar ficha/ }));
 
     expect(estado.guardado).toHaveLength(0);
-    expect(avisos.show.at(-1)?.message).toMatch(/coordenadas/i);
+    expect(ultimo(avisos.show)?.message).toMatch(/coordenadas/i);
   });
 
   it("borrar las coordenadas manda null, que es quitarlas (no la cadena vacía)", async () => {

@@ -48,7 +48,7 @@ const estado = vi.hoisted(() => ({
 const avisos = vi.hoisted(() => ({ show: [] as { color?: string; message?: string }[] }));
 
 vi.mock("../api/hooks", () => ({
-  useAccessSearch: (gymId: string, texto: string, classId?: string) => {
+  useAccessSearch: (_gymId: string, texto: string, classId?: string) => {
     estado.buscado.push({ texto, classId });
     return {
       data: { query: texto, count: estado.resultados.length, results: estado.resultados, open_classes: [] },
@@ -200,6 +200,11 @@ function buscar(texto: string) {
   fireEvent.change(screen.getByLabelText(/Buscar a quien llegó/), { target: { value: texto } });
 }
 
+/** El último elemento. `.at(-1)` es de ES2022 y el proyecto compila contra ES2020. */
+function ultimo<T>(lista: readonly T[]): T | undefined {
+  return lista[lista.length - 1];
+}
+
 beforeEach(() => {
   estado.resultados = [];
   estado.buscado = [];
@@ -254,7 +259,7 @@ describe("recepción · buscar y marcar presente", () => {
     fireEvent.click(screen.getByRole("button", { name: "Marcar presente" }));
 
     await waitFor(() => expect(estado.admitido).toEqual([{ athleteId: "at-1" }]));
-    expect(avisos.show.at(-1)?.color).toBe("teal");
+    expect(ultimo(avisos.show)?.color).toBe("teal");
   });
 
   it("marcar dos veces al mismo NO se pinta como error: la persona está adentro", async () => {
@@ -268,8 +273,8 @@ describe("recepción · buscar y marcar presente", () => {
     fireEvent.click(screen.getByRole("button", { name: "Marcar presente" }));
 
     await waitFor(() => expect(avisos.show.length).toBeGreaterThan(0));
-    expect(avisos.show.at(-1)?.color).toBe("teal");
-    expect(avisos.show.at(-1)?.message).toMatch(/ya estaba marcado/i);
+    expect(ultimo(avisos.show)?.color).toBe("teal");
+    expect(ultimo(avisos.show)?.message).toMatch(/ya estaba marcado/i);
   });
 
   it("la búsqueda va acotada a la clase que se está pasando", () => {
@@ -277,6 +282,6 @@ describe("recepción · buscar y marcar presente", () => {
     pintar();
     buscar("ana");
 
-    expect(estado.buscado.at(-1)).toEqual({ texto: "ana", classId: "class-9" });
+    expect(ultimo(estado.buscado)).toEqual({ texto: "ana", classId: "class-9" });
   });
 });
