@@ -132,7 +132,7 @@ export function EstadoDeCuenta({ gymId }: { gymId: string }) {
             </Text>
             <Text c="dimmed" size="sm" mt={4}>
               Solo el dinero que pasó por la pasarela (tarjeta). Los pagos manuales ya los cobraste
-              vos y no entran aquí.
+              tú y no entran aquí.
             </Text>
           </div>
           <Select
