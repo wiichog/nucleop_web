@@ -31,6 +31,7 @@ import { PlatformAppealsPage } from "../pages/PlatformAppealsPage";
 import { PlatformChargebacksPage } from "../pages/PlatformChargebacksPage";
 import { PlatformGymsPage } from "../pages/PlatformGymsPage";
 import { PlatformReportsPage } from "../pages/PlatformReportsPage";
+import { ProfilePage } from "../pages/ProfilePage";
 import { NoGymAssigned } from "./PageStatus";
 
 if (!window.matchMedia) {
@@ -390,3 +391,30 @@ describe.each(PANTALLAS)(
     });
   },
 );
+
+describe("Mi perfil no dice que la cuenta no tiene correo ni rol si /me no respondió", () => {
+  it("con un 429 del refresh, un 5xx o sin red dice que no pudo cargar la cuenta", async () => {
+    for (const [caso, preparar] of FALLAS_DE_ME) {
+      preparar();
+      const { unmount } = pintarPantalla(ProfilePage);
+
+      expect(await screen.findByText(NO_CARGO), caso).toBeTruthy();
+      // Con /me caído el perfil decía Correo «—», Rol «—» y Gimnasio «—».
+      expect(screen.queryAllByText("—"), caso).toHaveLength(0);
+      expect(screen.getByRole("button", { name: "Reintentar" }), caso).toBeTruthy();
+
+      unmount();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("Reintentar vuelve a pedir /me y muestra la cuenta de verdad", async () => {
+    guion["/me"] = [{ status: 502 }, { status: 200, data: CUENTA_SIN_GYM }];
+    pintarPantalla(ProfilePage);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reintentar" }));
+
+    expect(await screen.findByText("ana@box.gt")).toBeTruthy();
+    expect(screen.queryByText(NO_CARGO)).toBeNull();
+  });
+});

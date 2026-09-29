@@ -12,6 +12,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { LogOut } from "lucide-react";
 import { usePasswordChange } from "../api/hooks";
+import { useCuentaSinCargar } from "../components/PageStatus";
 import { PageHeader, SectionLabel } from "../components/ui";
 import { GlassCard, delayVar } from "../components/aurora";
 import { useAuth } from "../lib/auth";
@@ -31,6 +32,7 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
 
 export function ProfilePage() {
   const { email, roles, isSuperuser, logout, primaryGymId, gyms } = useAuth();
+  const sinCuenta = useCuentaSinCargar();
   const gymActual = gyms.find((gym) => gym.id === primaryGymId);
   const changePassword = usePasswordChange();
   const [current, setCurrent] = useState("");
@@ -53,6 +55,9 @@ export function ProfilePage() {
       setErr("No se pudo cambiar la contraseña. Verifica la actual.");
     }
   };
+
+  // Si /me falló, el correo y los roles llegan vacíos: el perfil diría «—» en todo.
+  if (sinCuenta) return sinCuenta;
 
   const rolesLabel =
     roles.map((r) => label(AUDIT_ROLE, r.role)).join(", ") || (isSuperuser ? "Superadmin" : "—");
