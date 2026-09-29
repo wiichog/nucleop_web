@@ -37,11 +37,21 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
  * Distinguirlo es lo que evita expulsar a un admin por un bache de red, un 5xx
  * durante un deploy o —sobre todo— un 429 del throttle de `/auth/refresh`, que
  * se dispara en grupo porque la cuota va por IP y todo el gimnasio comparte el
- * wifi. Solo `token_not_valid` significa que la sesión murió de verdad.
+ * wifi.
+ *
+ * La sesión murió cuando `/auth/refresh` responde 401: es el `TokenRefreshView`
+ * de SimpleJWT, que no autentica la petición, así que su 401 solo puede decir
+ * que rechazó el refresh (vencido a los 14 días, ilegible o revocado), con
+ * `code: "token_not_valid"`. Antes se esperaba un 400, que ese endpoint no da
+ * para un token malo (su 400 es «falta el campo refresh»): la sesión caducada
+ * nunca se cerraba y el panel le decía al admin que ningún gimnasio le había
+ * dado acceso. El 400 con `token_not_valid` se conserva por compatibilidad.
+ * Mismo criterio que `tokenRechazado` en el app.
  */
 const sesionMuerta = (error: AxiosError) => {
   const res = error.response;
   if (!res) return false; // sin respuesta = red caída, no sesión muerta
+  if (res.status === 401) return true;
   const cuerpo = res.data as { code?: string } | undefined;
   return res.status === 400 && cuerpo?.code === "token_not_valid";
 };
