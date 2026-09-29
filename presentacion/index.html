@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es-GT">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+
+    <!-- ── SEO ──────────────────────────────────────────────────────────── -->
+    <title>Presentación de Nucleo · Software para gimnasios y boxes</title>
+    <meta
+      name="description"
+      content="Qué es Nucleo y cómo funciona para el dueño de un gimnasio o box: retención, cobros y morosidad, clases con QR, comunidad y estado de cuenta mensual. Q299 al mes."
+    />
+    <meta name="author" content="Nucleo · Devpack Group" />
+    <!-- Sin indexar: es la presentación que se comparte por enlace en una venta;
+         la página que se posiciona es la landing. -->
+    <meta name="robots" content="noindex, follow" />
+    <!-- app.nucleo.fit redirige (302) a www: el canónico es el destino final. -->
+    <link rel="canonical" href="https://www.app.nucleo.fit/presentacion" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- ── Open Graph (la vista previa al mandar el enlace por WhatsApp) ───
+         OJO: Amplify solo sirve ESTE archivo si su consola tiene la regla
+         «/presentacion → /presentacion/index.html (200)» ANTES de la regla de la
+         SPA. Sin ella, WhatsApp lee el index.html de la landing. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Nucleo" />
+    <meta property="og:locale" content="es_GT" />
+    <meta property="og:url" content="https://www.app.nucleo.fit/presentacion" />
+    <meta property="og:title" content="Nucleo · Opera tu gym. Retén a tu gente." />
+    <meta
+      property="og:description"
+      content="Membresías, cobros, clases y comunidad en un solo sistema para tu gimnasio o box. Te avisa antes de que un atleta se vaya."
+    />
+    <meta
+      property="og:image"
+      content="https://images.unsplash.com/photo-1563953715689-335fe4271a1e?auto=format&fit=crop&w=1200&h=630&q=70&sat=-100"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Siluetas de un grupo entrenando en un box frente a los ventanales" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Nucleo · Opera tu gym. Retén a tu gente." />
+    <meta
+      name="twitter:description"
+      content="Membresías, cobros, clases y comunidad en un solo sistema para tu gimnasio o box."
+    />
+    <meta
+      name="twitter:image"
+      content="https://images.unsplash.com/photo-1563953715689-335fe4271a1e?auto=format&fit=crop&w=1200&h=630&q=70&sat=-100"
+    />
+
+    <!-- ── Fotos (CDN de Unsplash) y fuentes de la marca ────────────────── -->
+    <link rel="preconnect" href="https://images.unsplash.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <p style="padding: 24px; font-family: sans-serif; color: #fff">
+        Esta presentación necesita JavaScript. También puedes ver Nucleo en
+        <a href="https://www.app.nucleo.fit/" style="color: #fc4c02">app.nucleo.fit</a>.
+      </p>
+    </noscript>
+    <script type="module" src="/src/presentacion-main.tsx"></script>
+  </body>
+</html>

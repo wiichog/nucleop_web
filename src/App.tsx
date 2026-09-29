@@ -9,6 +9,9 @@ import { initAnalytics, trackPageview } from "./lib/analytics";
 
 // El panel (Mantine + todas las páginas) se carga solo al salir de la landing.
 const AdminShell = lazy(() => import("./AdminShell"));
+// La presentación comercial viaja en su propio chunk: quien la abre desde
+// WhatsApp no descarga el panel.
+const PresentacionPage = lazy(() => import("./presentacion/PresentacionPage"));
 
 function LoadingScreen() {
   return (
@@ -48,6 +51,17 @@ export default function App() {
           Va fuera del AdminShell porque quien la abre llega por un enlace de
           WhatsApp y no tiene sesión. */}
       <Route path="/probar-android" element={<AndroidTestersPage />} />
+      {/* Presentación comercial para dueños de gimnasios: pública y `noindex`, se
+          manda por WhatsApp antes de la primera llamada. Fuera del AdminShell por
+          lo mismo que la de arriba. Ver src/presentacion/. */}
+      <Route
+        path="/presentacion"
+        element={
+          <Suspense fallback={<div style={{ position: "fixed", inset: 0, background: "#000" }} />}>
+            <PresentacionPage />
+          </Suspense>
+        }
+      />
       <Route
         path="/*"
         element={

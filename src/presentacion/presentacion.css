@@ -1,0 +1,1477 @@
+/* ============================================================================
+   Presentación comercial (/presentacion)
+
+   El look es el de la landing (lenguaje «bento/mono», ver design/ y la memoria
+   web-admin-landing): negro con paneles claros, Space Grotesk 500 con el
+   tracking apretado en los titulares (primera línea plena, segunda atenuada y
+   el punto final en naranja), JetBrains Mono en etiquetas y cifras chicas,
+   Inter para leer, fotografía en blanco y negro con velo. El naranja #FC4C02
+   es SOLO acento sólido —el punto, el cuadro del CTA, íconos chicos sobre
+   negro—; nunca halo ni texto sobre fondo claro (2.72:1, no pasa AA).
+   Las láminas claras usan el lienzo del bento (#E8E5E9) con tarjetas blancas
+   sin borde ni sombra.
+
+   Todo cuelga de `.nuc` para no chocar con el panel ni con Tailwind, y trae sus
+   propios reseteos porque la entrada suelta (presentacion/index.html) no carga
+   el preflight.
+
+   Dos modos (ver Presentacion.tsx):
+   - .nuc--presentar: lienzo fijo de 1600×900 que se escala. Las medidas en px
+     de ese bloque son de ese lienzo.
+   - .nuc--leer: teléfono o vertical. Las mismas piezas, apiladas.
+   ========================================================================== */
+
+.nuc {
+  --negro: #000;
+  --tinta: #0a0a0b;
+  --carbon: #101012;
+  --flama: #fc4c02;
+  --claro: #e8e5e9;
+  --sub: #ebe8eb;
+  --gris: #5f5f66;
+  --display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --texto: "Inter", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+  color: #fff;
+  font-family: var(--texto);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-align: left;
+}
+.nuc,
+.nuc *,
+.nuc *::before,
+.nuc *::after {
+  box-sizing: border-box;
+}
+.nuc :where(h1, h2, h3, h4, p, ul, ol, dl, dd, figure, table) {
+  margin: 0;
+  padding: 0;
+}
+.nuc :where(ul, ol) {
+  list-style: none;
+}
+.nuc :where(img) {
+  display: block;
+  max-width: none;
+}
+.nuc :where(a) {
+  color: inherit;
+}
+.nuc ::selection {
+  background: rgba(252, 76, 2, 0.3);
+}
+.nuc a:focus-visible,
+.nuc button:focus-visible {
+  outline: 2px solid var(--flama);
+  outline-offset: 4px;
+}
+.nuc-sr {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+}
+.nuc--cargando {
+  position: fixed;
+  inset: 0;
+  background: var(--negro);
+}
+
+/* ── Lámina, foto, velos y halo ────────────────────────────────────────── */
+.nuc .sl {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--tinta);
+}
+.nuc .sl--claro {
+  color: var(--tinta);
+  background: var(--claro);
+}
+.nuc .sl-foto {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  /* Mientras llega la foto, un gris profundo y no un negro plano. */
+  background: radial-gradient(120% 90% at 70% 30%, #1a1a1c 0%, #050505 70%);
+}
+.nuc .sl-foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.nuc .sl-velo {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.nuc .sl-velo[data-tipo="portada"] {
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.94) 0%, rgba(0, 0, 0, 0.82) 42%, rgba(0, 0, 0, 0.4) 74%, rgba(0, 0, 0, 0.18) 100%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.35) 30%, rgba(0, 0, 0, 0) 55%);
+}
+/* En la portada y el cierre las dos líneas van plenas, como el hero de la landing:
+   la segunda atenuada se pierde contra los ventanales de la foto. */
+.nuc #inicio .tt-b,
+.nuc #demo .tt-b {
+  color: #fff;
+}
+.nuc .sl-velo[data-tipo="izquierda"] {
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.86) 36%, rgba(0, 0, 0, 0.45) 62%, rgba(0, 0, 0, 0.2) 100%);
+}
+.nuc .sl-velo[data-tipo="izquierda-fuerte"] {
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.96) 0%, rgba(0, 0, 0, 0.9) 46%, rgba(0, 0, 0, 0.6) 70%, rgba(0, 0, 0, 0.4) 100%);
+}
+.nuc .sl-velo[data-tipo="derecha"] {
+  background: linear-gradient(270deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.88) 40%, rgba(0, 0, 0, 0.62) 62%, rgba(0, 0, 0, 0.5) 100%);
+}
+.nuc .sl-velo[data-tipo="total"] {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.7) 50%, rgba(0, 0, 0, 0.9));
+}
+/* El halo de la landing: blanco muy sutil arriba. Profundidad, no glow. */
+.nuc .sl-halo {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(1100px 640px at 50% -14%, rgba(255, 255, 255, 0.07), transparent 62%),
+    linear-gradient(180deg, #0d0d0f 0%, #070708 100%);
+}
+
+/* ── Cromo: marca, sección y número ────────────────────────────────────── */
+.nuc .sl-cromo {
+  position: absolute;
+  top: 44px;
+  right: 96px;
+  left: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  pointer-events: none;
+}
+.nuc .marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font: 600 24px/1 var(--display);
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+.nuc .sl--claro .marca {
+  color: var(--tinta);
+}
+.nuc .contador {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 14px;
+  font: 500 12px/1 var(--mono);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+}
+.nuc .contador b {
+  font: 500 22px/1 var(--mono);
+  letter-spacing: 0;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.nuc .contador i {
+  font-size: 12px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+}
+.nuc .sl--claro .contador {
+  color: rgba(0, 0, 0, 0.6);
+}
+.nuc .sl--claro .contador b {
+  color: var(--tinta);
+}
+.nuc .avance {
+  position: absolute;
+  top: 50%;
+  right: 42px;
+  display: grid;
+  gap: 7px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.nuc .avance i {
+  display: block;
+  width: 2px;
+  height: 12px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.28);
+}
+.nuc .avance i[data-actual] {
+  height: 30px;
+  background: var(--flama);
+}
+.nuc .sl--claro .avance i {
+  background: rgba(0, 0, 0, 0.16);
+}
+
+/* ── Tipografía ────────────────────────────────────────────────────────── */
+.nuc .ov {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 26px;
+  font: 500 14px/1.3 var(--mono);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+}
+.nuc .ov::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--flama);
+}
+.nuc .sl--claro .ov {
+  color: rgba(0, 0, 0, 0.6);
+}
+.nuc .tt {
+  font-family: var(--display);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  color: #fff;
+  text-wrap: balance;
+}
+.nuc .tt-a,
+.nuc .tt-b {
+  display: block;
+}
+.nuc .tt-b {
+  color: rgba(255, 255, 255, 0.45);
+}
+.nuc .tt-punto {
+  color: var(--flama);
+}
+/* Montos en titulares: Inter, cuya «Q» lleva la cola cruzada y no se lee «0». */
+.nuc .monto {
+  font-family: var(--texto);
+  font-weight: 500;
+  letter-spacing: -0.05em;
+}
+.nuc .sl--claro .tt {
+  color: var(--tinta);
+}
+.nuc .sl--claro .tt-b {
+  color: rgba(0, 0, 0, 0.45);
+}
+.nuc .tt--hero {
+  font-size: 118px;
+  line-height: 0.95;
+}
+.nuc .tt--xl {
+  font-size: 82px;
+  line-height: 0.98;
+}
+.nuc .tt--lg {
+  font-size: 64px;
+  line-height: 1;
+}
+.nuc .tt--md {
+  font-size: 40px;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+.nuc .lead {
+  max-width: 700px;
+  margin: 30px 0 0;
+  font: 400 24px/1.45 var(--texto);
+  color: rgba(255, 255, 255, 0.78);
+  text-wrap: pretty;
+}
+.nuc .lead--chico {
+  margin-top: 24px;
+  font-size: 21px;
+}
+.nuc .sl--claro .lead {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+/* ── Piezas ────────────────────────────────────────────────────────────── */
+.nuc .franja {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.nuc .franja li {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  padding: 0 30px;
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+}
+.nuc .franja li:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.nuc .franja-n {
+  font: 500 15px/1 var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--flama);
+}
+.nuc .franja b {
+  display: block;
+  font: 500 22px/1.25 var(--display);
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+.nuc .franja small {
+  display: block;
+  margin-top: 6px;
+  font: 400 14px/1.4 var(--mono);
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.nuc .dispersos {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: 14px;
+  margin: 44px 0 0;
+}
+.nuc .dispersos li {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 24px 15px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  background: rgba(10, 10, 11, 0.55);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  font: 500 18px/1 var(--texto);
+  color: #fff;
+}
+.nuc .dispersos svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--flama);
+}
+
+.nuc .pantallas {
+  display: grid;
+  gap: 14px;
+  margin: 30px 0 0;
+}
+.nuc .pantallas div {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  align-items: baseline;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+.nuc .pantallas dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font: 600 17px/1.3 var(--texto);
+  color: var(--tinta);
+}
+.nuc .pantallas dt svg {
+  width: 19px;
+  height: 19px;
+}
+.nuc .pantallas dd {
+  font: 400 16.5px/1.45 var(--texto);
+  color: rgba(0, 0, 0, 0.7);
+}
+.nuc .pildoras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 28px 0 0;
+}
+.nuc .pildoras li {
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: #fff;
+  font: 500 13px/1.2 var(--mono);
+  color: var(--tinta);
+}
+
+.nuc .rasgos,
+.nuc .notas {
+  display: grid;
+  gap: 18px;
+  margin: 30px 0 0;
+}
+.nuc .rasgos li,
+.nuc .notas li {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: start;
+  gap: 16px;
+}
+.nuc .rasgos svg,
+.nuc .notas svg {
+  width: 44px;
+  height: 44px;
+  padding: 11px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--flama);
+}
+.nuc .rasgos p,
+.nuc .notas p {
+  font: 400 18px/1.45 var(--texto);
+  color: rgba(255, 255, 255, 0.74);
+}
+.nuc .rasgos b,
+.nuc .notas b {
+  font-weight: 600;
+  color: #fff;
+}
+/* Sobre claro el ícono va en tinta: el naranja no se lee sobre #E8E5E9. */
+.nuc .sl--claro .rasgos svg,
+.nuc .sl--claro .notas svg {
+  background: #fff;
+  color: var(--tinta);
+}
+.nuc .sl--claro .rasgos p,
+.nuc .sl--claro .notas p {
+  color: rgba(0, 0, 0, 0.7);
+}
+.nuc .sl--claro .rasgos b,
+.nuc .sl--claro .notas b {
+  color: var(--tinta);
+}
+
+/* Vidrio oscuro sobre la foto (sin halo de color). */
+.nuc .vidrio {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  backdrop-filter: blur(16px) saturate(120%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 26px 50px -30px rgba(0, 0, 0, 0.8);
+}
+
+.nuc .datos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.nuc .datos > div {
+  padding: 0 26px;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+}
+.nuc .datos > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.nuc .dato {
+  display: block;
+  font: 500 68px/1 var(--display);
+  letter-spacing: -0.04em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.nuc .datos h3 {
+  margin: 14px 0 8px;
+  font: 500 14px/1.35 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--flama);
+}
+.nuc .datos p {
+  font: 400 16px/1.5 var(--texto);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.nuc .pasos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+.nuc .pasos li {
+  padding: 28px 28px 30px;
+}
+.nuc .paso-n {
+  display: block;
+  margin-bottom: 20px;
+  font: 500 16px/1 var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--flama);
+}
+.nuc .pasos h3 {
+  margin: 0 0 10px;
+  font: 500 26px/1.2 var(--display);
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+.nuc .pasos p {
+  font: 400 17px/1.5 var(--texto);
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.nuc .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 30px;
+}
+.nuc .chips li {
+  padding: 9px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 10px;
+  font: 500 12.5px/1 var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.nuc .tarifa {
+  padding: 26px 28px 14px;
+  border-radius: 18px;
+  background: #fff;
+  color: var(--tinta);
+  box-shadow: 0 40px 80px -40px rgba(0, 0, 0, 0.9);
+}
+.nuc .tarifa h3 {
+  margin: 0 0 16px;
+  font: 500 14px/1.3 var(--mono);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(0, 0, 0, 0.6);
+}
+.nuc .tarifa table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.nuc .tarifa col:first-child {
+  width: 34%;
+}
+.nuc .tarifa thead th {
+  padding: 0 0 12px;
+  font: 500 11.5px/1.3 var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: right;
+  vertical-align: bottom;
+  color: rgba(0, 0, 0, 0.6);
+}
+.nuc .tarifa thead th:first-child {
+  text-align: left;
+}
+/* Montos en Inter: su «Q» no se confunde con un 0 a ningún tamaño. */
+.nuc .tarifa tbody th,
+.nuc .tarifa tbody td {
+  padding: 15px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.09);
+  font: 600 19px/1.2 var(--texto);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--tinta);
+}
+.nuc .tarifa tbody th {
+  text-align: left;
+}
+.nuc .tarifa tbody th small {
+  display: block;
+  margin-top: 5px;
+  font: 400 13px/1.3 var(--texto);
+  white-space: normal;
+  color: rgba(0, 0, 0, 0.6);
+}
+.nuc .tarifa .tarifa-cargo {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.62);
+}
+.nuc .tarifa .tarifa-tuyo {
+  font-weight: 700;
+}
+.nuc .precio-nota {
+  font: 400 15px/1.55 var(--texto);
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.nuc .faq {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.nuc .faq article {
+  padding: 28px 30px;
+  border-radius: 16px;
+  background: #fff;
+}
+.nuc .faq h3 {
+  margin: 0 0 12px;
+  font: 500 23px/1.2 var(--display);
+  letter-spacing: -0.03em;
+  color: var(--tinta);
+}
+.nuc .faq p {
+  font: 400 17.5px/1.5 var(--texto);
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.nuc .modulos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.nuc .modulos article {
+  padding: 18px 20px 17px;
+  border-radius: 16px;
+  background: #fff;
+}
+.nuc .modulos svg {
+  width: 38px;
+  height: 38px;
+  padding: 9px;
+  border-radius: 10px;
+  background: var(--tinta);
+  color: #fff;
+}
+.nuc .modulos h3 {
+  margin: 12px 0 4px;
+  font: 500 19px/1.2 var(--display);
+  letter-spacing: -0.02em;
+  color: var(--tinta);
+}
+.nuc .modulos p {
+  font: 400 14.5px/1.4 var(--texto);
+  color: rgba(0, 0, 0, 0.62);
+}
+
+/* CTA de la landing: cápsula con el cuadro naranja (solo el ícono va encima). */
+.nuc .cta {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 40px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #fff;
+  text-decoration: none;
+  transition: transform 0.2s ease;
+}
+.nuc .cta:hover {
+  transform: translateY(-1px);
+}
+.nuc .cta-cuadro {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin: 3px;
+  border-radius: 12px;
+  background: var(--flama);
+  color: #fff;
+}
+.nuc .cta-cuadro svg {
+  width: 24px;
+  height: 24px;
+}
+.nuc .cta-texto {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 28px 0 20px;
+  font: 500 19px/1 var(--mono);
+  color: var(--tinta);
+}
+.nuc .cta-texto svg {
+  width: 20px;
+  height: 20px;
+}
+.nuc .cierre-tel {
+  margin: 26px 0 0;
+  font: 400 15px/1.5 var(--mono);
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.66);
+}
+.nuc .cierre-tel a {
+  color: #fff;
+  text-underline-offset: 4px;
+}
+.nuc .sin-corte {
+  white-space: nowrap;
+}
+.nuc .creditos {
+  font: 400 12.5px/1.5 var(--texto);
+  color: rgba(255, 255, 255, 0.5);
+}
+.nuc .pie-demo {
+  font: 400 12.5px/1.4 var(--mono);
+  letter-spacing: 0.02em;
+  color: rgba(0, 0, 0, 0.55);
+}
+.nuc .sl--oscuro .pie-demo {
+  color: rgba(255, 255, 255, 0.5);
+}
+.nuc .cuenta-nota {
+  margin-top: 12px;
+  font: 400 13px/1.4 var(--mono);
+  text-align: right;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Marcos: laptop, teléfono, ventana y aviso ─────────────────────────── */
+.nuc .laptop {
+  filter: drop-shadow(0 38px 50px rgba(0, 0, 0, 0.35));
+}
+.nuc .laptop-pantalla {
+  padding: 12px 12px 16px;
+  border-radius: 20px 20px 6px 6px;
+  background: #0c0d10;
+  box-shadow: inset 0 0 0 1px #2a2c33;
+}
+.nuc .laptop-pantalla img,
+.nuc .ventana img {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+.nuc .laptop-base {
+  position: relative;
+  height: 20px;
+  margin: 0 -40px;
+  border-radius: 3px 3px 24px 24px;
+  background: linear-gradient(180deg, #e4e7eb 0%, #c3c8cf 45%, #9da3ac 100%);
+}
+.nuc .laptop-base::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 120px;
+  height: 7px;
+  border-radius: 0 0 10px 10px;
+  background: #aeb3ba;
+  transform: translateX(-50%);
+}
+.nuc .telefono {
+  padding: 9px;
+  border-radius: 46px;
+  background: #0a0a0c;
+  box-shadow: 0 0 0 1.5px #3a3a42, 0 34px 60px -22px rgba(0, 0, 0, 0.75);
+}
+.nuc .sl--claro .telefono {
+  box-shadow: 0 0 0 1.5px #2e2e36, 0 34px 60px -24px rgba(16, 24, 40, 0.5);
+}
+.nuc .telefono-pantalla {
+  overflow: hidden;
+  border-radius: 38px;
+  background: var(--claro);
+}
+.nuc .telefono-pantalla img {
+  width: 100%;
+  height: auto;
+}
+.nuc .ventana {
+  overflow: hidden;
+  border-radius: 14px;
+  background: #0c0d10;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 40px 80px -30px rgba(0, 0, 0, 0.9);
+}
+.nuc .ventana-barra {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #16171b;
+}
+.nuc .ventana-barra i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+}
+.nuc .ventana-barra span {
+  margin-left: 12px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  font: 400 12px/1.2 var(--mono);
+  color: rgba(255, 255, 255, 0.6);
+}
+.nuc .ventana img {
+  border-radius: 0;
+}
+.nuc .aviso {
+  display: flex;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 24px;
+  background: rgba(246, 245, 247, 0.96);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.7);
+  color: #111;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--texto);
+}
+.nuc .aviso-icono {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: var(--tinta);
+}
+.nuc .aviso-cuerpo {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.nuc .aviso-cabeza {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.55);
+}
+.nuc .aviso-cabeza b {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.nuc .aviso-titulo {
+  font-size: 16.5px;
+  font-weight: 600;
+}
+.nuc .aviso-texto {
+  font-size: 15.5px;
+  line-height: 1.35;
+}
+
+/* ============================================================================
+   MODO PRESENTAR: lienzo de 1600×900
+   ========================================================================== */
+.nuc--presentar {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  background: #000;
+}
+.nuc--presentar .lienzo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1600px;
+  height: 900px;
+  transform-origin: center center;
+}
+.nuc--presentar .sl {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.6s ease, visibility 0s linear 0.6s;
+}
+.nuc--presentar .sl[data-actual] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.6s ease;
+}
+
+.nuc--presentar .portada {
+  position: absolute;
+  top: 190px;
+  left: 96px;
+  width: 1040px;
+}
+/* Alta para no quedar bajo los controles, que viven en la esquina inferior derecha. */
+.nuc--presentar .franja {
+  position: absolute;
+  right: 96px;
+  bottom: 92px;
+  left: 96px;
+}
+.nuc--presentar .col-texto {
+  position: absolute;
+  top: 176px;
+  left: 96px;
+  width: 780px;
+}
+.nuc--presentar .col-texto--ancha {
+  width: 980px;
+}
+.nuc--presentar .col-texto--media {
+  top: 150px;
+  width: 560px;
+}
+.nuc--presentar #clases .col-texto--media {
+  width: 640px;
+}
+.nuc--presentar .col-texto--dinero {
+  top: 150px;
+  width: 660px;
+}
+.nuc--presentar .split-texto {
+  position: absolute;
+  top: 150px;
+  left: 96px;
+  width: 520px;
+}
+.nuc--presentar .split-texto--der {
+  right: 96px;
+  left: auto;
+  width: 600px;
+}
+/* El teléfono va a la derecha: a la izquierda tapaba la «Q» del ingreso del
+   periodo, la cifra que más le importa al dueño en ese tablero. */
+.nuc--presentar .equipos {
+  position: absolute;
+  top: 150px;
+  left: 670px;
+  width: 834px;
+  height: 640px;
+}
+.nuc--presentar .equipos .laptop {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  width: 790px;
+}
+.nuc--presentar .equipos .telefono {
+  position: absolute;
+  top: 240px;
+  left: 620px;
+  width: 205px;
+}
+.nuc--presentar .pantalla-der {
+  position: absolute;
+  top: 160px;
+  right: 96px;
+  width: 820px;
+}
+/* El aviso cae sobre la esquina de la laptop, lejos de la columna de texto. */
+.nuc--presentar .pantalla-der .aviso {
+  position: absolute;
+  right: -28px;
+  bottom: -64px;
+  width: 440px;
+}
+.nuc--presentar .pie-demo {
+  position: absolute;
+  right: 96px;
+  bottom: 38px;
+}
+.nuc--presentar .telefono-solo {
+  position: absolute;
+  top: 104px;
+  right: 170px;
+  width: 316px;
+}
+.nuc--presentar .duo-telefonos {
+  position: absolute;
+  top: 112px;
+  left: 110px;
+  width: 640px;
+  height: 740px;
+}
+.nuc--presentar .duo-telefonos .telefono {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 296px;
+}
+.nuc--presentar .duo-telefonos .telefono--atras {
+  top: 86px;
+  left: 330px;
+}
+.nuc--presentar .modulos-cabeza {
+  position: absolute;
+  top: 150px;
+  left: 96px;
+  width: 520px;
+}
+.nuc--presentar .modulos {
+  position: absolute;
+  top: 150px;
+  right: 96px;
+  left: 670px;
+}
+.nuc--presentar .datos {
+  position: absolute;
+  top: 610px;
+  right: 96px;
+  left: 96px;
+}
+.nuc--presentar .cuenta-lugar {
+  position: absolute;
+  top: 176px;
+  right: 96px;
+  width: 700px;
+}
+.nuc--presentar .pasos {
+  position: absolute;
+  right: 96px;
+  bottom: 72px;
+  left: 96px;
+}
+.nuc--presentar .precio-texto {
+  position: absolute;
+  top: 150px;
+  left: 96px;
+  width: 560px;
+}
+.nuc--presentar .tarifa {
+  position: absolute;
+  top: 176px;
+  right: 96px;
+  width: 820px;
+}
+.nuc--presentar .tarifa tbody th,
+.nuc--presentar .tarifa tbody td {
+  padding: 18px 0;
+}
+.nuc--presentar .precio-nota {
+  position: absolute;
+  right: 96px;
+  bottom: 60px;
+  left: 96px;
+  max-width: 1240px;
+}
+.nuc--presentar .faq-cabeza {
+  position: absolute;
+  top: 150px;
+  left: 96px;
+  width: 900px;
+}
+.nuc--presentar .faq {
+  position: absolute;
+  top: 340px;
+  right: 96px;
+  bottom: 72px;
+  left: 96px;
+}
+.nuc--presentar .cierre {
+  position: absolute;
+  top: 168px;
+  left: 96px;
+  width: 860px;
+}
+.nuc--presentar .creditos {
+  position: absolute;
+  right: 96px;
+  bottom: 34px;
+  left: 96px;
+}
+
+/* Entrada de cada lámina: el texto sube y la foto se acerca despacio. */
+@keyframes nuc-sube {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes nuc-acerca {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.nuc--presentar .sl[data-actual] .anim {
+  animation: nuc-sube 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.nuc--presentar .sl[data-actual] .anim--2 {
+  animation-delay: 0.14s;
+}
+.nuc--presentar .sl[data-actual] .anim--3 {
+  animation-delay: 0.28s;
+}
+.nuc--presentar .sl[data-actual] .sl-foto {
+  animation: nuc-acerca 9s cubic-bezier(0.2, 0.6, 0.2, 1) both;
+}
+
+/* Controles: fuera del lienzo, a tamaño real de la pantalla. */
+.nuc .controles {
+  position: fixed;
+  right: 18px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(10, 10, 11, 0.64);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  transition: opacity 0.35s ease;
+}
+.nuc .controles[data-oculto] {
+  opacity: 0;
+  pointer-events: none;
+}
+.nuc .controles:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+.nuc .controles button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.nuc .controles button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.nuc .controles button:disabled {
+  background: transparent;
+  cursor: default;
+  opacity: 0.3;
+}
+.nuc .controles svg {
+  width: 20px;
+  height: 20px;
+}
+.nuc .controles span {
+  min-width: 66px;
+  text-align: center;
+  font: 500 13px/1 var(--mono);
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.82);
+  font-variant-numeric: tabular-nums;
+}
+/* Arriba al centro: abajo tapaba la franja de la portada. */
+.nuc .pista {
+  position: fixed;
+  top: calc(18px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  white-space: nowrap;
+  padding: 9px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(10, 10, 11, 0.6);
+  font: 500 13px/1 var(--mono);
+  color: rgba(255, 255, 255, 0.78);
+  pointer-events: none;
+  animation: nuc-pista 6s ease forwards;
+}
+@keyframes nuc-pista {
+  0%,
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ============================================================================
+   MODO LEER: teléfono o pantalla vertical
+   ========================================================================== */
+.nuc--leer {
+  background: var(--negro);
+}
+.nuc--leer .sl {
+  display: flex;
+  flex-direction: column;
+  padding: 96px 20px 64px;
+}
+.nuc--leer .sl-cromo {
+  top: 28px;
+  right: 20px;
+  left: 20px;
+}
+.nuc--leer .marca {
+  gap: 9px;
+  font-size: 19px;
+}
+.nuc--leer .marca svg {
+  width: 26px;
+  height: 26px;
+}
+.nuc--leer .contador {
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+}
+.nuc--leer .contador b {
+  font-size: 16px;
+}
+.nuc--leer .contador-seccion,
+.nuc--leer .avance {
+  display: none;
+}
+.nuc--leer #inicio,
+.nuc--leer #demo {
+  justify-content: flex-end;
+  min-height: 100svh;
+}
+.nuc--leer .sl-velo {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.82) 45%, rgba(0, 0, 0, 0.95) 100%) !important;
+}
+.nuc--leer .ov {
+  margin-bottom: 16px;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+}
+.nuc--leer .tt--hero {
+  font-size: clamp(48px, 14vw, 76px);
+}
+.nuc--leer .tt--xl {
+  font-size: clamp(38px, 10.5vw, 56px);
+}
+.nuc--leer .tt--lg {
+  font-size: clamp(34px, 9.5vw, 50px);
+}
+.nuc--leer .tt--md {
+  font-size: clamp(28px, 7.6vw, 36px);
+}
+.nuc--leer .lead,
+.nuc--leer .lead--chico {
+  margin-top: 18px;
+  font-size: 18px;
+}
+.nuc--leer .franja {
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-top: 36px;
+}
+.nuc--leer .franja li,
+.nuc--leer .franja li:first-child {
+  padding: 14px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-left: 0;
+}
+.nuc--leer .franja b {
+  font-size: 19px;
+}
+.nuc--leer .dispersos {
+  grid-template-columns: 1fr;
+  margin-top: 28px;
+}
+.nuc--leer .dispersos li {
+  font-size: 16.5px;
+}
+.nuc--leer .pantallas div {
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+.nuc--leer .equipos {
+  display: flex;
+  flex-direction: column;
+  margin-top: 34px;
+}
+.nuc--leer .laptop-pantalla {
+  padding: 7px 7px 9px;
+  border-radius: 12px 12px 4px 4px;
+}
+.nuc--leer .laptop-base {
+  height: 11px;
+  margin: 0 -14px;
+  border-radius: 2px 2px 14px 14px;
+}
+.nuc--leer .laptop-base::before {
+  width: 64px;
+  height: 4px;
+}
+.nuc--leer .telefono {
+  padding: 6px;
+  border-radius: 32px;
+}
+.nuc--leer .telefono-pantalla {
+  border-radius: 27px;
+}
+/* `filter` en la laptop la sube de capa: sin z-index el teléfono queda debajo. */
+.nuc--leer .equipos .telefono {
+  position: relative;
+  z-index: 1;
+  width: 42%;
+  max-width: 200px;
+  margin: -24% 4% 0 auto;
+}
+.nuc--leer .pie-demo {
+  margin-top: 18px;
+}
+.nuc--leer .pantalla-der {
+  margin-top: 32px;
+}
+.nuc--leer .pantalla-der .aviso {
+  margin-top: 18px;
+}
+.nuc--leer .aviso {
+  padding: 14px;
+  border-radius: 20px;
+}
+.nuc--leer .aviso-texto {
+  font-size: 14.5px;
+}
+.nuc--leer .rasgos p,
+.nuc--leer .notas p {
+  font-size: 16.5px;
+}
+.nuc--leer .telefono-solo {
+  width: 64%;
+  max-width: 260px;
+  margin-top: 34px;
+}
+.nuc--leer .duo-telefonos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  order: 2;
+  margin-top: 34px;
+}
+.nuc--leer #comunidad .split-texto {
+  order: 1;
+}
+.nuc--leer .modulos {
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 30px;
+}
+.nuc--leer .modulos article {
+  padding: 16px;
+}
+.nuc--leer .modulos svg {
+  width: 34px;
+  height: 34px;
+  padding: 8px;
+}
+.nuc--leer .modulos h3 {
+  margin-top: 10px;
+  font-size: 16.5px;
+}
+.nuc--leer .modulos p {
+  font-size: 13.5px;
+}
+.nuc--leer .datos {
+  grid-template-columns: 1fr;
+  gap: 22px;
+  margin-top: 30px;
+}
+.nuc--leer .datos > div,
+.nuc--leer .datos > div:first-child {
+  padding: 18px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-left: 0;
+}
+.nuc--leer .dato {
+  font-size: 52px;
+}
+/* En el teléfono la captura va antes que las cifras: primero se ve, luego se explica. */
+.nuc--leer .cuenta-lugar {
+  order: 1;
+  margin-top: 30px;
+}
+.nuc--leer #dinero .datos {
+  order: 2;
+}
+.nuc--leer .ventana-barra {
+  height: 30px;
+}
+.nuc--leer .ventana-barra span {
+  font-size: 10.5px;
+}
+.nuc--leer .pasos {
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-top: 30px;
+}
+.nuc--leer .pasos li {
+  padding: 22px 22px 24px;
+}
+.nuc--leer .pasos h3 {
+  font-size: 22px;
+}
+.nuc--leer .tarifa {
+  margin-top: 30px;
+  padding: 20px 16px 8px;
+}
+.nuc--leer .tarifa col:first-child {
+  width: 31%;
+}
+.nuc--leer .tarifa thead th {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+}
+.nuc--leer .tarifa tbody th,
+.nuc--leer .tarifa tbody td {
+  padding: 12px 0;
+  font-size: 14.5px;
+}
+.nuc--leer .tarifa tbody th small {
+  font-size: 11.5px;
+}
+.nuc--leer .precio-nota {
+  margin-top: 22px;
+}
+.nuc--leer .faq-cabeza {
+  margin-bottom: 26px;
+}
+.nuc--leer .faq {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.nuc--leer .faq article {
+  padding: 22px;
+}
+.nuc--leer .faq h3 {
+  font-size: 20px;
+}
+.nuc--leer .faq p {
+  font-size: 16.5px;
+}
+.nuc--leer .cta {
+  margin-top: 30px;
+}
+.nuc--leer .cta-cuadro {
+  width: 50px;
+  height: 50px;
+}
+.nuc--leer .cta-texto {
+  padding: 0 20px 0 16px;
+  font-size: 16px;
+  white-space: nowrap;
+}
+/* En 375 px el ícono de mensaje partía la etiqueta en dos líneas. */
+.nuc--leer .cta-texto svg {
+  display: none;
+}
+.nuc--leer .creditos {
+  margin-top: 40px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nuc--presentar .sl,
+  .nuc--presentar .sl[data-actual] {
+    transition: none;
+  }
+  .nuc--presentar .sl[data-actual] .anim,
+  .nuc--presentar .sl[data-actual] .sl-foto,
+  .nuc .pista {
+    animation: none;
+  }
+  .nuc .cta,
+  .nuc .controles {
+    transition: none;
+  }
+}
