@@ -7,10 +7,9 @@ import { AtomLogo } from "../landing/AtomLogo";
    local con un gimnasio de ejemplo («Box Demo») y atletas inventados. Las del
    panel se sacaron a 1440×900 sin el encabezado (que enseña el correo de la
    sesión); las de la app son las del App Store 2.0.1, recortadas al borde de la
-   pantalla. Viven en public/presentacion/capturas/ como .jpg a propósito: la
-   regla de reescritura de Amplify manda al index.html todo archivo cuya
-   extensión no sea css/gif/ico/jpg/js/png/txt/svg/woff/woff2/ttf/map/json, así
-   que un .webp o un .jpeg se romperían en producción.
+   pantalla. Viven en public/presentacion/capturas/ con una extensión de las que
+   la regla de reescritura de Amplify deja pasar (css/gif/ico/jpg/jpeg/js/png/
+   txt/svg/woff/woff2/ttf/map/json/webp); cualquier otra cae al index.html.
    Si cambia una pantalla de verdad, su captura se desactualiza en silencio.
    ========================================================================== */
 
