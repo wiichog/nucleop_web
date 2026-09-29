@@ -72,18 +72,26 @@
 
 ## Parte C — SPA (React Router)
 
-Amplify **no lee** `public/_redirects` (es formato de Netlify). Las reglas viven solo en la consola: Amplify → **Hosting** → **Rewrites and redirects** → **Manage redirects**. Se aplican de arriba abajo y gana la primera. Son dos (se leen con `aws amplify get-app --app-id d2wb8sb6i9med1 --region us-east-1 --query app.customRules`):
+Amplify **no lee** `public/_redirects` (es formato de Netlify). Las reglas viven solo en la consola: Amplify → **Hosting** → **Rewrites and redirects** → **Manage redirects**. Se aplican de arriba abajo y gana la primera. Son tres (se leen con `aws amplify get-app --app-id d2wb8sb6i9med1 --region us-east-1 --query app.customRules`):
 
 1. `https://app.nucleo.fit` → `https://www.app.nucleo.fit` · **302**. La creó Amplify con el dominio; conserva ruta y query.
-2. La de la SPA → `/index.html` · **200 (Rewrite)**. Source (cópialo de aquí: en una tabla de Markdown los `|` saldrían escapados):
+2. La de la presentación comercial → `/presentacion/index.html` · **200 (Rewrite)**. Source:
+
+   ```
+   </^/presentacion(/(index\.html)?)?$/>
+   ```
+
+3. La de la SPA → `/index.html` · **200 (Rewrite)**. Source (cópialo de aquí: en una tabla de Markdown los `|` saldrían escapados):
 
    ```
    </^[^.]+$|\.(?!(css|gif|ico|jpg|jpeg|js|png|txt|svg|woff|woff2|ttf|map|json|webp|xml|webmanifest)$)([^.]+$)/>
    ```
 
-La 2 manda a `/index.html` toda ruta sin extensión **y todo archivo cuya extensión no esté en la lista, aunque exista en `dist/`**. Hasta el 2026-09-29 le faltaban `xml` y `webmanifest`: `/sitemap.xml` se servía como la landing. Siguen cayendo `.html`, `.pdf`, `.mp4`, `.avif`…: si agregas a `public/` un archivo con otra extensión, súmala aquí **y** en la consola.
+La 3 manda a `/index.html` toda ruta sin extensión **y todo archivo cuya extensión no esté en la lista, aunque exista en `dist/`**. Hasta el 2026-09-29 le faltaban `xml` y `webmanifest`: `/sitemap.xml` se servía como la landing. Siguen cayendo `.html`, `.pdf`, `.mp4`, `.avif`…: si agregas a `public/` un archivo con otra extensión, súmala aquí **y** en la consola.
 
-Una regla 200 específica (p. ej. `/presentacion` → `/presentacion/index.html`, ver `presentacion/index.html`) va entre la 1 y la 2.
+La 2 existe porque `/presentacion` es una entrada suelta del build (`presentacion/index.html`, segundo input de `vite.config.ts`) con su propio título y `og:image` para la vista previa de WhatsApp. Sin ella, la 3 la mandaba a la landing: `/presentacion` y hasta `/presentacion/index.html`, porque `.html` no está en la lista. Atrapa solo `/presentacion`, `/presentacion/` y `/presentacion/index.html`; `/presentacion/capturas/*.jpg` sigue saliendo como archivo. Se comprueba con `curl -s -A "WhatsApp/2.24" https://www.app.nucleo.fit/presentacion | grep -o '<title>[^<]*</title>'`, que debe decir «Presentación de Nucleo…» y no el título de la landing.
+
+Ojo: `update-app --custom-rules` **reemplaza la lista entera**. Relee las vivas con `get-app` y manda las tres.
 
 (O la regla simple de Amplify: source `/<*>` → `/index.html` → **404-200**.)
 
