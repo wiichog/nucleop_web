@@ -16,7 +16,7 @@ import { useCuentaSinCargar } from "../components/PageStatus";
 import { PageHeader, SectionLabel } from "../components/ui";
 import { GlassCard, delayVar } from "../components/aurora";
 import { useAuth } from "../lib/auth";
-import { errMsg } from "../lib/errors";
+import { errDeCampo, errMsg } from "../lib/errors";
 import { AUDIT_ROLE, label } from "../lib/labels";
 
 /** Dato de la cuenta en el ritmo editorial de Aurora: overline + valor. */
@@ -39,6 +39,11 @@ export function ProfilePage() {
   // alguien) el backend no pide la actual: `PasswordChangeSerializer` se la salta.
   // Exigirla aquí obligaba a inventar una contraseña que la persona no sabe.
   const cambioForzado = me.data?.must_change_password === true;
+  // Quien entra con Google, Facebook o Apple no tiene contraseña, y el backend
+  // tampoco le pide la actual. Se compara con `false` y no con `!`: un backend sin
+  // el campo no lo manda, y ahí sí hay que pedirla.
+  const sinContrasena = me.data?.has_usable_password === false;
+  const sinPedirActual = cambioForzado || sinContrasena;
   const gymActual = gyms.find((gym) => gym.id === primaryGymId);
   const changePassword = usePasswordChange();
   const [current, setCurrent] = useState("");
@@ -54,21 +59,26 @@ export function ProfilePage() {
     }
     try {
       await changePassword.mutateAsync(
-        cambioForzado ? { new_password: next } : { current_password: current, new_password: next },
+        sinPedirActual ? { new_password: next } : { current_password: current, new_password: next },
       );
-      notifications.show({ color: "teal", message: "Contraseña actualizada." });
+      notifications.show({
+        color: "teal",
+        message: sinContrasena ? "Contraseña creada." : "Contraseña actualizada.",
+      });
       setCurrent("");
       setNext("");
-      // El backend apaga el flag al guardarla. Sin volver a leer /me, el formulario
-      // seguiría sin pedir la actual y un segundo cambio ya no pasaría.
-      if (cambioForzado) void me.refetch();
+      // Al guardarla, el backend apaga el flag y la cuenta ya tiene contraseña. Sin
+      // volver a leer /me, el formulario seguiría sin pedir la actual y un segundo
+      // cambio ya no pasaría.
+      if (sinPedirActual) void me.refetch();
     } catch (error) {
-      // Sin campo «actual» en pantalla, «verifica la actual» no tiene sentido: lo
-      // que puede fallar es la nueva, y el backend dice por qué.
+      // El backend dice qué falló: la actual, o una regla de la nueva (muy común,
+      // solo números, parecida al correo). Antes, sin cambio forzado, todo fallo
+      // decía «Verifica la actual», aunque lo rechazado fuera la nueva.
       setErr(
-        cambioForzado
-          ? errMsg(error, "No se pudo cambiar la contraseña. Intenta de nuevo.")
-          : "No se pudo cambiar la contraseña. Verifica la actual.",
+        errDeCampo(error, "current_password") ??
+          errDeCampo(error, "new_password") ??
+          errMsg(error, "No se pudo cambiar la contraseña. Intenta de nuevo."),
       );
     }
   };
@@ -115,12 +125,17 @@ export function ProfilePage() {
             Seguridad
           </SectionLabel>
           <Title order={3} mb="md">
-            Cambiar contraseña
+            {sinContrasena ? "Crear contraseña" : "Cambiar contraseña"}
           </Title>
           <Stack gap="sm">
             {cambioForzado ? (
               <Text size="sm" c="dimmed">
                 Restablecieron tu contraseña, así que no te pedimos la actual: elige una nueva.
+              </Text>
+            ) : sinContrasena ? (
+              <Text size="sm" c="dimmed">
+                Tu cuenta todavía no tiene contraseña, así que no te pedimos la actual. Crea una
+                para entrar también con tu correo.
               </Text>
             ) : (
               <PasswordInput label="Contraseña actual" value={current} onChange={(e) => setCurrent(e.currentTarget.value)} />
@@ -133,10 +148,10 @@ export function ProfilePage() {
             )}
             <Button
               type="submit"
-              disabled={(!cambioForzado && !current) || !next}
+              disabled={(!sinPedirActual && !current) || !next}
               loading={changePassword.isPending}
             >
-              Actualizar contraseña
+              {sinContrasena ? "Crear contraseña" : "Actualizar contraseña"}
             </Button>
           </Stack>
         </Card>

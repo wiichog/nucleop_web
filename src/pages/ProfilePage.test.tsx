@@ -4,13 +4,19 @@ import { MantineProvider } from "@mantine/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * «Mi perfil» · cambiar la contraseña después de un restablecimiento.
+ * «Mi perfil» · cambiar la contraseña, o crearla si la cuenta no tiene una.
  *
- * Cuando el gimnasio le restablece la contraseña a alguien, `/me` trae
- * `must_change_password` y el backend deja de pedir la actual
- * (`PasswordChangeSerializer.validate` se la salta). El formulario la seguía
- * exigiendo: sin ella el botón no se habilitaba y la persona tenía que inventarse
- * una contraseña que no sabe.
+ * Hay dos casos en que el backend no pide la actual (`PasswordChangeSerializer.validate`
+ * se la salta), y en los dos el formulario la seguía exigiendo: sin ella el botón no
+ * se habilitaba.
+ * - Cuando el gimnasio le restablece la contraseña a alguien, `/me` trae
+ *   `must_change_password`, y la persona tenía que inventarse una que no sabe.
+ * - Quien entra con Google, Facebook o Apple no tiene contraseña: `/me` trae
+ *   `has_usable_password: false`, y nunca podía crear una.
+ *
+ * Los rechazos muestran lo que dijo el backend. Antes, sin cambio forzado, todo
+ * rechazo decía «Verifica la actual», aunque lo rechazado fuera la nueva. Los
+ * errores de prueba copian la respuesta real de la API.
  *
  * Se mockea `../api/hooks` en el borde: lo que se prueba es qué pide la pantalla
  * y qué le pasa al hook, que es literalmente el cuerpo del POST.
@@ -33,6 +39,8 @@ if (!window.matchMedia) {
 const estado = vi.hoisted(() => ({
   /** `must_change_password` de `/me`. */
   cambioForzado: false,
+  /** `has_usable_password` de `/me` (undefined = un backend que aún no lo manda). */
+  tieneContrasena: true as boolean | undefined,
   /** Cada cuerpo que la pantalla le pasó a `usePasswordChange`. */
   enviados: [] as Record<string, unknown>[],
   /** Veces que la pantalla volvió a pedir `/me`. */
@@ -48,6 +56,7 @@ vi.mock("../api/hooks", () => ({
       email: "ana@box.gt",
       is_superuser: false,
       must_change_password: estado.cambioForzado,
+      has_usable_password: estado.tieneContrasena,
       roles: [],
       athlete: null,
     },
@@ -84,6 +93,35 @@ import { ProfilePage } from "./ProfilePage";
 
 const NUEVA = "nueva-segura-2026";
 
+// Respuestas reales de `/auth/password-change`, capturadas de la API el 2026-09-29.
+// En `message`, un error de campo lleva su clave interna delante; los de las reglas
+// de Django (`non_field_errors`) no.
+const NUEVA_RECHAZADA = {
+  response: {
+    status: 400,
+    data: {
+      detail: {
+        non_field_errors: [
+          "Esta contraseña es demasiado común.",
+          "Esta contraseña es completamente numérica.",
+        ],
+      },
+      code: "invalid",
+      message: "Esta contraseña es demasiado común.",
+    },
+  },
+};
+const ACTUAL_INCORRECTA = {
+  response: {
+    status: 400,
+    data: {
+      detail: { current_password: ["La contraseña actual no es correcta."] },
+      code: "invalid",
+      message: "current_password: La contraseña actual no es correcta.",
+    },
+  },
+};
+
 function pintar() {
   return render(
     <MantineProvider>
@@ -98,6 +136,7 @@ function botonActualizar() {
 
 beforeEach(() => {
   estado.cambioForzado = false;
+  estado.tieneContrasena = true;
   estado.enviados = [];
   estado.relecturasDeMe = 0;
   estado.error = null;
@@ -130,21 +169,13 @@ describe("Mi perfil · cambio de contraseña tras un restablecimiento", () => {
 
   it("con must_change_password, si el backend rechaza la nueva dice por qué, no «verifica la actual»", async () => {
     estado.cambioForzado = true;
-    estado.error = {
-      response: {
-        data: {
-          detail: { new_password: ["Esta contraseña es demasiado común."] },
-          code: "invalid",
-          message: "new_password: Esta contraseña es demasiado común.",
-        },
-      },
-    };
+    estado.error = NUEVA_RECHAZADA;
     pintar();
 
-    fireEvent.change(screen.getByLabelText("Nueva contraseña"), { target: { value: "password123" } });
+    fireEvent.change(screen.getByLabelText("Nueva contraseña"), { target: { value: "12345678" } });
     fireEvent.click(botonActualizar());
 
-    expect(await screen.findByText(/demasiado común/)).toBeTruthy();
+    expect(await screen.findByText("Esta contraseña es demasiado común.")).toBeTruthy();
     expect(screen.queryByText(/Verifica la actual/)).toBeNull();
     expect(estado.relecturasDeMe).toBe(0);
   });
@@ -173,5 +204,66 @@ describe("Mi perfil · cambio de contraseña tras un restablecimiento", () => {
       expect(avisos.show).toEqual([{ color: "teal", message: "Contraseña actualizada." }]),
     );
     expect(estado.relecturasDeMe).toBe(0);
+  });
+
+  it("sin el flag, si el backend rechaza la nueva dice por qué, no «verifica la actual»", async () => {
+    estado.error = NUEVA_RECHAZADA;
+    pintar();
+
+    fireEvent.change(screen.getByLabelText("Contraseña actual"), {
+      target: { value: "vieja-segura" },
+    });
+    fireEvent.change(screen.getByLabelText("Nueva contraseña"), { target: { value: "12345678" } });
+    fireEvent.click(botonActualizar());
+
+    expect(await screen.findByText("Esta contraseña es demasiado común.")).toBeTruthy();
+    expect(screen.queryByText(/Verifica la actual/)).toBeNull();
+  });
+
+  it("si la actual no es correcta lo dice sin la clave interna del campo", async () => {
+    estado.error = ACTUAL_INCORRECTA;
+    pintar();
+
+    fireEvent.change(screen.getByLabelText("Contraseña actual"), {
+      target: { value: "incorrecta" },
+    });
+    fireEvent.change(screen.getByLabelText("Nueva contraseña"), { target: { value: NUEVA } });
+    fireEvent.click(botonActualizar());
+
+    // Texto exacto: «current_password: La contraseña…» no pasa.
+    expect(await screen.findByText("La contraseña actual no es correcta.")).toBeTruthy();
+    expect(screen.queryByText(/current_password/)).toBeNull();
+  });
+});
+
+describe("Mi perfil · cuenta sin contraseña (entra con Google, Facebook o Apple)", () => {
+  it("no pide la actual, dice por qué, la crea y vuelve a leer /me", async () => {
+    estado.tieneContrasena = false;
+    pintar();
+
+    expect(screen.queryByLabelText("Contraseña actual")).toBeNull();
+    expect(screen.getByText(/todavía no tiene contraseña/)).toBeTruthy();
+    const crear = screen.getByRole("button", { name: "Crear contraseña" }) as HTMLButtonElement;
+
+    fireEvent.change(screen.getByLabelText("Nueva contraseña"), { target: { value: NUEVA } });
+    expect(crear.disabled).toBe(false);
+    fireEvent.click(crear);
+
+    await waitFor(() => expect(estado.enviados).toHaveLength(1));
+    expect(estado.enviados[0]).toStrictEqual({ new_password: NUEVA });
+    await waitFor(() =>
+      expect(avisos.show).toEqual([{ color: "teal", message: "Contraseña creada." }]),
+    );
+    // Ya tiene contraseña: se vuelve a leer /me para que el siguiente cambio pida la actual.
+    expect(estado.relecturasDeMe).toBe(1);
+  });
+
+  it("con un backend que todavía no manda el campo, se sigue pidiendo la actual", () => {
+    estado.tieneContrasena = undefined;
+    pintar();
+
+    expect(screen.getByLabelText("Contraseña actual")).toBeTruthy();
+    expect(screen.queryByText(/todavía no tiene contraseña/)).toBeNull();
+    expect(botonActualizar().disabled).toBe(true);
   });
 });

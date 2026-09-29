@@ -6172,6 +6172,7 @@ export interface components {
             account_origin?: components["schemas"]["AccountOriginEnum"];
             /** @description Forzar cambio de contraseña en el próximo inicio de sesión (reset por admin). */
             readonly must_change_password: boolean;
+            readonly has_usable_password: boolean;
             /**
              * Estado de superusuario
              * @description Indica que este usuario tiene todos los permisos sin asignárselos explícitamente.

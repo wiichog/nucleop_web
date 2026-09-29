@@ -21,3 +21,22 @@ export function errMsg(error: unknown, porDefecto = "Algo salió mal. Intenta de
   }
   return porDefecto;
 }
+
+/**
+ * El mensaje del backend para UN campo, o `undefined` si ese campo no falló.
+ *
+ * Para errores de validación, `message` nombra el campo con su clave interna
+ * («current_password: La contraseña actual no es correcta.»). Un formulario que
+ * ya sabe qué campo falló muestra solo el texto. Lo busca dentro de `detail`
+ * (contrato de apps/common/exceptions) o en la raíz (DRF sin ese manejador).
+ */
+export function errDeCampo(error: unknown, campo: string): string | undefined {
+  const data = (error as { response?: { data?: unknown } })?.response?.data;
+  if (!data || typeof data !== "object") return undefined;
+  const body = data as Record<string, unknown>;
+  const errores = body.detail && typeof body.detail === "object" ? body.detail : body;
+  const value = (errores as Record<string, unknown>)[campo];
+  if (typeof value === "string" && value.trim()) return value;
+  if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim()) return value[0];
+  return undefined;
+}

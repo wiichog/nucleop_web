@@ -76,6 +76,9 @@ interface Me {
   email: string;
   is_superuser: boolean;
   must_change_password?: boolean;
+  // `false` si la cuenta entra con Google, Facebook o Apple y no tiene contraseña.
+  // Opcional: un backend anterior al campo no lo manda.
+  has_usable_password?: boolean;
   roles: Role[];
   // El backend (`AthleteMeSerializer`) siempre manda este bloque; el panel no lo
   // declaraba y por eso no podía saludar a nadie por su nombre. Es `null` sólo si
