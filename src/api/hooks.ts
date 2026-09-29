@@ -68,11 +68,9 @@ import {
   ShippingInfo,
 } from "./types";
 
-export interface Role {
-  role: string;
-  gym_id: string | null;
-  club_id: string | null;
-}
+// Del contrato generado, no a mano: así el rol trae `gym_name`/`club_name` en
+// cuanto el backend los sirve, que es de donde el selector de contexto rotula.
+export type Role = components["schemas"]["StaffRole"];
 
 interface Me {
   email: string;

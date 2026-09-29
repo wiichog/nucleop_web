@@ -8,6 +8,11 @@ export interface GymOption {
   name: string;
 }
 
+export interface ClubOption {
+  id: string;
+  name: string;
+}
+
 interface AuthValue {
   loading: boolean;
   authenticated: boolean;
@@ -18,6 +23,7 @@ interface AuthValue {
   gymIds: string[];
   gyms: GymOption[];
   clubIds: string[];
+  clubs: ClubOption[];
   primaryClubId: string | null;
   setPrimaryGymId: (gymId: string) => void;
   setPrimaryClubId: (clubId: string) => void;
@@ -34,6 +40,7 @@ const AuthContext = createContext<AuthValue>({
   gymIds: [],
   gyms: [],
   clubIds: [],
+  clubs: [],
   primaryClubId: null,
   setPrimaryGymId: () => {},
   setPrimaryClubId: () => {},
@@ -55,6 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const gyms: GymOption[] = useMemo(() => {
     const catalogo = platformGyms.data ?? [];
     const nombres = new Map(catalogo.map((gym) => [gym.id, gym.name]));
+    // El nombre viaja en el propio rol de `/me`: es lo único que tiene un dueño o
+    // un coach, que no consulta /platform/gyms. Sin esto veía «Gym 72079e08».
+    for (const role of roles) {
+      if (role.gym_id && role.gym_name) nombres.set(role.gym_id, role.gym_name);
+    }
     // Primero los gyms donde SÍ tiene rol (su operación diaria), después el resto.
     const ids = [
       ...roles.flatMap((role) => (role.gym_id ? [role.gym_id] : [])),
@@ -62,15 +74,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ];
     return [...new Set(ids)].map((id) => ({
       id,
+      // El recorte del id solo queda para un panel desplegado antes que la API
+      // que manda `gym_name`.
       name: nombres.get(id) ?? `Gym ${id.slice(0, 8)}`,
     }));
   }, [roles, platformGyms.data]);
 
   const gymIds = useMemo(() => gyms.map((gym) => gym.id), [gyms]);
-  const clubIds = useMemo(
-    () => [...new Set(roles.flatMap((role) => (role.club_id ? [role.club_id] : [])))],
-    [roles],
-  );
+  const clubs: ClubOption[] = useMemo(() => {
+    const nombres = new Map<string, string>();
+    for (const role of roles) {
+      if (role.club_id && role.club_name) nombres.set(role.club_id, role.club_name);
+    }
+    const ids = roles.flatMap((role) => (role.club_id ? [role.club_id] : []));
+    return [...new Set(ids)].map((id) => ({
+      id,
+      name: nombres.get(id) ?? `Club ${id.slice(0, 8)}`,
+    }));
+  }, [roles]);
+  const clubIds = useMemo(() => clubs.map((club) => club.id), [clubs]);
 
   const [primaryGymId, setPrimaryGymId] = useState<string | null>(null);
   const [primaryClubId, setPrimaryClubId] = useState<string | null>(null);
@@ -99,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     gymIds,
     gyms,
     clubIds,
+    clubs,
     primaryClubId,
     setPrimaryGymId,
     setPrimaryClubId,

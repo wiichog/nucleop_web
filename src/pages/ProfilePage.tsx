@@ -30,7 +30,8 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
 }
 
 export function ProfilePage() {
-  const { email, roles, isSuperuser, logout, primaryGymId } = useAuth();
+  const { email, roles, isSuperuser, logout, primaryGymId, gyms } = useAuth();
+  const gymActual = gyms.find((gym) => gym.id === primaryGymId);
   const changePassword = usePasswordChange();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -76,7 +77,7 @@ export function ProfilePage() {
             <Dato etiqueta="Rol" valor={rolesLabel} />
             <Dato
               etiqueta="Gimnasio actual"
-              valor={primaryGymId ? `${primaryGymId.slice(0, 8)}…` : "—"}
+              valor={gymActual?.name ?? "—"}
             />
           </Stack>
           <Group mt="lg">

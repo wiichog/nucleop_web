@@ -243,11 +243,11 @@ function NotificationsBell({ summary }: { summary?: PendingSummary }) {
 
 /** Selector de contexto (gimnasio/club) como pastilla de vidrio del header. */
 function ContextSwitcher() {
-  const { gyms, primaryGymId, setPrimaryGymId, clubIds, primaryClubId, setPrimaryClubId } =
+  const { gyms, primaryGymId, setPrimaryGymId, clubs, primaryClubId, setPrimaryClubId } =
     useAuth();
   const activeGym = gyms.find((g) => g.id === primaryGymId);
   const multiGym = gyms.length > 1;
-  const multiClub = clubIds.length > 1;
+  const multiClub = clubs.length > 1;
 
   if (!activeGym && !multiClub) return null;
   if (!multiGym && !multiClub) {
@@ -287,13 +287,13 @@ function ContextSwitcher() {
           ))}
         {multiClub && <Menu.Label>Club activo</Menu.Label>}
         {multiClub &&
-          clubIds.map((id) => (
+          clubs.map((club) => (
             <Menu.Item
-              key={id}
-              onClick={() => setPrimaryClubId(id)}
-              rightSection={id === primaryClubId ? <Check size={15} /> : undefined}
+              key={club.id}
+              onClick={() => setPrimaryClubId(club.id)}
+              rightSection={club.id === primaryClubId ? <Check size={15} /> : undefined}
             >
-              {`Club ${id.slice(0, 8)}`}
+              {club.name}
             </Menu.Item>
           ))}
       </Menu.Dropdown>

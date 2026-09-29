@@ -11330,6 +11330,8 @@ export interface components {
             gym_id: string | null;
             /** Format: uuid */
             club_id: string | null;
+            gym_name: string | null;
+            club_name: string | null;
         };
         /**
          * @description * `pending_payment` - Pago pendiente
