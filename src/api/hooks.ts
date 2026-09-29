@@ -179,10 +179,32 @@ export function usePendingSummary(gymId: string) {
   });
 }
 
+/**
+ * Cambia la contraseña de quien está en el panel y se queda con el par de tokens
+ * que devuelve el backend.
+ *
+ * Cambiarla CIERRA todas las sesiones (`accounts/services.py:revocar_sesiones`
+ * manda a la blacklist el refresh del login y `CHECK_REVOKE_TOKEN` ata cada token
+ * al hash de la contraseña), y por eso la respuesta trae un par nuevo. Descartarlo
+ * sacaba al propio admin: veía «Contraseña actualizada» y la siguiente petición
+ * (el pending-summary, a los ≤60 s) daba 401; el refresh viejo o estaba revocado o
+ * renovaba un access atado todavía a la contraseña anterior, y el interceptor lo
+ * mandaba a /login sin explicación. Mismo arreglo que `useChangePassword` del app.
+ */
 export function usePasswordChange() {
   return useMutation({
-    mutationFn: async (body: { current_password?: string; new_password: string }) =>
-      (await api.post("/auth/password-change", body)).data,
+    mutationFn: async (body: { current_password?: string; new_password: string }) => {
+      const { data } = await api.post<components["schemas"]["TokenPair"]>(
+        "/auth/password-change",
+        body,
+      );
+      // Antes de devolver, como el app: cuando `mutateAsync` resuelve y la página
+      // dice «Contraseña actualizada», la próxima petición ya sale con el access
+      // nuevo. Sin par en la respuesta no se toca nada: guardar `undefined` dejaría
+      // la cadena «undefined» como token.
+      if (data?.access) tokenStore.set(data.access, data.refresh);
+      return data;
+    },
   });
 }
 
