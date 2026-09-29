@@ -70,7 +70,7 @@ export function ClubAdminPage() {
         kicker="Mi club"
         title="Administrar club"
         subtitle={`Publica anuncios, crea actividades y retos, y mantén la ficha del club al día.${
-          clubIds.length > 1 ? " Cambia de club desde el selector del menú lateral." : ""
+          clubIds.length > 1 ? " Cambia de club desde el selector del encabezado." : ""
         }`}
       />
 
