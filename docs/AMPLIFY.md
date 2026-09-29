@@ -72,13 +72,18 @@
 
 ## Parte C — SPA (React Router)
 
-El repo incluye `public/_redirects` para que rutas como `/login` o `/athletes` no den 404 al refrescar.
+Amplify **no lee** `public/_redirects` (es formato de Netlify). Las reglas viven solo en la consola: Amplify → **Hosting** → **Rewrites and redirects** → **Manage redirects**. Se aplican de arriba abajo y gana la primera. Son dos (se leen con `aws amplify get-app --app-id d2wb8sb6i9med1 --region us-east-1 --query app.customRules`):
 
-Si el build anterior no lo tenía, en Amplify → **Hosting** → **Rewrites and redirects** → **Manage redirects** y añade:
+1. `https://app.nucleo.fit` → `https://www.app.nucleo.fit` · **302**. La creó Amplify con el dominio; conserva ruta y query.
+2. La de la SPA → `/index.html` · **200 (Rewrite)**. Source (cópialo de aquí: en una tabla de Markdown los `|` saldrían escapados):
 
-| Source | Target | Type |
-|--------|--------|------|
-| `</^[^.]+$|\.(?!(css\|gif\|ico\|jpg\|js\|png\|txt\|svg\|woff\|woff2\|ttf\|map\|json)$)([^.]+$)/>` | `/index.html` | **200 (Rewrite)** |
+   ```
+   </^[^.]+$|\.(?!(css|gif|ico|jpg|jpeg|js|png|txt|svg|woff|woff2|ttf|map|json|webp|xml|webmanifest)$)([^.]+$)/>
+   ```
+
+La 2 manda a `/index.html` toda ruta sin extensión **y todo archivo cuya extensión no esté en la lista, aunque exista en `dist/`**. Hasta el 2026-09-29 le faltaban `xml` y `webmanifest`: `/sitemap.xml` se servía como la landing. Siguen cayendo `.html`, `.pdf`, `.mp4`, `.avif`…: si agregas a `public/` un archivo con otra extensión, súmala aquí **y** en la consola.
+
+Una regla 200 específica (p. ej. `/presentacion` → `/presentacion/index.html`, ver `presentacion/index.html`) va entre la 1 y la 2.
 
 (O la regla simple de Amplify: source `/<*>` → `/index.html` → **404-200**.)
 
@@ -96,7 +101,7 @@ Si el build anterior no lo tenía, en Amplify → **Hosting** → **Rewrites and
    - TTL: 300 o por defecto
 5. Espera validación SSL (Amplify + ACM), suele tardar **5–30 min** (a veces hasta 1 h).
 6. Cuando esté **Available**, abre `https://app.nucleo.fit`.
-7. (Recomendado) En **Custom domains**, si Amplify creó también `www.app.nucleo.fit`, configura **redirect** de `www` → `app` para un solo origen en el navegador. Si usas ambos, incluye ambos en CORS (ver arriba).
+7. Amplify creó también `www.app.nucleo.fit` y redirige `app.nucleo.fit` → `www.app.nucleo.fit` (302). El destino final es **www**, así que el canónico, `og:url`, `og:image`, el JSON-LD, `robots.txt` y `sitemap.xml` apuntan a `https://www.app.nucleo.fit/`. Ambos orígenes van en CORS (ver arriba).
 
 ---
 
@@ -128,4 +133,4 @@ Para forzar redeploy: Amplify → la rama `main` → **Redeploy this version**.
 - [ ] CNAME `app` → Amplify
 - [ ] SSL verde en Amplify
 - [ ] Login con correo en `https://app.nucleo.fit`
-- [ ] Rewrite SPA ( `_redirects` o regla en consola)
+- [ ] Rewrite SPA en la consola (Parte C; `_redirects` no cuenta)

@@ -3,4 +3,4 @@ Allow: /
 Disallow: /panel
 Disallow: /login
 
-Sitemap: https://app.nucleo.fit/sitemap.xml
+Sitemap: https://www.app.nucleo.fit/sitemap.xml
