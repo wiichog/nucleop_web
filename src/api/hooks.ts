@@ -2889,10 +2889,14 @@ export interface ReportInput {
 
 /** Estado del kill-switch para la superficie (oculta el reporter si está apagado). */
 export function useReportConfig() {
+  // Espera a que cargue la cuenta. Antes salía junto con /me con solo tener token, y
+  // si /me fallaba por un 429 del throttle de /auth/refresh, cada reintento de la
+  // config gastaba otro refresh. Sin config, el botón se muestra igual.
+  const cuenta = useMe();
   return useQuery({
     queryKey: ["report-config"],
     queryFn: async () => (await api.get<BugReportConfig>("/reports/config")).data,
-    enabled: !!tokenStore.access,
+    enabled: !!cuenta.data,
     staleTime: 60_000,
   });
 }
