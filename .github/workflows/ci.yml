@@ -12,7 +12,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # vitest 5 exige Node ^22.12; Amplify no corre pruebas, así que ahí no aplica.
+          node-version: "22"
           cache: npm
       - run: npm ci
       # Las pruebas van antes del build: un paso que falla salta los siguientes, y
