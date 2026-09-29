@@ -4,6 +4,30 @@
  */
 
 export interface paths {
+    "/api/v1/android-testers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description `POST /api/v1/android-testers` — alta de un probador voluntario.
+         *
+         *     Responde 201 SIEMPRE que los datos sean válidos, tanto si la persona es nueva
+         *     como si ya estaba (ver `services.registrar`): reenviar el formulario es lo
+         *     normal, no un error, y un 400 con "ya estás registrado" solo consigue que la
+         *     persona crea que no quedó y lo intente con otro correo.
+         */
+        post: operations["android_testers_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/account": {
         parameters: {
             query?: never;
@@ -4202,7 +4226,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Solicitudes de cobertura pendientes en los gyms del coach. */
+        /**
+         * @description Coberturas pendientes que ESTE coach puede tomar, en todos sus gyms.
+         *
+         *     Excluye lo que ofreció él mismo: `AcceptHandoffView` rechaza tomar la propia
+         *     clase ("No puedes tomar tu propia clase"), así que listarla sólo servía para
+         *     ofrecerle un botón que siempre falla. Su propia oferta la ve donde importa —
+         *     en el detalle de la clase, que es donde también puede retirarla.
+         */
         get: operations["me_coach_handoffs_list"];
         put?: never;
         post?: never;
@@ -6030,6 +6061,26 @@ export interface components {
          */
         AccountTypeEnum: "athlete" | "coach";
         /**
+         * @description Lo que escribe la persona en el formulario. Nada más.
+         *
+         *     `status`, `source`, `user`, `invited_at` y `notes` NO están acá a propósito:
+         *     los pone el servidor. Si viajaran en el body, cualquiera podría llegar marcado
+         *     como `confirmed` (y desaparecer de la lista de pendientes sin haber instalado
+         *     nada) o escribirse notas internas.
+         */
+        AndroidTesterSignup: {
+            /** Nombre completo */
+            full_name: string;
+            /** Format: email */
+            google_email: string;
+            /**
+             * Teléfono
+             * @description Opcional. Es por donde se le avisa si la invitación rebota.
+             */
+            phone?: string;
+            website?: string;
+        };
+        /**
          * @description Body de la resolución de una apelación (gym o plataforma).
          *
          *     `reason` sólo se usa al RECHAZAR: deja registrado el motivo en el contenido
@@ -7330,6 +7381,7 @@ export interface components {
             /** Format: decimal */
             paid_last_30d: string;
             uncovered_now: number;
+            open_classes: number;
             pending_class_requests: number;
             pending_class_invites: number;
             pt_sessions_upcoming: number;
@@ -7744,7 +7796,10 @@ export interface components {
             /** @description Días de mora tolerados antes del corte automático de la membresía (ACTIVE → vencida). El corte es reversible: al pagar vuelve a activa. */
             overdue_grace_days?: number;
             readonly saas_plan: components["schemas"]["SaasPlanEnum"];
-            /** Format: decimal */
+            /**
+             * Format: decimal
+             * @description Fracción, no porcentaje: 0.03 = 3 %. Máximo 1 (100 %).
+             */
             readonly platform_commission_pct: string;
             /** Format: decimal */
             readonly fixed_fee: string | null;
@@ -7973,7 +8028,10 @@ export interface components {
             /** @description Días de mora tolerados antes del corte automático de la membresía (ACTIVE → vencida). El corte es reversible: al pagar vuelve a activa. */
             overdue_grace_days?: number;
             readonly saas_plan: components["schemas"]["SaasPlanEnum"];
-            /** Format: decimal */
+            /**
+             * Format: decimal
+             * @description Fracción, no porcentaje: 0.03 = 3 %. Máximo 1 (100 %).
+             */
             readonly platform_commission_pct: string;
             /** Format: decimal */
             readonly fixed_fee: string | null;
@@ -8045,6 +8103,7 @@ export interface components {
             tickets: number;
             clases_sin_wod: number;
             clases_sin_coach: number;
+            clases_sin_asignar: number;
             pedidos: number;
             clubes: number;
             denuncias_club: number;
@@ -8354,8 +8413,7 @@ export interface components {
             readonly name: string;
             readonly category: components["schemas"]["ProductCategory"];
             readonly description: string;
-            /** Format: uri */
-            readonly photo: string | null;
+            readonly photo: string;
             readonly images: string[];
             /** Format: decimal */
             readonly price: string;
@@ -8684,6 +8742,8 @@ export interface components {
             my_result: components["schemas"]["WodResult"] | null;
             can_submit: boolean;
             window_open: boolean;
+            /** Format: date-time */
+            window_opens_at: string | null;
             /** Format: date-time */
             window_closes_at: string | null;
         };
@@ -9605,7 +9665,10 @@ export interface components {
             /** @description Días de mora tolerados antes del corte automático de la membresía (ACTIVE → vencida). El corte es reversible: al pagar vuelve a activa. */
             overdue_grace_days?: number;
             readonly saas_plan?: components["schemas"]["SaasPlanEnum"];
-            /** Format: decimal */
+            /**
+             * Format: decimal
+             * @description Fracción, no porcentaje: 0.03 = 3 %. Máximo 1 (100 %).
+             */
             readonly platform_commission_pct?: string;
             /** Format: decimal */
             readonly fixed_fee?: string | null;
@@ -11530,8 +11593,7 @@ export interface components {
             raw_score: string;
             /** @default rx */
             scaling: components["schemas"]["WodResultInputScalingEnum"];
-            /** @default  */
-            notes: string;
+            notes?: string;
         };
         /**
          * @description * `rx` - rx
@@ -11563,6 +11625,30 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    android_testers_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AndroidTesterSignup"];
+                "application/x-www-form-urlencoded": components["schemas"]["AndroidTesterSignup"];
+                "multipart/form-data": components["schemas"]["AndroidTesterSignup"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     auth_account_create: {
         parameters: {
             query?: never;
