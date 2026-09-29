@@ -1,9 +1,24 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
-import { describe, expect, it, vi } from "vitest";
-import type { Payment } from "../api/types";
-import { CeldaFactura, EstadoDePago } from "./PaymentsPage";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { GymStatement, Payment, Payout } from "../api/types";
+import { CeldaFactura, EstadoDeCuenta, EstadoDePago } from "./PaymentsPage";
+
+/** Lo que contesta `useGymStatement` en las pruebas del estado de cuenta. */
+const cuenta = vi.hoisted(() => ({ data: null as GymStatement | null }));
+
+// Solo se reemplaza el estado de cuenta; el resto del módulo queda real.
+vi.mock("../api/hooks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api/hooks")>()),
+  useGymStatement: () => ({
+    data: cuenta.data,
+    error: null,
+    isError: false,
+    isLoading: false,
+    refetch: () => {},
+  }),
+}));
 
 /**
  * La celda de factura del historial de pagos. Se prueba lo único cuyo fallo es
@@ -29,6 +44,15 @@ if (!window.matchMedia) {
     removeEventListener: () => {},
     dispatchEvent: () => false,
   })) as typeof window.matchMedia;
+}
+// El Select del periodo monta un ScrollArea que observa su tamaño; jsdom no trae
+// ResizeObserver.
+if (!window.ResizeObserver) {
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
 }
 
 function pago(over: Partial<Payment> = {}): Payment {
@@ -160,5 +184,97 @@ describe("PaymentsPage · un contracargo no se pinta como reembolso", () => {
 
     expect(screen.getByText("Exitoso")).toBeTruthy();
     expect(screen.queryByText("Contracargo")).toBeNull();
+  });
+});
+
+/**
+ * El estado de cuenta pintaba el Badge del depósito (un <div> de Mantine) dentro
+ * de un <Text>, que es un <p>: HTML inválido y, en el navegador, «validateDOMNesting:
+ * <div> cannot appear as a descendant of <p>» en cada visita a Membresías.
+ *
+ * React avisa UNA sola vez por par de etiquetas y por módulo, así que el aviso de
+ * consola solo lo daría el primer caso; la consulta al DOM cubre los tres.
+ */
+describe("PaymentsPage · el estado de cuenta no anida bloques dentro de un <p>", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function deposito(over: Partial<Payout> = {}): Payout {
+    return {
+      id: "po-1",
+      gym: "gym-1",
+      gym_name: "Box Zona 10",
+      period: "2026-08",
+      period_start: "2026-08-01",
+      period_end: "2026-08-31",
+      amount: "1000.00",
+      gross_charged: "1050.00",
+      platform_surcharge: "50.00",
+      refunds_total: "0.00",
+      payments_count: 3,
+      refunds_count: 0,
+      status: "pending",
+      reference: "",
+      notes: "",
+      executed_at: null,
+      created_at: "2026-09-01T12:00:00Z",
+      ...over,
+    };
+  }
+
+  function estadoDeCuenta(payout: Payout | null): GymStatement {
+    return {
+      gym_id: "gym-1",
+      gym_name: "Box Zona 10",
+      period: "2026-08",
+      period_start: "2026-08-01",
+      period_end: "2026-08-31",
+      currency: "GTQ",
+      gross_charged: "1050.00",
+      gym_revenue: "1000.00",
+      platform_surcharge: "50.00",
+      refunds_total: "0.00",
+      refunds_surcharge: "0.00",
+      chargebacks_total: "0.00",
+      chargebacks_surcharge: "0.00",
+      chargebacks_count: 0,
+      net_to_deposit: "1000.00",
+      platform_earned: "50.00",
+      payments_count: 3,
+      refunds_count: 0,
+      payout,
+    };
+  }
+
+  it.each([
+    { caso: "sin depósito aún", payout: null, insignia: "Sin depósito aún" },
+    { caso: "con el depósito generado", payout: deposito(), insignia: "Depósito generado" },
+    {
+      caso: "ya depositado",
+      payout: deposito({
+        status: "executed",
+        executed_at: "2026-09-05T15:00:00Z",
+        reference: "TRX-77",
+      }),
+      insignia: "Depositado",
+    },
+  ])("$caso: ni aviso de validateDOMNesting ni un <div> dentro de un <p>", ({ payout, insignia }) => {
+    const errores = vi.spyOn(console, "error");
+    cuenta.data = estadoDeCuenta(payout);
+
+    const { container } = render(
+      <MantineProvider>
+        <EstadoDeCuenta gymId="gym-1" />
+      </MantineProvider>,
+    );
+
+    // Se pintó la rama del depósito que toca, no el «Calculando…».
+    expect(screen.getAllByText(insignia).length).toBeGreaterThan(0);
+    const avisosDeAnidado = errores.mock.calls
+      .map((args) => args.map(String).join(" "))
+      .filter((texto) => texto.includes("validateDOMNesting"));
+    expect(avisosDeAnidado).toEqual([]);
+    expect(container.querySelector("p div")).toBeNull();
   });
 });

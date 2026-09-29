@@ -111,8 +111,10 @@ function Cifra({
  * Estado de cuenta del gym con Nucleo: qué se cobró por la pasarela, cuánto fue
  * recargo de la plataforma y cuánto está pendiente de depósito o ya depositado.
  * Es la cifra que hoy el gimnasio no puede ver y que le genera desconfianza.
+ *
+ * Se exporta para poder probarla suelta.
  */
-function EstadoDeCuenta({ gymId }: { gymId: string }) {
+export function EstadoDeCuenta({ gymId }: { gymId: string }) {
   const periodos = useMemo(periodosRecientes, []);
   const [period, setPeriod] = useState(periodos[0].value);
   const statement = useGymStatement(gymId, period);
@@ -179,8 +181,11 @@ function EstadoDeCuenta({ gymId }: { gymId: string }) {
               style={{ animationDelay: "1.16s" }}
             >
               <Landmark size={16} />
+              {/* `component="div"`: el Badge de Mantine es un <div>, y dentro del <p>
+                  que pinta Text por defecto es HTML inválido (validateDOMNesting en
+                  consola). Text ya anula el margen del <p>: se ve igual. */}
               {payout?.status === "executed" ? (
-                <Text size="sm">
+                <Text size="sm" component="div">
                   <Badge color="teal" variant="light" mr={6}>
                     Depositado
                   </Badge>
@@ -190,14 +195,14 @@ function EstadoDeCuenta({ gymId }: { gymId: string }) {
                   {payout.reference ? ` · Referencia: ${payout.reference}` : ""}
                 </Text>
               ) : payout ? (
-                <Text size="sm">
+                <Text size="sm" component="div">
                   <Badge color="yellow" variant="light" mr={6}>
                     Depósito generado
                   </Badge>
                   Nucleo ya calculó tu liquidación del periodo; la transferencia está en camino.
                 </Text>
               ) : (
-                <Text size="sm">
+                <Text size="sm" component="div">
                   <Badge color="gray" variant="light" mr={6}>
                     Sin depósito aún
                   </Badge>
