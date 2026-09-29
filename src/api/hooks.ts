@@ -145,6 +145,13 @@ export function useMe() {
     queryKey: ["me"],
     queryFn: async () => (await api.get<Me>("/me")).data,
     enabled: !!tokenStore.access,
+    // Si /me falló, que otra pantalla lo lea NO lo vuelve a pedir. Sin datos, el
+    // reintento devuelve la consulta a `pending`: el `Protected` vuelve al spinner,
+    // desmonta la página y, al fallar, la monta otra vez, que lo reintenta… Un
+    // bucle que escondía el error tras un spinner eterno y, durante un 429 del box,
+    // mandaba 4 refresh cada 7 s por panel abierto. Se reintenta con el botón
+    // «Reintentar» de `NoGymAssigned` o al volver a la pestaña.
+    retryOnMount: false,
   });
 }
 

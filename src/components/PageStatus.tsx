@@ -1,6 +1,7 @@
 import { Avatar, Button, Center, Group, Stack, Text } from "@mantine/core";
+import { onlineManager } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
-import { useMe } from "../api/hooks";
+import { useMe, usePlatformGyms } from "../api/hooks";
 import { AtomLogo } from "../landing/AtomLogo";
 import { GlassCard } from "./aurora";
 
@@ -83,9 +84,43 @@ export function PageError({
  * Saluda por su nombre y muestra su foto y su correo: confirma que la sesión quedó
  * abierta y a nombre de quién, que es justo lo que la persona necesita saber para
  * pedirle acceso a alguien.
+ *
+ * Solo lo afirma si `/me` de verdad respondió. El `AuthProvider` deja los roles
+ * vacíos también cuando `/me` FALLA —un 429 del throttle de `/auth/refresh`, que
+ * le llega a todo el box a la vez porque la cuota va por IP; un 5xx durante un
+ * deploy; la red— y todas las páginas del gym caen aquí: decirle entonces a un
+ * dueño que ningún gimnasio le ha dado acceso lo manda a pedir un acceso que ya
+ * tiene. Lo mismo al superadmin si falló `/platform/gyms`, de donde sale su lista
+ * de gimnasios. Sin red, React Query ni siquiera marca error: deja la consulta en
+ * pausa (`pending`, sin `isLoading`) hasta que vuelva la conexión.
  */
 export function NoGymAssigned() {
-  const { data } = useMe();
+  const me = useMe();
+  const catalogo = usePlatformGyms(me.data?.is_superuser ?? false);
+  const { data } = me;
+  const sinCargar = !data ? me : data.is_superuser && !catalogo.data ? catalogo : null;
+  if (sinCargar?.isError) {
+    return (
+      <PageError
+        message="No pudimos cargar tu cuenta. Tu sesión sigue abierta: intenta de nuevo en unos segundos."
+        onRetry={() => sinCargar.refetch()}
+      />
+    );
+  }
+  if (sinCargar) {
+    // `paused` no siempre es falta de red: React Query también pausa los
+    // reintentos mientras la pestaña está oculta.
+    return (
+      <PageLoading
+        label={
+          sinCargar.fetchStatus === "paused" && !onlineManager.isOnline()
+            ? "Sin conexión. Tu cuenta se cargará en cuanto vuelva la red."
+            : "Cargando tu cuenta…"
+        }
+      />
+    );
+  }
+
   const nombre = [data?.athlete?.first_name, data?.athlete?.last_name]
     .filter(Boolean)
     .join(" ")

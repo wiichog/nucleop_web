@@ -56,43 +56,96 @@ const sesionMuerta = (error: AxiosError) => {
   return res.status === 400 && cuerpo?.code === "token_not_valid";
 };
 
+/**
+ * Endpoints públicos donde un 401 NO significa "se murió la sesión": el login
+ * responde 401 con una contraseña mala. Sin esta lista, quien abre /login con
+ * una sesión vieja en el navegador y se equivoca de contraseña dispara un
+ * refresh; si el refresh muere o el reintento vuelve a dar 401, se recarga
+ * /login y se pierde el aviso de «Credenciales inválidas».
+ *
+ * Es la lista `RUTAS_PUBLICAS` del app: las rutas de
+ * `nucleo-api/apps/accounts/urls.py` menos las dos que sí exigen sesión
+ * (`/auth/password-change` y `/auth/account`), donde un 401 sí es sesión muerta.
+ */
+const RUTAS_PUBLICAS = new Set([
+  "/auth/register",
+  "/auth/claim",
+  "/auth/login",
+  "/auth/social",
+  "/auth/refresh",
+  "/auth/logout",
+  "/auth/password-reset",
+  "/auth/password-reset/confirm",
+]);
+
+/** Ruta relativa a la API, sin baseURL, sin query y sin barra final. */
+function rutaDe(url?: string): string {
+  if (!url) return "";
+  let ruta = url.startsWith(BASE_URL) ? url.slice(BASE_URL.length) : url;
+  const corte = ruta.search(/[?#]/);
+  if (corte >= 0) ruta = ruta.slice(0, corte);
+  ruta = ruta.replace(/\/+$/, "");
+  return ruta.startsWith("/") ? ruta : `/${ruta}`;
+}
+
+/** Comparación exacta (no `includes`) para que `/auth/password-change` no cuele. */
+const esRutaPublica = (url?: string) => RUTAS_PUBLICAS.has(rutaDe(url));
+
+/** La sesión ya no se puede recuperar: se borran los tokens y se va al login. */
+function expulsar() {
+  tokenStore.clear();
+  window.location.href = "/login";
+}
+
 // Refresh rotatorio: ante un 401, intenta renovar el access una vez.
 let refreshing: Promise<string> | null = null;
 
 api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
-    const original = error.config as InternalAxiosRequestConfig & {
-      _retry?: boolean;
-    };
-    if (error.response?.status === 401 && !original._retry && tokenStore.refresh) {
-      original._retry = true;
-      try {
-        refreshing =
-          refreshing ??
-          axios
-            .post(`${BASE_URL}/auth/refresh`, { refresh: tokenStore.refresh })
-            .then((r) => {
-              // SIMPLE_JWT rota el refresh (ROTATE_REFRESH_TOKENS=True): si no se
-              // guarda el NUEVO, su vencimiento nunca se renueva y la sesión del
-              // dueño del gym muere a los 14 días por más que use el panel a diario.
-              tokenStore.set(r.data.access, r.data.refresh);
-              return r.data.access as string;
-            });
-        const newAccess = await refreshing;
-        refreshing = null;
-        original.headers.Authorization = `Bearer ${newAccess}`;
-        return api(original);
-      } catch (fallo) {
-        refreshing = null;
-        // Solo se cierra la sesión si el backend dijo que el token murió. Antes
-        // CUALQUIER fallo (red, 5xx, 429) borraba un refresh perfectamente válido
-        // y sacaba al admin del panel perdiendo el formulario que estuviera llenando.
-        if (sesionMuerta(fallo as AxiosError)) {
-          tokenStore.clear();
-          window.location.href = "/login";
-        }
-      }
+    const original = error.config as
+      | (InternalAxiosRequestConfig & { _retry?: boolean })
+      | undefined;
+    if (error.response?.status !== 401 || !original || esRutaPublica(original.url)) {
+      return Promise.reject(error);
+    }
+    // 401 con el reintento ya gastado: el access se acababa de renovar y el
+    // backend igual lo rechazó. Es una cuenta desactivada (`is_active=False`) o
+    // borrada: `/me` responde «El usuario está inactivo», pero `/auth/refresh`
+    // sigue dando 200 porque SimpleJWT 5.3.1 no mira `is_active` al renovar. Sin
+    // esta rama el panel se quedaba en /panel diciendo que ningún gimnasio le
+    // había dado acceso. Mismo criterio que la rama `_retry` del app.
+    if (original._retry) {
+      // Solo si el token rechazado es el que sigue guardado: si otra pestaña ya
+      // entró con otra cuenta (el localStorage es compartido), borrar aquí la
+      // sacaría a ella por culpa de una petición de la sesión anterior.
+      if (original.headers.Authorization === `Bearer ${tokenStore.access}`) expulsar();
+      return Promise.reject(error);
+    }
+    if (!tokenStore.refresh) return Promise.reject(error);
+    original._retry = true;
+    try {
+      refreshing =
+        refreshing ??
+        axios
+          .post(`${BASE_URL}/auth/refresh`, { refresh: tokenStore.refresh })
+          .then((r) => {
+            // SIMPLE_JWT rota el refresh (ROTATE_REFRESH_TOKENS=True): si no se
+            // guarda el NUEVO, su vencimiento nunca se renueva y la sesión del
+            // dueño del gym muere a los 14 días por más que use el panel a diario.
+            tokenStore.set(r.data.access, r.data.refresh);
+            return r.data.access as string;
+          });
+      const newAccess = await refreshing;
+      refreshing = null;
+      original.headers.Authorization = `Bearer ${newAccess}`;
+      return api(original);
+    } catch (fallo) {
+      refreshing = null;
+      // Solo se cierra la sesión si el backend dijo que el token murió. Antes
+      // CUALQUIER fallo (red, 5xx, 429) borraba un refresh perfectamente válido
+      // y sacaba al admin del panel perdiendo el formulario que estuviera llenando.
+      if (sesionMuerta(fallo as AxiosError)) expulsar();
     }
     return Promise.reject(error);
   },

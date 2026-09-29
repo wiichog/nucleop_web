@@ -25,6 +25,16 @@ const TOKEN_INVALIDO = {
   message: "El token es inválido o ha expirado",
 };
 
+// Lo que responde /me a una cuenta con `is_active=False`, aunque el access sea
+// recién salido del refresh (medido con curl el 2026-09-29).
+const USUARIO_INACTIVO = {
+  detail: "El usuario está inactivo",
+  code: "authentication_failed",
+  message: "El usuario está inactivo",
+};
+
+const REFRESH_OK = { data: { access: "access-nuevo", refresh: "refresh-2" } } as never;
+
 // jsdom no navega: `location` se cambia por un objeto que solo anota adónde
 // quiso mandar el interceptor.
 const ubicacion = { href: "" };
@@ -124,5 +134,82 @@ describe("renovación de sesión del panel", () => {
     // el admin use el panel a diario.
     expect(tokenStore.refresh).toBe("refresh-2");
     expect(tokenStore.access).toBe("access-nuevo");
+  });
+});
+
+describe("cuenta desactivada", () => {
+  it("un 401 con el reintento ya gastado cierra la sesión y manda a /login", async () => {
+    // /me rechaza incluso el access recién renovado, pero /auth/refresh da 200:
+    // SimpleJWT 5.3.1 no mira `is_active` al renovar. Antes el reintento solo se
+    // rechazaba y el panel se quedaba diciendo que no había gimnasio.
+    tokenStore.set("access-1", "refresh-1");
+    responder = () => ({ status: 401, data: USUARIO_INACTIVO });
+    const refresh = vi.spyOn(axios, "post").mockResolvedValue(REFRESH_OK);
+
+    await expect(api.get("/me")).rejects.toBeDefined();
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(tokenStore.access).toBeNull();
+    expect(tokenStore.refresh).toBeNull();
+    expect(ubicacion.href).toBe("/login");
+  });
+
+  it("si otra pestaña ya entró con otra cuenta, el 401 del reintento no la saca", async () => {
+    tokenStore.set("access-1", "refresh-1");
+    responder = (config) => {
+      // Mientras viaja el reintento, otra pestaña inicia sesión con otra cuenta
+      // (el localStorage es compartido).
+      if (config.headers?.Authorization === "Bearer access-nuevo") {
+        tokenStore.set("access-otra-cuenta", "refresh-otra-cuenta");
+      }
+      return { status: 401, data: USUARIO_INACTIVO };
+    };
+    vi.spyOn(axios, "post").mockResolvedValue(REFRESH_OK);
+
+    await expect(api.get("/me")).rejects.toBeDefined();
+
+    expect(tokenStore.access).toBe("access-otra-cuenta");
+    expect(tokenStore.refresh).toBe("refresh-otra-cuenta");
+    expect(ubicacion.href).toBe("http://localhost/panel");
+  });
+});
+
+describe("rutas públicas", () => {
+  it("una contraseña mala en /auth/login no renueva ni cierra la sesión anterior", async () => {
+    // El login responde 401 a una contraseña mala. Con una sesión vieja en el
+    // navegador, tratarlo como sesión caducada renovaba, reintentaba el login,
+    // volvía a dar 401 y recargaba /login: el «Credenciales inválidas» no se veía.
+    // Mismo `code` que la cuenta inactiva: por el cuerpo no se distinguen, por
+    // eso la exención va por ruta.
+    tokenStore.set("access-viejo", "refresh-viejo");
+    responder = () => ({
+      status: 401,
+      data: {
+        detail: "La combinación de credenciales no tiene una cuenta activa",
+        code: "authentication_failed",
+      },
+    });
+    const refresh = vi.spyOn(axios, "post").mockResolvedValue(REFRESH_OK);
+
+    await expect(api.post("/auth/login", { email: "a@box.gt", password: "mala" })).rejects.toMatchObject({
+      response: { status: 401 },
+    });
+
+    expect(refresh).not.toHaveBeenCalled();
+    expect(tokenStore.access).toBe("access-viejo");
+    expect(tokenStore.refresh).toBe("refresh-viejo");
+    expect(ubicacion.href).toBe("http://localhost/panel");
+  });
+
+  it("/auth/password-change sí exige sesión: su 401 renueva y reintenta", async () => {
+    // La exención es por ruta exacta: si se ampliara a todo /auth/, un access
+    // vencido al cambiar la contraseña ya no se renovaría.
+    tokenStore.set("access-vencido", "refresh-1");
+    const refresh = vi.spyOn(axios, "post").mockResolvedValue(REFRESH_OK);
+
+    const respuesta = await api.post("/auth/password-change", { new_password: "nueva-segura" });
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(respuesta.status).toBe(200);
   });
 });
