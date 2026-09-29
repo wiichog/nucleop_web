@@ -1,5 +1,5 @@
 import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, tokenStore } from "./client";
+import { api, mientrasCambiaLaSesion, tokenStore } from "./client";
 // Contrato generado del OpenAPI (`npm run gen:api`). Se usa para los componentes
 // que aún no tienen alias en `types.ts` (puerta de recepción `Access*`).
 import type { components } from "./schema";
@@ -190,21 +190,26 @@ export function usePendingSummary(gymId: string) {
  * (el pending-summary, a los ≤60 s) daba 401; el refresh viejo o estaba revocado o
  * renovaba un access atado todavía a la contraseña anterior, y el interceptor lo
  * mandaba a /login sin explicación. Mismo arreglo que `useChangePassword` del app.
+ *
+ * Va dentro de `mientrasCambiaLaSesion`: un 401 de otra petición que llegue
+ * mientras el cambio viaja espera el par nuevo en vez de renovar con el refresh
+ * de antes, que ya murió o renueva un access atado a la contraseña vieja.
  */
 export function usePasswordChange() {
   return useMutation({
-    mutationFn: async (body: { current_password?: string; new_password: string }) => {
-      const { data } = await api.post<components["schemas"]["TokenPair"]>(
-        "/auth/password-change",
-        body,
-      );
-      // Antes de devolver, como el app: cuando `mutateAsync` resuelve y la página
-      // dice «Contraseña actualizada», la próxima petición ya sale con el access
-      // nuevo. Sin par en la respuesta no se toca nada: guardar `undefined` dejaría
-      // la cadena «undefined» como token.
-      if (data?.access) tokenStore.set(data.access, data.refresh);
-      return data;
-    },
+    mutationFn: (body: { current_password?: string; new_password: string }) =>
+      mientrasCambiaLaSesion(async () => {
+        const { data } = await api.post<components["schemas"]["TokenPair"]>(
+          "/auth/password-change",
+          body,
+        );
+        // Antes de devolver, como el app: cuando `mutateAsync` resuelve y la
+        // página dice «Contraseña actualizada», la próxima petición ya sale con el
+        // access nuevo. Sin par en la respuesta no se toca nada: guardar
+        // `undefined` dejaría la cadena «undefined» como token.
+        if (data?.access) tokenStore.set(data.access, data.refresh);
+        return data;
+      }),
   });
 }
 

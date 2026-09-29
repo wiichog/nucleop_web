@@ -149,6 +149,9 @@ type Retencion = {
   suelta: Promise<void>;
 };
 let retenciones: Retencion[];
+/** Todo lo retenido que aún no se soltó: si un test falla a medias, `afterEach` lo
+ * suelta para que un cambio de sesión colgado no contamine a los siguientes. */
+let porSoltar: (() => void)[] = [];
 
 /**
  * Retiene la respuesta de la próxima petición a `ruta` que cumpla `cuando`: el
@@ -161,6 +164,7 @@ function retener(ruta: string, cuando: (autorizacion?: string) => boolean = () =
   const llego = new Promise<void>((listo) => (llegar = listo));
   const suelta = new Promise<void>((listo) => (soltar = listo));
   retenciones.push({ ruta, cuando, llegar, suelta });
+  porSoltar.push(soltar);
   return { llego, soltar };
 }
 
@@ -214,7 +218,9 @@ beforeEach(() => {
       : Promise.reject(new Error(`POST inesperado a ${url}`))) as never);
 });
 
-afterEach(() => {
+afterEach(async () => {
+  porSoltar.splice(0).forEach((soltar) => soltar());
+  await new Promise((listo) => setTimeout(listo, 0));
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -307,13 +313,13 @@ describe("una consulta que salió con el access viejo y vuelve con 401 después 
     expect(ubicacion.href).toBe(EN_EL_PERFIL);
   });
 
-  it("si su reintento salió con un access renovado del refresh VIEJO, ese 401 no cierra la sesión nueva", async () => {
+  it("si el 401 le gana a la respuesta del cambio, espera el par nuevo y reintenta con él sin renovar", async () => {
     // Un refresh ya rotado: sin fila en OutstandingToken, `revocar_sesiones` no lo
     // alcanza y renueva con 200… un access atado todavía a la contraseña vieja.
+    // Renovar con él mientras el cambio viaja era la expulsión: el par muerto
+    // pisaba al guardado y el 401 de su reintento parecía de la sesión vigente.
     tokenStore.set(ACCESS_VIEJO, REFRESH_ROTADO);
     const cambio = retener("/auth/password-change");
-    // Solo el reintento; el primer intento (con el access viejo) vuelve al tiro.
-    const reintento = retener("/gym/g1/pending-summary", (a) => a !== `Bearer ${ACCESS_VIEJO}`);
     const { result } = renderHook(() => usePasswordChange(), { wrapper: conQueryClient() });
 
     let cambiar!: Promise<unknown>;
@@ -322,27 +328,118 @@ describe("una consulta que salió con el access viejo y vuelve con 401 después 
     });
     await cambio.llego;
 
-    // El 401 de la consulta le gana a la respuesta del cambio: el interceptor
-    // renueva con el refresh viejo y el reintento sale con ese access.
+    // La consulta sale con el access viejo y su 401 vuelve antes que el par nuevo.
     const consulta = api.get("/gym/g1/pending-summary");
-    await reintento.llego;
-    expect(refrescos).toEqual([REFRESH_ROTADO]);
+    // Margen para que ese 401 llegue al interceptor.
+    await new Promise((listo) => setTimeout(listo, 20));
+    expect(refrescos).toEqual([]);
 
     await act(async () => {
       cambio.soltar();
       await cambiar;
     });
-    reintento.soltar();
 
-    // La consulta falla (su access era de la contraseña vieja), pero la guarda del
-    // reintento ve que el token rechazado ya no es el guardado y no expulsa.
-    await expect(consulta).rejects.toMatchObject({ response: { status: 401 } });
+    await expect(consulta).resolves.toMatchObject({ status: 200 });
+    expect(refrescos).toEqual([]);
+    expect(pedidas.filter((p) => p.ruta === "/gym/g1/pending-summary")).toEqual([
+      { ruta: "/gym/g1/pending-summary", autorizacion: `Bearer ${ACCESS_VIEJO}` },
+      { ruta: "/gym/g1/pending-summary", autorizacion: `Bearer ${ACCESS_NUEVO}` },
+    ]);
     expect(tokenStore.access).toBe(ACCESS_NUEVO);
     expect(tokenStore.refresh).toBe(REFRESH_NUEVO);
     expect(ubicacion.href).toBe(EN_EL_PERFIL);
+  });
+});
 
-    // Y la siguiente petición ya sale con el access nuevo.
-    await expect(api.get("/me")).resolves.toMatchObject({ status: 200 });
-    expect(pedidas[pedidas.length - 1].autorizacion).toBe(`Bearer ${ACCESS_NUEVO}`);
+/** Retiene la respuesta de la próxima renovación: el servidor la procesa al
+ * recibirla y al panel le llega cuando el test la suelta. */
+function retenerRenovacion() {
+  let llegar!: () => void;
+  let soltar!: () => void;
+  const llego = new Promise<void>((listo) => (llegar = listo));
+  const suelta = new Promise<void>((listo) => (soltar = listo));
+  vi.mocked(axios.post).mockImplementationOnce(((_url: string, body?: { refresh?: string }) => {
+    const respuesta = renovar(body?.refresh ?? "");
+    respuesta.catch(() => undefined); // se maneja al soltar; no es un rechazo huérfano
+    llegar();
+    return suelta.then(() => respuesta);
+  }) as never);
+  porSoltar.push(soltar);
+  return { llego, soltar };
+}
+
+/** Otra pestaña cambia la contraseña: el servidor ya la cambió; su par todavía no se guarda. */
+function cambioEnOtraPestana() {
+  const r = servidor("/auth/password-change", `Bearer ${ACCESS_VIEJO}`);
+  expect(r.status).toBe(200);
+  return () => tokenStore.set(ACCESS_NUEVO, REFRESH_NUEVO);
+}
+
+describe("un refresh que salió con el par de ANTES no decide sobre el par nuevo", () => {
+  it("si muere después de que se guardó un par más nuevo, no expulsa: reintenta con el nuevo", async () => {
+    // El cambio lo hizo otra pestaña (el localStorage es compartido): esta no sabe
+    // que hay un cambio en curso, renueva con el refresh del login y el par nuevo
+    // se guarda mientras ese refresh viaja. Su 401 es de la sesión vieja.
+    tokenStore.set(ACCESS_VIEJO, REFRESH_DEL_LOGIN);
+    const guardarParNuevo = cambioEnOtraPestana();
+    const renovacion = retenerRenovacion();
+
+    const consulta = api.get("/me");
+    await renovacion.llego;
+    guardarParNuevo();
+    renovacion.soltar();
+
+    await expect(consulta).resolves.toMatchObject({ status: 200 });
+    expect(refrescos).toEqual([REFRESH_DEL_LOGIN]);
+    expect(pedidas.filter((p) => p.ruta === "/me").map((p) => p.autorizacion)).toEqual([
+      `Bearer ${ACCESS_VIEJO}`,
+      `Bearer ${ACCESS_NUEVO}`,
+    ]);
+    expect(tokenStore.access).toBe(ACCESS_NUEVO);
+    expect(tokenStore.refresh).toBe(REFRESH_NUEVO);
+    expect(ubicacion.href).toBe(EN_EL_PERFIL);
+  });
+
+  it("si devuelve un par muerto después de que se guardó uno más nuevo, no lo pisa", async () => {
+    // Con un refresh rotado la renovación da 200, pero su par hereda el hash de la
+    // contraseña vieja. Guardarlo encima del bueno era la expulsión en diferido.
+    tokenStore.set(ACCESS_VIEJO, REFRESH_ROTADO);
+    const guardarParNuevo = cambioEnOtraPestana();
+    const renovacion = retenerRenovacion();
+
+    const consulta = api.get("/me");
+    await renovacion.llego;
+    guardarParNuevo();
+    renovacion.soltar();
+
+    // El reintento sale con el access guardado (lo pone el interceptor de salida),
+    // que sigue siendo el nuevo porque el par muerto no lo pisó.
+    await expect(consulta).resolves.toMatchObject({ status: 200 });
+    expect(refrescos).toEqual([REFRESH_ROTADO]);
+    expect(pedidas.filter((p) => p.ruta === "/me").map((p) => p.autorizacion)).toEqual([
+      `Bearer ${ACCESS_VIEJO}`,
+      `Bearer ${ACCESS_NUEVO}`,
+    ]);
+    expect(tokenStore.access).toBe(ACCESS_NUEVO);
+    expect(tokenStore.refresh).toBe(REFRESH_NUEVO);
+    expect(ubicacion.href).toBe(EN_EL_PERFIL);
+  });
+});
+
+describe("el propio cambio de contraseña", () => {
+  it("si su access está vencido, renueva y reintenta: no se queda esperándose a sí mismo", async () => {
+    tokenStore.set("access-vencido", REFRESH_DEL_LOGIN);
+    const { result } = renderHook(() => usePasswordChange(), { wrapper: conQueryClient() });
+
+    let datos: unknown;
+    await act(async () => {
+      datos = await result.current.mutateAsync(NUEVA);
+    });
+
+    expect(datos).toMatchObject({ code: "password_changed" });
+    expect(refrescos).toEqual([REFRESH_DEL_LOGIN]);
+    expect(tokenStore.access).toBe(ACCESS_NUEVO);
+    expect(tokenStore.refresh).toBe(REFRESH_NUEVO);
+    expect(ubicacion.href).toBe(EN_EL_PERFIL);
   });
 });
