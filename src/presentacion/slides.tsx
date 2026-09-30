@@ -60,8 +60,8 @@ import { AvisoPush, Laptop, Telefono, Ventana } from "./marcos";
    - Una sola acción por pieza: agendar la demo por WhatsApp.
    ========================================================================== */
 
-export const WHATSAPP = "+502 4974 0808";
-const WHATSAPP_URL = `https://wa.me/50249740808?text=${encodeURIComponent(
+export const WHATSAPP = "+502 3948 5323";
+const WHATSAPP_URL = `https://wa.me/50239485323?text=${encodeURIComponent(
   "Hola, vi la presentación de Nucleo y quiero agendar una demo para mi gimnasio.",
 )}`;
 const SITIO = "app.nucleo.fit";
