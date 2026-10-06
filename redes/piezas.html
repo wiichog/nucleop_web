@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="es-GT">
+<head>
+<meta charset="utf-8">
+<title>Piezas · Nucleo</title>
+<!-- Fuente de las 12 piezas de la grilla inicial de @nucleo.fit.app. Se abre con
+     ?n=1..12 y generar.py la captura a 1080x1350 con Chrome headless.
+     Reglas: ver /manual-de-marca (§05, §06, §08). Damero negro/claro, fotos B/N,
+     el naranja una vez por pieza (el punto final del titular). -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#0A0A0B; --flame:#FC4C02; --lienzo:#E8E5E9; --panel:#fff; --sub:#EBE8EB; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; width:1080px; height:1350px; overflow:hidden; background:var(--ink); }
+  .pieza { position:absolute; inset:0; container-type:size; color:#fff; overflow:hidden; display:none; background:var(--ink); }
+  .pieza.on { display:block; }
+  .foto { position:absolute; inset:0; background-size:cover; background-position:center; filter:contrast(1.05) brightness(.82); }
+  .scrim { position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,10,11,.7) 0%, rgba(10,10,11,0) 24%, rgba(10,10,11,.05) 45%, rgba(10,10,11,.92) 100%); }
+  /* Nada importante a menos de ~4 % de los lados: el perfil recorta a 3:4. */
+  .marca { position:absolute; top:6.5cqh; left:10cqw; height:3.6cqh; z-index:2; }
+  .txt { position:absolute; left:10cqw; right:10cqw; bottom:8cqh; z-index:2; }
+  .e { display:flex; align-items:center; gap:1.6cqw; font:500 1.75cqh "JetBrains Mono"; letter-spacing:.3em; text-transform:uppercase; color:rgba(255,255,255,.65); }
+  .e::before { content:""; width:1cqh; height:1cqh; border-radius:99px; background:var(--flame); flex:none; }
+  .t { font:500 7.4cqh/.98 "Space Grotesk"; letter-spacing:-.04em; text-transform:lowercase; margin-top:2cqh; }
+  .p { color:var(--flame); }
+
+  /* Claras: el bento de la landing. */
+  .clara { background:var(--lienzo); color:var(--ink); }
+  .clara .e { color:rgba(0,0,0,.6); }
+  .bento { position:absolute; left:10cqw; right:10cqw; top:16cqh; display:grid; gap:1.1cqh; }
+  .c { background:var(--panel); border-radius:2.2cqh; padding:2.6cqh 4.4cqw; font:400 2.3cqh/1.3 Inter; color:rgba(0,0,0,.6); }
+  .c b { color:var(--ink); font-weight:600; }
+  .c.negra { background:var(--ink); color:rgba(255,255,255,.7); }
+  .c.negra b { color:#fff; }
+  .c .fila { display:flex; justify-content:space-between; align-items:center; gap:3cqw; }
+  .c .fila + .fila { border-top:2px solid var(--sub); margin-top:1.8cqh; padding-top:1.8cqh; }
+  .c.negra .fila + .fila { border-color:rgba(255,255,255,.1); }
+  .m { font:500 1.6cqh "JetBrains Mono"; letter-spacing:.18em; text-transform:uppercase; color:rgba(0,0,0,.6); }
+  .c.negra .m { color:rgba(255,255,255,.6); }
+  .chip { font:500 1.55cqh "JetBrains Mono"; letter-spacing:.14em; text-transform:uppercase; background:var(--sub); color:var(--ink); padding:.8cqh 2.2cqw; border-radius:99px; white-space:nowrap; }
+  .chip.ok { background:var(--ink); color:#fff; }
+  .num { font:500 30cqh/.9 "Space Grotesk"; letter-spacing:-.06em; }
+  .monto { font-family:Inter; font-weight:600; letter-spacing:-.02em; color:var(--ink); }
+  .cta { display:inline-flex; align-items:center; gap:2.4cqw; margin-top:3cqh; font:500 2cqh "JetBrains Mono"; letter-spacing:.22em; text-transform:uppercase; }
+  .cta::before { content:"›"; display:grid; place-items:center; width:5.2cqh; height:5.2cqh; border-radius:1.2cqh; background:var(--flame); color:#fff; font:500 4cqh/1 Inter; letter-spacing:0; }
+  .sub { font:400 2.5cqh/1.4 Inter; color:rgba(0,0,0,.6); margin-top:2cqh; max-width:62cqw; }
+</style>
+</head>
+<body>
+
+<!-- 1 · Manifiesto (foto) -->
+<div class="pieza" data-n="1">
+  <div class="foto" style="background-image:url(fotos/vacio.jpg);background-position:62% 50%"></div><div class="scrim"></div>
+  <img class="marca" src="../public/marca/logotipo-sobre-oscuro.svg" alt="">
+  <div class="txt"><div class="e">Software para tu box</div><div class="t" style="font-size:9cqh">deja de perder alumnos<span class="p">.</span></div></div>
+</div>
+
+<!-- 2 · Riesgo (clara, dato) -->
+<div class="pieza clara" data-n="2">
+  <img class="marca" src="../public/marca/logotipo-sobre-claro.svg" alt="">
+  <div style="position:absolute;top:15cqh;left:10cqw;right:10cqw">
+    <div class="e">Esta semana</div>
+    <div class="num" style="margin-top:2cqh">3</div>
+  </div>
+  <div class="bento" style="top:auto;bottom:25cqh">
+    <div class="c"><div class="fila"><span><b>Ana P.</b></span><span class="chip">15 días sin venir</span></div><div class="fila"><span><b>María L.</b></span><span class="chip">12 días sin venir</span></div><div class="fila"><span><b>Diego R.</b></span><span class="chip">10 días sin venir</span></div></div>
+  </div>
+  <div class="txt"><div class="t" style="margin:0">alumnos en riesgo<span class="p">.</span></div></div>
+</div>
+
+<!-- 3 · Cobro recurrente (foto) -->
+<div class="pieza" data-n="3">
+  <div class="foto" style="background-image:url(fotos/grupo.jpg);background-position:40% 50%"></div><div class="scrim"></div>
+  <img class="marca" src="../public/marca/logotipo-sobre-oscuro.svg" alt="">
+  <div class="txt"><div class="e">Cobros con tarjeta</div><div class="t">el cobro llega solo<span class="p">.</span></div></div>
+</div>
+
+<!-- 4 · Horario (clara, bento) -->
+<div class="pieza clara" data-n="4">
+  <img class="marca" src="../public/marca/logotipo-sobre-claro.svg" alt="">
+  <div class="bento">
+    <div class="m" style="margin-bottom:.6cqh">Martes · reservas</div>
+    <div class="c"><div class="fila"><span><b>06:00</b> · CrossFit</span><span class="chip ok">20/20</span></div><div class="fila"><span><b>07:00</b> · CrossFit</span><span class="chip">16/20</span></div><div class="fila"><span><b>18:00</b> · Halterofilia</span><span class="chip ok">12/12</span></div></div>
+    <div class="c negra"><div class="fila"><span><b>Lista de espera</b> · 06:00</span><span class="m">3 atletas</span></div></div>
+  </div>
+  <div class="txt"><div class="e">Clases y reservas</div><div class="t">tu horario, lleno y en orden<span class="p">.</span></div></div>
+</div>
+
+<!-- 5 · Check-in QR (foto) -->
+<div class="pieza" data-n="5">
+  <div class="foto" style="background-image:url(fotos/box.jpg);background-size:185%;background-position:0% 100%"></div><div class="scrim"></div>
+  <img class="marca" src="../public/marca/logotipo-sobre-oscuro.svg" alt="">
+  <div class="txt"><div class="e">Check-in con QR</div><div class="t">la asistencia se pasa sola<span class="p">.</span></div></div>
+</div>
+
+<!-- 6 · WOD (clara, pizarra) -->
+<div class="pieza clara" data-n="6">
+  <img class="marca" src="../public/marca/logotipo-sobre-claro.svg" alt="">
+  <div class="bento">
+    <div class="c negra"><div class="m">WOD · For time</div><div style="font:500 3.6cqh/1.25 'Space Grotesk';color:#fff;margin-top:1.4cqh;letter-spacing:-.02em">21-15-9<br>thrusters · pull-ups</div></div>
+    <div class="c"><div class="fila"><span><b>1</b> · Andrea M.</span><span><b>4:12</b> <span class="chip">RX</span></span></div><div class="fila"><span><b>2</b> · Luis G.</span><span><b>4:38</b> <span class="chip">RX</span></span></div><div class="fila"><span><b>3</b> · Sofía P.</span><span><b>5:01</b> <span class="chip">Scaled</span></span></div></div>
+  </div>
+  <div class="txt"><div class="e">WOD del día</div><div class="t">cada score, en su pizarra<span class="p">.</span></div></div>
+</div>
+
+<!-- 7 · Rachas (foto) -->
+<div class="pieza" data-n="7">
+  <div class="foto" style="background-image:url(fotos/tiza.jpg);background-position:50% 40%"></div><div class="scrim"></div>
+  <img class="marca" src="../public/marca/logotipo-sobre-oscuro.svg" alt="">
+  <div class="txt"><div class="e">Puntos y rachas</div><div class="t">rachas que nadie quiere romper<span class="p">.</span></div></div>
+</div>
+
+<!-- 8 · Pagos (clara) -->
+<div class="pieza clara" data-n="8">
+  <img class="marca" src="../public/marca/logotipo-sobre-claro.svg" alt="">
+  <div class="bento">
+    <div class="m" style="margin-bottom:.6cqh">Pagos de hoy</div>
+    <div class="c"><div class="fila"><span><b>Tarjeta</b> · mensualidad</span><span class="chip ok">Aprobado</span></div><div class="fila"><span><b>Efectivo</b> · mensualidad</span><span class="chip">Registrado</span></div><div class="fila"><span><b>Transferencia</b> · drop-in</span><span class="chip">Registrado</span></div></div>
+    <div class="c negra"><div class="fila"><span><b>Membresías activas</b></span><span class="m">al día</span></div></div>
+  </div>
+  <div class="txt"><div class="e">Pagos</div><div class="t">tarjeta, efectivo o transferencia<span class="p">.</span></div></div>
+</div>
+
+<!-- 9 · Drop-in (foto) -->
+<div class="pieza" data-n="9">
+  <div class="foto" style="background-image:url(fotos/argollas.jpg);background-position:35% 50%"></div><div class="scrim"></div>
+  <img class="marca" src="../public/marca/logotipo-sobre-oscuro.svg" alt="">
+  <div class="txt"><div class="e">Drop-ins</div><div class="t">el drop-in paga antes de entrar<span class="p">.</span></div></div>
+</div>
+
+<!-- 10 · Coaches (clara) -->
+<div class="pieza clara" data-n="10">
+  <img class="marca" src="../public/marca/logotipo-sobre-claro.svg" alt="">
+  <div class="bento">
+    <div class="m" style="margin-bottom:.6cqh">Coaches · este mes</div>
+    <div class="c"><div class="fila"><span><b>Coach Pablo</b></span><span class="chip">22 clases</span></div><div class="fila"><span><b>Coach Ana</b></span><span class="chip">18 clases</span></div><div class="fila"><span><b>Clase sin coach</b> · jueves 19:00</span><span class="chip ok">Cubierta</span></div></div>
+    <div class="c negra"><div class="fila"><span><b>Liquidación</b> · lista</span><span class="m">por clase o fijo</span></div></div>
+  </div>
+  <div class="txt"><div class="e">Coaches</div><div class="t">la paga del coach, ya cuadrada<span class="p">.</span></div></div>
+</div>
+
+<!-- 11 · Athlete Passport (foto) -->
+<div class="pieza" data-n="11">
+  <div class="foto" style="background-image:url(fotos/agarre.jpg);background-position:50% 60%"></div><div class="scrim"></div>
+  <img class="marca" src="../public/marca/logotipo-sobre-oscuro.svg" alt="">
+  <div class="txt"><div class="e">Perfil del atleta</div><div class="t">llega con su historial<span class="p">.</span></div></div>
+</div>
+
+<!-- 12 · Presentación (clara) — la primera que se publica -->
+<div class="pieza clara" data-n="12">
+  <img class="marca" src="../public/marca/logotipo-sobre-claro.svg" alt="">
+  <div style="position:absolute;top:22cqh;left:10cqw;right:10cqw">
+    <img src="../public/marca/isotipo-sobre-claro.svg" alt="" style="height:16cqh">
+  </div>
+  <div class="txt"><div class="e">Hecho en Guatemala</div><div class="t">el software de tu box<span class="p">.</span></div><div class="sub">Cobros, clases, coaches y retención en un solo lugar. Y un app para tus atletas.</div><div class="cta">Agenda tu demo</div></div>
+</div>
+
+<script>
+  const n = new URLSearchParams(location.search).get("n") || "1";
+  document.querySelector(`.pieza[data-n="${n}"]`).classList.add("on");
+</script>
+</body>
+</html>
