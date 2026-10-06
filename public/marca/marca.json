@@ -1,0 +1,105 @@
+{
+  "nombre": "Nucleo",
+  "wordmark": "nucleo",
+  "instagram": "@nucleo.fit.app",
+  "color": {
+    "ink": {
+      "hex": "#0A0A0B",
+      "rol": "fondo de la marca, tarjeta ancla del bento, texto sobre claro."
+    },
+    "flame": {
+      "hex": "#FC4C02",
+      "rol": "acento plano: el cuadro del CTA, el punto final del titular, íconos chicos. Nunca texto sobre claro ni halo."
+    },
+    "lienzo": {
+      "hex": "#E8E5E9",
+      "rol": "fondo de las secciones claras (el bento)."
+    },
+    "panel": {
+      "hex": "#FFFFFF",
+      "rol": "tarjeta sobre el lienzo: radio 16, sin borde ni sombra."
+    },
+    "subpanel": {
+      "hex": "#EBE8EB",
+      "rol": "sub-tarjeta dentro de un panel blanco."
+    },
+    "atomo": {
+      "hex": [
+        "#FF9F1C",
+        "#FF7A3D",
+        "#FFB07A",
+        "#9e2e00",
+        "#fff4ec"
+      ],
+      "rol": "solo dentro del átomo. Nunca en texto ni fondos."
+    }
+  },
+  "contraste": {
+    "flame_sobre_lienzo": 2.72,
+    "flame_sobre_blanco": 3.4,
+    "flame_sobre_ink": 5.82,
+    "blanco_sobre_flame": 3.4,
+    "negro_60_sobre_lienzo": 5.36
+  },
+  "tipografia": {
+    "display": {
+      "familia": "Space Grotesk",
+      "pesos": [
+        500,
+        600
+      ],
+      "minusculas": true,
+      "tracking": "-0.04em"
+    },
+    "tecnica": {
+      "familia": "JetBrains Mono",
+      "mayusculas": true,
+      "tracking": "0.3em",
+      "uso": "eyebrows, etiquetas, CTA"
+    },
+    "texto": {
+      "familia": "Inter",
+      "pesos": [
+        400,
+        600
+      ],
+      "uso": "lectura larga y montos en Q"
+    }
+  },
+  "atomo": {
+    "rejilla": 100,
+    "orbitas": "ellipse cx50 cy50 rx42 ry16, rotate 0/60/120",
+    "nucleo": "circle r9",
+    "electrones": [
+      [
+        92,
+        50,
+        3.6
+      ],
+      [
+        29,
+        13.6,
+        3.2
+      ],
+      [
+        29,
+        86.4,
+        3.2
+      ]
+    ],
+    "rota": false,
+    "glow": false
+  },
+  "archivos": [
+    "avatar-1080.png",
+    "avatar-320.png",
+    "isotipo-mono-blanco.svg",
+    "isotipo-mono-negro.svg",
+    "isotipo-sobre-claro.svg",
+    "isotipo-sobre-oscuro.svg",
+    "logotipo-sobre-claro-1200.png",
+    "logotipo-sobre-claro.svg",
+    "logotipo-sobre-oscuro-1200.png",
+    "logotipo-sobre-oscuro.svg"
+  ]
+}

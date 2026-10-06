@@ -1,0 +1,120 @@
+/* Manual de marca (/manual-de-marca). Todo bajo .mm para no tocar la landing ni
+   el panel. Usa el mismo lenguaje que describe: negro con paneles claros, mono
+   para la capa técnica y el naranja solo como acento plano. */
+.mm {
+  --ink: #0a0a0b;
+  --flame: #fc4c02;
+  --lienzo: #e8e5e9;
+  --panel: #ffffff;
+  --sub: #ebe8eb;
+  --texto: rgba(255, 255, 255, 0.72);
+  --tenue: rgba(255, 255, 255, 0.5);
+  --linea: rgba(255, 255, 255, 0.1);
+  min-height: 100vh;
+  background: var(--ink);
+  color: var(--texto);
+  font: 16px/1.65 Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.mm a { color: #fff; text-decoration: underline; text-decoration-color: var(--flame); text-underline-offset: 3px; }
+.mm h1, .mm h2, .mm h3 { font-family: "Space Grotesk", sans-serif; color: #fff; line-height: 1.05; margin: 0; }
+.mm h1 { font-size: clamp(2.6rem, 8vw, 5.5rem); font-weight: 500; letter-spacing: -0.04em; text-transform: lowercase; }
+.mm h2 { font-size: clamp(1.8rem, 4.5vw, 2.8rem); font-weight: 500; letter-spacing: -0.04em; text-transform: lowercase; margin-top: 0.5rem; }
+.mm h3 { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.02em; margin: 2rem 0 0.5rem; }
+.mm .p { color: var(--flame); }
+.mm p { margin: 0.7rem 0; max-width: 68ch; }
+.mm strong { color: #fff; font-weight: 600; }
+.mm code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.85em; }
+.mm .eyebrow {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: "JetBrains Mono", monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3em; color: var(--tenue);
+}
+.mm .eyebrow::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: var(--flame); flex: none; }
+.mm .envoltura { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+@media (min-width: 720px) { .mm .envoltura { padding: 0 32px; } }
+
+.mm header.portada { padding: 64px 0 56px; border-bottom: 1px solid var(--linea); }
+.mm .portada .lockup { height: 40px; margin-bottom: 48px; }
+.mm .portada .lead { font-size: 1.1rem; max-width: 58ch; }
+.mm .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+.mm .chip {
+  border: 1px solid var(--linea); border-radius: 999px; padding: 6px 12px; text-decoration: none;
+  font-family: "JetBrains Mono", monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(255, 255, 255, 0.8);
+}
+.mm .chip:hover { border-color: rgba(255, 255, 255, 0.4); color: #fff; }
+
+.mm section { padding: 72px 0; border-bottom: 1px solid var(--linea); scroll-margin-top: 16px; }
+.mm .rejilla { display: grid; gap: 12px; margin-top: 28px; }
+@media (min-width: 720px) {
+  .mm .r2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mm .r3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mm .r4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 560px) and (max-width: 719px) { .mm .r4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.mm .tarjeta { border: 1px solid var(--linea); background: rgba(255, 255, 255, 0.025); border-radius: 16px; padding: 22px; }
+.mm .tarjeta h3 { margin-top: 0.4rem; }
+.mm .tarjeta p { font-size: 0.94rem; }
+
+/* Sección clara: la receta del bento de la landing. */
+.mm section.clara { background: var(--lienzo); color: rgba(0, 0, 0, 0.6); border-bottom: 0; }
+.mm .clara h2, .mm .clara h3, .mm .clara strong { color: var(--ink); }
+.mm .clara .eyebrow { color: rgba(0, 0, 0, 0.6); }
+.mm .clara a { color: var(--ink); }
+.mm .clara .tarjeta { background: var(--panel); border: 0; }
+.mm .clara .pie { color: rgba(0, 0, 0, 0.6); }
+.mm .clara .tabla th, .mm .clara .tabla td { border-color: rgba(0, 0, 0, 0.1); }
+.mm .clara .tabla th { color: rgba(0, 0, 0, 0.6); }
+.mm .clara .tabla td:first-child { color: var(--ink); }
+
+/* Logo */
+.mm .lienzo { border-radius: 16px; display: flex; align-items: center; justify-content: center; min-height: 200px; padding: 32px; }
+.mm .lienzo img { max-width: 100%; max-height: 64px; }
+.mm .lienzo.blanco { background: var(--panel); }
+.mm .lienzo.negro { background: var(--ink); }
+.mm .lienzo.foto { background: #333 center / cover; }
+.mm .pie { font-size: 13px; color: var(--tenue); margin-top: 10px; }
+
+/* Color */
+.mm .muestra { border-radius: 16px; overflow: hidden; background: var(--panel); }
+.mm .muestra .c { height: 130px; display: flex; align-items: flex-end; padding: 14px; font-family: "Space Grotesk"; font-weight: 600; font-size: 1.1rem; }
+.mm .muestra .d { padding: 14px; font-size: 13px; color: rgba(0, 0, 0, 0.6); }
+.mm .muestra .d code { color: var(--ink); font-size: 13px; }
+.mm .proporcion { display: flex; height: 54px; border-radius: 14px; overflow: hidden; margin-top: 28px; }
+.mm .proporcion div { display: flex; align-items: center; justify-content: center; font-family: "JetBrains Mono"; font-size: 11px; }
+
+.mm .especimen { font-family: "Space Grotesk"; color: #fff; letter-spacing: -0.04em; line-height: 1; text-transform: lowercase; }
+.mm .monto { font-family: Inter; font-weight: 600; letter-spacing: -0.02em; }
+
+.mm .tabla { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.94rem; }
+.mm .tabla th, .mm .tabla td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--linea); vertical-align: top; }
+.mm .tabla th { font-family: "JetBrains Mono"; font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--tenue); font-weight: 500; }
+.mm .tabla td:first-child { color: #fff; font-weight: 600; }
+.mm .scroll-x { overflow-x: auto; }
+
+.mm .si, .mm .no { border-radius: 14px; padding: 16px 18px; font-size: 0.94rem; }
+.mm .si { border: 1px solid rgba(255, 255, 255, 0.25); }
+.mm .no { border: 1px solid rgba(255, 92, 92, 0.4); }
+.mm .si b, .mm .no b { display: block; font-family: "JetBrains Mono"; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 6px; }
+.mm .si b { color: #fff; }
+.mm .no b { color: #ff8a8a; }
+.mm ul.limpia { padding-left: 1.1rem; margin: 0.6rem 0; list-style: disc; }
+.mm ul.limpia li { margin: 0.35rem 0; }
+
+/* Piezas de ejemplo (4:5) */
+.mm .pieza { aspect-ratio: 4 / 5; border-radius: 14px; overflow: hidden; position: relative; background: var(--ink); border: 1px solid var(--linea); display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; padding: 20px; }
+.mm .pieza .foto { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.mm .pieza .scrim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10, 10, 11, 0) 35%, rgba(10, 10, 11, 0.9) 100%); }
+.mm .pieza > *:not(.foto):not(.scrim):not(.m) { position: relative; }
+.mm .pieza .t { font-family: "Space Grotesk"; color: #fff; font-weight: 500; font-size: 1.5rem; line-height: 1; letter-spacing: -0.04em; text-transform: lowercase; }
+.mm .pieza .m { position: absolute; top: 16px; left: 18px; height: 16px; }
+.mm .pieza.clara { background: var(--lienzo); border: 0; }
+.mm .pieza.clara .t { color: var(--ink); }
+.mm .pieza.clara .eyebrow { color: rgba(0, 0, 0, 0.6); }
+.mm .pieza .n { font-family: "Space Grotesk"; font-weight: 500; font-size: 4.4rem; color: var(--ink); letter-spacing: -0.04em; line-height: 0.95; }
+.mm .pieza .bento { display: grid; gap: 6px; }
+.mm .pieza .bento div { background: var(--panel); border-radius: 10px; padding: 10px 12px; font-size: 12px; color: rgba(0, 0, 0, 0.6); }
+.mm .pieza .bento div b { color: var(--ink); font-weight: 600; }
+.mm .cta { display: inline-flex; align-items: center; gap: 10px; font-family: "JetBrains Mono"; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #fff; }
+.mm .cta::before { content: "›"; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--flame); color: #fff; font-size: 18px; letter-spacing: 0; }
+
+.mm footer { padding: 48px 0 72px; font-size: 13px; color: var(--tenue); }

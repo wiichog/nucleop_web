@@ -12,6 +12,7 @@ const AdminShell = lazy(() => import("./AdminShell"));
 // La presentación comercial viaja en su propio chunk: quien la abre desde
 // WhatsApp no descarga el panel.
 const PresentacionPage = lazy(() => import("./presentacion/PresentacionPage"));
+const ManualMarcaPage = lazy(() => import("./manual/ManualMarcaPage"));
 
 function LoadingScreen() {
   return (
@@ -59,6 +60,16 @@ export default function App() {
         element={
           <Suspense fallback={<div style={{ position: "fixed", inset: 0, background: "#000" }} />}>
             <PresentacionPage />
+          </Suspense>
+        }
+      />
+      {/* Manual de marca: público y `noindex`, para quien diseña piezas o redes.
+          Ver src/manual/ y scripts/marca.py. */}
+      <Route
+        path="/manual-de-marca"
+        element={
+          <Suspense fallback={<div style={{ position: "fixed", inset: 0, background: "#0a0a0b" }} />}>
+            <ManualMarcaPage />
           </Suspense>
         }
       />
