@@ -32,7 +32,7 @@ export const PENDING_ITEMS: { key: PendingKey; label: string; to: string }[] = [
   // Debido proceso: un descargo sin revisar deja al atleta sancionado sin
   // respuesta, y si el gym no contesta la apelación escala a Nucleo.
   { key: "apelaciones", label: "Apelaciones por revisar", to: "/panel/comunidad" },
-  { key: "clases_sin_wod", label: "Clases sin rutina (próx. 48h)", to: "/panel/clases" },
+  { key: "clases_sin_wod", label: "Clases sin workout (próx. 48h)", to: "/panel/clases" },
   { key: "tickets", label: "Reportes abiertos", to: "/panel/tickets" },
   { key: "pedidos", label: "Pedidos por entregar", to: "/panel/inventario?tab=pedidos" },
   { key: "clubes", label: "Clubes por aprobar", to: "/panel/clubes" },

@@ -145,8 +145,8 @@ export function ClassesPage() {
     <div>
       <PageHeader
         kicker="Operación · Programación"
-        title="Clases y rutinas"
-        subtitle="Define servicios, arma el horario semanal, registra asistencia y publica la rutina del día."
+        title="Clases y workouts"
+        subtitle="Define servicios, arma el horario semanal, registra asistencia y publica el workout del día."
       />
       <Tabs
         value={tab}
@@ -165,7 +165,7 @@ export function ClassesPage() {
               {pendientes ? <CountBadge count={pendientes} /> : null}
             </Group>
           </Tabs.Tab>
-          <Tabs.Tab value="wod">Rutina</Tabs.Tab>
+          <Tabs.Tab value="wod">Workout</Tabs.Tab>
           <Tabs.Tab value="dropins">Drop-ins / Pases</Tabs.Tab>
         </Tabs.List>
 
@@ -471,8 +471,8 @@ function ServicesTab({ gymId }: { gymId: string }) {
             w={{ base: "100%", sm: 260 }}
           />
           <Switch
-            label="Requiere rutina"
-            description="Las clases de este servicio llevan rutina del día y tablero."
+            label="Requiere workout"
+            description="Las clases de este servicio llevan workout del día y tablero."
             checked={requiresWod}
             onChange={(e) => setRequiresWod(e.currentTarget.checked)}
           />
@@ -536,10 +536,10 @@ function ServicesTab({ gymId }: { gymId: string }) {
             },
             {
               accessor: "requires_wod",
-              title: "Rutina",
+              title: "Workout",
               sortable: true,
               render: (s) =>
-                s.requires_wod ? <Badge color="flame">Rutina</Badge> : <Text c="dimmed" size="sm">—</Text>,
+                s.requires_wod ? <Badge color="flame">Workout</Badge> : <Text c="dimmed" size="sm">—</Text>,
             },
             { accessor: "default_capacity", title: "Cupo", sortable: true },
             {
@@ -732,7 +732,7 @@ function EditServiceTypeModal({
         mb="sm"
       />
       <Switch
-        label="Requiere rutina"
+        label="Requiere workout"
         checked={requiresWod}
         onChange={(e) => setRequiresWod(e.currentTarget.checked)}
         mb="md"
@@ -962,7 +962,7 @@ function ScheduleTab({ gymId }: { gymId: string }) {
                     }}
                   />
                   {s.service_type_name}
-                  {s.requires_wod && <Badge size="xs" color="flame">Rutina</Badge>}
+                  {s.requires_wod && <Badge size="xs" color="flame">Workout</Badge>}
                 </Group>
               ),
             },
@@ -1147,7 +1147,7 @@ function ClassesTab({ gymId }: { gymId: string }) {
             tone={hoySinCoach.length ? "var(--nucleo-warning)" : undefined}
           />
           <MetricTile
-            label="Hoy sin rutina"
+            label="Hoy sin workout"
             value={hoySinRutina.length}
             tone={hoySinRutina.length ? "var(--nucleo-warning)" : undefined}
           />
@@ -1171,8 +1171,8 @@ function ClassesTab({ gymId }: { gymId: string }) {
           )}
           {hoySinRutina.length > 0 && (
             <Text size="sm" mt={hoySinCoach.length ? 4 : 0}>
-              📋 {hoySinRutina.length === 1 ? "1 clase requiere rutina y aún no está publicada" : `${hoySinRutina.length} clases requieren rutina y aún no está publicada`}:{" "}
-              {hoySinRutina.map((c) => `${c.class_type} ${hora(c)}`).join(", ")} — publícala en la pestaña Rutina.
+              📋 {hoySinRutina.length === 1 ? "1 clase requiere workout y aún no está publicado" : `${hoySinRutina.length} clases requieren workout y aún no está publicado`}:{" "}
+              {hoySinRutina.map((c) => `${c.class_type} ${hora(c)}`).join(", ")} — publícalo en la pestaña Workout.
             </Text>
           )}
         </Alert>
@@ -1279,7 +1279,7 @@ function ClassesTab({ gymId }: { gymId: string }) {
                     />
                   )}
                   {gymClass.class_type}
-                  {gymClass.needs_wod && <Badge size="xs" color="flame">Rutina</Badge>}
+                  {gymClass.needs_wod && <Badge size="xs" color="flame">Workout</Badge>}
                 </Group>
               ),
             },
@@ -1754,10 +1754,10 @@ function WodTab({ gymId }: { gymId: string }) {
   const [openBoard, setOpenBoard] = useState<Wod | null>(null);
 
   const onDeleteWod = (id: string, wtitle: string) => {
-    if (!window.confirm(`¿Eliminar la rutina "${wtitle}"?`)) return;
+    if (!window.confirm(`¿Eliminar el workout "${wtitle}"?`)) return;
     remove.mutate(id, {
-      onSuccess: () => ok(`Rutina "${wtitle}" eliminada.`),
-      onError: (error) => fail(error, "No se pudo eliminar la rutina."),
+      onSuccess: () => ok(`Workout "${wtitle}" eliminado.`),
+      onError: (error) => fail(error, "No se pudo eliminar el workout."),
     });
   };
 
@@ -1792,13 +1792,13 @@ function WodTab({ gymId }: { gymId: string }) {
         is_benchmark: isBenchmark,
         published,
       });
-      ok(published ? "Rutina publicada." : "Rutina guardada como borrador.");
+      ok(published ? "Workout publicado." : "Workout guardado como borrador.");
       setTitle("");
       setDescription("");
       setIsBenchmark(false);
       setPublished(true);
     } catch (error) {
-      fail(error, "No se pudo crear la rutina.");
+      fail(error, "No se pudo crear el workout.");
     }
   };
 
@@ -1809,11 +1809,11 @@ function WodTab({ gymId }: { gymId: string }) {
       <Card mb="lg" component="form" onSubmit={submit} className="a-slide-r" style={delayVar(0.6)}>
         <SectionLabel mb={6}>Entrenamiento</SectionLabel>
         <Title order={3} mb={4}>
-          Rutina del día
+          Workout del día
         </Title>
         <Text c="dimmed" size="sm" mb="md">
-          Una rutina por servicio y fecha; la comparten todas las clases de ese día. Se crea
-          publicada (visible para los atletas); desactiva el switch si la quieres dejar como borrador.
+          Un workout por servicio y fecha; lo comparten todas las clases de ese día. Se crea
+          publicado (visible para los atletas); desactiva el switch si lo quieres dejar como borrador.
         </Text>
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
           <DateInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" popoverProps={{ withinPortal: true }} />
@@ -1860,7 +1860,7 @@ function WodTab({ gymId }: { gymId: string }) {
             />
           </Group>
           <Button type="submit" loading={create.isPending}>
-            Crear rutina
+            Crear workout
           </Button>
         </Group>
       </Card>
@@ -1868,7 +1868,7 @@ function WodTab({ gymId }: { gymId: string }) {
       <GlassCard delay={0.72} padding={18}>
         <SectionLabel mb={4}>Publicadas y borradores</SectionLabel>
         <Title order={3} mb="sm">
-          Rutinas del {dateStr}
+          Workouts del {dateStr}
         </Title>
         <DataTable<Wod>
           minHeight={140}
@@ -1877,13 +1877,13 @@ function WodTab({ gymId }: { gymId: string }) {
           idAccessor="id"
           records={sortRecords(rows, sortStatus)}
           fetching={wods.isLoading}
-          noRecordsText="Crea la rutina del día para este servicio."
+          noRecordsText="Crea el workout del día para este servicio."
           sortStatus={sortStatus}
           onSortStatusChange={setSortStatus}
           columns={[
             {
               accessor: "title",
-              title: "Rutina",
+              title: "Workout",
               sortable: true,
               render: (w) => (
                 <>
@@ -1933,7 +1933,7 @@ function WodTab({ gymId }: { gymId: string }) {
                           {
                             onSuccess: () =>
                               ok(w.is_benchmark ? "Ya no es benchmark." : "Marcada como benchmark."),
-                            onError: (error) => fail(error, "No se pudo marcar la rutina."),
+                            onError: (error) => fail(error, "No se pudo marcar el workout."),
                           },
                         ),
                     },
@@ -1949,8 +1949,8 @@ function WodTab({ gymId }: { gymId: string }) {
                             onSuccess: () =>
                               ok(
                                 w.published
-                                  ? "Rutina despublicada: ya no la ven los atletas."
-                                  : "Rutina publicada: ya la ven los atletas en el app.",
+                                  ? "Workout despublicado: ya no lo ven los atletas."
+                                  : "Workout publicado: ya lo ven los atletas en el app.",
                               ),
                             onError: (error) => fail(error, "No se pudo cambiar la publicación."),
                           },
