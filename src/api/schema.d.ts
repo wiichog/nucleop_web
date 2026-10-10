@@ -5996,6 +5996,8 @@ export interface components {
             /** Format: date */
             renewal_date: string | null;
             /** Format: date */
+            payment_grace_until?: string | null;
+            /** Format: date */
             since: string | null;
         };
         /** @description Respuesta del resolvedor. Siempre 200: un código ilegible es una respuesta. */
@@ -7796,6 +7798,8 @@ export interface components {
             risk_inactivity_days?: number;
             /** @description Días de mora tolerados antes del corte automático de la membresía (ACTIVE → vencida). El corte es reversible: al pagar vuelve a activa. */
             overdue_grace_days?: number;
+            /** @description Días después del vencimiento en que el atleta moroso NO se bloquea (puede reservar y entrenar). 0 = se bloquea el día que vence. */
+            payment_grace_days?: number;
             readonly saas_plan: components["schemas"]["SaasPlanEnum"];
             /**
              * Format: decimal
@@ -8028,6 +8032,8 @@ export interface components {
             risk_inactivity_days?: number;
             /** @description Días de mora tolerados antes del corte automático de la membresía (ACTIVE → vencida). El corte es reversible: al pagar vuelve a activa. */
             overdue_grace_days?: number;
+            /** @description Días después del vencimiento en que el atleta moroso NO se bloquea (puede reservar y entrenar). 0 = se bloquea el día que vence. */
+            payment_grace_days?: number;
             readonly saas_plan: components["schemas"]["SaasPlanEnum"];
             /**
              * Format: decimal
@@ -8478,6 +8484,9 @@ export interface components {
             payment_method_pref?: components["schemas"]["PaymentMethod"];
             payment_status?: components["schemas"]["PaymentStatus"];
             readonly payment_status_display: string;
+            readonly in_payment_grace: boolean;
+            /** Format: date */
+            readonly payment_grace_until: string | null;
             /** Format: decimal */
             discount?: string | null;
             internal_notes?: string;
@@ -8529,6 +8538,9 @@ export interface components {
             payment_method_pref?: components["schemas"]["PaymentMethod"];
             payment_status?: components["schemas"]["PaymentStatus"];
             readonly payment_status_display: string;
+            readonly in_payment_grace: boolean;
+            /** Format: date */
+            readonly payment_grace_until: string | null;
             /** Format: decimal */
             discount?: string | null;
             internal_notes?: string;
@@ -8565,6 +8577,9 @@ export interface components {
             renewal_date?: string | null;
             payment_status?: components["schemas"]["PaymentStatus"];
             readonly payment_status_display: string;
+            readonly in_payment_grace: boolean;
+            /** Format: date */
+            readonly payment_grace_until: string | null;
             /** Format: int64 */
             community_points?: number;
             leave_initiated_by?: string;
@@ -9665,6 +9680,8 @@ export interface components {
             risk_inactivity_days?: number;
             /** @description Días de mora tolerados antes del corte automático de la membresía (ACTIVE → vencida). El corte es reversible: al pagar vuelve a activa. */
             overdue_grace_days?: number;
+            /** @description Días después del vencimiento en que el atleta moroso NO se bloquea (puede reservar y entrenar). 0 = se bloquea el día que vence. */
+            payment_grace_days?: number;
             readonly saas_plan?: components["schemas"]["SaasPlanEnum"];
             /**
              * Format: decimal

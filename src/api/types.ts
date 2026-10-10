@@ -103,6 +103,12 @@ export type GymAdmin = components["schemas"]["GymAdmin"] & {
    * gimnasio (hay test de no-fuga en el backend). Aún no en el schema generado.
    */
   overdue_grace_days?: number;
+  /**
+   * Gracia de PAGO (0..60, def. 0): días después del vencimiento en que el socio
+   * con la cuota vencida NO se bloquea (reserva, entra, publica, compra). Tiene que
+   * ser menor que `overdue_grace_days`; si no, el backend responde 400.
+   */
+  payment_grace_days?: number;
   is_active?: boolean;
 };
 

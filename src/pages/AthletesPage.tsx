@@ -172,8 +172,25 @@ export function ultimoBloqueo<T extends { to_status: string; changed_at: string 
     .sort((a, b) => (a.changed_at < b.changed_at ? 1 : -1))[0];
 }
 
-function DueBadge({ days, date }: { days?: number | null; date?: string | null }) {
+function DueBadge({
+  days,
+  date,
+  graceUntil,
+}: {
+  days?: number | null;
+  date?: string | null;
+  graceUntil?: string | null;
+}) {
   if (days == null) return <Text c="dimmed">—</Text>;
+  // Vencido pero dentro de la gracia de pago del gym: debe, pero todavía entrena.
+  if (graceUntil) {
+    const [, mes, dia] = graceUntil.split("-");
+    return (
+      <Badge color="orange" variant="light" title={date ? `Vence: ${date}` : undefined}>
+        En gracia hasta {dia}/{mes}
+      </Badge>
+    );
+  }
   const color = days < 0 ? "red" : days <= 7 ? "yellow" : "teal";
   const text = days < 0 ? `Vencido hace ${Math.abs(days)} d` : days === 0 ? "Vence hoy" : `${days} días`;
   return (
@@ -304,6 +321,13 @@ export function AthletesPage() {
   useEffect(() => {
     if (gymConfig.data?.overdue_grace_days) setGraciaDias(gymConfig.data.overdue_grace_days);
   }, [gymConfig.data?.overdue_grace_days]);
+  // Gracia de PAGO: días tras el vencimiento en que el moroso NO se bloquea. 0 es
+  // un valor válido (se bloquea el mismo día), por eso no se filtra con `if (x)`.
+  const [graciaPagoDias, setGraciaPagoDias] = useState<number | string>(0);
+  useEffect(() => {
+    if (gymConfig.data?.payment_grace_days != null)
+      setGraciaPagoDias(gymConfig.data.payment_grace_days);
+  }, [gymConfig.data?.payment_grace_days]);
 
   const ok = (m: string) => notifications.show({ color: "teal", message: m });
   const fail = (m: string) => notifications.show({ color: "red", message: m });
@@ -456,20 +480,48 @@ export function AthletesPage() {
   const onGuardarGracia = async () => {
     const dias = Number(graciaDias);
     if (!Number.isFinite(dias) || dias < 1 || dias > 365) {
-      fail("La gracia debe estar entre 1 y 365 días.");
+      fail("El corte por mora debe estar entre 1 y 365 días.");
       return;
     }
     try {
       const saved = await updateGymConfig.mutateAsync({ overdue_grace_days: dias });
       if (saved.overdue_grace_days !== dias) {
         setGraciaDias(saved.overdue_grace_days ?? dias);
-        fail("La API no guardó la gracia de morosidad. Avisa a soporte de Nucleo.");
+        fail("La API no guardó el corte por mora. Avisa a soporte de Nucleo.");
         return;
       }
       setRiesgoOpen(false);
-      ok(`Gracia de morosidad actualizada: ${dias} días.`);
+      ok(`Corte automático por mora actualizado: ${dias} días.`);
     } catch (error) {
-      fail(errMsg(error, "No se pudo guardar la gracia de morosidad."));
+      fail(errMsg(error, "No se pudo guardar el corte por mora."));
+    }
+  };
+
+  /**
+   * Guarda la gracia de pago (días tras el vencimiento sin bloqueo) y VERIFICA
+   * contra la respuesta. El backend exige que sea menor que la gracia del corte.
+   */
+  const onGuardarGraciaPago = async () => {
+    const dias = Number(graciaPagoDias);
+    if (!Number.isInteger(dias) || dias < 0 || dias > 60) {
+      fail("La gracia de pago debe estar entre 0 y 60 días.");
+      return;
+    }
+    try {
+      const saved = await updateGymConfig.mutateAsync({ payment_grace_days: dias });
+      if (saved.payment_grace_days !== dias) {
+        setGraciaPagoDias(saved.payment_grace_days ?? dias);
+        fail("La API no guardó la gracia de pago. Avisa a soporte de Nucleo.");
+        return;
+      }
+      setRiesgoOpen(false);
+      ok(
+        dias === 0
+          ? "Sin gracia de pago: el atleta se bloquea el día que vence."
+          : `Gracia de pago actualizada: ${dias} días sin bloqueo tras el vencimiento.`,
+      );
+    } catch (error) {
+      fail(errMsg(error, "No se pudo guardar la gracia de pago."));
     }
   };
 
@@ -683,7 +735,8 @@ export function AthletesPage() {
                 leftSection={<Settings2 size={15} />}
                 onClick={() => setRiesgoOpen((v) => !v)}
               >
-                Riesgo {gymConfig.data?.risk_inactivity_days ?? 10} d · mora{" "}
+                Riesgo {gymConfig.data?.risk_inactivity_days ?? 10} d · gracia{" "}
+                {gymConfig.data?.payment_grace_days ?? 0} d · corte{" "}
                 {gymConfig.data?.overdue_grace_days ?? 30} d
               </Button>
             </Popover.Target>
@@ -714,8 +767,40 @@ export function AthletesPage() {
 
               {/* La otra política que define una de estas listas: cuántos días de
                   mora se toleran antes de que la membresía quede morosa. */}
+              {/* Gracia de PAGO: lo que el gym le da al atleta para pagar sin que se
+                  le bloquee nada. Distinta del corte de abajo. */}
               <Text size="sm" fw={600} mt="lg" mb={4}>
-                Gracia de morosidad
+                Gracia de pago
+              </Text>
+              <Text size="xs" c="dimmed" mb="sm" maw={280}>
+                Días después del vencimiento en que el atleta <strong>sigue entrenando
+                normal</strong>: puede reservar, entrar, publicar y comprar. Aparece en{" "}
+                <strong>Morosos</strong> marcado como “En gracia”. Con 0 se bloquea el mismo día
+                que vence.
+              </Text>
+              <Group gap="xs" align="flex-end" wrap="nowrap">
+                <NumberInput
+                  label="Días"
+                  min={0}
+                  max={60}
+                  clampBehavior="strict"
+                  allowDecimal={false}
+                  value={graciaPagoDias}
+                  onChange={setGraciaPagoDias}
+                  disabled={gymConfig.isLoading || updateGymConfig.isPending}
+                  w={110}
+                />
+                <Button
+                  variant="default"
+                  loading={updateGymConfig.isPending}
+                  onClick={onGuardarGraciaPago}
+                >
+                  Guardar
+                </Button>
+              </Group>
+
+              <Text size="sm" fw={600} mt="lg" mb={4}>
+                Corte automático por mora
               </Text>
               {/* Precisión que importa: la gracia mueve el CORTE, no la etiqueta.
                   El backend marca "moroso" el día 1 de vencido pase lo que pase
@@ -726,8 +811,8 @@ export function AthletesPage() {
               <Text size="xs" c="dimmed" mb="sm" maw={280}>
                 Días de atraso que tolera el gimnasio antes de que la membresía pase
                 automáticamente a <strong>vencida</strong>. El corte es reversible: al registrar el
-                pago vuelve a activa. Ojo: el atleta aparece en <strong>Morosos</strong> desde el
-                primer día de atraso, sin esperar la gracia.
+                pago vuelve a activa. Tiene que ser mayor que la gracia de pago. Ojo: el atleta
+                aparece en <strong>Morosos</strong> desde el primer día de atraso.
               </Text>
               <Group gap="xs" align="flex-end" wrap="nowrap">
                 <NumberInput
@@ -898,7 +983,9 @@ export function AthletesPage() {
               accessor: "days_to_due",
               title: "Vencimiento",
               sortable: true,
-              render: (m) => <DueBadge days={m.days_to_due} date={m.renewal_date} />,
+              render: (m) => (
+                <DueBadge days={m.days_to_due} date={m.renewal_date} graceUntil={m.payment_grace_until} />
+              ),
             },
             { accessor: "community_points", title: "Puntos", sortable: true, render: (m) => m.community_points },
             {
@@ -1050,7 +1137,11 @@ export function AthletesPage() {
                       <Text c="dimmed" size="sm">
                         · vence {detail.data.renewal_date}
                       </Text>
-                      <DueBadge days={detail.data.days_to_due} date={detail.data.renewal_date} />
+                      <DueBadge
+                        days={detail.data.days_to_due}
+                        date={detail.data.renewal_date}
+                        graceUntil={detail.data.payment_grace_until}
+                      />
                     </>
                   )}
                 </Group>

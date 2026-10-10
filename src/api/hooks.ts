@@ -1479,6 +1479,8 @@ export function useUpdateGymConfig(gymId: string) {
        * de morosos, porque no lo hace.
        */
       overdue_grace_days?: number;
+      /** Días tras el vencimiento sin bloqueo (0..60). Menor que `overdue_grace_days`. */
+      payment_grace_days?: number;
     }) => (await api.patch<GymConfig>(`/gym/${gymId}`, body)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["gym-config", gymId] });
