@@ -6,6 +6,7 @@ import {
   Divider,
   Group,
   SimpleGrid,
+  Switch,
   Table,
   Text,
   TextInput,
@@ -19,6 +20,7 @@ import {
   useDecideCoachRequest,
   useGymCoaches,
   useInviteCoach,
+  useUpdateCoach,
 } from "../api/hooks";
 import type { Coach } from "../api/types";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
@@ -40,6 +42,32 @@ export function CoachesPage() {
   const requests = useCoachRequests(gymId);
   const inviteCoach = useInviteCoach(gymId);
   const decideRequest = useDecideCoachRequest(gymId);
+  const updateCoach = useUpdateCoach(gymId);
+
+  /** Da o quita el permiso de subir workouts y VERIFICA contra la respuesta. */
+  const onPermisoProgramacion = async (coach: Coach, permitido: boolean) => {
+    try {
+      const saved = (await updateCoach.mutateAsync({
+        staffId: coach.staff_role,
+        body: { can_program_wods: permitido },
+      })) as Coach;
+      if (saved.can_program_wods !== permitido) {
+        notifications.show({
+          color: "red",
+          message: "La API no guardó el permiso. Avisa a soporte de Nucleo.",
+        });
+        return;
+      }
+      notifications.show({
+        color: "teal",
+        message: permitido
+          ? `${coach.name || coach.email} ya puede subir el workout.`
+          : `${coach.name || coach.email} ya no puede subir el workout; solo lo ve.`,
+      });
+    } catch (error) {
+      notifications.show({ color: "red", message: errMsg(error, "No se pudo cambiar el permiso.") });
+    }
+  };
 
   const [invEmail, setInvEmail] = useState("");
   const [invFirst, setInvFirst] = useState("");
@@ -327,6 +355,22 @@ export function CoachesPage() {
                 ),
             },
             {
+              accessor: "can_program_wods",
+              title: "Sube el workout",
+              sortable: true,
+              render: (c) => (
+                // El clic en el switch no debe abrir la ficha del coach.
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={c.can_program_wods}
+                    disabled={updateCoach.isPending}
+                    onChange={(e) => onPermisoProgramacion(c, e.currentTarget.checked)}
+                    aria-label={`Permitir que ${c.name || c.email} suba el workout`}
+                  />
+                </div>
+              ),
+            },
+            {
               accessor: "is_active",
               title: "Estado",
               sortable: true,
@@ -339,7 +383,9 @@ export function CoachesPage() {
           ]}
         />
         <Text c="dimmed" size="xs" px="md" pb="md" pt="xs">
-          Toca un coach para ver su perfil. La tarifa y las liquidaciones se gestionan en Negocio → Pagos a coaches.
+          Toca un coach para ver su perfil. «Sube el workout» decide si puede crear, editar y
+          publicar el workout del día; apagado, solo lo ve. La tarifa y las liquidaciones se
+          gestionan en Negocio → Pagos a coaches.
         </Text>
       </GlassCard>
 

@@ -880,6 +880,8 @@ export interface Coach {
   per_class_rate: string;
   fixed_amount: string;
   is_active: boolean;
+  /** Si puede subir la programación (workouts) del gym. Lo decide el admin; default true. */
+  can_program_wods: boolean;
   /** Personal trainer: ofrece el servicio, su precio y la comisión del trainer (0-1). */
   offers_pt: boolean;
   pt_price: string;

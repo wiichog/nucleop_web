@@ -3592,10 +3592,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description WODs del gym (admin/coach). Crea/lista el WOD del día por servicio. */
+        /**
+         * @description WODs del gym (admin/coach). Crea/lista el WOD del día por servicio.
+         *
+         *     Ver: cualquier admin o coach. Crear: solo quien tiene permiso de programar.
+         */
         get: operations["gym_wods_list"];
         put?: never;
-        /** @description WODs del gym (admin/coach). Crea/lista el WOD del día por servicio. */
+        /**
+         * @description WODs del gym (admin/coach). Crea/lista el WOD del día por servicio.
+         *
+         *     Ver: cualquier admin o coach. Crear: solo quien tiene permiso de programar.
+         */
         post: operations["gym_wods_create"];
         delete?: never;
         options?: never;
@@ -3610,15 +3618,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Editar/publicar/eliminar un WOD. */
+        /** @description Editar/publicar/eliminar un WOD (solo quien tiene permiso de programar). */
         get: operations["gym_wods_retrieve"];
         put?: never;
         post?: never;
-        /** @description Editar/publicar/eliminar un WOD. */
+        /** @description Editar/publicar/eliminar un WOD (solo quien tiene permiso de programar). */
         delete: operations["gym_wods_destroy"];
         options?: never;
         head?: never;
-        /** @description Editar/publicar/eliminar un WOD. */
+        /** @description Editar/publicar/eliminar un WOD (solo quien tiene permiso de programar). */
         patch: operations["gym_wods_partial_update"];
         trace?: never;
     };
@@ -7177,6 +7185,7 @@ export interface components {
             /** Format: decimal */
             fixed_amount: string;
             is_active: boolean;
+            can_program_wods: boolean;
             offers_pt: boolean;
             /** Format: decimal */
             pt_price: string;
@@ -9622,6 +9631,7 @@ export interface components {
             /** Format: decimal */
             fixed_amount?: string;
             is_active?: boolean;
+            can_program_wods?: boolean;
             offers_pt?: boolean;
             /** Format: decimal */
             pt_price?: string;
@@ -11350,6 +11360,8 @@ export interface components {
             club_id: string | null;
             gym_name: string | null;
             club_name: string | null;
+            /** @default false */
+            can_program_wods: boolean;
         };
         /**
          * @description * `pending_payment` - Pago pendiente

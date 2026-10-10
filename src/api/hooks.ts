@@ -1067,6 +1067,7 @@ export function useUpdateCoach(gymId: string) {
         per_class_rate: string | number;
         fixed_amount: string | number;
         is_active: boolean;
+        can_program_wods: boolean;
         offers_pt: boolean;
         pt_price: string | number;
         pt_commission_pct: string | number;

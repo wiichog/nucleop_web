@@ -89,7 +89,7 @@ export const manualesOperacion: ManualesPorRuta = {
           "Presiona «Crear workout».",
         ],
         nota:
-          "Hay un solo workout por servicio y fecha, y lo comparten todas las clases de ese día. Para cambiarlo, edita el que ya existe en vez de crear otro.",
+          "Hay un solo workout por servicio y fecha, y lo comparten todas las clases de ese día. Para cambiarlo, edita el que ya existe en vez de crear otro. Tus coaches también pueden subirlo desde el app, salvo a quien le apagues «Sube el workout» en Coaches.",
       },
       {
         titulo: "Publicar, despublicar o borrar un workout",
@@ -236,6 +236,11 @@ export const manualesOperacion: ManualesPorRuta = {
         sintoma: "Me dice que ya existe un workout para ese día.",
         solucion:
           "Solo hay uno por servicio y fecha. Búscalo en «Publicadas y borradores» y edítalo.",
+      },
+      {
+        sintoma: "Un coach me dice que no puede subir el workout.",
+        solucion:
+          "En Coaches, revisa que tenga activado «Sube el workout». Apagado, el coach solo puede ver la programación.",
       },
       {
         sintoma: "Mis atletas no ven el workout.",
