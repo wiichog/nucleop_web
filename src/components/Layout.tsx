@@ -1,3 +1,4 @@
+import { lazy, Suspense, useState } from "react";
 import { NavLink as RouterNavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Burger,
@@ -13,6 +14,7 @@ import { useDisclosure } from "@mantine/hooks";
 import {
   BarChart3,
   Bell,
+  BookOpen,
   BellRing,
   Bug,
   Building2,
@@ -49,6 +51,10 @@ import { AtomLogo } from "../landing/AtomLogo";
 import { ReportIssueButton } from "./ReportIssueModal";
 import { CountBadge } from "./ui";
 import { GlassChip, ToolButton } from "./aurora";
+
+// Diferido: el contenido de los manuales crece con cada pantalla y sólo hace
+// falta la primera vez que alguien abre uno.
+const ManualDrawer = lazy(() => import("./ManualDrawer").then((m) => ({ default: m.ManualDrawer })));
 
 /**
  * Shell del panel en el lenguaje **Aurora**.
@@ -308,6 +314,9 @@ export function Layout() {
   const navigate = useNavigate();
   const pending = usePendingSummary(primaryGymId ?? "");
   const counts = pending.data;
+  const [manualOpen, setManualOpen] = useState(false);
+  // Se monta al primer clic y se queda montado, para que el cierre se anime.
+  const [manualUsado, setManualUsado] = useState(false);
 
   const showGymNav = isSuperuser || roles.some((r) => ["gym_admin", "coach"].includes(r.role));
   const groups: NavGroup[] = [];
@@ -411,6 +420,16 @@ export function Layout() {
 
           <Group gap="sm" wrap="nowrap" style={{ flex: "none" }}>
             <ContextSwitcher />
+            <ToolButton
+              label="Cómo usar esta pantalla"
+              className="a-pop"
+              onClick={() => {
+                setManualUsado(true);
+                setManualOpen(true);
+              }}
+            >
+              <BookOpen size={19} strokeWidth={1.8} />
+            </ToolButton>
             <ReportIssueButton />
             {showGymNav && <NotificationsBell summary={counts} />}
             <ToolButton
@@ -435,6 +454,16 @@ export function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {manualUsado && (
+        <Suspense fallback={null}>
+          <ManualDrawer
+            opened={manualOpen}
+            onClose={() => setManualOpen(false)}
+            pathname={location.pathname}
+          />
+        </Suspense>
+      )}
 
       {/* Navegación en móvil: el rail se convierte en drawer de vidrio. */}
       <Drawer
