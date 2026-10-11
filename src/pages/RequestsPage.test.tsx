@@ -63,7 +63,7 @@ vi.mock("../lib/auth", () => ({
   useAuth: () => ({ primaryGymId: "gym-1", isSuperuser: false }),
 }));
 
-import { RequestsPage, Solicitante } from "./RequestsPage";
+import { RequestsPage, Solicitante, mensajeAsignacion } from "./RequestsPage";
 
 function solicitud(over: Partial<JoinRequest> = {}): JoinRequest {
   return {
@@ -128,5 +128,25 @@ describe("RequestsPage · reingreso", () => {
     estado.solicitudes = [solicitud({ id: "jr-2" })];
     pintarPagina();
     expect(screen.queryByText(/reabre la relación que el atleta ya tuvo/)).toBeNull();
+  });
+});
+
+describe("RequestsPage · confirmación de «Asignar plan»", () => {
+  it("anuncia la cuota que guardó el servidor, no la tecleada (oferta de porcentaje)", () => {
+    // Se tecleó 400 con una oferta del 25 %: el servidor guardó 300.
+    const m = mensajeAsignacion({ custom_fee: "300.00", status: "active" });
+    expect(m).toMatch(/Q\s?300\.00/);
+    expect(m).not.toContain("400");
+    expect(m).toContain("ya es miembro activo");
+  });
+
+  it("sin cuota guardada dice que paga el precio del plan", () => {
+    expect(mensajeAsignacion({ custom_fee: null, status: "active" })).toMatch(
+      /precio del plan/,
+    );
+  });
+
+  it("no promete «miembro activo» si la membresía no quedó activa", () => {
+    expect(mensajeAsignacion({ custom_fee: null, status: "paused" })).not.toMatch(/activo/);
   });
 });

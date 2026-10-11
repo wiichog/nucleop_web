@@ -347,7 +347,7 @@ export const manualesUsuarios: ManualesPorRuta = {
           "Presiona «Asignar plan».",
         ],
         nota:
-          "Al asignar el plan, el atleta queda como miembro activo al instante, sin registrar ningún pago, y sale de esta bandeja: desde ahí lo ves en «Atletas».",
+          "Al asignar el plan, el atleta queda como miembro activo al instante, sin registrar ningún pago, y sale de esta bandeja: desde ahí lo ves en «Atletas». Una oferta de porcentaje recalcula la cuota: el mensaje de confirmación te dice la cuota que quedó.",
       },
       {
         titulo: "Buscar una solicitud",
