@@ -52,13 +52,21 @@ export function CoachPayrollPage() {
     columnAccessor: "period_start",
     direction: "desc",
   });
+  /**
+   * Los campos de número no son controlados (guardan en `blur`), así que un
+   * guardado fallido dejaba a la vista el número que el servidor rechazó. Al
+   * fallar se sube el contador de ese coach: cambia la `key` de sus campos, se
+   * vuelven a montar y muestran otra vez lo guardado.
+   */
+  const [reinicios, setReinicios] = useState<Record<string, number>>({});
 
   /**
    * Guarda un cambio de nómina del coach. Antes se llamaba a `mutate` sin
    * callbacks: si el backend rechazaba la tarifa, el input se quedaba con el
    * número nuevo, nadie avisaba, y la liquidación salía con el valor viejo.
    * Solo avisa en el error: el guardado va en cada `blur` y un toast de éxito
-   * por campo sería ruido.
+   * por campo sería ruido. En el error también regresa los campos del coach al
+   * valor guardado (ver `reinicios`).
    */
   const guardarCoach = (
     staffId: string,
@@ -67,11 +75,14 @@ export function CoachPayrollPage() {
     updateCoach.mutate(
       { staffId, body },
       {
-        onError: (error) =>
+        onError: (error) => {
+          setReinicios((r) => ({ ...r, [staffId]: (r[staffId] ?? 0) + 1 }));
           notifications.show({
             color: "red",
-            message: errMsg(error, "No se pudo guardar el cambio de nómina del coach."),
-          }),
+            title: "No se pudo guardar el cambio de nómina del coach",
+            message: `${errMsg(error, "Intenta de nuevo.")} El campo regresó al último valor guardado.`,
+          });
+        },
       },
     );
 
@@ -255,6 +266,7 @@ export function CoachPayrollPage() {
                         min={0}
                         decimalScale={2}
                         disabled={c.pay_type !== "per_class"}
+                        key={`per_class_rate-${reinicios[c.staff_role] ?? 0}`}
                         defaultValue={Number(c.per_class_rate)}
                         onBlur={(e) =>
                           guardarCoach(c.staff_role, {
@@ -270,6 +282,7 @@ export function CoachPayrollPage() {
                         min={0}
                         decimalScale={2}
                         disabled={c.pay_type !== "fixed"}
+                        key={`fixed_amount-${reinicios[c.staff_role] ?? 0}`}
                         defaultValue={Number(c.fixed_amount)}
                         onBlur={(e) =>
                           guardarCoach(c.staff_role, {
@@ -347,6 +360,7 @@ export function CoachPayrollPage() {
                           min={0}
                           decimalScale={2}
                           disabled={!c.offers_pt}
+                          key={`pt_price-${reinicios[c.staff_role] ?? 0}`}
                           defaultValue={Number(c.pt_price)}
                           onBlur={(e) =>
                             guardarCoach(c.staff_role, {
@@ -363,6 +377,7 @@ export function CoachPayrollPage() {
                             min={0}
                             max={100}
                             disabled={!c.offers_pt}
+                            key={`pt_commission_pct-${reinicios[c.staff_role] ?? 0}`}
                             defaultValue={pct}
                             onBlur={(e) => {
                               const v = Number(e.currentTarget.value.replace(/[^\d.]/g, "")) || 0;

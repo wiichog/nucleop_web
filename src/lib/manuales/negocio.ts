@@ -304,6 +304,11 @@ export const manualesNegocio: ManualesPorRuta = {
           "Revisa que las clases del periodo ya hayan pasado y tengan coach asignado, que el coach «Por clase» tenga una tarifa mayor a Q0, y que las clases de coaches con salario fijo estén marcadas como «pagar extra».",
       },
       {
+        sintoma: "Me sale «No se pudo guardar el cambio de nómina del coach».",
+        solucion:
+          "El cambio no se guardó y el campo regresó solo al último valor guardado. Revisa el número y vuelve a escribirlo; si el aviso dice el motivo, corrígelo antes de intentar otra vez.",
+      },
+      {
         sintoma: "Me sale «No se pudo generar la liquidación».",
         solucion: "Revisa las fechas «Desde» y «Hasta» e intenta de nuevo.",
       },
