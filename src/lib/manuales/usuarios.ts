@@ -163,7 +163,7 @@ export const manualesUsuarios: ManualesPorRuta = {
           "Presiona «Guardar cambios».",
         ],
         nota:
-          "Solo aparece mientras el atleta no ha reclamado su cuenta. En cuanto entra al app por primera vez, su perfil pasa a ser suyo y ya solo él puede cambiar esos datos.",
+          "Solo aparece mientras el atleta no ha reclamado su cuenta. En cuanto entra al app por primera vez, su perfil pasa a ser suyo y ya solo él puede cambiar esos datos: si hay uno mal, pídele que lo corrija desde su app.",
       },
     ],
     conceptos: [

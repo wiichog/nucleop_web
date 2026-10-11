@@ -1561,7 +1561,9 @@ export function AthletesPage() {
               sin reclamar (`profile_editable_by_gym`); después responde 403
               `athlete_profile_owned`. Ofrecer el formulario igual era prometer un
               guardado que nunca ocurría. Lo de la RELACIÓN (plan, cuota, cobro,
-              pausa, notas internas, baja) no se toca: sigue arriba. */}
+              pausa, baja) no se toca: sigue arriba. Las notas internas sólo se
+              muestran: el backend no tiene dónde escribirlas, así que no se las
+              ofrecemos como salida para corregir un dato. */}
           {detail.data.athlete_profile.profile_editable_by_gym ? (
             <Accordion variant="separated" mt="md">
               <Accordion.Item value="edit">
@@ -1594,8 +1596,8 @@ export function AthletesPage() {
           ) : (
             <Text size="sm" c="dimmed" mt="md">
               El nombre, el cumpleaños y el contacto de emergencia los edita el atleta desde su
-              app: el perfil viaja con él a los demás gimnasios. Si hay un dato mal, pídeselo a él
-              o corrígelo en tus <b>notas internas</b>.
+              app: el perfil viaja con él a los demás gimnasios. Si hay un dato mal, pídele que lo
+              corrija desde su app.
             </Text>
           )}
           </>
