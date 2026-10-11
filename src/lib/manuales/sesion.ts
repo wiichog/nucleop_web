@@ -16,14 +16,14 @@ export const manualesSesion: ManualesPorRuta = {
           "Presiona «Crear actividad».",
         ],
         nota:
-          "Si no eliges fecha y hora, la actividad queda con la fecha y hora del momento en que la creas. Desde esta pantalla todas las actividades se crean sin costo para los miembros.",
+          "Si no eliges fecha y hora, la actividad queda con la fecha y hora del momento en que la creas. Por ahora las actividades del club son gratuitas para los miembros: no se les puede poner precio.",
       },
       {
         titulo: "Ver quién confirmó una actividad y marcar su asistencia",
         pasos: [
           "En la pestaña «Actividades», busca la actividad en la lista «Actividades».",
           "Presiona «Ver RSVPs» para ver quién dijo que va.",
-          "Junto a cada persona que aparece como «going», presiona «Confirmar asistencia» cuando de verdad llegó.",
+          "Junto a cada persona que aparece como «Va a asistir», presiona «Confirmar asistencia» cuando de verdad llegó.",
           "Presiona «Ocultar RSVPs» para cerrar la lista.",
         ],
         nota: "Solo puedes tener abierta la lista de una actividad a la vez.",
@@ -33,18 +33,20 @@ export const manualesSesion: ManualesPorRuta = {
         pasos: [
           "Entra a la pestaña «Retos».",
           "Escribe el «Nombre del reto».",
-          "En «Meta (km o cantidad)» escribe a cuánto hay que llegar (viene en 50).",
+          "En «Medida» elige «Kilómetros» (cada atleta sube lo que corrió o rodó; los avances pequeños se suman solos y los grandes, o el que completa la meta, esperan tu revisión) o «Asistencias a actividades» (cada asistencia que confirmas en una actividad del club suma 1).",
+          "En «Meta (km)» o «Meta (asistencias)» escribe a cuánto hay que llegar (viene en 50).",
+          "En «Puntos al completarlo» escribe cuántos puntos gana quien cumpla la meta (viene en 30).",
           "Si quieres, elige cuándo «Termina (opcional)».",
           "Presiona «Crear reto».",
         ],
         nota:
-          "El reto empieza en el momento en que lo creas. Si no eliges fecha de fin, dura 30 días. Desde esta pantalla los retos se crean medidos en kilómetros y dan 30 puntos.",
+          "El reto empieza en el momento en que lo creas. Si no eliges fecha de fin, dura 30 días.",
       },
       {
         titulo: "Aprobar o rechazar los avances de tus miembros",
         pasos: [
           "Entra a la pestaña «Retos». Arriba, «Revisiones pendientes» dice cuántos avances esperan tu decisión.",
-          "Revisa cada avance: el nombre del atleta, cuánto suma (+) y de dónde viene.",
+          "Revisa cada avance: el nombre del atleta, cuánto suma (+), de dónde viene y a qué reto pertenece.",
           "Presiona «Aprobar» para sumárselo, o «Rechazar» si no procede.",
           "Al rechazar, escribe por qué en la ventana que aparece y acepta. Si cancelas la ventana, no se rechaza.",
         ],
@@ -59,7 +61,7 @@ export const manualesSesion: ManualesPorRuta = {
           "Presiona «Ocultar ranking» para cerrarlo.",
         ],
         nota:
-          "Mientras tienes abierto el ranking de un reto, «Revisiones pendientes» muestra solo los avances de ese reto. Ciérralo para volver a ver los de todos.",
+          "«Revisiones pendientes» siempre muestra los avances de todos los retos, aunque tengas un ranking abierto. Cada avance dice a qué reto pertenece.",
       },
       {
         titulo: "Publicar un anuncio para el club",
@@ -110,28 +112,28 @@ export const manualesSesion: ManualesPorRuta = {
         detalle: "La confirmación de un miembro de que va a ir a una actividad.",
       },
       {
-        termino: "going / attended / cancelled (en los RSVPs)",
+        termino: "Va a asistir / Asistió / Canceló (en los RSVPs)",
         detalle:
-          "«going»: dijo que va. «attended»: ya le confirmaste la asistencia. «cancelled»: canceló. Solo a quien está en «going» se le puede confirmar.",
+          "«Va a asistir»: dijo que va. «Asistió»: ya le confirmaste la asistencia. «Canceló»: ya no va. Solo a quien está en «Va a asistir» se le puede confirmar.",
       },
       {
         termino: "Revisiones pendientes",
         detalle: "Avances que tus miembros subieron a un reto y que todavía no apruebas ni rechazas.",
       },
       {
-        termino: "self_report / activity_attendance (origen del avance)",
+        termino: "Autodeclarado / Asistencia validada (origen del avance)",
         detalle:
-          "«self_report»: el atleta lo declaró por su cuenta. «activity_attendance»: viene de una asistencia validada a una actividad del club.",
+          "«Autodeclarado»: el atleta lo declaró por su cuenta. «Asistencia validada»: viene de una asistencia confirmada a una actividad del club.",
       },
       {
         termino: "Meta",
         detalle:
-          "A cuánto hay que llegar en el reto. En la lista se ve junto a la medida (por ejemplo «distance_km», kilómetros) y a cuántos participantes tiene.",
+          "A cuánto hay que llegar en el reto. En la lista se ve junto a la medida («Kilómetros» o «Asistencias a actividades») y a cuántos participantes tiene.",
       },
       {
-        termino: "active / pending_review / completed (en el ranking)",
+        termino: "En curso / En revisión / Completado (en el ranking)",
         detalle:
-          "«active»: el atleta sigue en el reto. «pending_review»: tiene un avance esperando tu revisión. «completed»: ya cumplió la meta.",
+          "«En curso»: el atleta sigue en el reto. «En revisión»: tiene un avance esperando tu revisión. «Completado»: ya cumplió la meta.",
       },
       {
         termino: "Ficha del club",
@@ -165,7 +167,7 @@ export const manualesSesion: ManualesPorRuta = {
       {
         sintoma: "No veo «Confirmar asistencia» junto a una persona.",
         solucion:
-          "Solo aparece para quien está en «going». Si dice «attended» ya está confirmada; si dice «cancelled», canceló su asistencia.",
+          "Solo aparece para quien está en «Va a asistir». Si dice «Asistió» ya está confirmada; si dice «Canceló», canceló su asistencia.",
       },
     ],
     relacionadas: [{ label: "Mi perfil", href: "/panel/perfil" }],

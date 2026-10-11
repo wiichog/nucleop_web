@@ -194,3 +194,23 @@ export const PAYMENT_CONCEPT: Record<string, string> = {
   retail: "Venta en recepción",
   service: "Servicio extra",
 };
+
+/** Confirmación de asistencia a una actividad del club (`ClubActivityRSVP.status`). */
+export const CLUB_RSVP_STATUS: Record<string, string> = {
+  going: "Va a asistir",
+  attended: "Asistió",
+  cancelled: "Canceló",
+};
+
+/** De dónde sale un avance de reto (`ClubChallengeSubmission.source`). */
+export const CLUB_SUBMISSION_SOURCE: Record<string, string> = {
+  self_report: "Autodeclarado",
+  activity_attendance: "Asistencia validada",
+};
+
+/** Estado del atleta dentro de un reto (`ClubChallengeEntry.status`). */
+export const CLUB_ENTRY_STATUS: Record<string, string> = {
+  active: "En curso",
+  pending_review: "En revisión",
+  completed: "Completado",
+};

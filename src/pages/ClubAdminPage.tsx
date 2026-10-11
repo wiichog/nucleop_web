@@ -5,6 +5,8 @@ import {
   FileInput,
   Group,
   Image,
+  NumberInput,
+  Select,
   SimpleGrid,
   Stack,
   Tabs,
@@ -18,6 +20,7 @@ import { CalendarClock, UserCheck } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
+import { CLUB_ENTRY_STATUS, CLUB_RSVP_STATUS, CLUB_SUBMISSION_SOURCE, label } from "../lib/labels";
 import {
   useClubAdminActivities,
   useClubAdminAnnouncements,
@@ -44,6 +47,41 @@ const rowBorder = { borderBottom: "1px solid var(--a-line)" };
 
 /** Separación estándar entre tarjetas de un panel. */
 const CARD_GAP = "calc(20 * var(--u))";
+
+/**
+ * Medidas que el servidor sabe llevar en un reto (ver `clubs/antifraud.py` y
+ * `challenge_progress.py`): kilómetros que declara el atleta, o asistencias a
+ * actividades del club que suma sola la confirmación de asistencia.
+ */
+export const METRICAS_RETO = [
+  { value: "distance_km", label: "Kilómetros" },
+  { value: "activity_count", label: "Asistencias a actividades" },
+] as const;
+
+/** Nombre legible de la medida de un reto; si llega una desconocida se muestra tal cual. */
+export function etiquetaMetrica(metric: string): string {
+  return METRICAS_RETO.find((m) => m.value === metric)?.label ?? metric;
+}
+
+/** Nombre del reto de un avance; si la lista de retos aún no llega, un genérico. */
+export function nombreReto(challengeId: string, retos?: { id: string; name: string }[]): string {
+  return retos?.find((r) => r.id === challengeId)?.name ?? "—";
+}
+
+/**
+ * Estado de los botones «Aprobar»/«Rechazar» de un avance. La mutación es una sola
+ * para toda la lista: sin comparar sus `variables`, al decidir una fila giraban todas.
+ * Gira sólo el botón pulsado y su hermano queda bloqueado mientras tanto.
+ */
+export function estadoRevision(
+  m: { isPending: boolean; variables?: { submissionId: string; action: string } },
+  submissionId: string,
+  action: "approve" | "reject",
+): { loading: boolean; disabled: boolean } {
+  const enEsta = m.isPending && m.variables?.submissionId === submissionId;
+  const esEste = enEsta && m.variables?.action === action;
+  return { loading: esEste, disabled: enEsta && !esEste };
+}
 
 export function ClubAdminPage() {
   const { primaryClubId, clubIds } = useAuth();
@@ -166,6 +204,10 @@ function ActividadesPanel({ clubId }: { clubId: string }) {
             <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
             <DateTimePicker label="Fecha y hora" value={startsAt} onChange={setStartsAt} valueFormat="YYYY-MM-DD HH:mm" />
             <TextInput label="Ubicación" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
+            {/* El servidor todavía no cobra actividades de club: se dice claro en vez de insinuarlo. */}
+            <Text c="dimmed" size="xs">
+              Las actividades del club son gratuitas para tus miembros.
+            </Text>
             <Button type="submit" loading={createActivity.isPending}>
               Crear actividad
             </Button>
@@ -220,12 +262,13 @@ function ActividadesPanel({ clubId }: { clubId: string }) {
                         {(rsvps.data ?? []).map((row) => (
                           <Group key={row.id} gap="sm">
                             <Text size="sm">
-                              {row.athlete_name} · {row.status}
+                              {row.athlete_name} · {label(CLUB_RSVP_STATUS, row.status)}
                             </Text>
                             {row.status === "going" && (
                               <Button
                                 size="xs"
-                                loading={confirm.isPending}
+                                // Sólo gira la fila que se está confirmando, no todas.
+                                loading={confirm.isPending && confirm.variables === row.athlete}
                                 onClick={() =>
                                   confirm.mutate(row.athlete, {
                                     onSuccess: () =>
@@ -267,11 +310,15 @@ function RetosPanel({ clubId }: { clubId: string }) {
   const createChallenge = useClubAdminCreateChallenge(clubId);
   const [expandedChallenge, setExpandedChallenge] = useState<string | null>(null);
   const challengeBoard = useClubAdminChallengeLeaderboard(clubId, expandedChallenge ?? "");
-  const pendingSubmissions = useClubAdminPendingSubmissions(clubId, expandedChallenge ?? undefined);
+  // La cola es de todo el club: abrir el ranking de un reto no la filtra (antes
+  // lo hacía en silencio y el contador parecía bajar solo).
+  const pendingSubmissions = useClubAdminPendingSubmissions(clubId);
   const reviewSubmission = useClubAdminReviewSubmission(clubId);
 
   const [challengeName, setChallengeName] = useState("");
+  const [challengeMetric, setChallengeMetric] = useState<string>("distance_km");
   const [challengeTarget, setChallengeTarget] = useState("50");
+  const [challengePoints, setChallengePoints] = useState<number | string>(30);
   const [challengeEnds, setChallengeEnds] = useState<Date | null>(null);
 
   /**
@@ -308,15 +355,17 @@ function RetosPanel({ clubId }: { clubId: string }) {
       await createChallenge.mutateAsync({
         name: challengeName,
         description: "",
-        metric: "distance_km",
+        metric: challengeMetric,
         target_value: challengeTarget,
         starts_at: new Date().toISOString(),
         ends_at: ends.toISOString(),
-        points_reward: 30,
+        points_reward: Math.max(0, Math.floor(Number(challengePoints) || 0)),
       });
       notifications.show({ color: "teal", message: `Reto "${challengeName}" creado.` });
       setChallengeName("");
+      setChallengeMetric("distance_km");
       setChallengeTarget("50");
+      setChallengePoints(30);
       setChallengeEnds(null);
     } catch (error) {
       notifications.show({ color: "red", message: errMsg(error, "No se pudo crear el reto.") });
@@ -351,17 +400,24 @@ function RetosPanel({ clubId }: { clubId: string }) {
             {(pendingSubmissions.data ?? []).map((sub) => (
               <Box key={sub.id} py="sm" style={rowBorder}>
                 <Text>
-                  <strong>{sub.athlete_name}</strong> · +{sub.delta} ({sub.source})
+                  <strong>{sub.athlete_name}</strong> · +{sub.delta} ({label(CLUB_SUBMISSION_SOURCE, sub.source)})
+                </Text>
+                <Text c="dimmed" size="sm">
+                  Reto: {nombreReto(sub.challenge, challenges.data)}
                 </Text>
                 <Group gap="xs" mt={6}>
-                  <Button size="xs" loading={reviewSubmission.isPending} onClick={() => onReview(sub.id, "approve")}>
+                  <Button
+                    size="xs"
+                    {...estadoRevision(reviewSubmission, sub.id, "approve")}
+                    onClick={() => onReview(sub.id, "approve")}
+                  >
                     Aprobar
                   </Button>
                   <Button
                     size="xs"
                     variant="default"
                     color="red"
-                    loading={reviewSubmission.isPending}
+                    {...estadoRevision(reviewSubmission, sub.id, "reject")}
                     onClick={() => onReview(sub.id, "reject")}
                   >
                     Rechazar
@@ -377,7 +433,32 @@ function RetosPanel({ clubId }: { clubId: string }) {
         <SectionLabel as="h2" mb={12}>Retos</SectionLabel>
         <Stack gap="sm" maw={460} mb="lg" component="form" onSubmit={onCreateChallenge}>
           <TextInput label="Nombre del reto" value={challengeName} onChange={(e) => setChallengeName(e.currentTarget.value)} required />
-          <TextInput label="Meta (km o cantidad)" value={challengeTarget} onChange={(e) => setChallengeTarget(e.currentTarget.value)} required />
+          <Select
+            label="Medida"
+            data={METRICAS_RETO.map((m) => ({ value: m.value, label: m.label }))}
+            value={challengeMetric}
+            onChange={(v) => v && setChallengeMetric(v)}
+            allowDeselect={false}
+            description={
+              challengeMetric === "activity_count"
+                ? "Cada asistencia que confirmes en una actividad del club suma 1."
+                : "Cada atleta sube los kilómetros que hizo. Los avances pequeños se suman solos; los grandes y el que completa la meta esperan tu revisión."
+            }
+          />
+          <TextInput
+            label={challengeMetric === "activity_count" ? "Meta (asistencias)" : "Meta (km)"}
+            value={challengeTarget}
+            onChange={(e) => setChallengeTarget(e.currentTarget.value)}
+            required
+          />
+          <NumberInput
+            label="Puntos al completarlo"
+            value={challengePoints}
+            onChange={setChallengePoints}
+            min={0}
+            allowDecimal={false}
+            allowNegative={false}
+          />
           <DateTimePicker label="Termina (opcional)" value={challengeEnds} onChange={setChallengeEnds} valueFormat="YYYY-MM-DD HH:mm" />
           <Button type="submit" loading={createChallenge.isPending}>
             Crear reto
@@ -395,7 +476,7 @@ function RetosPanel({ clubId }: { clubId: string }) {
               <Box key={challenge.id} py="sm" style={rowBorder}>
                 <Text fw={600}>{challenge.name}</Text>
                 <Text c="dimmed" size="sm">
-                  Meta {challenge.target_value} ({challenge.metric}) · {challenge.participant_count ?? 0} participantes
+                  Meta {challenge.target_value} ({etiquetaMetrica(challenge.metric)}) · {challenge.participant_count ?? 0} participantes
                 </Text>
                 <Button
                   variant="default"
@@ -412,6 +493,8 @@ function RetosPanel({ clubId }: { clubId: string }) {
                         message="No se pudo cargar el ranking del reto."
                         onRetry={() => challengeBoard.refetch()}
                       />
+                    ) : challengeBoard.isLoading ? (
+                      <PageLoading label="Cargando el ranking…" />
                     ) : !(challengeBoard.data ?? []).length ? (
                       <Text c="dimmed" size="sm">
                         Aún nadie registra avances en este reto.
@@ -419,7 +502,7 @@ function RetosPanel({ clubId }: { clubId: string }) {
                     ) : (
                       (challengeBoard.data ?? []).map((row) => (
                         <Text key={row.id} c="dimmed" size="sm">
-                          #{row.rank} {row.athlete_name} · {row.progress} · {row.status}
+                          #{row.rank} {row.athlete_name} · {row.progress} · {label(CLUB_ENTRY_STATUS, row.status)}
                         </Text>
                       ))
                     )}

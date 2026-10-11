@@ -247,6 +247,33 @@ function NotificationsBell({ summary }: { summary?: PendingSummary }) {
   );
 }
 
+/**
+ * Texto y etiqueta de la pastilla del selector. Si lo que se cambia son clubes
+ * (sin gimnasio activo o con un solo gimnasio), la pastilla habla de club y
+ * muestra el club activo: decir «Elegir gimnasio» a quien solo administra clubes
+ * lo confunde.
+ */
+export function textosSelectorContexto(opts: {
+  gymName?: string;
+  clubName?: string;
+  multiGym: boolean;
+  multiClub: boolean;
+}): { texto: string; etiqueta: string } {
+  const { gymName, clubName, multiGym, multiClub } = opts;
+  const etiqueta =
+    multiGym && multiClub
+      ? "Cambiar de gimnasio o club"
+      : multiGym
+        ? "Cambiar de gimnasio"
+        : "Cambiar de club";
+  // Con un solo gimnasio y varios clubes, lo que se elige es el club: se muestra
+  // el club activo, no el gimnasio (que no cambia desde aquí).
+  const texto = multiGym
+    ? (gymName ?? clubName ?? "Elegir gimnasio")
+    : (clubName ?? "Elegir club");
+  return { texto, etiqueta };
+}
+
 /** Selector de contexto (gimnasio/club) como pastilla de vidrio del header. */
 function ContextSwitcher() {
   const { gyms, primaryGymId, setPrimaryGymId, clubs, primaryClubId, setPrimaryClubId } =
@@ -254,6 +281,13 @@ function ContextSwitcher() {
   const activeGym = gyms.find((g) => g.id === primaryGymId);
   const multiGym = gyms.length > 1;
   const multiClub = clubs.length > 1;
+  const activeClub = clubs.find((c) => c.id === primaryClubId);
+  const { texto, etiqueta } = textosSelectorContexto({
+    gymName: activeGym?.name,
+    clubName: activeClub?.name,
+    multiGym,
+    multiClub,
+  });
 
   if (!activeGym && !multiClub) return null;
   if (!multiGym && !multiClub) {
@@ -271,10 +305,10 @@ function ContextSwitcher() {
           type="button"
           className="a-chip a-pop"
           style={{ maxWidth: "calc(260 * var(--u))", cursor: "pointer" }}
-          aria-label="Cambiar de gimnasio"
+          aria-label={etiqueta}
         >
           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-            {activeGym?.name ?? "Elegir gimnasio"}
+            {texto}
           </span>
           <ChevronDown size={14} style={{ flex: "none", opacity: 0.7 }} />
         </button>
