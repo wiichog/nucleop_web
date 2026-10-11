@@ -3,7 +3,13 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GymStatement, Payment, Payout } from "../api/types";
-import { CeldaFactura, EstadoDeCuenta, EstadoDePago } from "./PaymentsPage";
+import {
+  CeldaFactura,
+  ENCABEZADOS_CSV_PAGOS,
+  EstadoDeCuenta,
+  EstadoDePago,
+  filaCsvDePago,
+} from "./PaymentsPage";
 
 /** Lo que contesta `useGymStatement` en las pruebas del estado de cuenta. */
 const cuenta = vi.hoisted(() => ({ data: null as GymStatement | null }));
@@ -276,5 +282,32 @@ describe("PaymentsPage · el estado de cuenta no anida bloques dentro de un <p>"
       .filter((texto) => texto.includes("validateDOMNesting"));
     expect(avisosDeAnidado).toEqual([]);
     expect(container.querySelector("p div")).toBeNull();
+  });
+});
+
+/**
+ * El CSV del historial. Un contracargo llega como `refunded`, y con la etiqueta
+ * cruda la columna «estado» decía «Reembolsado»: para la contabilidad del gym es
+ * lo contrario de lo que pasó.
+ */
+describe("PaymentsPage · el CSV etiqueta bien los contracargos", () => {
+  const col = (nombre: string) => ENCABEZADOS_CSV_PAGOS.indexOf(nombre);
+
+  it("un contracargo sale como Contracargo en estado y en tipo", () => {
+    const fila = filaCsvDePago(pago({ status: "refunded", is_chargeback: true }));
+    expect(fila[col("estado")]).toBe("Contracargo");
+    expect(fila[col("tipo")]).toBe("Contracargo");
+  });
+
+  it("un reembolso de verdad sigue saliendo Reembolsado", () => {
+    const fila = filaCsvDePago(
+      pago({ status: "refunded", is_chargeback: false, refund_of: "p0" } as Partial<Payment>),
+    );
+    expect(fila[col("estado")]).toBe("Reembolsado");
+    expect(fila[col("tipo")]).toBe("Reembolso");
+  });
+
+  it("cada fila trae una celda por encabezado", () => {
+    expect(filaCsvDePago(pago())).toHaveLength(ENCABEZADOS_CSV_PAGOS.length);
   });
 });

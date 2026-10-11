@@ -59,10 +59,11 @@ export const manualesNegocio: ManualesPorRuta = {
       {
         titulo: "Descargar los pagos para tu contabilidad",
         pasos: [
-          "En «Historial de pagos», presiona «Exportar CSV».",
+          "Si solo quieres algunos pagos, escribe primero en el buscador de «Historial de pagos»; el botón cambia a «Exportar CSV (filtrado)».",
+          "En «Historial de pagos», presiona «Exportar CSV» (o «Exportar CSV (filtrado)»).",
           "Se descarga el archivo «pagos-nucleo.csv» con fecha, concepto, monto, método, estado, tipo (cobro, reembolso o contracargo) y los datos de la factura: estado, serie, número y referencia.",
         ],
-        nota: "El archivo trae todos los pagos, aunque tengas algo escrito en el buscador.",
+        nota: "El archivo trae exactamente los pagos que ves en la tabla, en el mismo orden. Si el buscador está vacío, trae todos. Los contracargos salen como «Contracargo», no como reembolso.",
       },
       {
         titulo: "Descargar o volver a emitir una factura electrónica",
@@ -242,7 +243,7 @@ export const manualesNegocio: ManualesPorRuta = {
         titulo: "Generar la liquidación de un periodo",
         pasos: [
           "En «Periodo a liquidar», elige la fecha «Desde» y la fecha «Hasta». Por defecto va del primer día del mes a hoy.",
-          "Presiona «Generar liquidación».",
+          "Presiona «Generar liquidación». Si falta una fecha o «Desde» es posterior a «Hasta», el botón queda apagado y el campo dice qué corregir.",
           "Si había algo pendiente, aparece el aviso «Liquidación generada» con cuántas liquidaciones salieron y por cuánto en total.",
           "Revísalas en la tabla «Liquidaciones».",
         ],
@@ -289,7 +290,12 @@ export const manualesNegocio: ManualesPorRuta = {
       {
         termino: "Liquidación",
         detalle:
-          "El pago acumulado de un coach en un periodo. En la tabla ves el coach, el periodo, el número en «Clases» y el «Total».",
+          "El pago acumulado de un coach en un periodo. En la tabla ves el nombre del coach, el periodo, el número en «Pagos» y el «Total».",
+      },
+      {
+        termino: "Pagos",
+        detalle:
+          "Cuántas cosas suma esa liquidación: cada clase impartida, cada clase con «pagar extra» y cada sesión de personal trainer cuentan como una.",
       },
       {
         termino: "Abierta / Pagada",
@@ -304,13 +310,18 @@ export const manualesNegocio: ManualesPorRuta = {
           "Revisa que las clases del periodo ya hayan pasado y tengan coach asignado, que el coach «Por clase» tenga una tarifa mayor a Q0, y que las clases de coaches con salario fijo estén marcadas como «pagar extra».",
       },
       {
+        sintoma: "Me sale «No se pudo guardar el cambio de nómina del coach».",
+        solucion:
+          "El cambio no se guardó y el campo regresó solo al último valor guardado. Revisa el número y vuelve a escribirlo; si el aviso dice el motivo, corrígelo antes de intentar otra vez.",
+      },
+      {
         sintoma: "Me sale «No se pudo generar la liquidación».",
         solucion: "Revisa las fechas «Desde» y «Hasta» e intenta de nuevo.",
       },
       {
-        sintoma: "Me sale «No se pudo guardar el cambio de nómina del coach.».",
+        sintoma: "El botón «Generar liquidación» está apagado.",
         solucion:
-          "El cambio no se guardó, aunque el campo siga mostrando el número nuevo. Recarga la página para ver el valor que quedó y vuelve a escribirlo.",
+          "Falta la fecha «Desde» o «Hasta», o «Desde» es posterior a «Hasta». Debajo del campo en rojo dice qué corregir. Un periodo de un solo día sí se puede.",
       },
       {
         sintoma: "No puedo escribir la tarifa o el salario de un coach.",
@@ -362,7 +373,7 @@ export const manualesNegocio: ManualesPorRuta = {
         pasos: [
           "En «Ingresos por línea de negocio» ves cada línea con su ingreso y qué porcentaje del total representa.",
           "Si hay más de una línea, arriba de la tabla aparece una gráfica para compararlas de un vistazo.",
-          "En «Cobros por método» ves cuánto entró por cada forma de pago.",
+          "En «Cobros por método» ves cuánto entró por cada forma de pago en las ventas de productos (mostrador y tienda de la app). Las membresías y servicios no se suman ahí.",
         ],
       },
       {
@@ -418,6 +429,11 @@ export const manualesNegocio: ManualesPorRuta = {
       {
         sintoma: "Me sale «Sin datos».",
         solucion: "No hay actividad en el periodo que elegiste. Prueba con otras fechas.",
+      },
+      {
+        sintoma: "Me sale «Revisa el periodo» en lugar del reporte.",
+        solucion:
+          "Falta la fecha «Desde» o «Hasta», o «Desde» es posterior a «Hasta». Corrige la fecha marcada en rojo y el reporte aparece solo.",
       },
       {
         sintoma: "«Productos más vendidos» o «Retail por categoría» salen vacíos.",

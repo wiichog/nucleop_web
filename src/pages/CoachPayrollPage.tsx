@@ -30,10 +30,25 @@ import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora"
 import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
+import { fechaIso as iso, motivoPeriodoInvalido } from "../lib/periodo";
 import { sortRecords } from "../lib/sortRecords";
 
-const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : "");
 const money = (v: string | number) => fmtQ(v, { decimals: 2 });
+
+/**
+ * Fila de la tabla «Liquidaciones». La liquidación solo trae el correo del
+ * coach; el nombre sale de la lista de coaches del gym (`coach` es el mismo
+ * `staff_role`). Si el coach ya no está en la lista, se queda el correo.
+ */
+type FilaLiquidacion = CoachPayout & { coach_name: string };
+
+export function filasLiquidacion(
+  payouts: CoachPayout[],
+  coaches: { staff_role: string; name: string }[],
+): FilaLiquidacion[] {
+  const nombres = new Map(coaches.map((c) => [c.staff_role, c.name]));
+  return payouts.map((p) => ({ ...p, coach_name: nombres.get(p.coach) || p.coach_email }));
+}
 
 /** Nómina de coaches: forma de pago por coach + liquidaciones del periodo (Negocio/ERP). */
 export function CoachPayrollPage() {
@@ -48,17 +63,25 @@ export function CoachPayrollPage() {
   const today = new Date();
   const [from, setFrom] = useState<Date | null>(new Date(today.getFullYear(), today.getMonth(), 1));
   const [to, setTo] = useState<Date | null>(today);
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<CoachPayout>>({
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<FilaLiquidacion>>({
     columnAccessor: "period_start",
     direction: "desc",
   });
+  /**
+   * Los campos de número no son controlados (guardan en `blur`), así que un
+   * guardado fallido dejaba a la vista el número que el servidor rechazó. Al
+   * fallar se sube el contador de ese coach: cambia la `key` de sus campos, se
+   * vuelven a montar y muestran otra vez lo guardado.
+   */
+  const [reinicios, setReinicios] = useState<Record<string, number>>({});
 
   /**
    * Guarda un cambio de nómina del coach. Antes se llamaba a `mutate` sin
    * callbacks: si el backend rechazaba la tarifa, el input se quedaba con el
    * número nuevo, nadie avisaba, y la liquidación salía con el valor viejo.
    * Solo avisa en el error: el guardado va en cada `blur` y un toast de éxito
-   * por campo sería ruido.
+   * por campo sería ruido. En el error también regresa los campos del coach al
+   * valor guardado (ver `reinicios`).
    */
   const guardarCoach = (
     staffId: string,
@@ -67,21 +90,24 @@ export function CoachPayrollPage() {
     updateCoach.mutate(
       { staffId, body },
       {
-        onError: (error) =>
+        onError: (error) => {
+          setReinicios((r) => ({ ...r, [staffId]: (r[staffId] ?? 0) + 1 }));
           notifications.show({
             color: "red",
-            message: errMsg(error, "No se pudo guardar el cambio de nómina del coach."),
-          }),
+            title: "No se pudo guardar el cambio de nómina del coach",
+            message: `${errMsg(error, "Intenta de nuevo.")} El campo regresó al último valor guardado.`,
+          });
+        },
       },
     );
 
   /** Marca la liquidación como pagada (sale como gasto de nómina). */
-  const onPagar = (p: CoachPayout) =>
+  const onPagar = (p: FilaLiquidacion) =>
     payPayout.mutate(p.id, {
       onSuccess: () =>
         notifications.show({
           color: "teal",
-          message: `Liquidación de ${p.coach_email} marcada como pagada.`,
+          message: `Liquidación de ${p.coach_name} marcada como pagada.`,
         }),
       onError: (error) =>
         notifications.show({
@@ -90,11 +116,24 @@ export function CoachPayrollPage() {
         }),
     });
 
+  const filas = filasLiquidacion((payouts.data ?? []) as CoachPayout[], coaches.data ?? []);
+
   if (!gymId) return <NoGymAssigned />;
   if (coaches.isError) return <PageError onRetry={() => coaches.refetch()} />;
 
+  /** Sin fechas o con el rango al revés no se genera nada: se dice por qué. */
+  const periodoInvalido = motivoPeriodoInvalido(from, to);
+
   const onGenerate = async (e: FormEvent) => {
     e.preventDefault();
+    if (periodoInvalido) {
+      notifications.show({
+        color: "red",
+        title: "Revisa el periodo a liquidar",
+        message: periodoInvalido.mensaje,
+      });
+      return;
+    }
     try {
       const result = await generate.mutateAsync({ period_start: iso(from), period_end: iso(to) });
       if (result.length > 0) {
@@ -255,6 +294,7 @@ export function CoachPayrollPage() {
                         min={0}
                         decimalScale={2}
                         disabled={c.pay_type !== "per_class"}
+                        key={`per_class_rate-${reinicios[c.staff_role] ?? 0}`}
                         defaultValue={Number(c.per_class_rate)}
                         onBlur={(e) =>
                           guardarCoach(c.staff_role, {
@@ -270,6 +310,7 @@ export function CoachPayrollPage() {
                         min={0}
                         decimalScale={2}
                         disabled={c.pay_type !== "fixed"}
+                        key={`fixed_amount-${reinicios[c.staff_role] ?? 0}`}
                         defaultValue={Number(c.fixed_amount)}
                         onBlur={(e) =>
                           guardarCoach(c.staff_role, {
@@ -347,6 +388,7 @@ export function CoachPayrollPage() {
                           min={0}
                           decimalScale={2}
                           disabled={!c.offers_pt}
+                          key={`pt_price-${reinicios[c.staff_role] ?? 0}`}
                           defaultValue={Number(c.pt_price)}
                           onBlur={(e) =>
                             guardarCoach(c.staff_role, {
@@ -363,6 +405,7 @@ export function CoachPayrollPage() {
                             min={0}
                             max={100}
                             disabled={!c.offers_pt}
+                            key={`pt_commission_pct-${reinicios[c.staff_role] ?? 0}`}
                             defaultValue={pct}
                             onBlur={(e) => {
                               const v = Number(e.currentTarget.value.replace(/[^\d.]/g, "")) || 0;
@@ -413,9 +456,21 @@ export function CoachPayrollPage() {
             </Text>
           </div>
           <Group align="flex-end" gap="sm" wrap="wrap">
-            <DatePickerInput label="Desde" value={from} onChange={setFrom} valueFormat="YYYY-MM-DD" />
-            <DatePickerInput label="Hasta" value={to} onChange={setTo} valueFormat="YYYY-MM-DD" />
-            <Button type="submit" loading={generate.isPending}>
+            <DatePickerInput
+              label="Desde"
+              value={from}
+              onChange={setFrom}
+              valueFormat="YYYY-MM-DD"
+              error={periodoInvalido?.desde}
+            />
+            <DatePickerInput
+              label="Hasta"
+              value={to}
+              onChange={setTo}
+              valueFormat="YYYY-MM-DD"
+              error={periodoInvalido?.hasta}
+            />
+            <Button type="submit" loading={generate.isPending} disabled={!!periodoInvalido}>
               Generar liquidación
             </Button>
           </Group>
@@ -432,20 +487,22 @@ export function CoachPayrollPage() {
             onRetry={() => payouts.refetch()}
           />
         )}
-        <DataTable<CoachPayout>
+        <DataTable<FilaLiquidacion>
           minHeight={140}
           highlightOnHover
           striped
           idAccessor="id"
-          records={sortRecords((payouts.data ?? []) as CoachPayout[], sortStatus)}
+          records={sortRecords(filas, sortStatus)}
           fetching={payouts.isLoading}
           noRecordsText="Genera la primera liquidación de un periodo."
           sortStatus={sortStatus}
           onSortStatusChange={setSortStatus}
           columns={[
-            { accessor: "coach_email", title: "Coach", sortable: true },
+            { accessor: "coach_name", title: "Coach", sortable: true },
             { accessor: "period_start", title: "Periodo", sortable: true, render: (p) => `${p.period_start} → ${p.period_end}` },
-            { accessor: "earnings_count", title: "Clases", sortable: true, textAlign: "right" },
+            // Cuenta todo lo que suma la liquidación: clases, extras y sesiones de
+            // personal trainer. Decía «Clases», que no era cierto con PT.
+            { accessor: "earnings_count", title: "Pagos", sortable: true, textAlign: "right" },
             {
               accessor: "total",
               title: "Total",

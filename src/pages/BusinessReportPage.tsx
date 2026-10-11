@@ -14,6 +14,7 @@ import {
 } from "../components/aurora";
 import { fmtQ, toNumber } from "../lib/money";
 import { useAuth } from "../lib/auth";
+import { fechaIso as iso, motivoPeriodoInvalido } from "../lib/periodo";
 
 /**
  * Reporte de negocio en el lenguaje **Aurora**: la utilidad neta manda (cifra
@@ -25,7 +26,6 @@ function firstOfMonth() {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
-const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : "");
 
 function Delta({ value }: { value: number | null }) {
   if (value === null) return <Text c="dimmed" span size="xs">—</Text>;
@@ -44,7 +44,17 @@ export function BusinessReportPage() {
   const [to, setTo] = useState<Date | null>(new Date());
   const [branch, setBranch] = useState<string | null>("");
   const { data: branches } = useBranches(gymId);
-  const { data, isLoading, isError, refetch } = useErpPnl(gymId, iso(from), iso(to), branch || undefined);
+  /**
+   * Sin fechas o con el rango al revés no se consulta (el hook queda apagado
+   * con fechas vacías) y en lugar del reporte se dice por qué.
+   */
+  const periodoInvalido = motivoPeriodoInvalido(from, to);
+  const { data, isLoading, isError, refetch } = useErpPnl(
+    gymId,
+    periodoInvalido ? "" : iso(from),
+    periodoInvalido ? "" : iso(to),
+    branch || undefined,
+  );
 
   if (!gymId) return <NoGymAssigned />;
 
@@ -59,8 +69,20 @@ export function BusinessReportPage() {
       <GlassCard padding={16} delay={0.6} style={{ marginBottom: "calc(20 * var(--u))" }}>
         <Group align="flex-end" gap="md" wrap="wrap">
           <SectionLabel mb={0}>Periodo</SectionLabel>
-          <DatePickerInput label="Desde" value={from} onChange={setFrom} valueFormat="YYYY-MM-DD" />
-          <DatePickerInput label="Hasta" value={to} onChange={setTo} valueFormat="YYYY-MM-DD" />
+          <DatePickerInput
+            label="Desde"
+            value={from}
+            onChange={setFrom}
+            valueFormat="YYYY-MM-DD"
+            error={periodoInvalido?.desde}
+          />
+          <DatePickerInput
+            label="Hasta"
+            value={to}
+            onChange={setTo}
+            valueFormat="YYYY-MM-DD"
+            error={periodoInvalido?.hasta}
+          />
           {(branches ?? []).length > 0 && (
             <Select
               label="Sede"
@@ -74,7 +96,9 @@ export function BusinessReportPage() {
         </Group>
       </GlassCard>
 
-      {isLoading ? (
+      {periodoInvalido ? (
+        <EmptyState title="Revisa el periodo" description={periodoInvalido.mensaje} />
+      ) : isLoading ? (
         <PageLoading />
       ) : isError ? (
         <PageError onRetry={() => refetch()} />
@@ -255,9 +279,13 @@ export function BusinessReportPage() {
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mt="lg">
             <GlassCard padding={22} delay={1.3}>
               <SectionLabel as="h2" mb={12}>Cobros por método</SectionLabel>
+              {/* El corte sale solo de las ventas de productos (mostrador y tienda
+                  de la app); los cobros de membresías y servicios no entran aquí. */}
               {!(data.revenue_by_method ?? []).length ? (
                 <Text c="dimmed" size="sm">
-                  Registra ventas para ver el corte de caja.
+                  No hubo ventas de productos en el período. Aquí se suman las ventas
+                  del mostrador y de la tienda de la app; las membresías y servicios
+                  no entran en este corte.
                 </Text>
               ) : (
                 <Table>
