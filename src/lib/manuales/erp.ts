@@ -62,7 +62,7 @@ export const manualesErp: ManualesPorRuta = {
           "Para volver a venderlo, enciende otra vez el interruptor «Activo».",
         ],
         nota:
-          "Un producto apagado sigue en tu catálogo con su stock y su historial; solo deja de salir en «Punto de venta». Si no se pudo cambiar, sale un aviso en rojo y el interruptor se queda como estaba.",
+          "Un producto apagado sigue en tu catálogo con su stock y su historial; solo deja de salir en «Punto de venta» y en la tienda del app. Si no se pudo cambiar, sale un aviso en rojo y el interruptor se queda como estaba.",
       },
       {
         titulo: "Editar o eliminar un producto",
