@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { sumarGastosVigentes } from "./ExpensesPage";
+import { fmtQ } from "../lib/money";
+import { mensajeCorreccion, sumarGastosVigentes } from "./ExpensesPage";
 
 /**
  * «Suma de los gastos listados» con «Estado: Todos». Una corrección deja el
@@ -22,5 +23,15 @@ describe("sumarGastosVigentes", () => {
       vigentes: 0,
       fuera: 1,
     });
+  });
+});
+
+describe("mensajeCorreccion", () => {
+  it("muestra el monto nuevo en quetzales, no el texto crudo del API", () => {
+    const m = mensajeCorreccion("1500.00");
+    // El espacio tras la «Q» depende del motor de Intl: se compara contra fmtQ.
+    expect(m).toContain(`por ${fmtQ(1500, { decimals: 2 })}.`);
+    expect(m).toMatch(/Q\s?1,500\.00/);
+    expect(m).not.toContain("por 1500.00");
   });
 });

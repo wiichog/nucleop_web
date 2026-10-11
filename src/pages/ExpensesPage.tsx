@@ -74,6 +74,14 @@ export function sumarGastosVigentes(gastos: Pick<ErpExpense, "amount" | "is_void
   };
 }
 
+/**
+ * Aviso tras corregir un gasto. El monto llega del API como texto («1500.00»):
+ * se formatea en quetzales con dos decimales, igual que la suma de arriba.
+ */
+export function mensajeCorreccion(monto: ErpExpense["amount"]) {
+  return `Gasto corregido. Se anuló el original y se registró uno nuevo por ${fmtQ(monto, { decimals: 2 })}.`;
+}
+
 export function ExpensesPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
@@ -184,7 +192,7 @@ export function ExpensesPage() {
       });
       notifications.show({
         color: "teal",
-        message: `Gasto corregido. Se anuló el original y se registró uno nuevo por ${nuevo.amount}.`,
+        message: mensajeCorreccion(nuevo.amount),
       });
       setCorrigiendo(null);
       setCorreccionProof(null);
