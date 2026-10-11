@@ -67,7 +67,7 @@ describe("ManualDrawer", () => {
   });
 
   it("una pantalla sin manual lo dice", () => {
-    abrir("/panel/inventario");
+    abrir("/panel/no-existe");
     expect(screen.getByText(/todavía no tiene manual/)).toBeTruthy();
   });
 });

@@ -1,11 +1,25 @@
 import type { Manual, ManualesPorRuta } from "./tipos";
+import { manualesComunidad } from "./comunidad";
+import { manualesErp } from "./erp";
+import { manualesNegocio } from "./negocio";
 import { manualesOperacion } from "./operacion";
+import { manualesOperacionResto } from "./operacion-resto";
+import { manualesPlataforma } from "./plataforma";
+import { manualesSesion } from "./sesion";
+import { manualesUsuarios } from "./usuarios";
 
 export type { Manual } from "./tipos";
 
 /** Un archivo por grupo del menú; aquí se juntan todos. */
 export const MANUALES: ManualesPorRuta = {
   ...manualesOperacion,
+  ...manualesOperacionResto,
+  ...manualesUsuarios,
+  ...manualesComunidad,
+  ...manualesNegocio,
+  ...manualesErp,
+  ...manualesPlataforma,
+  ...manualesSesion,
 };
 
 /**
