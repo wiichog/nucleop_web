@@ -14,7 +14,7 @@ vi.mock("../lib/auth", () => ({
   useAuth: () => ({ primaryGymId: "gym-1", isSuperuser: false }),
 }));
 
-import { efectoDeAsignarPlan, ultimoBloqueo } from "./AthletesPage";
+import { dondeSeGestiona, efectoDeAsignarPlan, ultimoBloqueo } from "./AthletesPage";
 
 describe("qué pasa al asignarle plan a alguien que YA está adentro", () => {
   it("a un socio activo sólo le cambia el plan y la cuota", () => {
@@ -49,6 +49,19 @@ describe("qué pasa al asignarle plan a alguien que YA está adentro", () => {
       "pending_leave",
     ]) {
       expect(efectoDeAsignarPlan(estado)).toBe("cerrado");
+    }
+  });
+
+  it("cada estado cerrado manda a donde de verdad se gestiona", () => {
+    // Solicitudes solo lista solicitudes e invitaciones vivas: mandar ahí una baja
+    // pendiente o un exmiembro era mandar al operador a una bandeja vacía.
+    expect(dondeSeGestiona("blocked")).toBe("Levanta el bloqueo primero.");
+    expect(dondeSeGestiona("pending_leave")).toContain("«Bajas»");
+    for (const estado of ["former_member", "rejected"]) {
+      expect(dondeSeGestiona(estado)).toContain("«Invitar atleta»");
+    }
+    for (const estado of ["requested", "invited"]) {
+      expect(dondeSeGestiona(estado)).toBe("Gestiónala en la bandeja de Solicitudes.");
     }
   });
 

@@ -166,6 +166,28 @@ export function efectoDeAsignarPlan(status?: string | null): EfectoDePlan {
 }
 
 /**
+ * A dónde mandar al operador cuando la relación está cerrada para "Plan y cuota".
+ * Antes todo caía en "la bandeja de Solicitudes", que solo lista solicitudes e
+ * invitaciones vivas: una baja pendiente, un exmiembro o un rechazado no están
+ * ahí, y el operador iba a buscarlos a donde no había nada.
+ */
+export function dondeSeGestiona(status?: string | null): string {
+  switch (status) {
+    case "blocked":
+      return "Levanta el bloqueo primero.";
+    case "pending_leave":
+      return "Respóndela en la pastilla «Bajas» de esta pantalla.";
+    case "former_member":
+    case "rejected":
+      // Volver reabre esta misma relación: lo invita el gym o lo pide el atleta.
+      return "Si quiere volver, invítalo desde «Solicitudes» con «Invitar atleta» o pídele que solicite entrar desde su app.";
+    default:
+      // `requested` / `invited`: esas sí viven en la bandeja.
+      return "Gestiónala en la bandeja de Solicitudes.";
+  }
+}
+
+/**
  * La sanción vigente dentro del historial de estados. El bloqueo no tiene campo
  * propio: su motivo viaja en el comentario de `MembershipStatusHistory`, que es
  * append-only. Hay que quedarse con la ENTRADA MÁS RECIENTE a "blocked" — a un
@@ -1309,9 +1331,7 @@ export function AthletesPage() {
                 Esta relación está{" "}
                 {label(MEMBERSHIP_STATUS, detail.data.status).toLowerCase()}: no se le asigna plan
                 desde aquí.{" "}
-                {detail.data.status === "blocked"
-                  ? "Levanta el bloqueo primero."
-                  : "Gestiónala en la bandeja de Solicitudes."}
+                {dondeSeGestiona(detail.data.status)}
               </Text>
             ) : (
               <>

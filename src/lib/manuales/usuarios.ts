@@ -280,7 +280,7 @@ export const manualesUsuarios: ManualesPorRuta = {
       {
         sintoma: "En «Plan y cuota» dice que no se le asigna plan desde aquí.",
         solucion:
-          "La membresía está en un estado en el que no se le puede cambiar el plan (por ejemplo bloqueada, exmiembro o con baja pendiente). Si está bloqueada, levanta el bloqueo primero.",
+          "La membresía está en un estado en el que no se le puede cambiar el plan. Si está bloqueada, levanta el bloqueo primero. Si tiene baja pendiente, respóndela en la pastilla «Bajas». Si es exmiembro o la rechazaste, para que vuelva invítalo desde «Solicitudes» con «Invitar atleta» o pídele que solicite entrar desde su app. Si es una solicitud o una invitación, atiéndela en «Solicitudes».",
       },
       {
         sintoma: "El selector de plan sale vacío o dice «No se pudieron cargar los planes.»",
