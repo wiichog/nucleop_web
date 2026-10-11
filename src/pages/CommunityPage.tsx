@@ -28,12 +28,12 @@ import {
   useDeleteAnnouncement,
   useGymAnnouncements,
   useGymAppeals,
-  useGymClasses,
   useGymFeed,
   useGymPendingPosts,
   useGymReportedComments,
   useMemberships,
   useModerationSignals,
+  useServiceTypes,
   usePostAnnouncement,
   useSetAthleteOfMonth,
   useUpdateAnnouncement,
@@ -44,7 +44,7 @@ import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PageHeader, SectionLabel } from "../components/ui";
 import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora";
-import { useAuth } from "../lib/auth";
+import { administraGym, useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
 
 const REACTION_EMOJI: Record<string, string> = {
@@ -181,9 +181,6 @@ function AnunciosPublicados({
   };
 
   const filas = anuncios.data ?? [];
-  // Publicar y corregir anuncios es del `gym_admin`; un coach entra a esta misma
-  // pantalla por la cola de moderación. Un 403 no es una falla que reportarle.
-  if ((anuncios.error as { response?: { status?: number } })?.response?.status === 403) return null;
 
   return (
     <GlassCard padding={24} delay={0.9} style={{ marginTop: "calc(20 * var(--u))" }}>
@@ -348,10 +345,15 @@ function AnunciosPublicados({
 }
 
 export function CommunityPage() {
-  const { primaryGymId } = useAuth();
+  const { primaryGymId, roles, isSuperuser } = useAuth();
   const gymId = primaryGymId ?? "";
+  // Publicar anuncios y elegir al atleta del mes es del `gym_admin` (el backend le
+  // responde 403 al coach). El coach entra a esta misma pantalla para moderar: se le
+  // ocultan esas tarjetas en vez de dejarlo llenar un formulario que va a fallar.
+  const esAdmin = administraGym(roles, isSuperuser, gymId);
   const feed = useGymFeed(gymId);
-  const classes = useGymClasses(gymId);
+  // El catálogo de servicios es del `gym_admin` (403 al coach): solo se pide si administra.
+  const servicios = useServiceTypes(esAdmin ? gymId : "");
   const memberships = useMemberships(gymId);
   const awards = useAthletesOfMonth(gymId);
   const aomHistory = useAthletesOfMonthHistory(gymId);
@@ -390,11 +392,17 @@ export function CommunityPage() {
   const [annPhoto, setAnnPhoto] = useState<File | null>(null);
   const [annVideo, setAnnVideo] = useState<File | null>(null);
 
+  // Las opciones de «Segmento» y las filas del atleta del mes salen del catálogo de
+  // servicios activos, no de las clases ya cargadas: un servicio sin clases en el rango
+  // también aparece. `class_type` es el nombre del servicio denormalizado en la clase.
+  // Se suman los servicios que ya tienen atleta del mes aunque se hayan desactivado,
+  // para que su fila no desaparezca y se pueda quitar.
   const classTypes = useMemo(() => {
     const set = new Set<string>();
-    (classes.data ?? []).forEach((c) => c.class_type && set.add(c.class_type));
+    (servicios.data ?? []).forEach((s) => s.is_active && s.name && set.add(s.name));
+    (awards.data ?? []).forEach((a) => a.class_type && set.add(a.class_type));
     return Array.from(set).sort();
-  }, [classes.data]);
+  }, [servicios.data, awards.data]);
 
   const activeAthletes = useMemo(
     () => (memberships.data ?? []).filter((m) => ["active", "trial"].includes(m.status ?? "")),
@@ -599,7 +607,11 @@ export function CommunityPage() {
       <PageHeader
         kicker="Comunidad · Feed"
         title="Comunidad del gym"
-        subtitle="Publica anuncios, destaca al atleta del mes y modera lo que sube tu comunidad: publicaciones por aprobar y comentarios reportados."
+        subtitle={
+          esAdmin
+            ? "Publica anuncios, destaca al atleta del mes y modera lo que sube tu comunidad: publicaciones por aprobar y comentarios reportados."
+            : "Modera lo que sube tu comunidad: publicaciones por aprobar y comentarios reportados."
+        }
       />
 
       {/* Pulso de la comunidad: todo se deriva de lo que ya trajeron las queries. */}
@@ -627,6 +639,7 @@ export function CommunityPage() {
         </SimpleGrid>
       </Stagger>
 
+      {esAdmin && (
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, lg: 6 }}>
           <GlassCard padding={24} delay={0.72} style={{ height: "100%" }}>
@@ -773,8 +786,9 @@ export function CommunityPage() {
           </GlassCard>
         </Grid.Col>
       </Grid>
+      )}
 
-      <AnunciosPublicados gymId={gymId} classTypes={classTypes} />
+      {esAdmin && <AnunciosPublicados gymId={gymId} classTypes={classTypes} />}
 
       <GlassCard padding={24} delay={0.96} style={{ marginTop: "calc(20 * var(--u))" }}>
         <SectionLabel as="h2" mb={8}>Histórico de atletas del mes</SectionLabel>
@@ -867,7 +881,7 @@ export function CommunityPage() {
             ? "Publicaciones de atletas y coaches que aún no salen al feed."
             : modTab === "comentarios"
               ? "Comentarios que tus atletas reportaron: están ocultos del feed hasta que decidas."
-              : "Atletas que no están de acuerdo con una decisión tuya y piden que la revises de nuevo."}
+              : "Atletas que no están de acuerdo con una decisión tuya y piden que la revises de nuevo. Solo se apela una publicación rechazada o un comentario oculto: uno eliminado ya no existe."}
         </Text>
         {modTab === "apelaciones" ? (
           appeals.isError ? (
@@ -1235,10 +1249,11 @@ export function CommunityPage() {
       >
         <Stack gap="md">
           <Text size="sm" c="dimmed">
+            {/* El comentario se borra de verdad en el backend (`comment.delete()`): no queda
+                nada que apelar ni que devolver al feed. Sólo el post rechazado es apelable. */}
             {rechazo?.tipo === "post"
-              ? `La publicación de ${rechazo?.quien} no saldrá al feed.`
-              : `El comentario de ${rechazo?.quien} se borra para siempre y no se puede recuperar.`}{" "}
-            Se le avisa con el motivo que elijas, y podrá pedirte que lo revises de nuevo.
+              ? `La publicación de ${rechazo?.quien} no saldrá al feed. Se le avisa con el motivo que elijas, y podrá pedirte que la revises de nuevo.`
+              : `El comentario de ${rechazo?.quien} se borra para siempre y no se puede recuperar. Se le avisa con el motivo que elijas, pero ya no podrá apelar: si tenía una apelación pendiente, se descarta. Si dudas, mejor «Cancelar» y déjalo oculto.`}
           </Text>
           <Select
             label="Motivo"
@@ -1288,7 +1303,7 @@ export function CommunityPage() {
               <Text size="sm">
                 {resolucion?.appeal.kind === "post"
                   ? "La publicación vuelve al feed y se le quita el motivo de la sanción."
-                  : "El comentario deja de estar oculto, vuelve al feed y se borran los reportes que lo bajaron."}{" "}
+                  : "El comentario, que seguía oculto, vuelve al feed y se borran los reportes que lo bajaron."}{" "}
                 Al atleta se le avisa que le diste la razón.
               </Text>
             </Alert>

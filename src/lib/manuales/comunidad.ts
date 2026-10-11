@@ -84,7 +84,7 @@ export const manualesComunidad: ManualesPorRuta = {
           "Si eliminas, en la ventana «Eliminar comentario» elige el «Motivo», agrega si quieres una nota y presiona «Eliminar».",
         ],
         nota:
-          "Eliminar un comentario lo borra para siempre: no se puede recuperar.",
+          "Eliminar un comentario lo borra para siempre: no se puede recuperar y el autor ya no puede apelar (si tenía una apelación pendiente, se descarta). Mientras sigue en esta lista está oculto, y el autor sí puede pedirte que lo revises. Si dudas, presiona «Cancelar» en la ventana y déjalo oculto.",
       },
       {
         titulo: "Responder una apelación",
@@ -95,7 +95,7 @@ export const manualesComunidad: ManualesPorRuta = {
           "En la ventana que se abre, escribe si quieres una «Nota para el atleta (opcional)» y confirma con el botón del mismo nombre.",
         ],
         nota:
-          "Aceptar no solo cierra el caso: la publicación o el comentario vuelven al feed. Si mantienes la decisión, el atleta puede pedirle una última revisión a Nucleo; en ese caso la apelación queda como «El atleta pidió una última revisión a Nucleo» y ya no la resuelves tú.",
+          "Solo llegan apelaciones de publicaciones rechazadas y de comentarios ocultos; un comentario que eliminaste ya no existe y no se puede apelar. Aceptar no solo cierra el caso: la publicación o el comentario oculto vuelven al feed. Si mantienes la decisión, el atleta puede pedirle una última revisión a Nucleo; en ese caso la apelación queda como «El atleta pidió una última revisión a Nucleo» y ya no la resuelves tú.",
       },
       {
         titulo: "Revisar la señal de moderación",
@@ -132,7 +132,7 @@ export const manualesComunidad: ManualesPorRuta = {
       {
         termino: "Segmento",
         detalle:
-          "A quién va un anuncio: «Todo el gym» o «Solo» una clase. Las clases de la lista son las que tiene tu calendario.",
+          "A quién va un anuncio: «Todo el gym» o «Solo» una clase. Las clases de la lista son los servicios activos de tu gimnasio, aunque todavía no tengan clases en el calendario.",
       },
       {
         termino: "Pendientes de moderación",
@@ -212,9 +212,9 @@ export const manualesComunidad: ManualesPorRuta = {
           "Presiona «Reintentar»: mientras no cargue, puede haber publicaciones, comentarios o apelaciones esperando tu respuesta.",
       },
       {
-        sintoma: "Soy coach y no veo «Anuncios publicados».",
+        sintoma: "Soy coach y no veo «Atleta del mes por clase», «Publicar anuncio en el feed» ni «Anuncios publicados».",
         solucion:
-          "Publicar y corregir anuncios le toca al administrador del gimnasio. Como coach entras a esta pantalla para moderar.",
+          "Elegir al atleta del mes y publicar o corregir anuncios le toca al administrador del gimnasio. Como coach entras a esta pantalla para moderar y para ver el histórico de atletas del mes.",
       },
     ],
     relacionadas: [
