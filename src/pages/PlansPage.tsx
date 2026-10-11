@@ -40,6 +40,30 @@ import { sortRecords } from "../lib/sortRecords";
 const OFFER_LABEL: Record<string, string> = { percent: "Descuento %", free_months: "Meses gratis" };
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
 
+/** Puntos de comunidad que hoy resta el plan por no-show (0 = sin penalización). */
+export function puntosNoShow(penalizacion: unknown): number {
+  const pts = (penalizacion as { community_points?: unknown } | null)?.community_points;
+  return typeof pts === "number" && Number.isFinite(pts) ? pts : 0;
+}
+
+/**
+ * Arma `noshow_penalty` a partir de los puntos del formulario. Al editar, conserva
+ * lo demás que ya traía la regla (p. ej. `global_points` o el mensaje): el panel
+ * solo maneja los puntos de comunidad y no debe borrar lo que no muestra.
+ * 0 o vacío = sin penalización de comunidad.
+ */
+export function armarPenalizacion(puntos: number | string, previa?: unknown): Record<string, unknown> | null {
+  const points = Number(puntos);
+  const base: Record<string, unknown> =
+    previa && typeof previa === "object" && !Array.isArray(previa)
+      ? { ...(previa as Record<string, unknown>) }
+      : { notify: true, message: "Penalización por no asistir a clase reservada." };
+  if (Number.isFinite(points) && points !== 0) return { ...base, community_points: points };
+  delete base.community_points;
+  // Sin puntos de comunidad ni globales la regla no hace nada: se manda vacía.
+  return base.global_points ? base : null;
+}
+
 export function PlansPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
@@ -94,6 +118,7 @@ export function PlansPage() {
   const [specialAccess, setSpecialAccess] = useState(false);
   const [openGym, setOpenGym] = useState(false);
   const [noshowPoints, setNoshowPoints] = useState<number | string>(-10);
+  const [autoRenew, setAutoRenew] = useState(true);
   const [planServices, setPlanServices] = useState<string[]>([]);
 
   const [offerName, setOfferName] = useState("");
@@ -105,7 +130,6 @@ export function PlansPage() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const points = Number(noshowPoints);
     // Sin catch, un rechazo del backend (precio inválido, nombre repetido) dejaba
     // la promesa sin dueño: el formulario no se limpiaba y nadie decía por qué.
     try {
@@ -116,11 +140,9 @@ export function PlansPage() {
         class_limit: classLimit ? Number(classLimit) : null,
         special_classes_access: specialAccess,
         open_gym_access: openGym,
+        auto_renew_default: autoRenew,
         service_types: planServices,
-        noshow_penalty:
-          Number.isFinite(points) && points !== 0
-            ? { community_points: points, notify: true, message: "Penalización por no asistir a clase reservada." }
-            : null,
+        noshow_penalty: armarPenalizacion(noshowPoints),
       });
       notifications.show({ color: "teal", message: `Plan "${name}" creado.` });
       setName("");
@@ -195,6 +217,7 @@ export function PlansPage() {
           <Group mt="md" gap="lg" align="center">
             <Checkbox label="Acceso a clases especiales" checked={specialAccess} onChange={(e) => setSpecialAccess(e.currentTarget.checked)} />
             <Checkbox label="Open gym" checked={openGym} onChange={(e) => setOpenGym(e.currentTarget.checked)} />
+            <Checkbox label="Renovación automática" checked={autoRenew} onChange={(e) => setAutoRenew(e.currentTarget.checked)} />
             <NumberInput label="Penalización no-show (pts)" value={noshowPoints} onChange={setNoshowPoints} w={170} />
             <Button type="submit" mt={22} loading={createPlan.isPending} disabled={!name || !price}>
               Crear plan
@@ -517,7 +540,7 @@ export function InterruptorOferta({ gymId, oferta }: { gymId: string; oferta: Pl
   );
 }
 
-function EditPlanModal({
+export function EditPlanModal({
   plan,
   serviceOptions,
   saving,
@@ -534,6 +557,10 @@ function EditPlanModal({
     duration_days: number;
     class_limit: number | null;
     service_types: string[];
+    special_classes_access: boolean;
+    open_gym_access: boolean;
+    auto_renew_default: boolean;
+    noshow_penalty: Record<string, unknown> | null;
   }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
@@ -541,6 +568,10 @@ function EditPlanModal({
   const [duration, setDuration] = useState<number | string>(30);
   const [classLimit, setClassLimit] = useState<number | string>("");
   const [services, setServices] = useState<string[]>([]);
+  const [specialAccess, setSpecialAccess] = useState(false);
+  const [openGym, setOpenGym] = useState(false);
+  const [autoRenew, setAutoRenew] = useState(true);
+  const [noshowPoints, setNoshowPoints] = useState<number | string>(0);
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
 
   if (plan && hydratedFor !== plan.id) {
@@ -550,6 +581,10 @@ function EditPlanModal({
     setDuration(plan.duration_days ?? 30);
     setClassLimit(plan.class_limit ?? "");
     setServices(plan.service_types ?? []);
+    setSpecialAccess(!!plan.special_classes_access);
+    setOpenGym(!!plan.open_gym_access);
+    setAutoRenew(plan.auto_renew_default ?? true);
+    setNoshowPoints(puntosNoShow(plan.noshow_penalty));
   }
 
   return (
@@ -569,6 +604,23 @@ function EditPlanModal({
         clearable
         mb="md"
       />
+      <Stack gap="xs" mb="sm">
+        <Checkbox label="Acceso a clases especiales" checked={specialAccess} onChange={(e) => setSpecialAccess(e.currentTarget.checked)} />
+        <Checkbox label="Open gym" checked={openGym} onChange={(e) => setOpenGym(e.currentTarget.checked)} />
+        <Checkbox
+          label="Renovación automática"
+          description="Lo heredan los atletas a los que les asignes este plan desde ahora; a los que ya lo tienen no les cambia."
+          checked={autoRenew}
+          onChange={(e) => setAutoRenew(e.currentTarget.checked)}
+        />
+      </Stack>
+      <NumberInput
+        label="Penalización no-show (pts)"
+        description="0 = sin penalización."
+        value={noshowPoints}
+        onChange={setNoshowPoints}
+        mb="md"
+      />
       <Group justify="flex-end">
         <Button variant="default" onClick={onClose}>
           Cancelar
@@ -583,6 +635,10 @@ function EditPlanModal({
               duration_days: Number(duration) || 30,
               class_limit: classLimit === "" ? null : Number(classLimit),
               service_types: services,
+              special_classes_access: specialAccess,
+              open_gym_access: openGym,
+              auto_renew_default: autoRenew,
+              noshow_penalty: armarPenalizacion(noshowPoints, plan?.noshow_penalty),
             })
           }
         >

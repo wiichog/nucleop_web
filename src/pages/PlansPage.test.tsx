@@ -60,7 +60,7 @@ vi.mock("@mantine/notifications", () => ({
   notifications: { show: (n: { color?: string; message?: string }) => avisos.show.push(n) },
 }));
 
-import { InterruptorOferta, InterruptorPlan } from "./PlansPage";
+import { EditPlanModal, InterruptorOferta, InterruptorPlan, armarPenalizacion } from "./PlansPage";
 
 const PLAN = {
   id: "p1",
@@ -126,5 +126,53 @@ describe("PlansPage — interruptores de activo", () => {
     await waitFor(() => expect(avisos.show).toHaveLength(2));
     expect(avisos.show.every((a) => a.color === "red")).toBe(true);
     expect(avisos.show.map((a) => a.message)).toEqual(["Sin permiso.", "Sin permiso."]);
+  });
+});
+
+/**
+ * «Editar plan»: antes solo dejaba cambiar nombre, precio, duración, límite y
+ * servicios; «Acceso a clases especiales», «Open gym», «Penalización no-show (pts)»
+ * y «Renovación automática» se fijaban al crear y ya no había cómo corregirlos.
+ */
+describe("PlansPage — editar plan", () => {
+  it("manda clases especiales, open gym, renovación y penalización", async () => {
+    const onSave = vi.fn(async () => {});
+    const plan = {
+      ...PLAN,
+      special_classes_access: false,
+      open_gym_access: true,
+      auto_renew_default: true,
+      noshow_penalty: { community_points: -10, global_points: -5, notify: true, message: "Hola" },
+      service_types: [],
+    };
+    montar(
+      <EditPlanModal plan={plan as never} serviceOptions={[]} saving={false} onClose={() => {}} onSave={onSave} />,
+    );
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Acceso a clases especiales" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Open gym" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Renovación automática/ }));
+    fireEvent.change(screen.getByRole("textbox", { name: /Penalización no-show/ }), { target: { value: "-20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0]).toEqual([
+      expect.objectContaining({
+        special_classes_access: true,
+        open_gym_access: false,
+        auto_renew_default: false,
+        // Conserva lo que el panel no muestra (puntos globales, mensaje).
+        noshow_penalty: { community_points: -20, global_points: -5, notify: true, message: "Hola" },
+      }),
+    ]);
+  });
+
+  it("0 puntos quita la penalización de comunidad sin borrar la global", () => {
+    expect(armarPenalizacion(0)).toBeNull();
+    expect(armarPenalizacion("", { community_points: -10, notify: true })).toBeNull();
+    expect(armarPenalizacion(0, { community_points: -10, global_points: -3 })).toEqual({ global_points: -3 });
+    expect(armarPenalizacion(-10)).toEqual({
+      community_points: -10,
+      notify: true,
+      message: "Penalización por no asistir a clase reservada.",
+    });
   });
 });

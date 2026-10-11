@@ -687,6 +687,7 @@ export function useCreatePlan(gymId: string) {
       class_limit?: number | null;
       special_classes_access?: boolean;
       open_gym_access?: boolean;
+      auto_renew_default?: boolean;
       benefits?: Record<string, unknown> | null;
       noshow_penalty?: Record<string, unknown> | null;
       service_types?: string[];

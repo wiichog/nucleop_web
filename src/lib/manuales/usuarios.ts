@@ -436,6 +436,7 @@ export const manualesUsuarios: ManualesPorRuta = {
           "Ajusta la «Duración (días)» (30 por defecto) y, si el plan tiene un tope, el «Límite de clases». Vacío significa sin límite.",
           "En «Servicios incluidos» elige las disciplinas que trae el plan. El atleta lo ve en el app.",
           "Marca «Acceso a clases especiales» u «Open gym» si el plan los incluye.",
+          "Deja marcada «Renovación automática» si el plan se renueva solo (viene marcada); desmárcala si prefieres registrar cada pago a mano.",
           "Ajusta la «Penalización no-show (pts)»: los puntos de comunidad que pierde quien reserva y no llega (−10 por defecto; 0 = sin penalización).",
           "Presiona «Crear plan».",
         ],
@@ -488,10 +489,12 @@ export const manualesUsuarios: ManualesPorRuta = {
         pasos: [
           "En la tabla «Planes» presiona «Editar» en la fila del plan.",
           "Cambia el «Nombre», el «Precio (Q)», la «Duración (días)», el «Límite de clases (vacío = sin límite)» o los «Servicios incluidos».",
+          "Marca o desmarca «Acceso a clases especiales», «Open gym» y «Renovación automática».",
+          "Ajusta la «Penalización no-show (pts)» (0 = sin penalización).",
           "Presiona «Guardar».",
         ],
         nota:
-          "Desde aquí no se cambian el acceso a clases especiales, el open gym ni la penalización por no-show: esos se definen al crear el plan.",
+          "Cambiar «Renovación automática» en el plan vale para los atletas a los que se lo asignes desde ahora. A los que ya tienen el plan no les cambia: eso se corrige en la ficha de cada atleta, en «Atletas».",
       },
       {
         titulo: "Prender, apagar o eliminar un plan",
@@ -545,7 +548,7 @@ export const manualesUsuarios: ManualesPorRuta = {
       {
         termino: "Renovación auto.",
         detalle:
-          "Si el plan se renueva solo por defecto. Lo puedes corregir para cada atleta en su ficha, en «Atletas».",
+          "Si el plan se renueva solo por defecto. Se fija al crear o editar el plan y lo hereda el atleta al asignárselo; para cada atleta lo puedes corregir en su ficha, en «Atletas».",
       },
     ],
     problemas: [
