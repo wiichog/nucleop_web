@@ -572,8 +572,8 @@ function ServicesTab({ gymId }: { gymId: string }) {
                 s.status === "active" ? (
                   <Badge color="teal" variant="light">Activo</Badge>
                 ) : (
-                  <Badge color="yellow" variant="light" title="Ponle precio y asígnalo a un plan en Membresías">
-                    Pendiente · configúralo en Membresías
+                  <Badge color="yellow" variant="light" title="Ponle precio y asígnalo a un plan en Planes y cuotas">
+                    Pendiente · configúralo en Planes y cuotas
                   </Badge>
                 ),
             },
@@ -1617,7 +1617,7 @@ export function RecepcionBuscador({ gymId, classId }: { gymId: string; classId: 
                   </Group>
                   <Group gap="xs">
                     {vender && (
-                      <Tooltip label="Se cobra desde Planes y cuotas → Pases drop-in." withinPortal>
+                      <Tooltip label="No es socio: necesita comprar un pase drop-in desde el app de Nucleo." withinPortal>
                         <Badge variant="light" color="orange">
                           Requiere pase
                         </Badge>
