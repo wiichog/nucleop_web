@@ -54,6 +54,11 @@ const CATEGORIES = [
   { value: "other", label: "Otro" },
 ];
 
+/** Nombre en español de la categoría (el servidor guarda la llave interna). */
+function categoryLabel(value: string) {
+  return CATEGORIES.find((c) => c.value === value)?.label ?? value;
+}
+
 /** Cómo se anuncia el producto en la tienda de la app. */
 function marketplaceBadge(p: ErpProduct) {
   if (!p.show_in_marketplace) return <Text c="dimmed" size="sm">—</Text>;
@@ -380,7 +385,7 @@ export function InventoryPage() {
           records={sortRecords(
             (data ?? []).filter((p) => {
               const term = search.trim().toLowerCase();
-              return !term || p.name.toLowerCase().includes(term) || p.category.toLowerCase().includes(term);
+              return !term || p.name.toLowerCase().includes(term) || categoryLabel(p.category).toLowerCase().includes(term);
             }),
             sortStatus,
           )}
@@ -414,7 +419,7 @@ export function InventoryPage() {
                 </Group>
               ),
             },
-            { accessor: "category", title: "Categoría", sortable: true },
+            { accessor: "category", title: "Categoría", sortable: true, render: (p) => categoryLabel(p.category) },
             {
               accessor: "show_in_marketplace",
               title: "Tienda (app)",

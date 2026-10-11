@@ -67,7 +67,7 @@ export const manualesErp: ManualesPorRuta = {
       {
         titulo: "Editar o eliminar un producto",
         pasos: [
-          "En «Catálogo · stock actual», busca el producto (puedes escribir en «Buscar producto o categoría…»).",
+          "En «Catálogo · stock actual», busca el producto (puedes escribir en «Buscar producto o categoría…» el nombre del producto o su categoría, por ejemplo «Suplemento»).",
           "Presiona «Editar» para cambiar nombre, categoría, precios, nivel de reorden, tienda del app, foto o receta, y luego «Guardar».",
           "Para borrarlo presiona «Eliminar» y confirma.",
         ],

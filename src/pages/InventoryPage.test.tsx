@@ -77,6 +77,7 @@ vi.mock("../api/hooks", () => {
       data: [
         producto({ id: "p-1", name: "Proteína", is_active: true }),
         producto({ id: "p-2", name: "Creatina", is_active: false }),
+        producto({ id: "p-3", name: "Camiseta", category: "merch", is_active: true }),
       ],
       isLoading: false,
       isError: false,
@@ -262,5 +263,22 @@ describe("InventoryPage · «Guardar» al editar un producto", () => {
         expect.objectContaining({ color: "teal", message: "Producto actualizado." }),
       ),
     );
+  });
+});
+
+describe("InventoryPage · columna «Categoría»", () => {
+  it("muestra la categoría en español, no la llave interna", () => {
+    pintar();
+    expect(screen.getAllByText("Suplemento").length).toBeGreaterThan(0);
+    expect(screen.queryByText("supplement")).toBeNull();
+  });
+
+  it("el buscador encuentra por el nombre en español de la categoría", () => {
+    pintar();
+    fireEvent.change(screen.getByPlaceholderText("Buscar producto o categoría…"), {
+      target: { value: "suplemento" },
+    });
+    expect(screen.getByText("Proteína")).toBeTruthy();
+    expect(screen.queryByText("Camiseta")).toBeNull();
   });
 });
