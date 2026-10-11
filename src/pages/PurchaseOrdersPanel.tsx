@@ -516,7 +516,7 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
 
           <Switch
             label="Ya está ordenada al proveedor"
-            description="Sin marcar queda como borrador (todavía la puedes editar creándola de nuevo)."
+            description="Sin marcar queda como «Borrador». Un borrador ya no se edita: solo se puede «Recibir» o «Anular». Si te equivocaste, anúlala y crea otra."
             checked={yaOrdenada}
             onChange={(e) => setYaOrdenada(e.currentTarget.checked)}
           />

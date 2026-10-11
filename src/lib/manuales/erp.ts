@@ -147,7 +147,7 @@ export const manualesErp: ManualesPorRuta = {
           "Presiona «Crear orden».",
         ],
         nota:
-          "Crear la orden no mueve el stock. El stock entra hasta que recibes la mercadería.",
+          "Crear la orden no mueve el stock. El stock entra hasta que recibes la mercadería. Una orden creada ya no se puede editar, ni siquiera en «Borrador», ni cambiar de «Borrador» a «Ordenada»: solo la puedes «Recibir» o «Anular». Si te equivocaste, anúlala y crea otra.",
       },
       {
         titulo: "Recibir la mercadería de una orden",
