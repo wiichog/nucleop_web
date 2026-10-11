@@ -280,7 +280,7 @@ export const manualesPlataforma: ManualesPorRuta = {
   "/panel/plataforma/contracargos": {
     titulo: "Contracargos de la red",
     paraQue:
-      "Aquí ves las disputas de tarjeta de todos los gimnasios: un atleta le dijo a su banco que no reconoce un cobro. Como el dinero de las tarjetas cae primero en la cuenta de Nucleo, el descubierto lo absorbe Nucleo hasta que el banco falla. Esta pantalla sirve para seguir los casos y registrar el fallo.",
+      "Aquí ves las disputas de tarjeta de todos los gimnasios: un atleta le dijo a su banco que no reconoce un cobro. Como el dinero de las tarjetas cae primero en la cuenta de Nucleo, el banco se lo retira a Nucleo; la cuota del gimnasio se le descuenta de su próximo depósito y Nucleo pierde su recargo. Si el banco nos da la razón, los dos lo recuperan. Esta pantalla sirve para seguir los casos y registrar el fallo.",
     tareas: [
       {
         titulo: "Ver los casos abiertos",
@@ -310,7 +310,7 @@ export const manualesPlataforma: ManualesPorRuta = {
           "Presiona «Confirmar».",
         ],
         nota:
-          "La pérdida queda firme. El descuento que ya se aplicó al depósito del gimnasio no se revierte.",
+          "La pérdida queda firme. La cuota que ya se descontó del depósito del gimnasio no se le devuelve y Nucleo no recupera su recargo.",
       },
     ],
     conceptos: [
