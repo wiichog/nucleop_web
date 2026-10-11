@@ -1203,11 +1203,34 @@ export function useCoachRequests(gymId: string, status = "pending") {
   });
 }
 
+/** Da de baja a un coach: sus clases futuras quedan sin coach y sale del equipo.
+ *  No borra nada (sus clases dadas y lo que se le debe se quedan). */
+export function useDeactivateCoach(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (staffId: string) =>
+      (await api.post<{ clases_liberadas: number }>(`/gym/${gymId}/coaches/${staffId}/deactivate`, {}))
+        .data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-coaches", gymId] });
+      // Sus clases futuras vuelven a «sin coach»: cambian la agenda y los pendientes.
+      qc.invalidateQueries({ queryKey: ["gym-classes", gymId] });
+      invalidarPendientes(qc, gymId);
+    },
+  });
+}
+
 export function useDecideCoachRequest(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ requestId, action }: { requestId: string; action: "approve" | "reject" }) =>
-      (await api.post(`/gym/${gymId}/coach-requests/${requestId}/${action}`, {})).data,
+    // `cancel` retira una invitación que mandó el gym y nadie ha contestado.
+    mutationFn: async ({
+      requestId,
+      action,
+    }: {
+      requestId: string;
+      action: "approve" | "reject" | "cancel";
+    }) => (await api.post(`/gym/${gymId}/coach-requests/${requestId}/${action}`, {})).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["coach-requests", gymId] });
       qc.invalidateQueries({ queryKey: ["gym-coaches", gymId] });

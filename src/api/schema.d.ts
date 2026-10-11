@@ -1937,6 +1937,23 @@ export interface paths {
         patch: operations["gym_coaches_partial_update"];
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/coaches/{staff_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El admin da de baja a un coach del gym (apaga su rol; no borra nada). */
+        post: operations["gym_coaches_deactivate_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/coaches/{staff_id}/profile": {
         parameters: {
             query?: never;
@@ -7294,6 +7311,10 @@ export interface components {
             certifications?: string;
             /** Format: int64 */
             years_experience?: number;
+        };
+        /** @description Resultado de dar de baja a un coach. */
+        CoachDeactivation: {
+            clases_liberadas: number;
         };
         CoachEarning: {
             /** Format: uuid */
@@ -14730,6 +14751,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Coach"];
+                };
+            };
+        };
+    };
+    gym_coaches_deactivate_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                staff_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachDeactivation"];
                 };
             };
         };

@@ -168,13 +168,22 @@ export const manualesOperacionResto: ManualesPorRuta = {
           "Nucleo le crea su cuenta; el coach la reclama y acepta para quedar activo. Mientras tanto aparece en «Solicitudes de coaches» como «Invitación enviada», con el texto «Esperando que el coach acepte».",
       },
       {
+        titulo: "Cancelar una invitación que no han contestado",
+        pasos: [
+          "En «Solicitudes de coaches» busca la fila que dice «Invitación enviada».",
+          "Presiona «Cancelar invitación» y confirma.",
+        ],
+        nota:
+          "Sale el aviso «Invitación a … cancelada.» y la fila desaparece. El coach ya no podrá aceptarla; si cambias de idea, invítalo de nuevo.",
+      },
+      {
         titulo: "Aceptar o rechazar a un coach que pidió unirse",
         pasos: [
           "Ve a «Solicitudes de coaches». Los que pidieron entrar dicen «Solicitó unirse».",
           "Presiona «Aprobar» para sumarlo a tu equipo, o «Rechazar».",
         ],
         nota:
-          "Al aprobar sale el aviso de que ya es coach de tu gimnasio. Las invitaciones que tú mandaste no se aprueban aquí: las decide el coach.",
+          "Al aprobar sale el aviso de que ya es coach de tu gimnasio. Las invitaciones que tú mandaste no se aprueban aquí: las decide el coach (tú solo puedes cancelarlas).",
       },
       {
         titulo: "Permitir o quitar que un coach suba el workout",
@@ -192,7 +201,16 @@ export const manualesOperacionResto: ManualesPorRuta = {
           "Se abre «Perfil del coach» con su estado, su «Forma de pago» y su salario fijo o «Tarifa por clase».",
         ],
         nota:
-          "Aquí solo se consulta. La tarifa se cambia en «Pagos a coaches».",
+          "La tarifa se cambia en «Pagos a coaches».",
+      },
+      {
+        titulo: "Dar de baja a un coach",
+        pasos: [
+          "En «Coaches del gimnasio», toca la fila del coach para abrir «Perfil del coach».",
+          "Presiona «Dar de baja» y confirma.",
+        ],
+        nota:
+          "Sus clases que aún no pasan se quedan sin coach (te aparecen como clases sin coach para que las cubras) y deja de aparecer en tu equipo. No se borra nada: sus clases ya dadas y lo que se le debe siguen en «Pagos a coaches». Para que vuelva, invítalo de nuevo.",
       },
     ],
     conceptos: [
@@ -223,7 +241,8 @@ export const manualesOperacionResto: ManualesPorRuta = {
       },
       {
         termino: "Activo / Inactivo",
-        detalle: "Si el coach sigue en tu equipo o ya no.",
+        detalle:
+          "«Inactivo» es un coach que sigue en tu equipo pero no acumula pago por sus clases. Un coach que das de baja ya no aparece en la lista.",
       },
     ],
     problemas: [

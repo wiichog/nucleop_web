@@ -17,6 +17,7 @@ import { DetailSheet } from "../components/DetailSheet";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useCoachRequests,
+  useDeactivateCoach,
   useDecideCoachRequest,
   useGymCoaches,
   useInviteCoach,
@@ -43,6 +44,7 @@ export function CoachesPage() {
   const inviteCoach = useInviteCoach(gymId);
   const decideRequest = useDecideCoachRequest(gymId);
   const updateCoach = useUpdateCoach(gymId);
+  const deactivateCoach = useDeactivateCoach(gymId);
 
   /** Da o quita el permiso de subir workouts y VERIFICA contra la respuesta. */
   const onPermisoProgramacion = async (coach: Coach, permitido: boolean) => {
@@ -117,6 +119,47 @@ export function CoachesPage() {
           }),
       },
     );
+  };
+
+  /** Retira una invitación que el coach todavía no contesta (no se borra: queda cancelada). */
+  const onCancelarInvitacion = (requestId: string, email: string) => {
+    if (!window.confirm(`¿Cancelar la invitación a ${email}? Ya no podrá aceptarla.`)) return;
+    decideRequest.mutate(
+      { requestId, action: "cancel" },
+      {
+        onSuccess: () =>
+          notifications.show({ color: "teal", message: `Invitación a ${email} cancelada.` }),
+        onError: (error) =>
+          notifications.show({
+            color: "red",
+            message: errMsg(error, "No se pudo cancelar la invitación."),
+          }),
+      },
+    );
+  };
+
+  /** Da de baja a un coach: sus clases futuras quedan sin coach y sale del equipo. */
+  const onDarDeBaja = async (coach: Coach) => {
+    const quien = coach.name || coach.email;
+    if (
+      !window.confirm(
+        `¿Dar de baja a ${quien}? Sus clases futuras se quedarán sin coach y ya no aparecerá en tu equipo. Sus clases ya dadas y lo que se le debe no se borran.`,
+      )
+    )
+      return;
+    try {
+      const { clases_liberadas: n } = await deactivateCoach.mutateAsync(coach.staff_role);
+      setSelectedCoach(null);
+      notifications.show({
+        color: "teal",
+        message:
+          n > 0
+            ? `${quien} ya no está en tu equipo. ${n} ${n === 1 ? "clase quedó" : "clases quedaron"} sin coach.`
+            : `${quien} ya no está en tu equipo.`,
+      });
+    } catch (error) {
+      notifications.show({ color: "red", message: errMsg(error, "No se pudo dar de baja al coach.") });
+    }
   };
 
   if (!gymId) return <NoGymAssigned />;
@@ -267,9 +310,20 @@ export function CoachesPage() {
                         </Button>
                       </Group>
                     ) : (
-                      <Text c="dimmed" size="sm">
-                        Esperando que el coach acepte
-                      </Text>
+                      <Group gap="xs">
+                        <Text c="dimmed" size="sm">
+                          Esperando que el coach acepte
+                        </Text>
+                        <Button
+                          size="xs"
+                          variant="default"
+                          color="red"
+                          loading={decideRequest.isPending}
+                          onClick={() => onCancelarInvitacion(r.id, r.user_email)}
+                        >
+                          Cancelar invitación
+                        </Button>
+                      </Group>
                     )}
                   </Table.Td>
                 </Table.Tr>
@@ -389,12 +443,27 @@ export function CoachesPage() {
         </Text>
       </GlassCard>
 
-      <CoachProfileSheet coach={selectedCoach} onClose={() => setSelectedCoach(null)} />
+      <CoachProfileSheet
+        coach={selectedCoach}
+        onClose={() => setSelectedCoach(null)}
+        onDarDeBaja={onDarDeBaja}
+        dandoDeBaja={deactivateCoach.isPending}
+      />
     </div>
   );
 }
 
-function CoachProfileSheet({ coach, onClose }: { coach: Coach | null; onClose: () => void }) {
+export function CoachProfileSheet({
+  coach,
+  onClose,
+  onDarDeBaja,
+  dandoDeBaja = false,
+}: {
+  coach: Coach | null;
+  onClose: () => void;
+  onDarDeBaja: (coach: Coach) => void;
+  dandoDeBaja?: boolean;
+}) {
   return (
     <DetailSheet opened={!!coach} onClose={onClose} title="Perfil del coach">
       {coach && (
@@ -437,6 +506,19 @@ function CoachProfileSheet({ coach, onClose }: { coach: Coach | null; onClose: (
           </SimpleGrid>
           <Text c="dimmed" size="xs" mt="md">
             La tarifa y las liquidaciones se editan en Negocio → Pagos a coaches.
+          </Text>
+          <Divider my="md" />
+          <Button
+            variant="default"
+            color="red"
+            loading={dandoDeBaja}
+            onClick={() => onDarDeBaja(coach)}
+          >
+            Dar de baja
+          </Button>
+          <Text c="dimmed" size="xs" mt="xs">
+            Sus clases futuras se quedan sin coach y sale de tu equipo. Para que vuelva,
+            invítalo de nuevo.
           </Text>
         </>
       )}
