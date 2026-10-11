@@ -33,7 +33,7 @@ export const manualesPlataforma: ManualesPorRuta = {
           "Presiona «Guardar», o «Cancelar» para cerrar sin cambios.",
         ],
         nota:
-          "El estado de la suscripción y la fecha del próximo cobro sólo se guardan si «Suscripción mensual» tiene un monto. Si lo dejas vacío, esos dos cambios no se guardan aunque el aviso diga «Gimnasio actualizado.». «Guardar» se apaga si «Recargo en tarjeta» queda vacío.",
+          "El estado de la suscripción y la fecha del próximo cobro necesitan un monto en «Suscripción mensual». Si lo dejas vacío y cambiaste alguno de los dos, o si el gym ya tenía suscripción, no se guarda nada y sale un aviso en rojo que te pide escribir el monto. «Guardar» se apaga si «Recargo en tarjeta» queda vacío.",
       },
       {
         titulo: "Suspender o reactivar un gimnasio",
@@ -173,9 +173,9 @@ export const manualesPlataforma: ManualesPorRuta = {
           "Se dio de alta sin correo del dueño. Presiona «Administradores» en la fila del gym e invítalo desde ahí.",
       },
       {
-        sintoma: "Cambié el estado de la suscripción y no se guardó.",
+        sintoma: "Al presionar «Guardar» sale un aviso en rojo sobre «Suscripción mensual».",
         solucion:
-          "Escribe el monto en «Suscripción mensual» y vuelve a presionar «Guardar»: sin monto, la suscripción no se toca.",
+          "Escribe el monto en «Suscripción mensual» y vuelve a presionar «Guardar»: sin monto no se puede guardar ni el estado de la suscripción ni el próximo cobro.",
       },
       {
         sintoma: "El dueño dice que no puede entrar al panel.",

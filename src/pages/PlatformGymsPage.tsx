@@ -154,6 +154,28 @@ const ALTA_VACIA = {
   admin_phone: "",
 };
 
+/**
+ * El servidor guarda la suscripción completa de una vez y exige el monto mensual:
+ * sin «Suscripción mensual» no hay dónde guardar «Estado suscripción» ni «Próximo cobro».
+ * Devuelve el motivo por el que no se puede guardar, o null si se puede. Se revisa
+ * ANTES de mandar nada, para no avisar «Gimnasio actualizado.» con cambios perdidos.
+ */
+export function motivoSuscripcionSinMonto(opts: {
+  monthlyPrice: string;
+  teniaSuscripcion: boolean;
+  status: string | null;
+  nextBillingDate: Date | null;
+}): string | null {
+  if (opts.monthlyPrice.trim()) return null;
+  if (opts.teniaSuscripcion) {
+    return "«Suscripción mensual» no puede quedar vacía: este gimnasio ya tiene suscripción. Escribe el monto y vuelve a presionar «Guardar».";
+  }
+  if ((opts.status ?? "active") !== "active" || opts.nextBillingDate) {
+    return "Para guardar «Estado suscripción» o «Próximo cobro» escribe primero el monto en «Suscripción mensual».";
+  }
+  return null;
+}
+
 export function PlatformGymsPage() {
   const navigate = useNavigate();
   const { isSuperuser, primaryGymId, setPrimaryGymId } = useAuth();
@@ -174,6 +196,7 @@ export function PlatformGymsPage() {
   const [monthlyPrice, setMonthlyPrice] = useState("");
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>("active");
   const [nextBillingDate, setNextBillingDate] = useState<Date | null>(null);
+  const [teniaSuscripcion, setTeniaSuscripcion] = useState(false);
   const [adminsDe, setAdminsDe] = useState<GymAdmin | null>(null);
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<GymAdmin>>({
     columnAccessor: "name",
@@ -218,6 +241,7 @@ export function PlatformGymsPage() {
     setFixedFee(gym.fixed_fee ?? "");
     setIsPublic(gym.is_public ?? true);
     setMonthlyPrice(gym.subscription?.monthly_price ?? "");
+    setTeniaSuscripcion(Boolean(gym.subscription));
     setSubscriptionStatus(gym.subscription?.status ?? "active");
     setNextBillingDate(
       gym.subscription?.next_billing_date ? new Date(gym.subscription.next_billing_date) : null,
@@ -226,6 +250,16 @@ export function PlatformGymsPage() {
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
+    const motivo = motivoSuscripcionSinMonto({
+      monthlyPrice,
+      teniaSuscripcion,
+      status: subscriptionStatus,
+      nextBillingDate,
+    });
+    if (motivo) {
+      notifications.show({ color: "red", message: motivo });
+      return;
+    }
     try {
       await updateGym.mutateAsync({
         gymId: editingId,
@@ -236,12 +270,12 @@ export function PlatformGymsPage() {
           is_public: isPublic,
         },
       });
-      if (monthlyPrice) {
+      if (monthlyPrice.trim()) {
         await upsertSubscription.mutateAsync({
           gymId: editingId,
           body: {
             saas_plan: saasPlan ?? "starter",
-            monthly_price: monthlyPrice,
+            monthly_price: monthlyPrice.trim(),
             status: subscriptionStatus ?? "active",
             next_billing_date: nextBillingDate
               ? nextBillingDate.toLocaleDateString("en-CA")
