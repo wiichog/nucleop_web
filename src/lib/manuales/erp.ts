@@ -456,7 +456,7 @@ export const manualesErp: ManualesPorRuta = {
           "En «Categoría» elige una para ver solo esos gastos.",
         ],
         nota:
-          "La cifra de arriba, «Suma de los gastos listados», suma lo que estás viendo con los filtros aplicados.",
+          "La cifra de arriba, «Suma de los gastos listados», suma lo que estás viendo con los filtros aplicados, pero solo los gastos vigentes: los anulados y los corregidos se ven en la lista y no se suman. Por eso con «Anulados» la suma queda en Q0.00.",
       },
       {
         titulo: "Ver el detalle de un gasto",

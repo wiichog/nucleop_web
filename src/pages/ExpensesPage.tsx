@@ -60,6 +60,20 @@ interface FormCorreccion {
   branch: string | null;
 }
 
+/**
+ * Suma de los gastos en pantalla, contando SOLO los vigentes. Un gasto anulado no
+ * es un costo, y uno corregido ya está anulado y reemplazado por el nuevo: si se
+ * sumaran, «Estado: Todos» contaría dos veces cada corrección e inflaría la cifra.
+ */
+export function sumarGastosVigentes(gastos: Pick<ErpExpense, "amount" | "is_void">[]) {
+  const vigentes = gastos.filter((e) => !e.is_void);
+  return {
+    total: vigentes.reduce((acc, e) => acc + Number(e.amount || 0), 0),
+    vigentes: vigentes.length,
+    fuera: gastos.length - vigentes.length,
+  };
+}
+
 export function ExpensesPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
@@ -208,9 +222,15 @@ export function ExpensesPage() {
     sortStatus,
   );
 
-  // Suma de lo que el operador tiene en pantalla (respeta los filtros de arriba).
-  // Es un dato de lectura: no toca el listado ni lo que responde el backend.
-  const totalListado = filas.reduce((acc, e) => acc + Number(e.amount || 0), 0);
+  // Suma de lo que el operador tiene en pantalla (respeta los filtros de arriba),
+  // pero solo de los gastos vigentes. Es un dato de lectura: no toca el listado.
+  const suma = sumarGastosVigentes(filas);
+  const plural = (n: number) => (n === 1 ? "" : "s");
+  const hintSuma =
+    `Solo cuenta gastos vigentes: ${suma.vigentes} gasto${plural(suma.vigentes)} con los filtros aplicados.` +
+    (suma.fuera
+      ? ` No suma ${suma.fuera} anulado${plural(suma.fuera)} o corregido${plural(suma.fuera)}.`
+      : "");
 
   return (
     <div>
@@ -227,9 +247,9 @@ export function ExpensesPage() {
         <GlassCard variant="core" sheen padding={24} delay={0.6}>
           <BigMetric
             label="Suma de los gastos listados"
-            value={fmtQ(totalListado, { decimals: 2 })}
+            value={fmtQ(suma.total, { decimals: 2 })}
             fz="clamp(30px, calc(50 * var(--u)), 60px)"
-            hint={`${filas.length} gasto${filas.length === 1 ? "" : "s"} con los filtros aplicados.`}
+            hint={hintSuma}
             delay={1.0}
           />
         </GlassCard>
