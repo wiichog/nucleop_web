@@ -68,6 +68,21 @@ export function nombreReto(challengeId: string, retos?: { id: string; name: stri
   return retos?.find((r) => r.id === challengeId)?.name ?? "—";
 }
 
+/**
+ * Estado de los botones «Aprobar»/«Rechazar» de un avance. La mutación es una sola
+ * para toda la lista: sin comparar sus `variables`, al decidir una fila giraban todas.
+ * Gira sólo el botón pulsado y su hermano queda bloqueado mientras tanto.
+ */
+export function estadoRevision(
+  m: { isPending: boolean; variables?: { submissionId: string; action: string } },
+  submissionId: string,
+  action: "approve" | "reject",
+): { loading: boolean; disabled: boolean } {
+  const enEsta = m.isPending && m.variables?.submissionId === submissionId;
+  const esEste = enEsta && m.variables?.action === action;
+  return { loading: esEste, disabled: enEsta && !esEste };
+}
+
 export function ClubAdminPage() {
   const { primaryClubId, clubIds } = useAuth();
   const sinCuenta = useCuentaSinCargar();
@@ -252,7 +267,8 @@ function ActividadesPanel({ clubId }: { clubId: string }) {
                             {row.status === "going" && (
                               <Button
                                 size="xs"
-                                loading={confirm.isPending}
+                                // Sólo gira la fila que se está confirmando, no todas.
+                                loading={confirm.isPending && confirm.variables === row.athlete}
                                 onClick={() =>
                                   confirm.mutate(row.athlete, {
                                     onSuccess: () =>
@@ -390,14 +406,18 @@ function RetosPanel({ clubId }: { clubId: string }) {
                   Reto: {nombreReto(sub.challenge, challenges.data)}
                 </Text>
                 <Group gap="xs" mt={6}>
-                  <Button size="xs" loading={reviewSubmission.isPending} onClick={() => onReview(sub.id, "approve")}>
+                  <Button
+                    size="xs"
+                    {...estadoRevision(reviewSubmission, sub.id, "approve")}
+                    onClick={() => onReview(sub.id, "approve")}
+                  >
                     Aprobar
                   </Button>
                   <Button
                     size="xs"
                     variant="default"
                     color="red"
-                    loading={reviewSubmission.isPending}
+                    {...estadoRevision(reviewSubmission, sub.id, "reject")}
                     onClick={() => onReview(sub.id, "reject")}
                   >
                     Rechazar
