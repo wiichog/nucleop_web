@@ -122,11 +122,11 @@ export const manualesOperacionResto: ManualesPorRuta = {
       },
       {
         termino: "Morosos",
-        detalle: "Membresías con el pago vencido, hoy. No depende del periodo.",
+        detalle: "Membresías con el pago vencido, hoy. No cuenta a quienes ya se dieron de baja ni las solicitudes rechazadas, así que coincide con el número de pendientes. No depende del periodo.",
       },
       {
         termino: "Por vencer",
-        detalle: "Membresías cuyo pago está por vencer, hoy. No depende del periodo.",
+        detalle: "Membresías cuyo pago está por vencer, hoy. Igual que «Morosos», no cuenta bajas ni rechazadas. No depende del periodo.",
       },
       {
         termino: "Servicios",
