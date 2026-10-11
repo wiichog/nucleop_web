@@ -99,12 +99,25 @@ export function AuditPage() {
                   <Table.Tbody>
                     {registros.map((log) => {
                       const extra = log as unknown as { descripcion?: string; actor_rol?: string };
+                      const rol =
+                        extra.actor_rol ??
+                        (log.actor_role ? label(AUDIT_ROLE, log.actor_role) : "Sistema/atleta");
                       return (
                         <Table.Tr key={log.id}>
                           <Table.Td>{new Date(log.created_at).toLocaleString("es-GT")}</Table.Td>
+                          {/* Con dos admins el rol solo no dice quién fue: va el nombre
+                              (o el correo de la cuenta) y debajo el rol. */}
                           <Table.Td>
-                            {extra.actor_rol ??
-                              (log.actor_role ? label(AUDIT_ROLE, log.actor_role) : "Sistema/atleta")}
+                            {log.actor_nombre ? (
+                              <>
+                                <Text size="sm">{log.actor_nombre}</Text>
+                                <Text size="xs" c="dimmed">
+                                  {rol}
+                                </Text>
+                              </>
+                            ) : (
+                              rol
+                            )}
                           </Table.Td>
                           <Table.Td>{extra.descripcion ?? describe(log)}</Table.Td>
                         </Table.Tr>

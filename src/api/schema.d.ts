@@ -6373,6 +6373,7 @@ export interface components {
             readonly id: string;
             readonly descripcion: string;
             readonly actor_rol: string;
+            readonly actor_nombre: string;
             action: string;
             entity: string;
             entity_id?: string;

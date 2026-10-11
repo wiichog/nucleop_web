@@ -18,7 +18,7 @@ const manualBitacora: Manual = {
         "Cada fila dice la «Fecha», «Quién» lo hizo y «Qué hizo».",
       ],
       nota:
-        "La columna «Quién» muestra el rol de la persona (por ejemplo «Admin de gym» o «Coach»), no su nombre. Si el movimiento lo hizo un atleta o el sistema solo, dice «Sistema/atleta».",
+        "La columna «Quién» muestra el nombre de la persona y, debajo, su rol (por ejemplo «Admin de gym» o «Coach»). Si la cuenta no tiene nombre registrado, verás su correo. Si el movimiento lo hizo el sistema solo, dice «Sistema/atleta».",
     },
     {
       titulo: "Descargar la bitácora completa",
@@ -27,7 +27,7 @@ const manualBitacora: Manual = {
         "Se descarga el archivo «auditoria-nucleo.csv», que puedes abrir en Excel.",
       ],
       nota:
-        "El archivo trae la fecha, el rol, la descripción y un detalle técnico de cada movimiento. La exportación misma también queda anotada en la bitácora.",
+        "El archivo trae la fecha, quién lo hizo, su rol, la descripción y un detalle técnico de cada movimiento. La exportación misma también queda anotada en la bitácora.",
     },
   ],
   conceptos: [
@@ -39,7 +39,7 @@ const manualBitacora: Manual = {
     {
       termino: "Quién",
       detalle:
-        "El rol con el que se hizo el movimiento: «Admin de gym», «Coach», «Personal trainer», «Admin de club» o «Superadmin». «Sistema/atleta» significa que no lo hizo nadie de tu equipo.",
+        "La persona que hizo el movimiento y el rol con el que lo hizo: «Admin de gym», «Coach», «Personal trainer», «Admin de club» o «Superadmin». «Sistema/atleta» significa que no lo hizo nadie de tu equipo.",
     },
     {
       termino: "Qué hizo",
