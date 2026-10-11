@@ -17,3 +17,23 @@ describe("Feed: eliminar un comentario no se puede apelar", () => {
     expect(texto).toContain("un comentario que eliminaste ya no existe y no se puede apelar");
   });
 });
+
+// Publicar anuncios y elegir atleta del mes son `required_roles=["gym_admin"]` en el
+// backend: al coach le responden 403. La pantalla no se los ofrece.
+describe("Feed: el coach no ve lo que el servidor le rechaza", () => {
+  it("las tarjetas de atleta del mes, publicar anuncio y anuncios publicados van tras esAdmin", () => {
+    expect(pagina).toContain("const esAdmin = administraGym(roles, isSuperuser, gymId);");
+    const bloque = pagina.slice(pagina.indexOf("{esAdmin && ("));
+    expect(bloque.indexOf("Atleta del mes por clase")).toBeGreaterThan(0);
+    expect(bloque.indexOf("Publicar anuncio en el feed")).toBeGreaterThan(0);
+    expect(pagina).toContain("{esAdmin && <AnunciosPublicados");
+    // El histórico sí lo puede leer el coach: sigue fuera del bloque.
+    const fin = pagina.indexOf("{esAdmin && <AnunciosPublicados");
+    expect(pagina.indexOf("Histórico de atletas del mes")).toBeGreaterThan(fin);
+  });
+
+  it("el manual le explica al coach por qué no ve esas tarjetas", () => {
+    const texto = JSON.stringify(Object.values(MANUALES));
+    expect(texto).toContain("Soy coach y no veo «Atleta del mes por clase», «Publicar anuncio en el feed» ni «Anuncios publicados».");
+  });
+});

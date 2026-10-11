@@ -44,7 +44,7 @@ import { EmptyState } from "../components/EmptyState";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { PageHeader, SectionLabel } from "../components/ui";
 import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora";
-import { useAuth } from "../lib/auth";
+import { administraGym, useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
 
 const REACTION_EMOJI: Record<string, string> = {
@@ -181,9 +181,6 @@ function AnunciosPublicados({
   };
 
   const filas = anuncios.data ?? [];
-  // Publicar y corregir anuncios es del `gym_admin`; un coach entra a esta misma
-  // pantalla por la cola de moderación. Un 403 no es una falla que reportarle.
-  if ((anuncios.error as { response?: { status?: number } })?.response?.status === 403) return null;
 
   return (
     <GlassCard padding={24} delay={0.9} style={{ marginTop: "calc(20 * var(--u))" }}>
@@ -348,8 +345,12 @@ function AnunciosPublicados({
 }
 
 export function CommunityPage() {
-  const { primaryGymId } = useAuth();
+  const { primaryGymId, roles, isSuperuser } = useAuth();
   const gymId = primaryGymId ?? "";
+  // Publicar anuncios y elegir al atleta del mes es del `gym_admin` (el backend le
+  // responde 403 al coach). El coach entra a esta misma pantalla para moderar: se le
+  // ocultan esas tarjetas en vez de dejarlo llenar un formulario que va a fallar.
+  const esAdmin = administraGym(roles, isSuperuser, gymId);
   const feed = useGymFeed(gymId);
   const classes = useGymClasses(gymId);
   const memberships = useMemberships(gymId);
@@ -599,7 +600,11 @@ export function CommunityPage() {
       <PageHeader
         kicker="Comunidad · Feed"
         title="Comunidad del gym"
-        subtitle="Publica anuncios, destaca al atleta del mes y modera lo que sube tu comunidad: publicaciones por aprobar y comentarios reportados."
+        subtitle={
+          esAdmin
+            ? "Publica anuncios, destaca al atleta del mes y modera lo que sube tu comunidad: publicaciones por aprobar y comentarios reportados."
+            : "Modera lo que sube tu comunidad: publicaciones por aprobar y comentarios reportados."
+        }
       />
 
       {/* Pulso de la comunidad: todo se deriva de lo que ya trajeron las queries. */}
@@ -627,6 +632,7 @@ export function CommunityPage() {
         </SimpleGrid>
       </Stagger>
 
+      {esAdmin && (
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, lg: 6 }}>
           <GlassCard padding={24} delay={0.72} style={{ height: "100%" }}>
@@ -773,8 +779,9 @@ export function CommunityPage() {
           </GlassCard>
         </Grid.Col>
       </Grid>
+      )}
 
-      <AnunciosPublicados gymId={gymId} classTypes={classTypes} />
+      {esAdmin && <AnunciosPublicados gymId={gymId} classTypes={classTypes} />}
 
       <GlassCard padding={24} delay={0.96} style={{ marginTop: "calc(20 * var(--u))" }}>
         <SectionLabel as="h2" mb={8}>Histórico de atletas del mes</SectionLabel>

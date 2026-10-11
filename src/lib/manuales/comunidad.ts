@@ -212,9 +212,9 @@ export const manualesComunidad: ManualesPorRuta = {
           "Presiona «Reintentar»: mientras no cargue, puede haber publicaciones, comentarios o apelaciones esperando tu respuesta.",
       },
       {
-        sintoma: "Soy coach y no veo «Anuncios publicados».",
+        sintoma: "Soy coach y no veo «Atleta del mes por clase», «Publicar anuncio en el feed» ni «Anuncios publicados».",
         solucion:
-          "Publicar y corregir anuncios le toca al administrador del gimnasio. Como coach entras a esta pantalla para moderar.",
+          "Elegir al atleta del mes y publicar o corregir anuncios le toca al administrador del gimnasio. Como coach entras a esta pantalla para moderar y para ver el histórico de atletas del mes.",
       },
     ],
     relacionadas: [
