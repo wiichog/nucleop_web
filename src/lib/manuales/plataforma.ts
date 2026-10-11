@@ -378,7 +378,7 @@ export const manualesPlataforma: ManualesPorRuta = {
       {
         titulo: "Encontrar un reporte",
         pasos: [
-          "Elige el estado arriba: «Abiertos», «Nuevos», «Triaged», «En PR», «Resueltos», «Cerrados», «Descartados» o «Todos». Abre en «Abiertos».",
+          "Elige el estado arriba: «Abiertos», «Nuevos», «Revisados», «En PR», «Resueltos», «Cerrados», «Descartados» o «Todos». Abre en «Abiertos».",
           "Filtra por origen: «Todas», «App iOS», «App Android» o «Admin web».",
           "Para buscar, escribe en «Buscar en descripción, correo, pantalla…» y presiona Enter o sal del campo.",
         ],
@@ -417,7 +417,7 @@ export const manualesPlataforma: ManualesPorRuta = {
       {
         termino: "Estado",
         detalle:
-          "Nuevo, Triaged (ya revisado), En PR (el arreglo está en camino), Resuelto, Cerrado o Descartado.",
+          "Nuevo, Revisado (alguien ya lo leyó y clasificó), En PR (el arreglo está en camino), Resuelto, Cerrado o Descartado.",
       },
       {
         termino: "Abiertos",

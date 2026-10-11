@@ -64,7 +64,7 @@ const SEVERIDAD_COLOR: Record<string, string> = {
 export const FILTROS_ESTADO = [
   { value: "open", label: "Abiertos" },
   { value: "new", label: "Nuevos" },
-  { value: "triaged", label: "Triaged" },
+  { value: "triaged", label: "Revisados" },
   { value: "in_pr", label: "En PR" },
   { value: "resolved", label: "Resueltos" },
   { value: "closed", label: "Cerrados" },
@@ -81,7 +81,7 @@ const FILTROS_SUPERFICIE = [
 
 export const ESTADOS = [
   { value: "new", label: "Nuevo" },
-  { value: "triaged", label: "Triaged" },
+  { value: "triaged", label: "Revisado" },
   { value: "in_pr", label: "En PR" },
   { value: "resolved", label: "Resuelto" },
   { value: "closed", label: "Cerrado" },

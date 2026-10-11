@@ -22,6 +22,11 @@ describe("Reportes del app: filtros y detalle", () => {
     for (const f of FILTROS_ESTADO) expect(manual).toContain(`«${f.label}»`);
   });
 
+  it("los estados se nombran en español (antes «Triaged»)", () => {
+    for (const e of [...ESTADOS, ...FILTROS_ESTADO]) expect(e.label).not.toMatch(/triaged/i);
+    expect(manual).not.toMatch(/Triaged/);
+  });
+
   it("el detalle sigue al id seleccionado, no a la fila filtrada", () => {
     expect(pagina).toMatch(/<DetalleReporte reportId=\{selectedId\}/);
     expect(manual).not.toMatch(/el detalle se cierra/);
