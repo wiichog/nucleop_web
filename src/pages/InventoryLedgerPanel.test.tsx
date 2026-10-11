@@ -111,14 +111,15 @@ describe("InventoryLedgerPanel", () => {
     expect(enviado.counted_qty).not.toBe(-3);
   });
 
-  it("avisa la diferencia prevista sin comprometerse: la calcula el backend", () => {
+  it("avisa la diferencia prevista sin comprometerse y sin jerga técnica", () => {
     pintar();
 
     elegirProducto(1);
     fireEvent.change(screen.getByLabelText("Unidades contadas"), { target: { value: "9" } });
 
     expect(screen.getByText(/Faltarían 3 unidades/)).toBeTruthy();
-    expect(screen.getByText(/La diferencia definitiva la calcula el backend/)).toBeTruthy();
+    expect(screen.getByText(/La cifra final se ajusta al aplicar el conteo/)).toBeTruthy();
+    expect(screen.queryByText(/backend/)).toBeNull();
   });
 
   it("la merma entra al ledger como pérdida (`loss`), no como ajuste", async () => {
