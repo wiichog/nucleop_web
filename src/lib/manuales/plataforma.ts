@@ -285,7 +285,7 @@ export const manualesPlataforma: ManualesPorRuta = {
       {
         titulo: "Ver los casos abiertos",
         pasos: [
-          "Arriba revisa «En disputa», «Casos sin resolver» y «Pérdida firme».",
+          "Arriba revisa «En disputa», «Casos sin resolver» y «Pérdida firme». Cuentan todos los casos de la red, sin importar qué filtro elijas abajo.",
           "En «Expedientes» filtra por «Todos», «Recibidos», «Con evidencia», «Ganados» o «Perdidos».",
           "En cada caso ves el gimnasio, el atleta, el motivo del banco, la referencia del caso, cuánto era de cuota del gym y cuánto de recargo, y la fecha límite para responder.",
         ],

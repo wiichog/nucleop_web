@@ -40,6 +40,22 @@ import { CHARGEBACK_STATUS, CHARGEBACK_STATUS_COLOR, PAYMENT_CONCEPT, label } fr
  * El gym responde con su evidencia desde su propia pantalla de pagos; aquí sólo
  * se registra el FALLO del banco, que es lo único que mueve dinero de vuelta.
  */
+/**
+ * Totales de los contadores. Sólo las disputas abiertas (recibidas o con
+ * evidencia) pueden mover dinero todavía: una ganada volvió y una perdida ya está
+ * contabilizada como pérdida firme.
+ */
+export function resumirContracargos(casos: Chargeback[]) {
+  const abiertos = casos.filter((c) => c.status === "open" || c.status === "submitted");
+  return {
+    expuesto: abiertos.reduce((total, c) => total + toNumber(c.total_lost), 0),
+    sinResolver: abiertos.length,
+    perdido: casos
+      .filter((c) => c.status === "lost")
+      .reduce((total, c) => total + toNumber(c.total_lost), 0),
+  };
+}
+
 export function PlatformChargebacksPage() {
   const { isSuperuser } = useAuth();
   const sinCuenta = useCuentaSinCargar();
@@ -54,20 +70,14 @@ export function PlatformChargebacksPage() {
   const [nota, setNota] = useState("");
 
   const filas = useMemo(() => casos.data ?? [], [casos.data]);
-  // Sólo cuentan las disputas que todavía pueden mover dinero: una ganada volvió
-  // y una perdida ya está contabilizada.
-  const expuesto = useMemo(
-    () =>
-      filas
-        .filter((c) => c.status === "open" || c.status === "submitted")
-        .reduce((total, c) => total + toNumber(c.total_lost), 0),
-    [filas],
+  // Los contadores de arriba son de TODA la red, no del filtro: con «Ganados»
+  // marcaban 0 en disputa aunque hubiera casos abiertos. Sin filtro comparte la
+  // caché con la lista (misma llave), así que no cuesta otra petición.
+  const todos = usePlatformChargebacks({}, isSuperuser);
+  const { expuesto, sinResolver, perdido } = useMemo(
+    () => resumirContracargos(todos.data ?? []),
+    [todos.data],
   );
-  const perdido = useMemo(
-    () => filas.filter((c) => c.status === "lost").reduce((t, c) => t + toNumber(c.total_lost), 0),
-    [filas],
-  );
-  const sinResolver = filas.filter((c) => c.status === "open" || c.status === "submitted").length;
 
   // Si /me falló, `isSuperuser` también es false: no negarle el acceso a un superadmin.
   if (sinCuenta) return sinCuenta;
@@ -117,18 +127,18 @@ export function PlatformChargebacksPage() {
         <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
           <MetricTile
             label="En disputa"
-            value={casos.isLoading ? "—" : fmtQ(expuesto, { decimals: 2 })}
+            value={todos.isLoading || todos.isError ? "—" : fmtQ(expuesto, { decimals: 2 })}
             tone="var(--nucleo-accent)"
             hint="Dinero que el banco ya retiró y que todavía se puede recuperar respondiendo a tiempo."
           />
           <MetricTile
             label="Casos sin resolver"
-            value={casos.isLoading ? "—" : sinResolver}
+            value={todos.isLoading || todos.isError ? "—" : sinResolver}
             hint="Recibidos o con evidencia enviada, esperando el fallo del banco."
           />
           <MetricTile
             label="Pérdida firme"
-            value={casos.isLoading ? "—" : fmtQ(perdido, { decimals: 2 })}
+            value={todos.isLoading || todos.isError ? "—" : fmtQ(perdido, { decimals: 2 })}
             hint="Disputas ya perdidas. No vuelven: son el costo real del fraude y del servicio no reconocido."
           />
         </SimpleGrid>
