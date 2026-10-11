@@ -107,6 +107,28 @@ export function InventoryPage() {
       .catch(() => notifications.show({ color: "red", message: "No se pudo eliminar." }));
   };
 
+  // Activo = a la venta en el Punto de venta. Desactivarlo lo saca del POS sin
+  // borrar su historial ni su stock; el backend acepta `is_active` por PATCH.
+  const onToggleActive = (p: ErpProduct) => {
+    const activar = !p.is_active;
+    updateProduct
+      .mutateAsync({ id: p.id, body: { is_active: activar } })
+      .then(() =>
+        notifications.show({
+          color: "teal",
+          message: activar
+            ? `«${p.name}» ya aparece en el Punto de venta.`
+            : `«${p.name}» ya no aparece en el Punto de venta.`,
+        }),
+      )
+      .catch((error) =>
+        notifications.show({
+          color: "red",
+          message: errMsg(error, activar ? "No se pudo activar el producto." : "No se pudo desactivar el producto."),
+        }),
+      );
+  };
+
   const [name, setName] = useState("");
   const [category, setCategory] = useState<string | null>("supplement");
   const [salePrice, setSalePrice] = useState("");
@@ -389,6 +411,20 @@ export function InventoryPage() {
               title: "Tienda (app)",
               sortable: true,
               render: (p) => marketplaceBadge(p),
+            },
+            {
+              accessor: "is_active",
+              title: "Activo",
+              sortable: true,
+              render: (p) => (
+                <Switch
+                  checked={p.is_active}
+                  onChange={() => onToggleActive(p)}
+                  disabled={updateProduct.isPending && updateProduct.variables?.id === p.id}
+                  aria-label={p.is_active ? `Desactivar ${p.name}` : `Activar ${p.name}`}
+                  color="flame"
+                />
+              ),
             },
             {
               accessor: "sale_price",

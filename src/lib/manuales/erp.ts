@@ -55,6 +55,16 @@ export const manualesErp: ManualesPorRuta = {
           "La entrada rápida suma stock pero no queda ligada a un proveedor. Si quieres saber a quién le compraste y a qué costo, usa la pestaña «Compras a proveedor».",
       },
       {
+        titulo: "Sacar un producto del Punto de venta sin borrarlo",
+        pasos: [
+          "En «Catálogo · stock actual», busca el producto.",
+          "Apaga el interruptor de la columna «Activo». Te sale un aviso de que ya no aparece en el Punto de venta.",
+          "Para volver a venderlo, enciende otra vez el interruptor «Activo».",
+        ],
+        nota:
+          "Un producto apagado sigue en tu catálogo con su stock y su historial; solo deja de salir en «Punto de venta». Si no se pudo cambiar, sale un aviso en rojo y el interruptor se queda como estaba.",
+      },
+      {
         titulo: "Editar o eliminar un producto",
         pasos: [
           "En «Catálogo · stock actual», busca el producto (puedes escribir en «Buscar producto o categoría…»).",
@@ -413,7 +423,7 @@ export const manualesErp: ManualesPorRuta = {
       {
         sintoma: "No encuentro un producto en la lista.",
         solucion:
-          "Revisa en «Inventario» que exista. Solo aparecen los productos activos del catálogo.",
+          "Revisa en «Inventario» que exista y que tenga encendido el interruptor «Activo». Solo aparecen los productos activos del catálogo.",
       },
       {
         sintoma: "El botón «Registrar venta» está apagado.",
