@@ -12,6 +12,12 @@ describe("textosSelectorContexto", () => {
     ).toEqual({ texto: "Corredores GT", etiqueta: "Cambiar de club" });
   });
 
+  it("con un solo gimnasio y varios clubes muestra el club activo, no el gimnasio", () => {
+    expect(
+      textosSelectorContexto({ gymName: "Box Zona 10", clubName: "Corredores GT", multiGym: false, multiClub: true }),
+    ).toEqual({ texto: "Corredores GT", etiqueta: "Cambiar de club" });
+  });
+
   it("con varios gimnasios sigue hablando de gimnasio", () => {
     expect(textosSelectorContexto({ multiGym: true, multiClub: false })).toEqual({
       texto: "Elegir gimnasio",

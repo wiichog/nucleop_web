@@ -33,7 +33,7 @@ export const manualesSesion: ManualesPorRuta = {
         pasos: [
           "Entra a la pestaña «Retos».",
           "Escribe el «Nombre del reto».",
-          "En «Medida» elige «Kilómetros» (cada atleta sube lo que corrió o rodó y tú lo revisas) o «Asistencias a actividades» (cada asistencia que confirmas en una actividad del club suma 1).",
+          "En «Medida» elige «Kilómetros» (cada atleta sube lo que corrió o rodó; los avances pequeños se suman solos y los grandes, o el que completa la meta, esperan tu revisión) o «Asistencias a actividades» (cada asistencia que confirmas en una actividad del club suma 1).",
           "En «Meta (km)» o «Meta (asistencias)» escribe a cuánto hay que llegar (viene en 50).",
           "En «Puntos al completarlo» escribe cuántos puntos gana quien cumpla la meta (viene en 30).",
           "Si quieres, elige cuándo «Termina (opcional)».",

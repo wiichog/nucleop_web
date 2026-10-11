@@ -249,8 +249,9 @@ function NotificationsBell({ summary }: { summary?: PendingSummary }) {
 
 /**
  * Texto y etiqueta de la pastilla del selector. Si lo que se cambia son clubes
- * (sin gimnasio activo o con un solo gimnasio), la pastilla habla de club: decir
- * «Elegir gimnasio» a quien solo administra clubes lo confunde.
+ * (sin gimnasio activo o con un solo gimnasio), la pastilla habla de club y
+ * muestra el club activo: decir «Elegir gimnasio» a quien solo administra clubes
+ * lo confunde.
  */
 export function textosSelectorContexto(opts: {
   gymName?: string;
@@ -265,7 +266,11 @@ export function textosSelectorContexto(opts: {
       : multiGym
         ? "Cambiar de gimnasio"
         : "Cambiar de club";
-  const texto = gymName ?? clubName ?? (multiGym ? "Elegir gimnasio" : "Elegir club");
+  // Con un solo gimnasio y varios clubes, lo que se elige es el club: se muestra
+  // el club activo, no el gimnasio (que no cambia desde aquí).
+  const texto = multiGym
+    ? (gymName ?? clubName ?? "Elegir gimnasio")
+    : (clubName ?? "Elegir club");
   return { texto, etiqueta };
 }
 

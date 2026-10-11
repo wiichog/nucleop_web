@@ -442,7 +442,7 @@ function RetosPanel({ clubId }: { clubId: string }) {
             description={
               challengeMetric === "activity_count"
                 ? "Cada asistencia que confirmes en una actividad del club suma 1."
-                : "Cada atleta sube los kilómetros que hizo y tú los revisas."
+                : "Cada atleta sube los kilómetros que hizo. Los avances pequeños se suman solos; los grandes y el que completa la meta esperan tu revisión."
             }
           />
           <TextInput
