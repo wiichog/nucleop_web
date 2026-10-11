@@ -196,6 +196,10 @@ export const manualesPlataforma: ManualesPorRuta = {
         solucion:
           "Nadie cobró con tarjeta ese mes. Revisa que el «Periodo» sea el correcto.",
       },
+      {
+        sintoma: "«Sin acceso».",
+        solucion: "Esta pantalla es sólo del equipo de Nucleo: tu cuenta necesita ser superadmin.",
+      },
     ],
     relacionadas: [
       { label: "Contracargos", href: "/panel/plataforma/contracargos" },

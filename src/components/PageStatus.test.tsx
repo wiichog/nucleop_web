@@ -298,7 +298,7 @@ const PANTALLAS: {
   {
     nombre: "Gimnasios de la plataforma",
     Pagina: PlatformGymsPage,
-    negativa: "Acceso restringido",
+    negativa: "Sin acceso",
     conAcceso: SUPERADMIN,
     adentro: "La red, gimnasio por gimnasio",
   },

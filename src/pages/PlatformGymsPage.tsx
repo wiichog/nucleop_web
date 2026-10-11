@@ -218,7 +218,7 @@ export function PlatformGymsPage() {
   // Si /me falló, `isSuperuser` también es false: no negarle el acceso a un superadmin.
   if (sinCuenta) return sinCuenta;
   if (!isSuperuser)
-    return <EmptyState title="Acceso restringido" description="Se requiere rol de superadmin." />;
+    return <EmptyState title="Sin acceso" description="Esta bandeja es del equipo de Nucleo." />;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
