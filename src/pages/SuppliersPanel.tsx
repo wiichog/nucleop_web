@@ -16,7 +16,6 @@ import { notifications } from "@mantine/notifications";
 import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useCreateErpSupplier,
-  useDeleteErpSupplier,
   useErpSuppliers,
   useUpdateErpSupplier,
 } from "../api/hooks";
@@ -60,7 +59,6 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
   });
   const crear = useCreateErpSupplier(gymId);
   const actualizar = useUpdateErpSupplier(gymId);
-  const borrar = useDeleteErpSupplier(gymId);
 
   const [alta, setAlta] = useState<FormProveedor>(VACIO);
   const [editando, setEditando] = useState<ErpSupplier | null>(null);
@@ -110,20 +108,40 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
     }
   };
 
+  /*
+   * Dar de baja y reactivar son el mismo PATCH sobre `is_active`, a propósito.
+   * El DELETE del backend es soft-delete con `deleted_at`, y el listado filtra
+   * `.alive()`: un proveedor borrado así desaparece incluso del filtro
+   * «Inactivos» y ya no hay forma de traerlo de vuelta desde el panel. Con
+   * `is_active=false` sigue listado como inactivo, sus órdenes se conservan y la
+   * baja se puede deshacer con «Reactivar».
+   */
   const darDeBaja = async (s: ErpSupplier) => {
     if (
       !window.confirm(
-        `Dar de baja a "${s.name}". Sus órdenes de compra se conservan; solo deja de aparecer al crear órdenes nuevas. ¿Continuar?`,
+        `Dar de baja a "${s.name}". Sus órdenes de compra se conservan; solo deja de aparecer al crear órdenes nuevas. Puedes reactivarlo cuando quieras. ¿Continuar?`,
       )
     )
       return;
     try {
-      await borrar.mutateAsync(s.id);
+      await actualizar.mutateAsync({ id: s.id, body: { is_active: false } });
       notifications.show({ color: "teal", message: "Proveedor dado de baja." });
     } catch (error) {
       notifications.show({
         color: "red",
         message: errMsg(error, "No se pudo dar de baja al proveedor."),
+      });
+    }
+  };
+
+  const reactivar = async (s: ErpSupplier) => {
+    try {
+      await actualizar.mutateAsync({ id: s.id, body: { is_active: true } });
+      notifications.show({ color: "teal", message: "Proveedor reactivado." });
+    } catch (error) {
+      notifications.show({
+        color: "red",
+        message: errMsg(error, "No se pudo reactivar al proveedor."),
       });
     }
   };
@@ -289,12 +307,19 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
                 <RowActions
                   actions={[
                     { label: "Editar", onClick: () => abrirEdicion(s) },
-                    {
-                      label: "Dar de baja",
-                      color: "red",
-                      variant: "subtle" as const,
-                      onClick: () => darDeBaja(s),
-                    },
+                    s.is_active
+                      ? {
+                          label: "Dar de baja",
+                          color: "red",
+                          variant: "subtle" as const,
+                          onClick: () => darDeBaja(s),
+                        }
+                      : {
+                          label: "Reactivar",
+                          color: "teal",
+                          variant: "light" as const,
+                          onClick: () => reactivar(s),
+                        },
                   ]}
                 />
               ),

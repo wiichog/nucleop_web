@@ -127,14 +127,15 @@ export const manualesErp: ManualesPorRuta = {
           "Necesitas al menos un proveedor activo para poder hacer órdenes de compra.",
       },
       {
-        titulo: "Editar o dar de baja un proveedor",
+        titulo: "Editar, dar de baja o reactivar un proveedor",
         pasos: [
           "En la pestaña «Proveedores», búscalo por nombre, contacto o NIT.",
           "Presiona «Editar», cambia los datos y presiona «Guardar».",
           "Para dejar de usarlo presiona «Dar de baja» y confirma.",
+          "Para volver a usar uno dado de baja, cambia el filtro «Estado» a «Inactivos» o «Todos» y presiona «Reactivar» en su fila.",
         ],
         nota:
-          "Dar de baja no borra sus órdenes de compra: solo deja de aparecer al crear órdenes nuevas. Para verlo otra vez, cambia el filtro «Estado» a «Inactivos» o «Todos».",
+          "Dar de baja no borra sus órdenes de compra: solo deja de aparecer al crear órdenes nuevas. Al reactivarlo vuelve a salir en «Compras a proveedor».",
       },
       {
         titulo: "Hacer una orden de compra a un proveedor",
