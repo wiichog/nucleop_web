@@ -37,3 +37,19 @@ describe("Feed: el coach no ve lo que el servidor le rechaza", () => {
     expect(texto).toContain("Soy coach y no veo «Atleta del mes por clase», «Publicar anuncio en el feed» ni «Anuncios publicados».");
   });
 });
+
+// Un servicio sin clases en el rango cargado no salía en «Segmento» ni en el atleta del
+// mes: las opciones se armaban con las clases. Ahora salen del catálogo de servicios.
+describe("Feed: segmento y atleta del mes salen del catálogo de servicios", () => {
+  it("usa useServiceTypes y no las clases cargadas", () => {
+    expect(pagina).toContain('useServiceTypes(esAdmin ? gymId : "")');
+    expect(pagina).not.toContain("useGymClasses");
+    expect(pagina).toContain("s.is_active && s.name && set.add(s.name)");
+  });
+
+  it("el manual ya no dice que las clases salen del calendario", () => {
+    const texto = JSON.stringify(Object.values(MANUALES));
+    expect(texto).not.toContain("Las clases de la lista son las que tiene tu calendario.");
+    expect(texto).toContain("aunque todavía no tengan clases en el calendario");
+  });
+});

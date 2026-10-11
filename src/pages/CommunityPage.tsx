@@ -28,12 +28,12 @@ import {
   useDeleteAnnouncement,
   useGymAnnouncements,
   useGymAppeals,
-  useGymClasses,
   useGymFeed,
   useGymPendingPosts,
   useGymReportedComments,
   useMemberships,
   useModerationSignals,
+  useServiceTypes,
   usePostAnnouncement,
   useSetAthleteOfMonth,
   useUpdateAnnouncement,
@@ -352,7 +352,8 @@ export function CommunityPage() {
   // ocultan esas tarjetas en vez de dejarlo llenar un formulario que va a fallar.
   const esAdmin = administraGym(roles, isSuperuser, gymId);
   const feed = useGymFeed(gymId);
-  const classes = useGymClasses(gymId);
+  // El catálogo de servicios es del `gym_admin` (403 al coach): solo se pide si administra.
+  const servicios = useServiceTypes(esAdmin ? gymId : "");
   const memberships = useMemberships(gymId);
   const awards = useAthletesOfMonth(gymId);
   const aomHistory = useAthletesOfMonthHistory(gymId);
@@ -391,11 +392,17 @@ export function CommunityPage() {
   const [annPhoto, setAnnPhoto] = useState<File | null>(null);
   const [annVideo, setAnnVideo] = useState<File | null>(null);
 
+  // Las opciones de «Segmento» y las filas del atleta del mes salen del catálogo de
+  // servicios activos, no de las clases ya cargadas: un servicio sin clases en el rango
+  // también aparece. `class_type` es el nombre del servicio denormalizado en la clase.
+  // Se suman los servicios que ya tienen atleta del mes aunque se hayan desactivado,
+  // para que su fila no desaparezca y se pueda quitar.
   const classTypes = useMemo(() => {
     const set = new Set<string>();
-    (classes.data ?? []).forEach((c) => c.class_type && set.add(c.class_type));
+    (servicios.data ?? []).forEach((s) => s.is_active && s.name && set.add(s.name));
+    (awards.data ?? []).forEach((a) => a.class_type && set.add(a.class_type));
     return Array.from(set).sort();
-  }, [classes.data]);
+  }, [servicios.data, awards.data]);
 
   const activeAthletes = useMemo(
     () => (memberships.data ?? []).filter((m) => ["active", "trial"].includes(m.status ?? "")),

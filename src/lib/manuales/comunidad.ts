@@ -132,7 +132,7 @@ export const manualesComunidad: ManualesPorRuta = {
       {
         termino: "Segmento",
         detalle:
-          "A quién va un anuncio: «Todo el gym» o «Solo» una clase. Las clases de la lista son las que tiene tu calendario.",
+          "A quién va un anuncio: «Todo el gym» o «Solo» una clase. Las clases de la lista son los servicios activos de tu gimnasio, aunque todavía no tengan clases en el calendario.",
       },
       {
         termino: "Pendientes de moderación",
