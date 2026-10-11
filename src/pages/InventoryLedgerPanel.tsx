@@ -347,7 +347,7 @@ function FormularioConteo({ gymId, opciones, stockDe }: CamposComunes) {
             ? `Faltarían ${Math.abs(previsto)} unidades.`
             : `Sobrarían ${previsto} unidades.`}{" "}
           <Text component="span" size="xs" c="dimmed">
-            La diferencia definitiva la calcula el backend al aplicarlo.
+            La cifra final se ajusta al aplicar el conteo, por si se vendió algo mientras contabas.
           </Text>
         </Text>
       )}

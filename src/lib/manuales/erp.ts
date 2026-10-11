@@ -49,20 +49,30 @@ export const manualesErp: ManualesPorRuta = {
         pasos: [
           "En la pestaña «Productos», busca el producto en «Catálogo · stock actual».",
           "En la columna «Reabastecer» escribe cuántas unidades llegaron.",
-          "Presiona «Entrada».",
+          "Presiona «Entrada». Si el campo está vacío o no es un número entero mayor que cero, sale un aviso amarillo y no se registra nada.",
         ],
         nota:
           "La entrada rápida suma stock pero no queda ligada a un proveedor. Si quieres saber a quién le compraste y a qué costo, usa la pestaña «Compras a proveedor».",
       },
       {
+        titulo: "Sacar un producto del Punto de venta sin borrarlo",
+        pasos: [
+          "En «Catálogo · stock actual», busca el producto.",
+          "Apaga el interruptor de la columna «Activo». Te sale un aviso de que ya no aparece en el Punto de venta.",
+          "Para volver a venderlo, enciende otra vez el interruptor «Activo».",
+        ],
+        nota:
+          "Un producto apagado sigue en tu catálogo con su stock y su historial; solo deja de salir en «Punto de venta» y en la tienda del app. Si no se pudo cambiar, sale un aviso en rojo y el interruptor se queda como estaba.",
+      },
+      {
         titulo: "Editar o eliminar un producto",
         pasos: [
-          "En «Catálogo · stock actual», busca el producto (puedes escribir en «Buscar producto o categoría…»).",
+          "En «Catálogo · stock actual», busca el producto (puedes escribir en «Buscar producto o categoría…» el nombre del producto o su categoría, por ejemplo «Suplemento»).",
           "Presiona «Editar» para cambiar nombre, categoría, precios, nivel de reorden, tienda del app, foto o receta, y luego «Guardar».",
           "Para borrarlo presiona «Eliminar» y confirma.",
         ],
         nota:
-          "En el teléfono, los botones de cada fila están dentro del menú de tres puntos (⋮).",
+          "En el teléfono, los botones de cada fila están dentro del menú de tres puntos (⋮). Si al presionar «Guardar» algo no se puede guardar, sale un aviso en rojo que dice por qué y la ventana se queda abierta para que lo corrijas. Si lo único que falló fue la foto, el aviso te lo dice: los demás cambios ya quedaron guardados.",
       },
       {
         titulo: "Agregar fotos extra a un producto",
@@ -73,7 +83,7 @@ export const manualesErp: ManualesPorRuta = {
           "Para quitar una foto, presiona la ✕ en su esquina.",
         ],
         nota:
-          "La galería son fotos adicionales a la portada y se ven en el detalle del producto en el app. Para cambiar la portada usa «Foto del producto».",
+          "La galería son fotos adicionales a la portada y se ven en el detalle del producto en el app. Para cambiar la portada usa «Foto del producto». Si una foto no se puede subir o quitar, sale un aviso en rojo; las fotos elegidas se quedan en «Agregar imágenes» para que vuelvas a presionar «Subir».",
       },
       {
         titulo: "Dar de baja producto perdido (merma)",
@@ -117,14 +127,15 @@ export const manualesErp: ManualesPorRuta = {
           "Necesitas al menos un proveedor activo para poder hacer órdenes de compra.",
       },
       {
-        titulo: "Editar o dar de baja un proveedor",
+        titulo: "Editar, dar de baja o reactivar un proveedor",
         pasos: [
           "En la pestaña «Proveedores», búscalo por nombre, contacto o NIT.",
           "Presiona «Editar», cambia los datos y presiona «Guardar».",
           "Para dejar de usarlo presiona «Dar de baja» y confirma.",
+          "Para volver a usar uno dado de baja, cambia el filtro «Estado» a «Inactivos» o «Todos» y presiona «Reactivar» en su fila.",
         ],
         nota:
-          "Dar de baja no borra sus órdenes de compra: solo deja de aparecer al crear órdenes nuevas. Para verlo otra vez, cambia el filtro «Estado» a «Inactivos» o «Todos».",
+          "Dar de baja no borra sus órdenes de compra: solo deja de aparecer al crear órdenes nuevas. Al reactivarlo vuelve a salir en «Compras a proveedor».",
       },
       {
         titulo: "Hacer una orden de compra a un proveedor",
@@ -137,7 +148,7 @@ export const manualesErp: ManualesPorRuta = {
           "Presiona «Crear orden».",
         ],
         nota:
-          "Crear la orden no mueve el stock. El stock entra hasta que recibes la mercadería.",
+          "Crear la orden no mueve el stock. El stock entra hasta que recibes la mercadería. Una orden creada ya no se puede editar, ni siquiera en «Borrador», ni cambiar de «Borrador» a «Ordenada»: solo la puedes «Recibir» o «Anular». Si te equivocaste, anúlala y crea otra.",
       },
       {
         titulo: "Recibir la mercadería de una orden",
@@ -308,9 +319,9 @@ export const manualesErp: ManualesPorRuta = {
           "Presiona el botón para reintentar. No vuelvas a crear los productos: siguen ahí, solo no se pudieron mostrar.",
       },
       {
-        sintoma: "Presioné «Entrada» y no pasó nada.",
+        sintoma: "Presioné «Entrada» y me salió un aviso amarillo.",
         solucion:
-          "Revisa que escribiste en «Reabastecer» un número entero mayor que cero.",
+          "El aviso dice que falta la cantidad: escribe en «Reabastecer» un número entero mayor que cero (sin decimales ni letras) y vuelve a presionar «Entrada».",
       },
       {
         sintoma: "Al registrar una merma me sale un aviso amarillo de stock negativo.",
@@ -367,7 +378,7 @@ export const manualesErp: ManualesPorRuta = {
           "Presiona «Registrar venta».",
         ],
         nota:
-          "Cuando la venta se registra, el carrito se vacía y la venta aparece en «Ventas recientes». Si vendes un preparado (por ejemplo un licuado), se descuentan sus insumos.",
+          "Cuando la venta se registra, sale el aviso «Venta registrada.», el carrito se vacía y la venta aparece en «Ventas recientes». Si vendes un preparado (por ejemplo un licuado), se descuentan sus insumos.",
       },
       {
         titulo: "Devolver una venta",
@@ -376,7 +387,7 @@ export const manualesErp: ManualesPorRuta = {
           "Presiona «Devolver» y confirma.",
         ],
         nota:
-          "La devolución regresa el stock al inventario y aparece en la lista como una fila nueva marcada «Devolución ·», con el monto en negativo. La venta original no se borra.",
+          "La devolución regresa el stock al inventario y aparece en la lista como una fila nueva marcada «Devolución ·», con el monto en negativo. La venta original no se borra. Cuando ya devolviste todo lo de una venta, en su lugar dice «Devuelta» y ya no aparece «Devolver».",
       },
     ],
     conceptos: [
@@ -413,7 +424,7 @@ export const manualesErp: ManualesPorRuta = {
       {
         sintoma: "No encuentro un producto en la lista.",
         solucion:
-          "Revisa en «Inventario» que exista. Solo aparecen los productos activos del catálogo.",
+          "Revisa en «Inventario» que exista y que tenga encendido el interruptor «Activo». Solo aparecen los productos activos del catálogo.",
       },
       {
         sintoma: "El botón «Registrar venta» está apagado.",
@@ -456,7 +467,7 @@ export const manualesErp: ManualesPorRuta = {
           "En «Categoría» elige una para ver solo esos gastos.",
         ],
         nota:
-          "La cifra de arriba, «Suma de los gastos listados», suma lo que estás viendo con los filtros aplicados.",
+          "La cifra de arriba, «Suma de los gastos listados», suma lo que estás viendo con los filtros aplicados, pero solo los gastos vigentes: los anulados y los corregidos se ven en la lista y no se suman. Por eso con «Anulados» la suma queda en Q0.00.",
       },
       {
         titulo: "Ver el detalle de un gasto",

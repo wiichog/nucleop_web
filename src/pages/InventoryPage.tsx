@@ -54,6 +54,11 @@ const CATEGORIES = [
   { value: "other", label: "Otro" },
 ];
 
+/** Nombre en español de la categoría (el servidor guarda la llave interna). */
+function categoryLabel(value: string) {
+  return CATEGORIES.find((c) => c.value === value)?.label ?? value;
+}
+
 /** Cómo se anuncia el producto en la tienda de la app. */
 function marketplaceBadge(p: ErpProduct) {
   if (!p.show_in_marketplace) return <Text c="dimmed" size="sm">—</Text>;
@@ -105,6 +110,28 @@ export function InventoryPage() {
       .mutateAsync(p.id)
       .then(() => notifications.show({ color: "teal", message: "Producto eliminado." }))
       .catch(() => notifications.show({ color: "red", message: "No se pudo eliminar." }));
+  };
+
+  // Activo = a la venta en el Punto de venta. Desactivarlo lo saca del POS sin
+  // borrar su historial ni su stock; el backend acepta `is_active` por PATCH.
+  const onToggleActive = (p: ErpProduct) => {
+    const activar = !p.is_active;
+    updateProduct
+      .mutateAsync({ id: p.id, body: { is_active: activar } })
+      .then(() =>
+        notifications.show({
+          color: "teal",
+          message: activar
+            ? `«${p.name}» ya aparece en el Punto de venta.`
+            : `«${p.name}» ya no aparece en el Punto de venta.`,
+        }),
+      )
+      .catch((error) =>
+        notifications.show({
+          color: "red",
+          message: errMsg(error, activar ? "No se pudo activar el producto." : "No se pudo desactivar el producto."),
+        }),
+      );
   };
 
   const [name, setName] = useState("");
@@ -168,8 +195,17 @@ export function InventoryPage() {
   };
 
   const onRestock = async (productId: string) => {
-    const qty = parseInt(restock[productId] ?? "", 10);
-    if (!Number.isFinite(qty) || qty <= 0) return;
+    // Antes un campo vacío o inválido hacía un `return` mudo: el botón no hacía
+    // nada y nadie sabía por qué. parseInt además aceptaba "3.5" o "3abc" como 3.
+    const texto = (restock[productId] ?? "").trim();
+    const qty = /^\d+$/.test(texto) ? Number(texto) : NaN;
+    if (!Number.isFinite(qty) || qty <= 0) {
+      notifications.show({
+        color: "yellow",
+        message: "Escribe en «Reabastecer» cuántas unidades llegaron: un número entero mayor que cero.",
+      });
+      return;
+    }
     try {
       await createMovement.mutateAsync({ product_id: productId, type: "purchase", qty });
       setRestock((prev) => ({ ...prev, [productId]: "" }));
@@ -349,7 +385,7 @@ export function InventoryPage() {
           records={sortRecords(
             (data ?? []).filter((p) => {
               const term = search.trim().toLowerCase();
-              return !term || p.name.toLowerCase().includes(term) || p.category.toLowerCase().includes(term);
+              return !term || p.name.toLowerCase().includes(term) || categoryLabel(p.category).toLowerCase().includes(term);
             }),
             sortStatus,
           )}
@@ -383,12 +419,26 @@ export function InventoryPage() {
                 </Group>
               ),
             },
-            { accessor: "category", title: "Categoría", sortable: true },
+            { accessor: "category", title: "Categoría", sortable: true, render: (p) => categoryLabel(p.category) },
             {
               accessor: "show_in_marketplace",
               title: "Tienda (app)",
               sortable: true,
               render: (p) => marketplaceBadge(p),
+            },
+            {
+              accessor: "is_active",
+              title: "Activo",
+              sortable: true,
+              render: (p) => (
+                <Switch
+                  checked={p.is_active}
+                  onChange={() => onToggleActive(p)}
+                  disabled={updateProduct.isPending && updateProduct.variables?.id === p.id}
+                  aria-label={p.is_active ? `Desactivar ${p.name}` : `Activar ${p.name}`}
+                  color="flame"
+                />
+              ),
             },
             {
               accessor: "sale_price",
@@ -497,14 +547,29 @@ export function InventoryPage() {
         onClose={() => setEditing(null)}
         onSave={async (body, photo) => {
           if (!editing) return;
+          // Antes cualquier fallo decía solo «No se pudo actualizar.»: se tragaba el
+          // motivo del servidor (precio inválido, receta circular…) y, si lo que
+          // fallaba era la foto, hacía creer que tampoco se habían guardado los datos.
           try {
             await updateProduct.mutateAsync({ id: editing.id, body });
-            if (photo) await uploadPhoto.mutateAsync({ id: editing.id, file: photo });
-            notifications.show({ color: "teal", message: "Producto actualizado." });
-            setEditing(null);
-          } catch {
-            notifications.show({ color: "red", message: "No se pudo actualizar." });
+          } catch (error) {
+            notifications.show({ color: "red", message: errMsg(error, "No se pudo actualizar el producto.") });
+            return;
           }
+          if (photo) {
+            try {
+              await uploadPhoto.mutateAsync({ id: editing.id, file: photo });
+            } catch (error) {
+              const motivo = errMsg(error, "");
+              notifications.show({
+                color: "red",
+                message: `Los datos se guardaron, pero no se pudo subir la foto${motivo ? `: ${motivo}` : "."}`,
+              });
+              return;
+            }
+          }
+          notifications.show({ color: "teal", message: "Producto actualizado." });
+          setEditing(null);
         }}
       />
     </div>
@@ -724,7 +789,15 @@ function EditProductModal({
                       borderRadius: "var(--radius-pill)",
                     }}
                     loading={deleteImage.isPending && deleteImage.variables?.imageId === im.id}
-                    onClick={() => deleteImage.mutate({ id: product.id, imageId: im.id })}
+                    onClick={() =>
+                      deleteImage.mutate(
+                        { id: product.id, imageId: im.id },
+                        {
+                          onError: (error) =>
+                            notifications.show({ color: "red", message: errMsg(error, "No se pudo quitar la imagen.") }),
+                        },
+                      )
+                    }
                     aria-label="Quitar imagen"
                   >
                     ✕
@@ -749,7 +822,13 @@ function EditProductModal({
               disabled={!galleryFiles.length}
               loading={uploadImages.isPending}
               onClick={async () => {
-                await uploadImages.mutateAsync({ id: product.id, files: galleryFiles });
+                // Si falla se avisa y se conservan las fotos elegidas para reintentar.
+                try {
+                  await uploadImages.mutateAsync({ id: product.id, files: galleryFiles });
+                } catch (error) {
+                  notifications.show({ color: "red", message: errMsg(error, "No se pudieron subir las imágenes.") });
+                  return;
+                }
                 setGalleryFiles([]);
                 notifications.show({ color: "teal", message: "Imágenes agregadas." });
               }}
