@@ -75,7 +75,7 @@ vi.mock("../lib/auth", () => ({
   useAuth: () => ({ primaryGymId: "gym-1", isSuperuser: false }),
 }));
 
-import { CoachPayrollPage } from "./CoachPayrollPage";
+import { CoachPayrollPage, filasLiquidacion } from "./CoachPayrollPage";
 
 function pintar() {
   return render(
@@ -119,5 +119,27 @@ describe("pagos a coaches", () => {
 
     expect(avisos.show).toHaveLength(0);
     expect((camposQ()[0] as HTMLInputElement).value).toBe("Q75");
+  });
+
+  // La tabla «Liquidaciones» no se pinta bajo jsdom (mantine-datatable), así
+  // que se prueba la fila que recibe: el nombre sale de la lista de coaches.
+  it("la liquidación lleva el nombre del coach y, si ya no está, su correo", () => {
+    const base = {
+      period_start: "2026-10-01",
+      period_end: "2026-10-10",
+      total: "150.00",
+      status: "open" as const,
+      paid_at: null,
+      earnings_count: 3,
+      created_at: "2026-10-10T12:00:00Z",
+    };
+    const filas = filasLiquidacion(
+      [
+        { ...base, id: "p-1", coach: "sr-1", coach_email: "ana@demo.nucleo.fit" },
+        { ...base, id: "p-2", coach: "sr-9", coach_email: "ex@demo.nucleo.fit" },
+      ],
+      [coach],
+    );
+    expect(filas.map((f) => f.coach_name)).toEqual(["Ana Coach", "ex@demo.nucleo.fit"]);
   });
 });

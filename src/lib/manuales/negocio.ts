@@ -290,7 +290,12 @@ export const manualesNegocio: ManualesPorRuta = {
       {
         termino: "Liquidación",
         detalle:
-          "El pago acumulado de un coach en un periodo. En la tabla ves el coach, el periodo, el número en «Clases» y el «Total».",
+          "El pago acumulado de un coach en un periodo. En la tabla ves el nombre del coach, el periodo, el número en «Pagos» y el «Total».",
+      },
+      {
+        termino: "Pagos",
+        detalle:
+          "Cuántas cosas suma esa liquidación: cada clase impartida, cada clase con «pagar extra» y cada sesión de personal trainer cuentan como una.",
       },
       {
         termino: "Abierta / Pagada",

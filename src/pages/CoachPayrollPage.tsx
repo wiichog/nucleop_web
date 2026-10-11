@@ -35,6 +35,21 @@ import { sortRecords } from "../lib/sortRecords";
 
 const money = (v: string | number) => fmtQ(v, { decimals: 2 });
 
+/**
+ * Fila de la tabla «Liquidaciones». La liquidación solo trae el correo del
+ * coach; el nombre sale de la lista de coaches del gym (`coach` es el mismo
+ * `staff_role`). Si el coach ya no está en la lista, se queda el correo.
+ */
+type FilaLiquidacion = CoachPayout & { coach_name: string };
+
+export function filasLiquidacion(
+  payouts: CoachPayout[],
+  coaches: { staff_role: string; name: string }[],
+): FilaLiquidacion[] {
+  const nombres = new Map(coaches.map((c) => [c.staff_role, c.name]));
+  return payouts.map((p) => ({ ...p, coach_name: nombres.get(p.coach) || p.coach_email }));
+}
+
 /** Nómina de coaches: forma de pago por coach + liquidaciones del periodo (Negocio/ERP). */
 export function CoachPayrollPage() {
   const { primaryGymId } = useAuth();
@@ -48,7 +63,7 @@ export function CoachPayrollPage() {
   const today = new Date();
   const [from, setFrom] = useState<Date | null>(new Date(today.getFullYear(), today.getMonth(), 1));
   const [to, setTo] = useState<Date | null>(today);
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<CoachPayout>>({
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<FilaLiquidacion>>({
     columnAccessor: "period_start",
     direction: "desc",
   });
@@ -87,12 +102,12 @@ export function CoachPayrollPage() {
     );
 
   /** Marca la liquidación como pagada (sale como gasto de nómina). */
-  const onPagar = (p: CoachPayout) =>
+  const onPagar = (p: FilaLiquidacion) =>
     payPayout.mutate(p.id, {
       onSuccess: () =>
         notifications.show({
           color: "teal",
-          message: `Liquidación de ${p.coach_email} marcada como pagada.`,
+          message: `Liquidación de ${p.coach_name} marcada como pagada.`,
         }),
       onError: (error) =>
         notifications.show({
@@ -100,6 +115,8 @@ export function CoachPayrollPage() {
           message: errMsg(error, "No se pudo marcar la liquidación como pagada."),
         }),
     });
+
+  const filas = filasLiquidacion((payouts.data ?? []) as CoachPayout[], coaches.data ?? []);
 
   if (!gymId) return <NoGymAssigned />;
   if (coaches.isError) return <PageError onRetry={() => coaches.refetch()} />;
@@ -470,20 +487,22 @@ export function CoachPayrollPage() {
             onRetry={() => payouts.refetch()}
           />
         )}
-        <DataTable<CoachPayout>
+        <DataTable<FilaLiquidacion>
           minHeight={140}
           highlightOnHover
           striped
           idAccessor="id"
-          records={sortRecords((payouts.data ?? []) as CoachPayout[], sortStatus)}
+          records={sortRecords(filas, sortStatus)}
           fetching={payouts.isLoading}
           noRecordsText="Genera la primera liquidación de un periodo."
           sortStatus={sortStatus}
           onSortStatusChange={setSortStatus}
           columns={[
-            { accessor: "coach_email", title: "Coach", sortable: true },
+            { accessor: "coach_name", title: "Coach", sortable: true },
             { accessor: "period_start", title: "Periodo", sortable: true, render: (p) => `${p.period_start} → ${p.period_end}` },
-            { accessor: "earnings_count", title: "Clases", sortable: true, textAlign: "right" },
+            // Cuenta todo lo que suma la liquidación: clases, extras y sesiones de
+            // personal trainer. Decía «Clases», que no era cierto con PT.
+            { accessor: "earnings_count", title: "Pagos", sortable: true, textAlign: "right" },
             {
               accessor: "total",
               title: "Total",
