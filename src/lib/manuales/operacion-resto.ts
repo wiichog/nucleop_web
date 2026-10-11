@@ -108,7 +108,7 @@ export const manualesOperacionResto: ManualesPorRuta = {
       {
         termino: "Clases más demandadas",
         detalle:
-          "Las clases con más reservas, agrupadas por servicio y hora. Si no hay ninguna sale «Sin reservas registradas en el periodo.»",
+          "Las 5 clases con más reservas en las fechas elegidas, agrupadas por servicio y hora (por ejemplo «CrossFit 6:00»). Solo cuenta las clases de esas fechas y no cuenta las reservas canceladas. Si no hay ninguna sale «Sin reservas registradas en el periodo.»",
       },
       {
         termino: "Entrenamiento en el periodo",

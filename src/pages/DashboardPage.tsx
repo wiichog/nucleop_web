@@ -43,6 +43,16 @@ function toIso(d: Date | null) {
   return d ? d.toLocaleDateString("en-CA") : "";
 }
 
+/**
+ * Rótulo de una fila de «Clases más demandadas». El backend agrupa por servicio
+ * **y** hora, así que el rótulo lleva las dos: «CrossFit 6:00» y «CrossFit 7:00»
+ * en vez de dos «CrossFit» iguales.
+ */
+export function etiquetaClaseDemandada(c: { class_type: string; horario: string }) {
+  const hora = c.horario.replace(/^0(\d)/, "$1");
+  return hora ? `${c.class_type} ${hora}` : c.class_type;
+}
+
 /** Pendientes por resolver: la bandeja de entrada del operador. */
 function PendingPanel({ gymId }: { gymId: string }) {
   const navigate = useNavigate();
@@ -103,7 +113,8 @@ export function DashboardPage() {
   if (dashboard.isError) return <PageError onRetry={() => dashboard.refetch()} />;
 
   const d = dashboard.data;
-  const demanda = (d?.clases_mas_demandadas ?? []).slice(0, 6);
+  // El corte (top 5) lo decide el backend; aquí se muestran todas las que lleguen.
+  const demanda = d?.clases_mas_demandadas ?? [];
 
   return (
     <div>
@@ -212,7 +223,7 @@ export function DashboardPage() {
                 ) : (
                   <WaveChart
                     values={demanda.map((c) => c.reservas)}
-                    labels={demanda.map((c) => c.class_type)}
+                    labels={demanda.map(etiquetaClaseDemandada)}
                     formatValue={(v) => v}
                     height={190}
                     delay={1.5}
