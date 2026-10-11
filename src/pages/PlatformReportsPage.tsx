@@ -17,7 +17,7 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { Copy, Search } from "lucide-react";
+import { Copy, Search, X } from "lucide-react";
 import {
   usePlatformReport,
   usePlatformReports,
@@ -58,11 +58,17 @@ const SEVERIDAD_COLOR: Record<string, string> = {
   critical: "red",
 };
 
-const FILTROS_ESTADO = [
+// Un atajo por cada estado de `ESTADOS` (el backend acepta cualquiera tal cual,
+// además de `open` y `all`): sin ellos, lo cerrado o descartado sólo se veía en
+// «Todos», revuelto con lo demás.
+export const FILTROS_ESTADO = [
   { value: "open", label: "Abiertos" },
   { value: "new", label: "Nuevos" },
+  { value: "triaged", label: "Triaged" },
   { value: "in_pr", label: "En PR" },
   { value: "resolved", label: "Resueltos" },
+  { value: "closed", label: "Cerrados" },
+  { value: "discarded", label: "Descartados" },
   { value: "all", label: "Todos" },
 ];
 
@@ -73,7 +79,7 @@ const FILTROS_SUPERFICIE = [
   { value: "web_admin", label: "Admin web" },
 ];
 
-const ESTADOS = [
+export const ESTADOS = [
   { value: "new", label: "Nuevo" },
   { value: "triaged", label: "Triaged" },
   { value: "in_pr", label: "En PR" },
@@ -189,7 +195,7 @@ function Dato({ label, value }: { label: string; value?: string | null }) {
 }
 
 /** Ficha del reporte seleccionado: metadata + triage + prompt de fix. */
-function DetalleReporte({ reportId }: { reportId: string }) {
+function DetalleReporte({ reportId, onClose }: { reportId: string; onClose: () => void }) {
   const detalle = usePlatformReport(reportId);
   const triage = useTriagePlatformReport();
   const [notas, setNotas] = useState<string | null>(null);
@@ -225,14 +231,26 @@ function DetalleReporte({ reportId }: { reportId: string }) {
             {r.reporter_role ? ` (${r.reporter_role})` : ""}
           </Text>
         </div>
-        <Button
-          size="xs"
-          variant="default"
-          leftSection={<Copy size={14} />}
-          onClick={() => copiarPrompt(r.fix_prompt)}
-        >
-          Copiar prompt de fix
-        </Button>
+        <Group gap={6} wrap="nowrap">
+          <Button
+            size="xs"
+            variant="default"
+            leftSection={<Copy size={14} />}
+            onClick={() => copiarPrompt(r.fix_prompt)}
+          >
+            Copiar prompt de fix
+          </Button>
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            size="md"
+            aria-label="Cerrar detalle"
+            title="Cerrar detalle"
+            onClick={onClose}
+          >
+            <X size={16} />
+          </ActionIcon>
+        </Group>
       </Group>
 
       <Box
@@ -373,6 +391,10 @@ export function PlatformReportsPage() {
 
   const filas = reportes.data ?? [];
   const seleccionado: BugReport | undefined = filas.find((r) => r.id === selectedId);
+  // El detalle sigue al id, no a la fila: si le cambias el estado a uno que ya no
+  // entra en el filtro, el reporte sale de la bandeja pero la ficha se queda
+  // abierta (antes se cerraba de golpe a media clasificación). Se cierra con la X.
+  const abierto = selectedId !== "";
 
   return (
     <div>
@@ -421,7 +443,7 @@ export function PlatformReportsPage() {
       </Group>
 
       <Grid gutter="lg" align="stretch">
-        <Grid.Col span={{ base: 12, lg: seleccionado ? 6 : 12 }}>
+        <Grid.Col span={{ base: 12, lg: abierto ? 6 : 12 }}>
           <SectionLabel as="h2">Bandeja · {filas.length}</SectionLabel>
           {reportes.isError ? (
             <PageError
@@ -510,10 +532,15 @@ export function PlatformReportsPage() {
           )}
         </Grid.Col>
 
-        {seleccionado && (
+        {abierto && (
           <Grid.Col span={{ base: 12, lg: 6 }}>
             <SectionLabel as="h2">Detalle</SectionLabel>
-            <DetalleReporte reportId={seleccionado.id} />
+            {!seleccionado && !reportes.isLoading && (
+              <Text size="xs" c="dimmed" mb="xs">
+                Este reporte ya no entra en el filtro de la bandeja.
+              </Text>
+            )}
+            <DetalleReporte reportId={selectedId} onClose={() => setSelectedId("")} />
           </Grid.Col>
         )}
       </Grid>

@@ -378,7 +378,7 @@ export const manualesPlataforma: ManualesPorRuta = {
       {
         titulo: "Encontrar un reporte",
         pasos: [
-          "Elige el estado arriba: «Abiertos», «Nuevos», «En PR», «Resueltos» o «Todos». Abre en «Abiertos».",
+          "Elige el estado arriba: «Abiertos», «Nuevos», «Triaged», «En PR», «Resueltos», «Cerrados», «Descartados» o «Todos». Abre en «Abiertos».",
           "Filtra por origen: «Todas», «App iOS», «App Android» o «Admin web».",
           "Para buscar, escribe en «Buscar en descripción, correo, pantalla…» y presiona Enter o sal del campo.",
         ],
@@ -399,6 +399,7 @@ export const manualesPlataforma: ManualesPorRuta = {
           "Lee la descripción y, si trae captura, presiónala para verla en grande.",
           "En «Contexto capturado» ves pantalla, versión, sistema, dispositivo, gimnasio, idioma y navegador.",
           "Si trae «Stack trace», ahí está el detalle técnico del error.",
+          "Para cerrar el detalle, presiona la X junto a «Copiar prompt de fix».",
         ],
       },
       {
@@ -409,7 +410,7 @@ export const manualesPlataforma: ManualesPorRuta = {
           "Para dejar contexto, escribe en «Notas del operador» y presiona «Guardar notas».",
         ],
         nota:
-          "Si cambias el estado a uno que no entra en el filtro que tienes puesto (por ejemplo, lo pasas a «Resuelto» estando en «Abiertos»), el reporte sale de la bandeja y el detalle se cierra.",
+          "Si cambias el estado a uno que no entra en el filtro que tienes puesto (por ejemplo, lo pasas a «Resuelto» estando en «Abiertos»), el reporte sale de la bandeja pero el detalle se queda abierto y avisa «Este reporte ya no entra en el filtro de la bandeja.». Puedes seguir clasificándolo.",
       },
     ],
     conceptos: [
@@ -461,9 +462,9 @@ export const manualesPlataforma: ManualesPorRuta = {
           "No hay nada con esos filtros. Prueba con «Todos» y «Todas», o borra la búsqueda.",
       },
       {
-        sintoma: "El reporte que estaba viendo desapareció.",
+        sintoma: "El reporte que estaba viendo ya no está en la bandeja.",
         solucion:
-          "Le cambiaste el estado y ya no entra en el filtro. Cambia a «Todos» para volver a encontrarlo.",
+          "Le cambiaste el estado y ya no entra en el filtro. El detalle sigue abierto; para volver a verlo en la lista, elige el filtro de su estado nuevo o «Todos».",
       },
       {
         sintoma: "«Guardar notas» está apagado.",
