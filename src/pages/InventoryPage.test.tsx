@@ -215,3 +215,52 @@ describe("InventoryPage · «Subir» de la galería", () => {
     );
   });
 });
+
+describe("InventoryPage · «Guardar» al editar un producto", () => {
+  beforeEach(() => {
+    espias.actualizar.mockReset();
+    espias.aviso.mockReset();
+  });
+
+  async function editarYGuardar() {
+    pintar();
+    fireEvent.click(screen.getAllByRole("button", { name: "Editar" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Guardar" }));
+  }
+
+  it("si el servidor lo rechaza, dice el motivo del servidor (antes solo «No se pudo actualizar.»)", async () => {
+    espias.actualizar.mockRejectedValue({
+      response: { data: { detail: "El precio de venta no puede ser negativo." } },
+    });
+    await editarYGuardar();
+
+    await waitFor(() =>
+      expect(espias.aviso).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "red", message: "El precio de venta no puede ser negativo." }),
+      ),
+    );
+    expect(espias.aviso).not.toHaveBeenCalledWith(expect.objectContaining({ color: "teal" }));
+  });
+
+  it("sin motivo del servidor, cae a un mensaje que nombra el producto", async () => {
+    espias.actualizar.mockRejectedValue(new Error("red"));
+    await editarYGuardar();
+
+    await waitFor(() =>
+      expect(espias.aviso).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "red", message: "No se pudo actualizar el producto." }),
+      ),
+    );
+  });
+
+  it("si guarda, avisa en verde", async () => {
+    espias.actualizar.mockResolvedValue({});
+    await editarYGuardar();
+
+    await waitFor(() =>
+      expect(espias.aviso).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "teal", message: "Producto actualizado." }),
+      ),
+    );
+  });
+});

@@ -72,7 +72,7 @@ export const manualesErp: ManualesPorRuta = {
           "Para borrarlo presiona «Eliminar» y confirma.",
         ],
         nota:
-          "En el teléfono, los botones de cada fila están dentro del menú de tres puntos (⋮).",
+          "En el teléfono, los botones de cada fila están dentro del menú de tres puntos (⋮). Si al presionar «Guardar» algo no se puede guardar, sale un aviso en rojo que dice por qué y la ventana se queda abierta para que lo corrijas. Si lo único que falló fue la foto, el aviso te lo dice: los demás cambios ya quedaron guardados.",
       },
       {
         titulo: "Agregar fotos extra a un producto",

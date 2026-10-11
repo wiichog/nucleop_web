@@ -542,14 +542,29 @@ export function InventoryPage() {
         onClose={() => setEditing(null)}
         onSave={async (body, photo) => {
           if (!editing) return;
+          // Antes cualquier fallo decía solo «No se pudo actualizar.»: se tragaba el
+          // motivo del servidor (precio inválido, receta circular…) y, si lo que
+          // fallaba era la foto, hacía creer que tampoco se habían guardado los datos.
           try {
             await updateProduct.mutateAsync({ id: editing.id, body });
-            if (photo) await uploadPhoto.mutateAsync({ id: editing.id, file: photo });
-            notifications.show({ color: "teal", message: "Producto actualizado." });
-            setEditing(null);
-          } catch {
-            notifications.show({ color: "red", message: "No se pudo actualizar." });
+          } catch (error) {
+            notifications.show({ color: "red", message: errMsg(error, "No se pudo actualizar el producto.") });
+            return;
           }
+          if (photo) {
+            try {
+              await uploadPhoto.mutateAsync({ id: editing.id, file: photo });
+            } catch (error) {
+              const motivo = errMsg(error, "");
+              notifications.show({
+                color: "red",
+                message: `Los datos se guardaron, pero no se pudo subir la foto${motivo ? `: ${motivo}` : "."}`,
+              });
+              return;
+            }
+          }
+          notifications.show({ color: "teal", message: "Producto actualizado." });
+          setEditing(null);
         }}
       />
     </div>
