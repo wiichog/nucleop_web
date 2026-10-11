@@ -550,11 +550,14 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
                   w={110}
                   placeholder="Del catálogo"
                   value={l.unit_cost}
-                  onChange={(e) =>
-                    setLineas((ls) =>
-                      ls.map((x, j) => (j === i ? { ...x, unit_cost: e.currentTarget.value } : x)),
-                    )
-                  }
+                  onChange={(e) => {
+                    // El valor se lee ANTES del setter, nunca dentro del updater: React
+                    // anula `currentTarget` al terminar el handler y el updater puede correr
+                    // después (ver el comentario en InventoryPage). Leerlo ahí tumba la
+                    // página al escribir rápido en «Costo (Q)».
+                    const valor = e.currentTarget.value;
+                    setLineas((ls) => ls.map((x, j) => (j === i ? { ...x, unit_cost: valor } : x)));
+                  }}
                 />
                 <ActionIcon
                   variant="subtle"
