@@ -373,7 +373,7 @@ export const manualesNegocio: ManualesPorRuta = {
         pasos: [
           "En «Ingresos por línea de negocio» ves cada línea con su ingreso y qué porcentaje del total representa.",
           "Si hay más de una línea, arriba de la tabla aparece una gráfica para compararlas de un vistazo.",
-          "En «Cobros por método» ves cuánto entró por cada forma de pago.",
+          "En «Cobros por método» ves cuánto entró por cada forma de pago en las ventas de productos (mostrador y tienda de la app). Las membresías y servicios no se suman ahí.",
         ],
       },
       {

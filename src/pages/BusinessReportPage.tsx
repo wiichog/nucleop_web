@@ -279,9 +279,13 @@ export function BusinessReportPage() {
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mt="lg">
             <GlassCard padding={22} delay={1.3}>
               <SectionLabel as="h2" mb={12}>Cobros por método</SectionLabel>
+              {/* El corte sale solo de las ventas de productos (mostrador y tienda
+                  de la app); los cobros de membresías y servicios no entran aquí. */}
               {!(data.revenue_by_method ?? []).length ? (
                 <Text c="dimmed" size="sm">
-                  Registra ventas para ver el corte de caja.
+                  No hubo ventas de productos en el período. Aquí se suman las ventas
+                  del mostrador y de la tienda de la app; las membresías y servicios
+                  no entran en este corte.
                 </Text>
               ) : (
                 <Table>
