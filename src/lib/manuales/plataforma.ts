@@ -33,7 +33,7 @@ export const manualesPlataforma: ManualesPorRuta = {
           "Presiona «Guardar», o «Cancelar» para cerrar sin cambios.",
         ],
         nota:
-          "El estado de la suscripción y la fecha del próximo cobro sólo se guardan si «Suscripción mensual» tiene un monto. Si lo dejas vacío, esos dos cambios no se guardan aunque el aviso diga «Gimnasio actualizado.». «Guardar» se apaga si «Recargo en tarjeta» queda vacío.",
+          "El estado de la suscripción y la fecha del próximo cobro necesitan un monto en «Suscripción mensual». Si lo dejas vacío y cambiaste alguno de los dos, o si el gym ya tenía suscripción, no se guarda nada y sale un aviso en rojo que te pide escribir el monto. «Guardar» se apaga si «Recargo en tarjeta» queda vacío.",
       },
       {
         titulo: "Suspender o reactivar un gimnasio",
@@ -110,7 +110,7 @@ export const manualesPlataforma: ManualesPorRuta = {
       {
         termino: "Cuota mensual / Suscripción",
         detalle:
-          "Lo que el gimnasio le paga a Nucleo cada mes. En la tabla se ve con su estado entre paréntesis.",
+          "Lo que el gimnasio le paga a Nucleo cada mes. En la tabla se ve con su estado entre paréntesis: Activa, Pausada o Cancelada.",
       },
       {
         termino: "Recargo en tarjeta",
@@ -173,9 +173,9 @@ export const manualesPlataforma: ManualesPorRuta = {
           "Se dio de alta sin correo del dueño. Presiona «Administradores» en la fila del gym e invítalo desde ahí.",
       },
       {
-        sintoma: "Cambié el estado de la suscripción y no se guardó.",
+        sintoma: "Al presionar «Guardar» sale un aviso en rojo sobre «Suscripción mensual».",
         solucion:
-          "Escribe el monto en «Suscripción mensual» y vuelve a presionar «Guardar»: sin monto, la suscripción no se toca.",
+          "Escribe el monto en «Suscripción mensual» y vuelve a presionar «Guardar»: sin monto no se puede guardar ni el estado de la suscripción ni el próximo cobro.",
       },
       {
         sintoma: "El dueño dice que no puede entrar al panel.",
@@ -195,6 +195,10 @@ export const manualesPlataforma: ManualesPorRuta = {
         sintoma: "«Ningún gimnasio movió dinero por la pasarela en este periodo.»",
         solucion:
           "Nadie cobró con tarjeta ese mes. Revisa que el «Periodo» sea el correcto.",
+      },
+      {
+        sintoma: "«Sin acceso».",
+        solucion: "Esta pantalla es sólo del equipo de Nucleo: tu cuenta necesita ser superadmin.",
       },
     ],
     relacionadas: [
@@ -280,12 +284,12 @@ export const manualesPlataforma: ManualesPorRuta = {
   "/panel/plataforma/contracargos": {
     titulo: "Contracargos de la red",
     paraQue:
-      "Aquí ves las disputas de tarjeta de todos los gimnasios: un atleta le dijo a su banco que no reconoce un cobro. Como el dinero de las tarjetas cae primero en la cuenta de Nucleo, el descubierto lo absorbe Nucleo hasta que el banco falla. Esta pantalla sirve para seguir los casos y registrar el fallo.",
+      "Aquí ves las disputas de tarjeta de todos los gimnasios: un atleta le dijo a su banco que no reconoce un cobro. Como el dinero de las tarjetas cae primero en la cuenta de Nucleo, el banco se lo retira a Nucleo; la cuota del gimnasio se le descuenta de su próximo depósito y Nucleo pierde su recargo. Si el banco nos da la razón, los dos lo recuperan. Esta pantalla sirve para seguir los casos y registrar el fallo.",
     tareas: [
       {
         titulo: "Ver los casos abiertos",
         pasos: [
-          "Arriba revisa «En disputa», «Casos sin resolver» y «Pérdida firme».",
+          "Arriba revisa «En disputa», «Casos sin resolver» y «Pérdida firme». Cuentan todos los casos de la red, sin importar qué filtro elijas abajo.",
           "En «Expedientes» filtra por «Todos», «Recibidos», «Con evidencia», «Ganados» o «Perdidos».",
           "En cada caso ves el gimnasio, el atleta, el motivo del banco, la referencia del caso, cuánto era de cuota del gym y cuánto de recargo, y la fecha límite para responder.",
         ],
@@ -310,7 +314,7 @@ export const manualesPlataforma: ManualesPorRuta = {
           "Presiona «Confirmar».",
         ],
         nota:
-          "La pérdida queda firme. El descuento que ya se aplicó al depósito del gimnasio no se revierte.",
+          "La pérdida queda firme. La cuota que ya se descontó del depósito del gimnasio no se le devuelve y Nucleo no recupera su recargo.",
       },
     ],
     conceptos: [
@@ -378,7 +382,7 @@ export const manualesPlataforma: ManualesPorRuta = {
       {
         titulo: "Encontrar un reporte",
         pasos: [
-          "Elige el estado arriba: «Abiertos», «Nuevos», «En PR», «Resueltos» o «Todos». Abre en «Abiertos».",
+          "Elige el estado arriba: «Abiertos», «Nuevos», «Revisados», «En PR», «Resueltos», «Cerrados», «Descartados» o «Todos». Abre en «Abiertos».",
           "Filtra por origen: «Todas», «App iOS», «App Android» o «Admin web».",
           "Para buscar, escribe en «Buscar en descripción, correo, pantalla…» y presiona Enter o sal del campo.",
         ],
@@ -399,6 +403,7 @@ export const manualesPlataforma: ManualesPorRuta = {
           "Lee la descripción y, si trae captura, presiónala para verla en grande.",
           "En «Contexto capturado» ves pantalla, versión, sistema, dispositivo, gimnasio, idioma y navegador.",
           "Si trae «Stack trace», ahí está el detalle técnico del error.",
+          "Para cerrar el detalle, presiona la X junto a «Copiar prompt de fix».",
         ],
       },
       {
@@ -409,14 +414,14 @@ export const manualesPlataforma: ManualesPorRuta = {
           "Para dejar contexto, escribe en «Notas del operador» y presiona «Guardar notas».",
         ],
         nota:
-          "Si cambias el estado a uno que no entra en el filtro que tienes puesto (por ejemplo, lo pasas a «Resuelto» estando en «Abiertos»), el reporte sale de la bandeja y el detalle se cierra.",
+          "Si cambias el estado a uno que no entra en el filtro que tienes puesto (por ejemplo, lo pasas a «Resuelto» estando en «Abiertos»), el reporte sale de la bandeja pero el detalle se queda abierto y avisa «Este reporte ya no entra en el filtro de la bandeja.». Puedes seguir clasificándolo.",
       },
     ],
     conceptos: [
       {
         termino: "Estado",
         detalle:
-          "Nuevo, Triaged (ya revisado), En PR (el arreglo está en camino), Resuelto, Cerrado o Descartado.",
+          "Nuevo, Revisado (alguien ya lo leyó y clasificó), En PR (el arreglo está en camino), Resuelto, Cerrado o Descartado.",
       },
       {
         termino: "Abiertos",
@@ -461,9 +466,9 @@ export const manualesPlataforma: ManualesPorRuta = {
           "No hay nada con esos filtros. Prueba con «Todos» y «Todas», o borra la búsqueda.",
       },
       {
-        sintoma: "El reporte que estaba viendo desapareció.",
+        sintoma: "El reporte que estaba viendo ya no está en la bandeja.",
         solucion:
-          "Le cambiaste el estado y ya no entra en el filtro. Cambia a «Todos» para volver a encontrarlo.",
+          "Le cambiaste el estado y ya no entra en el filtro. El detalle sigue abierto; para volver a verlo en la lista, elige el filtro de su estado nuevo o «Todos».",
       },
       {
         sintoma: "«Guardar notas» está apagado.",

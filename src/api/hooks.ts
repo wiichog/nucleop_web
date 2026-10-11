@@ -3220,7 +3220,7 @@ export function useSubmitChargebackEvidence(gymId: string) {
   });
 }
 
-/** Bandeja de contracargos de TODA la red (superadmin). Con custodia puente el descubierto lo absorbe Nucleo. */
+/** Bandeja de contracargos de TODA la red (superadmin). Nucleo adelanta el descubierto; la cuota se descuenta del depósito del gym. */
 export function usePlatformChargebacks(
   filtros: { status?: string; gym_id?: string },
   enabled: boolean,

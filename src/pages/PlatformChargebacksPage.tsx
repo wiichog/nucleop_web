@@ -28,12 +28,34 @@ import { CHARGEBACK_STATUS, CHARGEBACK_STATUS_COLOR, PAYMENT_CONCEPT, label } fr
  * una razón de dinero: con la custodia puente (`PAGALO.SUPPORTS_SPLIT=False`) el
  * 100 % de lo cobrado con tarjeta cae en la cuenta de Nucleo y se deposita al gym
  * a fin de mes. Si el atleta disputa dos meses después, el banco le quita el
- * dinero a **Nucleo** cuando el gym ya cobró: el descubierto lo absorbe la
- * plataforma, así que es la plataforma la que tiene que estar mirando esta lista.
+ * dinero a **Nucleo** cuando el gym ya cobró: Nucleo adelanta el descubierto, así
+ * que es la plataforma la que tiene que estar mirando esta lista.
+ *
+ * Quién se come la pérdida lo decide el backend, no esta pantalla: el contracargo
+ * es un `Payment` negativo que `calcular_estado_cuenta` resta del depósito del gym
+ * (`net_to_deposit = base + base_dev`), así que la CUOTA la pierde el gym en su
+ * próximo depósito; Nucleo pierde su recargo y la comisión de la pasarela. Los
+ * textos de aquí y el manual deben decir eso mismo.
  *
  * El gym responde con su evidencia desde su propia pantalla de pagos; aquí sólo
  * se registra el FALLO del banco, que es lo único que mueve dinero de vuelta.
  */
+/**
+ * Totales de los contadores. Sólo las disputas abiertas (recibidas o con
+ * evidencia) pueden mover dinero todavía: una ganada volvió y una perdida ya está
+ * contabilizada como pérdida firme.
+ */
+export function resumirContracargos(casos: Chargeback[]) {
+  const abiertos = casos.filter((c) => c.status === "open" || c.status === "submitted");
+  return {
+    expuesto: abiertos.reduce((total, c) => total + toNumber(c.total_lost), 0),
+    sinResolver: abiertos.length,
+    perdido: casos
+      .filter((c) => c.status === "lost")
+      .reduce((total, c) => total + toNumber(c.total_lost), 0),
+  };
+}
+
 export function PlatformChargebacksPage() {
   const { isSuperuser } = useAuth();
   const sinCuenta = useCuentaSinCargar();
@@ -48,20 +70,14 @@ export function PlatformChargebacksPage() {
   const [nota, setNota] = useState("");
 
   const filas = useMemo(() => casos.data ?? [], [casos.data]);
-  // Sólo cuentan las disputas que todavía pueden mover dinero: una ganada volvió
-  // y una perdida ya está contabilizada.
-  const expuesto = useMemo(
-    () =>
-      filas
-        .filter((c) => c.status === "open" || c.status === "submitted")
-        .reduce((total, c) => total + toNumber(c.total_lost), 0),
-    [filas],
+  // Los contadores de arriba son de TODA la red, no del filtro: con «Ganados»
+  // marcaban 0 en disputa aunque hubiera casos abiertos. Sin filtro comparte la
+  // caché con la lista (misma llave), así que no cuesta otra petición.
+  const todos = usePlatformChargebacks({}, isSuperuser);
+  const { expuesto, sinResolver, perdido } = useMemo(
+    () => resumirContracargos(todos.data ?? []),
+    [todos.data],
   );
-  const perdido = useMemo(
-    () => filas.filter((c) => c.status === "lost").reduce((t, c) => t + toNumber(c.total_lost), 0),
-    [filas],
-  );
-  const sinResolver = filas.filter((c) => c.status === "open" || c.status === "submitted").length;
 
   // Si /me falló, `isSuperuser` también es false: no negarle el acceso a un superadmin.
   if (sinCuenta) return sinCuenta;
@@ -87,7 +103,7 @@ export function PlatformChargebacksPage() {
         message:
           resolucion.result === "won"
             ? "Disputa ganada: se registró el pago de compensación y el ciclo del atleta vuelve si nadie más lo movió."
-            : "Disputa perdida: la pérdida queda firme en el estado de cuenta del gimnasio.",
+            : "Disputa perdida: la pérdida queda firme. La cuota ya se descontó del depósito del gimnasio y Nucleo no recupera su recargo.",
       });
       setResolucion(null);
       setNota("");
@@ -104,25 +120,25 @@ export function PlatformChargebacksPage() {
       <PageHeader
         kicker="Plataforma · Cobranza"
         title="Contracargos de la red"
-        subtitle="Disputas de tarjeta de todos los gimnasios. Con la custodia puente el descubierto lo absorbe Nucleo hasta que el banco falle."
+        subtitle="Disputas de tarjeta de todos los gimnasios. El banco le retira el dinero a Nucleo; la cuota se descuenta del próximo depósito del gimnasio y Nucleo pierde su recargo."
       />
 
       <Stagger from={0.6}>
         <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
           <MetricTile
             label="En disputa"
-            value={casos.isLoading ? "—" : fmtQ(expuesto, { decimals: 2 })}
+            value={todos.isLoading || todos.isError ? "—" : fmtQ(expuesto, { decimals: 2 })}
             tone="var(--nucleo-accent)"
             hint="Dinero que el banco ya retiró y que todavía se puede recuperar respondiendo a tiempo."
           />
           <MetricTile
             label="Casos sin resolver"
-            value={casos.isLoading ? "—" : sinResolver}
+            value={todos.isLoading || todos.isError ? "—" : sinResolver}
             hint="Recibidos o con evidencia enviada, esperando el fallo del banco."
           />
           <MetricTile
             label="Pérdida firme"
-            value={casos.isLoading ? "—" : fmtQ(perdido, { decimals: 2 })}
+            value={todos.isLoading || todos.isError ? "—" : fmtQ(perdido, { decimals: 2 })}
             hint="Disputas ya perdidas. No vuelven: son el costo real del fraude y del servicio no reconocido."
           />
         </SimpleGrid>
@@ -271,7 +287,7 @@ export function PlatformChargebacksPage() {
           <Text size="sm" c="dimmed">
             {resolucion?.result === "won"
               ? "Se registra un pago POSITIVO de compensación (el movimiento negativo no se edita nunca) y se le devuelve el ciclo a la membresía sólo si nadie más la movió mientras tanto."
-              : "La pérdida queda firme: el descuento ya aplicado al depósito del gimnasio no se revierte."}
+              : "La pérdida queda firme: la cuota ya descontada del depósito del gimnasio no se le devuelve y Nucleo no recupera su recargo."}
           </Text>
           <Textarea
             label="Nota de la resolución (opcional)"
