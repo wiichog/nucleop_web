@@ -367,7 +367,7 @@ export const manualesErp: ManualesPorRuta = {
           "Presiona «Registrar venta».",
         ],
         nota:
-          "Cuando la venta se registra, el carrito se vacía y la venta aparece en «Ventas recientes». Si vendes un preparado (por ejemplo un licuado), se descuentan sus insumos.",
+          "Cuando la venta se registra, sale el aviso «Venta registrada.», el carrito se vacía y la venta aparece en «Ventas recientes». Si vendes un preparado (por ejemplo un licuado), se descuentan sus insumos.",
       },
       {
         titulo: "Devolver una venta",
@@ -376,7 +376,7 @@ export const manualesErp: ManualesPorRuta = {
           "Presiona «Devolver» y confirma.",
         ],
         nota:
-          "La devolución regresa el stock al inventario y aparece en la lista como una fila nueva marcada «Devolución ·», con el monto en negativo. La venta original no se borra.",
+          "La devolución regresa el stock al inventario y aparece en la lista como una fila nueva marcada «Devolución ·», con el monto en negativo. La venta original no se borra. Cuando ya devolviste todo lo de una venta, en su lugar dice «Devuelta» y ya no aparece «Devolver».",
       },
     ],
     conceptos: [

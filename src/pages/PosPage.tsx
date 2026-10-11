@@ -33,6 +33,33 @@ interface CartLine {
   unit_price: string;
 }
 
+/**
+ * Ventas que ya se devolvieron por completo: cada producto vendido ya regresó
+ * todas sus unidades sumando sus devoluciones (filas con `return_of`). El
+ * servidor rechaza devolverlas otra vez («Esta venta ya fue devuelta por
+ * completo.»), así que su botón «Devolver» no se ofrece. La lista trae todas las
+ * páginas, así que las devoluciones de cada venta visible vienen en ella.
+ */
+export function ventasDevueltasPorCompleto(sales: Pick<ErpSale, "id" | "return_of" | "lines">[]): Set<string> {
+  const devuelto = new Map<string, Map<string, number>>();
+  for (const s of sales) {
+    if (!s.return_of) continue;
+    const porProducto = devuelto.get(s.return_of) ?? new Map<string, number>();
+    for (const l of s.lines) porProducto.set(l.product, (porProducto.get(l.product) ?? 0) + Math.abs(l.qty));
+    devuelto.set(s.return_of, porProducto);
+  }
+  const out = new Set<string>();
+  for (const s of sales) {
+    const porProducto = devuelto.get(s.id);
+    if (s.return_of || !porProducto || !s.lines.length) continue;
+    // Una venta puede repetir producto en varias líneas: se compara por producto.
+    const vendido = new Map<string, number>();
+    for (const l of s.lines) vendido.set(l.product, (vendido.get(l.product) ?? 0) + l.qty);
+    if ([...vendido].every(([pid, qty]) => (porProducto.get(pid) ?? 0) >= qty)) out.add(s.id);
+  }
+  return out;
+}
+
 export function PosPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
@@ -43,6 +70,7 @@ export function PosPage() {
   const sales = salesQuery.data;
   const { data: branches } = useBranches(gymId);
   const { data: members } = useMemberships(gymId);
+  const devueltas = useMemo(() => ventasDevueltasPorCompleto(sales ?? []), [sales]);
   const createSale = useCreateErpSale(gymId);
   const returnSale = useReturnErpSale(gymId);
 
@@ -103,6 +131,8 @@ export function PosPage() {
       });
       setCart([]);
       setAthleteId("");
+      // Sin este aviso solo se vaciaba el carrito y recepción no sabía si cobró.
+      notifications.show({ color: "teal", message: "Venta registrada." });
     } catch (e: unknown) {
       // errMsg lee `detail` y también los errores de campo de DRF (p. ej. `qty`),
       // y SIEMPRE devuelve string (renderizar un objeto tronaba el panel).
@@ -310,7 +340,12 @@ export function PosPage() {
                         <Table.Td ta="right"><Money value={s.total} decimals={2} c={esDevolucion ? "orange" : undefined} /></Table.Td>
                         <Table.Td ta="right"><Money value={s.margin} decimals={2} /></Table.Td>
                         <Table.Td>
-                          {!esDevolucion && (
+                          {!esDevolucion && devueltas.has(s.id) && (
+                            <Text size="xs" c="dimmed">
+                              Devuelta
+                            </Text>
+                          )}
+                          {!esDevolucion && !devueltas.has(s.id) && (
                             <Button
                               variant="subtle"
                               color="red"
