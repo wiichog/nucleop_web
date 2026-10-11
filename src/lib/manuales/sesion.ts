@@ -16,7 +16,7 @@ export const manualesSesion: ManualesPorRuta = {
           "Presiona «Crear actividad».",
         ],
         nota:
-          "Si no eliges fecha y hora, la actividad queda con la fecha y hora del momento en que la creas. Desde esta pantalla todas las actividades se crean sin costo para los miembros.",
+          "Si no eliges fecha y hora, la actividad queda con la fecha y hora del momento en que la creas. Por ahora las actividades del club son gratuitas para los miembros: no se les puede poner precio.",
       },
       {
         titulo: "Ver quién confirmó una actividad y marcar su asistencia",
@@ -33,12 +33,14 @@ export const manualesSesion: ManualesPorRuta = {
         pasos: [
           "Entra a la pestaña «Retos».",
           "Escribe el «Nombre del reto».",
-          "En «Meta (km o cantidad)» escribe a cuánto hay que llegar (viene en 50).",
+          "En «Medida» elige «Kilómetros» (cada atleta sube lo que corrió o rodó y tú lo revisas) o «Asistencias a actividades» (cada asistencia que confirmas en una actividad del club suma 1).",
+          "En «Meta (km)» o «Meta (asistencias)» escribe a cuánto hay que llegar (viene en 50).",
+          "En «Puntos al completarlo» escribe cuántos puntos gana quien cumpla la meta (viene en 30).",
           "Si quieres, elige cuándo «Termina (opcional)».",
           "Presiona «Crear reto».",
         ],
         nota:
-          "El reto empieza en el momento en que lo creas. Si no eliges fecha de fin, dura 30 días. Desde esta pantalla los retos se crean medidos en kilómetros y dan 30 puntos.",
+          "El reto empieza en el momento en que lo creas. Si no eliges fecha de fin, dura 30 días.",
       },
       {
         titulo: "Aprobar o rechazar los avances de tus miembros",
@@ -126,7 +128,7 @@ export const manualesSesion: ManualesPorRuta = {
       {
         termino: "Meta",
         detalle:
-          "A cuánto hay que llegar en el reto. En la lista se ve junto a la medida (por ejemplo «distance_km», kilómetros) y a cuántos participantes tiene.",
+          "A cuánto hay que llegar en el reto. En la lista se ve junto a la medida («Kilómetros» o «Asistencias a actividades») y a cuántos participantes tiene.",
       },
       {
         termino: "active / pending_review / completed (en el ranking)",

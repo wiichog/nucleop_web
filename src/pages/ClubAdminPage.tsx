@@ -5,6 +5,8 @@ import {
   FileInput,
   Group,
   Image,
+  NumberInput,
+  Select,
   SimpleGrid,
   Stack,
   Tabs,
@@ -44,6 +46,21 @@ const rowBorder = { borderBottom: "1px solid var(--a-line)" };
 
 /** Separación estándar entre tarjetas de un panel. */
 const CARD_GAP = "calc(20 * var(--u))";
+
+/**
+ * Medidas que el servidor sabe llevar en un reto (ver `clubs/antifraud.py` y
+ * `challenge_progress.py`): kilómetros que declara el atleta, o asistencias a
+ * actividades del club que suma sola la confirmación de asistencia.
+ */
+export const METRICAS_RETO = [
+  { value: "distance_km", label: "Kilómetros" },
+  { value: "activity_count", label: "Asistencias a actividades" },
+] as const;
+
+/** Nombre legible de la medida de un reto; si llega una desconocida se muestra tal cual. */
+export function etiquetaMetrica(metric: string): string {
+  return METRICAS_RETO.find((m) => m.value === metric)?.label ?? metric;
+}
 
 export function ClubAdminPage() {
   const { primaryClubId, clubIds } = useAuth();
@@ -166,6 +183,10 @@ function ActividadesPanel({ clubId }: { clubId: string }) {
             <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
             <DateTimePicker label="Fecha y hora" value={startsAt} onChange={setStartsAt} valueFormat="YYYY-MM-DD HH:mm" />
             <TextInput label="Ubicación" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
+            {/* El servidor todavía no cobra actividades de club: se dice claro en vez de insinuarlo. */}
+            <Text c="dimmed" size="xs">
+              Las actividades del club son gratuitas para tus miembros.
+            </Text>
             <Button type="submit" loading={createActivity.isPending}>
               Crear actividad
             </Button>
@@ -271,7 +292,9 @@ function RetosPanel({ clubId }: { clubId: string }) {
   const reviewSubmission = useClubAdminReviewSubmission(clubId);
 
   const [challengeName, setChallengeName] = useState("");
+  const [challengeMetric, setChallengeMetric] = useState<string>("distance_km");
   const [challengeTarget, setChallengeTarget] = useState("50");
+  const [challengePoints, setChallengePoints] = useState<number | string>(30);
   const [challengeEnds, setChallengeEnds] = useState<Date | null>(null);
 
   /**
@@ -308,15 +331,17 @@ function RetosPanel({ clubId }: { clubId: string }) {
       await createChallenge.mutateAsync({
         name: challengeName,
         description: "",
-        metric: "distance_km",
+        metric: challengeMetric,
         target_value: challengeTarget,
         starts_at: new Date().toISOString(),
         ends_at: ends.toISOString(),
-        points_reward: 30,
+        points_reward: Math.max(0, Math.floor(Number(challengePoints) || 0)),
       });
       notifications.show({ color: "teal", message: `Reto "${challengeName}" creado.` });
       setChallengeName("");
+      setChallengeMetric("distance_km");
       setChallengeTarget("50");
+      setChallengePoints(30);
       setChallengeEnds(null);
     } catch (error) {
       notifications.show({ color: "red", message: errMsg(error, "No se pudo crear el reto.") });
@@ -377,7 +402,32 @@ function RetosPanel({ clubId }: { clubId: string }) {
         <SectionLabel as="h2" mb={12}>Retos</SectionLabel>
         <Stack gap="sm" maw={460} mb="lg" component="form" onSubmit={onCreateChallenge}>
           <TextInput label="Nombre del reto" value={challengeName} onChange={(e) => setChallengeName(e.currentTarget.value)} required />
-          <TextInput label="Meta (km o cantidad)" value={challengeTarget} onChange={(e) => setChallengeTarget(e.currentTarget.value)} required />
+          <Select
+            label="Medida"
+            data={METRICAS_RETO.map((m) => ({ value: m.value, label: m.label }))}
+            value={challengeMetric}
+            onChange={(v) => v && setChallengeMetric(v)}
+            allowDeselect={false}
+            description={
+              challengeMetric === "activity_count"
+                ? "Cada asistencia que confirmes en una actividad del club suma 1."
+                : "Cada atleta sube los kilómetros que hizo y tú los revisas."
+            }
+          />
+          <TextInput
+            label={challengeMetric === "activity_count" ? "Meta (asistencias)" : "Meta (km)"}
+            value={challengeTarget}
+            onChange={(e) => setChallengeTarget(e.currentTarget.value)}
+            required
+          />
+          <NumberInput
+            label="Puntos al completarlo"
+            value={challengePoints}
+            onChange={setChallengePoints}
+            min={0}
+            allowDecimal={false}
+            allowNegative={false}
+          />
           <DateTimePicker label="Termina (opcional)" value={challengeEnds} onChange={setChallengeEnds} valueFormat="YYYY-MM-DD HH:mm" />
           <Button type="submit" loading={createChallenge.isPending}>
             Crear reto
@@ -395,7 +445,7 @@ function RetosPanel({ clubId }: { clubId: string }) {
               <Box key={challenge.id} py="sm" style={rowBorder}>
                 <Text fw={600}>{challenge.name}</Text>
                 <Text c="dimmed" size="sm">
-                  Meta {challenge.target_value} ({challenge.metric}) · {challenge.participant_count ?? 0} participantes
+                  Meta {challenge.target_value} ({etiquetaMetrica(challenge.metric)}) · {challenge.participant_count ?? 0} participantes
                 </Text>
                 <Button
                   variant="default"
