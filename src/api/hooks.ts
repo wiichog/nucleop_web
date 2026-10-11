@@ -216,11 +216,12 @@ export function usePasswordChange() {
   });
 }
 
-export function useAtRisk(gymId: string) {
+/** `enabled=false` para quien no administra el gym: el backend le da 403. */
+export function useAtRisk(gymId: string, enabled = true) {
   return useQuery({
     queryKey: ["at-risk", gymId],
     queryFn: () => getList<Membership>(`/gym/${gymId}/retention/at-risk`),
-    enabled: !!gymId,
+    enabled: !!gymId && enabled,
   });
 }
 

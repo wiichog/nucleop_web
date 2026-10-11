@@ -11,7 +11,7 @@ vi.mock("../api/hooks", () => ({
 }));
 vi.mock("../api/client", () => ({ tokenStore: { access: "token", clear: vi.fn() } }));
 
-import { AuthProvider, useAuth } from "./auth";
+import { AuthProvider, administraGym, useAuth } from "./auth";
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <AuthProvider>{children}</AuthProvider>
@@ -164,5 +164,29 @@ describe("AuthProvider — con qué nombre se rotula cada gimnasio/club del sele
 
     expect(result.current.gyms).toEqual([{ id: GYM, name: "Gym 72079e08" }]);
     expect(result.current.clubs.map((club) => club.name)).toEqual(["Club c1a2b3c4"]);
+  });
+});
+
+describe("administraGym — tener rol en el gym no es administrarlo", () => {
+  const rol = (role: string, gym_id: string | null) =>
+    ({ role, gym_id, club_id: null, gym_name: null, club_name: null, can_program_wods: false });
+
+  it("el coach trabaja en el gym pero no lo administra", () => {
+    expect(administraGym([rol("coach", "g1")], false, "g1")).toBe(false);
+  });
+
+  it("el gym_admin administra SU gym, no otro", () => {
+    expect(administraGym([rol("gym_admin", "g1")], false, "g1")).toBe(true);
+    expect(administraGym([rol("gym_admin", "g1")], false, "g2")).toBe(false);
+  });
+
+  it("coach de un gym y admin de otro: depende del gym que tiene abierto", () => {
+    const roles = [rol("coach", "g1"), rol("gym_admin", "g2")];
+    expect(administraGym(roles, false, "g1")).toBe(false);
+    expect(administraGym(roles, false, "g2")).toBe(true);
+  });
+
+  it("el superusuario administra cualquiera, aunque no tenga roles", () => {
+    expect(administraGym([], true, "g1")).toBe(true);
   });
 });

@@ -67,7 +67,7 @@ import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus"
 import { PhoneInput } from "../components/PhoneInput";
 import { Money, PageHeader, SectionLabel, StatusBadge } from "../components/ui";
 import { BigMetric, FilterChip, GlassCard, MetricTile, Stagger } from "../components/aurora";
-import { useAuth } from "../lib/auth";
+import { administraGym, useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
 import { errMsg } from "../lib/errors";
 import { MEMBERSHIP_STATUS, PAYMENT_METHOD, PAYMENT_STATUS, label } from "../lib/labels";
@@ -104,6 +104,14 @@ const FILTROS = [
   // sabía a quién tenía sancionado el gimnasio ni desde cuándo.
   { value: "bloqueadas", label: "Bloqueadas" },
 ];
+
+/**
+ * Segmentos que son la relación económica del socio (pago, retención). El coach
+ * entra al padrón para pasar lista y el backend no le manda nada de eso
+ * (`MembershipCoachSerializer`; `/overdue` y `/retention/at-risk` le dan 403),
+ * así que sus contadores saldrían siempre en 0: se le esconden.
+ */
+const FILTROS_DEL_ADMIN = new Set(["morosos", "por_vencer", "en_riesgo"]);
 
 /**
  * Estados desde los que el backend acepta bloquear (`ESTADOS_BLOQUEABLES`): los
@@ -242,8 +250,10 @@ function agruparPorServicio(filas: Membership[]) {
 }
 
 export function AthletesPage() {
-  const { primaryGymId } = useAuth();
+  const { primaryGymId, roles, isSuperuser } = useAuth();
   const gymId = primaryGymId ?? "";
+  const esAdmin = administraGym(roles, isSuperuser, gymId);
+  const filtros = esAdmin ? FILTROS : FILTROS.filter((f) => !FILTROS_DEL_ADMIN.has(f.value));
   const { data, isLoading, isError, refetch } = useMemberships(gymId);
   const [selectedMembershipId, setSelectedMembershipId] = useState("");
   const detail = useMembershipDetail(gymId, selectedMembershipId);
@@ -252,7 +262,7 @@ export function AthletesPage() {
   const editProfile = useEditAthleteProfile(gymId);
   const updateBilling = useUpdateMembershipBilling(gymId);
   const leaveDecision = useGymLeaveDecision(gymId);
-  const atRisk = useAtRisk(gymId);
+  const atRisk = useAtRisk(gymId, esAdmin);
   const pause = usePauseMembership(gymId);
   const resume = useResumeMembership(gymId);
   const gymConfig = useGymConfig(gymId);
@@ -265,7 +275,9 @@ export function AthletesPage() {
   // El filtro vive en la URL: así los pendientes ("bajas por confirmar",
   // "morosos") abren el padrón YA filtrado en vez de dejar al admin buscando.
   const [searchParams, setSearchParams] = useSearchParams();
-  const filtro = searchParams.get("filtro") ?? "todos";
+  // Un enlace con `?filtro=morosos` abierto por un coach cae en "todos".
+  const filtroUrl = searchParams.get("filtro") ?? "todos";
+  const filtro = filtros.some((f) => f.value === filtroUrl) ? filtroUrl : "todos";
   const setFiltro = (v: string) =>
     setSearchParams(v && v !== "todos" ? { filtro: v } : {}, { replace: true });
   // Servicio dentro de Morosos / En riesgo ("" = todos). También en la URL; cambiar
@@ -759,7 +771,7 @@ export function AthletesPage() {
           from={0.6}
           style={{ display: "flex", flexWrap: "wrap", gap: "calc(9 * var(--u))" }}
         >
-          {FILTROS.map((f) => (
+          {filtros.map((f) => (
             <FilterChip
               key={f.value}
               active={filtro === f.value}
@@ -947,26 +959,30 @@ export function AthletesPage() {
             alignContent: "start",
           }}
         >
-          <MetricTile
-            label="Morosos"
-            value={morosos}
-            icon={<AlertTriangle size={16} strokeWidth={1.8} />}
-            tone="var(--nucleo-danger)"
-          />
-          <MetricTile
-            label="Por vencer"
-            value={porVencer}
-            icon={<CalendarClock size={16} strokeWidth={1.8} />}
-            tone="var(--nucleo-warning)"
-          />
-          <MetricTile
-            label="En riesgo"
-            /* Si la lista de riesgo no cargó se muestra un guion: un 0 aquí
-               diría "nadie en riesgo", que es justo lo contrario del dato. */
-            value={atRisk.isError ? "—" : atRiskIds.size}
-            icon={<TrendingDown size={16} strokeWidth={1.8} />}
-            tone="var(--nucleo-accent)"
-          />
+          {esAdmin && (
+            <>
+              <MetricTile
+                label="Morosos"
+                value={morosos}
+                icon={<AlertTriangle size={16} strokeWidth={1.8} />}
+                tone="var(--nucleo-danger)"
+              />
+              <MetricTile
+                label="Por vencer"
+                value={porVencer}
+                icon={<CalendarClock size={16} strokeWidth={1.8} />}
+                tone="var(--nucleo-warning)"
+              />
+              <MetricTile
+                label="En riesgo"
+                /* Si la lista de riesgo no cargó se muestra un guion: un 0 aquí
+                   diría "nadie en riesgo", que es justo lo contrario del dato. */
+                value={atRisk.isError ? "—" : atRiskIds.size}
+                icon={<TrendingDown size={16} strokeWidth={1.8} />}
+                tone="var(--nucleo-accent)"
+              />
+            </>
+          )}
           <MetricTile
             label="Congeladas"
             value={congeladas}

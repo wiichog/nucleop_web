@@ -136,3 +136,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
+
+/**
+ * ¿Administra este gimnasio (vs. sólo trabajar en él)? Espejo de
+ * `administra_gym` del backend: superusuario, o rol `gym_admin`/`superadmin` en
+ * ESE gym. El coach tiene rol y no administra. Es para no mostrarle lo que el
+ * backend no le va a dar; la autorización sigue siendo del backend.
+ */
+export function administraGym(roles: Role[], isSuperuser: boolean, gymId: string): boolean {
+  if (isSuperuser) return true;
+  return roles.some(
+    (r) => r.gym_id === gymId && (r.role === "gym_admin" || r.role === "superadmin"),
+  );
+}
