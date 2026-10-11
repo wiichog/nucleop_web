@@ -432,7 +432,7 @@ export const manualesUsuarios: ManualesPorRuta = {
       {
         titulo: "Crear un plan",
         pasos: [
-          "En «Crear plan» escribe el «Nombre» (por ejemplo «Mensual CrossFit») y el «Precio (Q)».",
+          "En «Crear plan» escribe el «Nombre» (por ejemplo «Mensual CrossFit») y el «Precio (Q)». El precio va solo en números (por ejemplo 350): la «Q» ya aparece sola y el campo no acepta letras.",
           "Ajusta la «Duración (días)» (30 por defecto) y, si el plan tiene un tope, el «Límite de clases». Vacío significa sin límite.",
           "En «Servicios incluidos» elige las disciplinas que trae el plan. El atleta lo ve en el app.",
           "Marca «Acceso a clases especiales» u «Open gym» si el plan los incluye.",

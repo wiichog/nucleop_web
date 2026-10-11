@@ -165,6 +165,24 @@ describe("PlansPage — editar plan", () => {
     ]);
   });
 
+  it("«Precio (Q)» es numérico: manda solo el número, sin la Q ni comas", async () => {
+    const onSave = vi.fn(async () => {});
+    montar(
+      <EditPlanModal
+        plan={{ ...PLAN, service_types: [] } as never}
+        serviceOptions={[]}
+        saving={false}
+        onClose={() => {}}
+        onSave={onSave}
+      />,
+    );
+    const precio = await screen.findByRole("textbox", { name: "Precio (Q)" });
+    fireEvent.change(precio, { target: { value: "Q1,500" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0]).toEqual([expect.objectContaining({ price: "1500" })]);
+  });
+
   it("0 puntos quita la penalización de comunidad sin borrar la global", () => {
     expect(armarPenalizacion(0)).toBeNull();
     expect(armarPenalizacion("", { community_points: -10, notify: true })).toBeNull();

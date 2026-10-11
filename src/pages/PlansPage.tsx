@@ -112,7 +112,7 @@ export function PlansPage() {
   };
 
   const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
+  const [price, setPrice] = useState<number | string>("");
   const [durationDays, setDurationDays] = useState<number | string>(30);
   const [classLimit, setClassLimit] = useState<number | string>("");
   const [specialAccess, setSpecialAccess] = useState(false);
@@ -135,7 +135,7 @@ export function PlansPage() {
     try {
       await createPlan.mutateAsync({
         name,
-        price,
+        price: String(price),
         duration_days: Number(durationDays) || 30,
         class_limit: classLimit ? Number(classLimit) : null,
         special_classes_access: specialAccess,
@@ -199,7 +199,19 @@ export function PlansPage() {
           <SectionLabel mb={12} as="h2">Crear plan</SectionLabel>
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
             <TextInput label="Nombre" placeholder="Mensual CrossFit" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-            <TextInput label="Precio (Q)" placeholder="350" value={price} onChange={(e) => setPrice(e.currentTarget.value)} />
+            {/* Numérico y con la moneda a la vista (como la cuota en Solicitudes):
+                antes era texto libre y "Q350" o "350 al mes" llegaban al backend. */}
+            <NumberInput
+              label="Precio (Q)"
+              placeholder="350"
+              prefix="Q"
+              min={0}
+              decimalScale={2}
+              allowNegative={false}
+              thousandSeparator=","
+              value={price}
+              onChange={setPrice}
+            />
             <NumberInput label="Duración (días)" value={durationDays} onChange={setDurationDays} min={1} />
             <NumberInput label="Límite de clases" placeholder="Sin límite" value={classLimit} onChange={setClassLimit} min={0} />
           </SimpleGrid>
@@ -219,7 +231,7 @@ export function PlansPage() {
             <Checkbox label="Open gym" checked={openGym} onChange={(e) => setOpenGym(e.currentTarget.checked)} />
             <Checkbox label="Renovación automática" checked={autoRenew} onChange={(e) => setAutoRenew(e.currentTarget.checked)} />
             <NumberInput label="Penalización no-show (pts)" value={noshowPoints} onChange={setNoshowPoints} w={170} />
-            <Button type="submit" mt={22} loading={createPlan.isPending} disabled={!name || !price}>
+            <Button type="submit" mt={22} loading={createPlan.isPending} disabled={!name || price === ""}>
               Crear plan
             </Button>
           </Group>
@@ -564,7 +576,7 @@ export function EditPlanModal({
   }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
+  const [price, setPrice] = useState<number | string>("");
   const [duration, setDuration] = useState<number | string>(30);
   const [classLimit, setClassLimit] = useState<number | string>("");
   const [services, setServices] = useState<string[]>([]);
@@ -590,7 +602,17 @@ export function EditPlanModal({
   return (
     <Modal opened={!!plan} onClose={onClose} title="Editar plan" centered>
       <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} mb="sm" />
-      <TextInput label="Precio (Q)" value={price} onChange={(e) => setPrice(e.currentTarget.value)} mb="sm" />
+      <NumberInput
+        label="Precio (Q)"
+        prefix="Q"
+        min={0}
+        decimalScale={2}
+        allowNegative={false}
+        thousandSeparator=","
+        value={price}
+        onChange={setPrice}
+        mb="sm"
+      />
       <NumberInput label="Duración (días)" value={duration} onChange={setDuration} min={1} mb="sm" />
       <NumberInput label="Límite de clases (vacío = sin límite)" value={classLimit} onChange={setClassLimit} min={0} mb="sm" />
       <MultiSelect
@@ -626,12 +648,12 @@ export function EditPlanModal({
           Cancelar
         </Button>
         <Button
-          disabled={!name || !price}
+          disabled={!name || price === ""}
           loading={saving}
           onClick={() =>
             onSave({
               name,
-              price,
+              price: String(price),
               duration_days: Number(duration) || 30,
               class_limit: classLimit === "" ? null : Number(classLimit),
               service_types: services,
