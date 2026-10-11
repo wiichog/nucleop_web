@@ -62,6 +62,11 @@ export function etiquetaMetrica(metric: string): string {
   return METRICAS_RETO.find((m) => m.value === metric)?.label ?? metric;
 }
 
+/** Nombre del reto de un avance; si la lista de retos aún no llega, un genérico. */
+export function nombreReto(challengeId: string, retos?: { id: string; name: string }[]): string {
+  return retos?.find((r) => r.id === challengeId)?.name ?? "—";
+}
+
 export function ClubAdminPage() {
   const { primaryClubId, clubIds } = useAuth();
   const sinCuenta = useCuentaSinCargar();
@@ -288,7 +293,9 @@ function RetosPanel({ clubId }: { clubId: string }) {
   const createChallenge = useClubAdminCreateChallenge(clubId);
   const [expandedChallenge, setExpandedChallenge] = useState<string | null>(null);
   const challengeBoard = useClubAdminChallengeLeaderboard(clubId, expandedChallenge ?? "");
-  const pendingSubmissions = useClubAdminPendingSubmissions(clubId, expandedChallenge ?? undefined);
+  // La cola es de todo el club: abrir el ranking de un reto no la filtra (antes
+  // lo hacía en silencio y el contador parecía bajar solo).
+  const pendingSubmissions = useClubAdminPendingSubmissions(clubId);
   const reviewSubmission = useClubAdminReviewSubmission(clubId);
 
   const [challengeName, setChallengeName] = useState("");
@@ -378,6 +385,9 @@ function RetosPanel({ clubId }: { clubId: string }) {
                 <Text>
                   <strong>{sub.athlete_name}</strong> · +{sub.delta} ({sub.source})
                 </Text>
+                <Text c="dimmed" size="sm">
+                  Reto: {nombreReto(sub.challenge, challenges.data)}
+                </Text>
                 <Group gap="xs" mt={6}>
                   <Button size="xs" loading={reviewSubmission.isPending} onClick={() => onReview(sub.id, "approve")}>
                     Aprobar
@@ -462,6 +472,8 @@ function RetosPanel({ clubId }: { clubId: string }) {
                         message="No se pudo cargar el ranking del reto."
                         onRetry={() => challengeBoard.refetch()}
                       />
+                    ) : challengeBoard.isLoading ? (
+                      <PageLoading label="Cargando el ranking…" />
                     ) : !(challengeBoard.data ?? []).length ? (
                       <Text c="dimmed" size="sm">
                         Aún nadie registra avances en este reto.

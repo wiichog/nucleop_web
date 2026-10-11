@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { METRICAS_RETO, etiquetaMetrica } from "./ClubAdminPage";
+import { METRICAS_RETO, etiquetaMetrica, nombreReto } from "./ClubAdminPage";
 
 describe("medidas de reto del club", () => {
   it("ofrece las dos medidas que el servidor sabe llevar", () => {
@@ -10,5 +10,14 @@ describe("medidas de reto del club", () => {
     expect(etiquetaMetrica("distance_km")).toBe("Kilómetros");
     expect(etiquetaMetrica("activity_count")).toBe("Asistencias a actividades");
     expect(etiquetaMetrica("otra")).toBe("otra");
+  });
+});
+
+describe("reto de cada avance por revisar", () => {
+  it("nombra el reto del avance y no inventa uno si la lista no ha llegado", () => {
+    const retos = [{ id: "r1", name: "100 km de octubre" }];
+    expect(nombreReto("r1", retos)).toBe("100 km de octubre");
+    expect(nombreReto("r2", retos)).toBe("—");
+    expect(nombreReto("r1", undefined)).toBe("—");
   });
 });

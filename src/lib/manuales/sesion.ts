@@ -46,7 +46,7 @@ export const manualesSesion: ManualesPorRuta = {
         titulo: "Aprobar o rechazar los avances de tus miembros",
         pasos: [
           "Entra a la pestaña «Retos». Arriba, «Revisiones pendientes» dice cuántos avances esperan tu decisión.",
-          "Revisa cada avance: el nombre del atleta, cuánto suma (+) y de dónde viene.",
+          "Revisa cada avance: el nombre del atleta, cuánto suma (+), de dónde viene y a qué reto pertenece.",
           "Presiona «Aprobar» para sumárselo, o «Rechazar» si no procede.",
           "Al rechazar, escribe por qué en la ventana que aparece y acepta. Si cancelas la ventana, no se rechaza.",
         ],
@@ -61,7 +61,7 @@ export const manualesSesion: ManualesPorRuta = {
           "Presiona «Ocultar ranking» para cerrarlo.",
         ],
         nota:
-          "Mientras tienes abierto el ranking de un reto, «Revisiones pendientes» muestra solo los avances de ese reto. Ciérralo para volver a ver los de todos.",
+          "«Revisiones pendientes» siempre muestra los avances de todos los retos, aunque tengas un ranking abierto. Cada avance dice a qué reto pertenece.",
       },
       {
         titulo: "Publicar un anuncio para el club",
