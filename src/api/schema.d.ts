@@ -2976,7 +2976,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Morosidad (A9): atletas con pago vencido en ESTE gym. */
+        /**
+         * @description Morosidad (A9): atletas con pago vencido en ESTE gym.
+         *
+         *     Solo el admin: la lista ES la relación económica del socio (cuota, descuento,
+         *     estado de pago, notas internas). Al coach no le toca, igual que en el padrón
+         *     (`GymMembershipsView` / `MembershipCoachSerializer`).
+         */
         get: operations["gym_overdue_list"];
         put?: never;
         post?: never;
@@ -3365,8 +3371,35 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Atletas en riesgo de abandono (A12) — gancho comercial principal. */
+        /**
+         * @description Atletas en riesgo de abandono (A12) — gancho comercial principal.
+         *
+         *     Solo el admin, por lo mismo que morosidad: viaja con `MembershipAdminSerializer`
+         *     y la retención la decide quien administra el gym, no quien da la clase.
+         */
         get: operations["gym_retention_at_risk_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/retention/by-service": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Riesgo y morosos desglosados por servicio del plan (chips del panel).
+         *
+         *     Solo el admin: es la foto del dinero y la retención del gym por disciplina.
+         *     Un atleta con un plan de dos servicios cuenta en los dos.
+         */
+        get: operations["gym_retention_by_service_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3648,6 +3681,62 @@ export interface paths {
          *     POST registra/actualiza el resultado de un atleta (coach/recepción).
          */
         post: operations["gym_wods_results_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/wods/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Vista previa (`dry_run=true`, el default) o importación de la programación.
+         *
+         *     Todo o nada: si una fila tiene error, no se escribe ninguna y la respuesta
+         *     trae cada error en su fila para corregirlo en la IA y volver a pegar.
+         */
+        post: operations["gym_wods_import_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/wods/import/{batch}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Deshace una importación: borra los WODs del lote que aún no tienen scores. */
+        delete: operations["gym_wods_import_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/wods/import/prompt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description El prompt que el gym copia y pega en su IA, con SUS servicios y fechas. */
+        get: operations["gym_wods_import_prompt_retrieve"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5871,7 +5960,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Board de un WOD publicado, legible por los atletas del gym (app móvil). */
-        get: operations["wods_board_retrieve"];
+        get: operations["wods_board_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8380,6 +8469,12 @@ export interface components {
             decision: components["schemas"]["DecisionEnum"];
             comment?: string;
         };
+        /**
+         * @description * `kg` - kg
+         *     * `lb` - lb
+         * @enum {string}
+         */
+        LoadUnitEnum: "kg" | "lb";
         /** @description Cierre de sesión: el refresh token a revocar (el access expira solo en 30 min). */
         Logout: {
             refresh: string;
@@ -8461,6 +8556,7 @@ export interface components {
             /** Format: uuid */
             plan?: string | null;
             readonly plan_name: string;
+            readonly plan_services: components["schemas"]["PlanService"][];
             /**
              * Format: decimal
              * @description Cuota personalizada que sobreescribe el precio del plan SOLO en esta relación.
@@ -8515,6 +8611,7 @@ export interface components {
             /** Format: uuid */
             plan?: string | null;
             readonly plan_name: string;
+            readonly plan_services: components["schemas"]["PlanService"][];
             /**
              * Format: decimal
              * @description Cuota personalizada que sobreescribe el precio del plan SOLO en esta relación.
@@ -8765,6 +8862,7 @@ export interface components {
             wod_status: components["schemas"]["WodStatusEnum"];
             wod: components["schemas"]["Wod"] | null;
             my_result: components["schemas"]["WodResult"] | null;
+            my_part_results: components["schemas"]["WodResult"][];
             can_submit: boolean;
             window_open: boolean;
             /** Format: date-time */
@@ -8838,6 +8936,12 @@ export interface components {
          * @enum {string}
          */
         OfferTypeEnum: "percent" | "free_months";
+        /**
+         * @description * `skip` - skip
+         *     * `replace` - replace
+         * @enum {string}
+         */
+        OnConflictEnum: "skip" | "replace";
         PagaloWebhook: {
             reference: string;
             status: string;
@@ -9961,7 +10065,13 @@ export interface components {
         PatchedTicketStatus: {
             status?: components["schemas"]["TicketStatusStatusEnum"];
         };
-        /** @description WOD del día (lectura/escritura del coach o admin). */
+        /**
+         * @description WOD del día (lectura/escritura del coach o admin).
+         *
+         *     `parts` es opcional: un WOD sin partes funciona como siempre (un solo score). Si
+         *     se mandan, reemplazan las partes y el WOD refleja su parte principal en
+         *     `score_type`/`time_cap_min`/`is_benchmark` (ver `guardar_partes_wod`).
+         */
         PatchedWod: {
             /** Format: uuid */
             readonly id?: string;
@@ -9984,7 +10094,10 @@ export interface components {
             /** @description Lista de movimientos/estructura. */
             movements?: unknown;
             published?: boolean;
+            /** Format: date-time */
+            publish_at?: string | null;
             is_benchmark?: boolean;
+            parts?: components["schemas"]["WodPart"][];
             readonly results_count?: number;
             /** Format: date-time */
             readonly updated_at?: string;
@@ -10265,6 +10378,12 @@ export interface components {
             is_active?: boolean;
             /** Format: date-time */
             readonly created_at: string;
+        };
+        /** @description Servicio (disciplina del catálogo) que cubre el plan de la membresía. */
+        PlanService: {
+            /** Format: uuid */
+            id: string;
+            name: string;
         };
         /**
          * @description Fila de la bandeja del superadmin (monitoreo de fraude, sólo lectura).
@@ -10720,6 +10839,13 @@ export interface components {
             /** Format: date */
             valid_to?: string | null;
         };
+        /**
+         * @description * `on_day` - on_day
+         *     * `now` - now
+         *     * `draft` - draft
+         * @enum {string}
+         */
+        PublishEnum: "on_day" | "now" | "draft";
         PurchaseOrder: {
             /** Format: uuid */
             readonly id: string;
@@ -11091,6 +11217,10 @@ export interface components {
          * @enum {string}
          */
         ResultEnum: "won" | "lost";
+        RetentionByService: {
+            en_riesgo: components["schemas"]["ServiceBreakdownRow"][];
+            morosos: components["schemas"]["ServiceBreakdownRow"][];
+        };
         ReturnReject: {
             /** @default  */
             reason: string;
@@ -11253,6 +11383,13 @@ export interface components {
          * @enum {string}
          */
         ScoreType: "none" | "for_time" | "amrap" | "rounds_reps" | "load" | "emom" | "points";
+        /** @description Una fila del desglose por servicio. `service_type` nulo = "Sin servicio". */
+        ServiceBreakdownRow: {
+            /** Format: uuid */
+            service_type: string | null;
+            name: string;
+            count: number;
+        };
         /**
          * @description Catálogo de servicios/tipos de clase del gym (entidad única de servicio).
          *
@@ -11560,7 +11697,13 @@ export interface components {
          * @enum {string}
          */
         TrainingSessionStatusEnum: "pending_payment" | "scheduled" | "completed" | "cancelled" | "no_show";
-        /** @description WOD del día (lectura/escritura del coach o admin). */
+        /**
+         * @description WOD del día (lectura/escritura del coach o admin).
+         *
+         *     `parts` es opcional: un WOD sin partes funciona como siempre (un solo score). Si
+         *     se mandan, reemplazan las partes y el WOD refleja su parte principal en
+         *     `score_type`/`time_cap_min`/`is_benchmark` (ver `guardar_partes_wod`).
+         */
         Wod: {
             /** Format: uuid */
             readonly id: string;
@@ -11583,17 +11726,123 @@ export interface components {
             /** @description Lista de movimientos/estructura. */
             movements?: unknown;
             published?: boolean;
+            /** Format: date-time */
+            publish_at?: string | null;
             is_benchmark?: boolean;
+            parts?: components["schemas"]["WodPart"][];
             readonly results_count: number;
             /** Format: date-time */
             readonly updated_at: string;
         };
+        /** @description Lo que pega el gym. `data` es el JSON de la IA, como texto o ya parseado. */
+        WodImportInput: {
+            data: unknown;
+            /** Format: date */
+            date_from: string;
+            /** Format: date */
+            date_to: string;
+            /** @default skip */
+            on_conflict: components["schemas"]["OnConflictEnum"];
+            /** @default on_day */
+            publish: components["schemas"]["PublishEnum"];
+            /** @default true */
+            dry_run: boolean;
+        };
+        WodImportPartPreview: {
+            kind: string;
+            title: string;
+            description: string;
+            score_type: string;
+            time_cap_min: number | null;
+            load_unit: string;
+            is_benchmark: boolean;
+            scaling_options: unknown;
+        };
+        WodImportPrompt: {
+            prompt: string;
+            /** Format: date */
+            date_from: string;
+            /** Format: date */
+            date_to: string;
+            services: string[];
+        };
+        WodImportResult: {
+            dry_run: boolean;
+            /** Format: uuid */
+            batch: string | null;
+            summary: components["schemas"]["WodImportSummary"];
+            rows: components["schemas"]["WodImportRow"][];
+        };
+        WodImportRow: {
+            index: number;
+            /** Format: date */
+            date?: string | null;
+            /** Format: uuid */
+            service_type?: string | null;
+            service_name?: string;
+            title?: string;
+            parts?: components["schemas"]["WodImportPartPreview"][];
+            status: components["schemas"]["WodImportRowStatus"];
+            errors: string[];
+        };
+        /**
+         * @description * `new` - new
+         *     * `replace` - replace
+         *     * `skip` - skip
+         *     * `error` - error
+         * @enum {string}
+         */
+        WodImportRowStatus: "new" | "replace" | "skip" | "error";
+        WodImportSummary: {
+            total: number;
+            new: number;
+            replace: number;
+            skip: number;
+            error: number;
+        };
+        /**
+         * @description Un bloque del WOD (fuerza, metcon…) con su propio score.
+         *
+         *     Al escribir: con `id` se actualiza la parte existente; sin `id` se crea. La regla
+         *     de qué se puede cambiar con scores ya registrados vive en
+         *     `services.guardar_partes_wod`.
+         */
+        WodPart: {
+            /** Format: uuid */
+            id?: string;
+            readonly order: number;
+            kind?: components["schemas"]["WodPartKindEnum"];
+            readonly kind_display: string;
+            title: string;
+            description?: string;
+            score_type?: components["schemas"]["ScoreType"];
+            /** Format: int64 */
+            time_cap_min?: number | null;
+            load_unit?: components["schemas"]["LoadUnitEnum"] | components["schemas"]["BlankEnum"];
+            is_benchmark?: boolean;
+            is_primary?: boolean;
+            scaling_options?: unknown;
+            readonly results_count: number;
+        };
+        /**
+         * @description * `warmup` - Calentamiento
+         *     * `strength` - Fuerza
+         *     * `skill` - Técnica
+         *     * `metcon` - Metcon
+         *     * `accessory` - Accesorios
+         *     * `cooldown` - Enfriamiento
+         * @enum {string}
+         */
+        WodPartKindEnum: "warmup" | "strength" | "skill" | "metcon" | "accessory" | "cooldown";
         /** @description Una fila del board. `rank` lo inyecta la vista al ordenar. */
         WodResult: {
             /** Format: uuid */
             readonly id: string;
             /** Format: uuid */
             wod: string;
+            /** Format: uuid */
+            part: string | null;
+            readonly part_title: string;
             /**
              * Format: uuid
              * @description Ocurrencia donde se registró (para board por clase).
@@ -11620,6 +11869,8 @@ export interface components {
         WodResultInput: {
             /** Format: uuid */
             athlete_id?: string;
+            /** Format: uuid */
+            part_id?: string | null;
             /** Format: uuid */
             gym_class_id?: string | null;
             raw_score: string;
@@ -16347,6 +16598,8 @@ export interface operations {
                 ordering?: string;
                 /** @description A search term. */
                 search?: string;
+                /** @description UUID del servicio del plan, o `none` para los que no tienen servicio. */
+                service_type?: string;
             };
             header?: never;
             path: {
@@ -17023,6 +17276,8 @@ export interface operations {
                 ordering?: string;
                 /** @description A search term. */
                 search?: string;
+                /** @description UUID del servicio del plan, o `none` para los que no tienen servicio. */
+                service_type?: string;
             };
             header?: never;
             path: {
@@ -17038,6 +17293,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedMembershipAdminList"];
+                };
+            };
+        };
+    };
+    gym_retention_by_service_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionByService"];
                 };
             };
         };
@@ -17605,7 +17881,10 @@ export interface operations {
     };
     gym_wods_results_list: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Parte del WOD (sin ella, la principal). */
+                part_id?: string;
+            };
             header?: never;
             path: {
                 gym_id: string;
@@ -17649,6 +17928,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WodResult"];
+                };
+            };
+        };
+    };
+    gym_wods_import_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WodImportInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["WodImportInput"];
+                "multipart/form-data": components["schemas"]["WodImportInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WodImportResult"];
+                };
+            };
+        };
+    };
+    gym_wods_import_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch: string;
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    gym_wods_import_prompt_retrieve: {
+        parameters: {
+            query?: {
+                date_from?: string;
+                date_to?: string;
+            };
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WodImportPrompt"];
                 };
             };
         };
@@ -20901,9 +21252,12 @@ export interface operations {
             };
         };
     };
-    wods_board_retrieve: {
+    wods_board_list: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Parte del WOD (sin ella, la principal). */
+                part_id?: string;
+            };
             header?: never;
             path: {
                 id: string;
@@ -20917,7 +21271,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WodResult"];
+                    "application/json": components["schemas"]["WodResult"][];
                 };
             };
         };

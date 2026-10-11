@@ -213,6 +213,34 @@ function EmergencyContact({ value }: { value?: Record<string, unknown> | null })
   );
 }
 
+/** Valor del grupo para quien no tiene servicio (mismo que `?service_type=none` del backend). */
+const SIN_SERVICIO = "none";
+
+function estaEnServicio(m: Membership, servicio: string) {
+  const servicios = m.plan_services ?? [];
+  return servicio === SIN_SERVICIO ? servicios.length === 0 : servicios.some((s) => s.id === servicio);
+}
+
+/** Grupos por servicio del plan, de más a menos, con "Sin servicio" al final. */
+function agruparPorServicio(filas: Membership[]) {
+  const grupos = new Map<string, { value: string; label: string; count: number }>();
+  let sinServicio = 0;
+  for (const m of filas) {
+    const servicios = m.plan_services ?? [];
+    if (servicios.length === 0) sinServicio += 1;
+    for (const s of servicios) {
+      const g = grupos.get(s.id) ?? { value: s.id, label: s.name, count: 0 };
+      g.count += 1;
+      grupos.set(s.id, g);
+    }
+  }
+  const lista = [...grupos.values()].sort(
+    (a, b) => b.count - a.count || a.label.localeCompare(b.label),
+  );
+  if (sinServicio) lista.push({ value: SIN_SERVICIO, label: "Sin servicio", count: sinServicio });
+  return lista;
+}
+
 export function AthletesPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
@@ -240,6 +268,11 @@ export function AthletesPage() {
   const filtro = searchParams.get("filtro") ?? "todos";
   const setFiltro = (v: string) =>
     setSearchParams(v && v !== "todos" ? { filtro: v } : {}, { replace: true });
+  // Servicio dentro de Morosos / En riesgo ("" = todos). También en la URL; cambiar
+  // de segmento lo limpia (setFiltro reescribe los parámetros sin él).
+  const servicio = searchParams.get("servicio") ?? "";
+  const setServicio = (v: string) =>
+    setSearchParams(v ? { filtro, servicio: v } : { filtro }, { replace: true });
   const [search, setSearch] = useState("");
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<Membership>>({
     // Por defecto: morosos primero (orden de prioridad de pago). Al tocar una
@@ -648,7 +681,7 @@ export function AthletesPage() {
   // Retención y morosidad vive aquí: filtra el padrón por estado de pago / riesgo.
   const atRiskIds = new Set((atRisk.data ?? []).map((m) => m.id));
   const q = search.trim().toLowerCase();
-  const filtered = (data ?? []).filter((m) => {
+  const segmento = (data ?? []).filter((m) => {
     if (filtro === "morosos" && m.payment_status !== "overdue") return false;
     if (filtro === "por_vencer" && m.payment_status !== "due_soon") return false;
     if (filtro === "en_riesgo" && !atRiskIds.has(m.id)) return false;
@@ -656,6 +689,18 @@ export function AthletesPage() {
     if (filtro === "bloqueadas" && (m.status as string) !== "blocked") return false;
     // Baja pedida por el atleta: espera que el gym la confirme o la cancele.
     if (filtro === "bajas" && (m.status as string) !== "pending_leave") return false;
+    return true;
+  });
+  // Morosos y En riesgo, divididos por los servicios de su plan (`plan_services`,
+  // del backend). Un plan de dos servicios cuenta en los dos; sin plan o sin
+  // servicios declarados cae en "Sin servicio". Los conteos salen de las filas que
+  // ya están en pantalla, así siempre cuadran con la tabla.
+  const porServicio = filtro === "morosos" || filtro === "en_riesgo";
+  const gruposServicio = porServicio ? agruparPorServicio(segmento) : [];
+  const servicioActivo =
+    porServicio && gruposServicio.some((g) => g.value === servicio) ? servicio : "";
+  const filtered = segmento.filter((m) => {
+    if (servicioActivo && !estaEnServicio(m, servicioActivo)) return false;
     if (q && !(m.athlete_name ?? "").toLowerCase().includes(q) && !(m.plan_name ?? "").toLowerCase().includes(q))
       return false;
     return true;
@@ -724,6 +769,22 @@ export function AthletesPage() {
             </FilterChip>
           ))}
         </Stagger>
+        {gruposServicio.length > 1 && (
+          <Group gap="xs" wrap="wrap" w="100%">
+            <FilterChip active={!servicioActivo} onClick={() => setServicio("")}>
+              Todos los servicios
+            </FilterChip>
+            {gruposServicio.map((g) => (
+              <FilterChip
+                key={g.value}
+                active={servicioActivo === g.value}
+                onClick={() => setServicio(g.value)}
+              >
+                {g.label} · {g.count}
+              </FilterChip>
+            ))}
+          </Group>
+        )}
         <Group gap="sm" wrap="wrap">
           {/* Riesgo y mora definen QUIÉN cae en esos filtros: se configuran aquí
               mismo, no en una pantalla aparte donde nadie lo relacionaría. */}
