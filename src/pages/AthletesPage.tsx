@@ -166,6 +166,28 @@ export function efectoDeAsignarPlan(status?: string | null): EfectoDePlan {
 }
 
 /**
+ * A dónde mandar al operador cuando la relación está cerrada para "Plan y cuota".
+ * Antes todo caía en "la bandeja de Solicitudes", que solo lista solicitudes e
+ * invitaciones vivas: una baja pendiente, un exmiembro o un rechazado no están
+ * ahí, y el operador iba a buscarlos a donde no había nada.
+ */
+export function dondeSeGestiona(status?: string | null): string {
+  switch (status) {
+    case "blocked":
+      return "Levanta el bloqueo primero.";
+    case "pending_leave":
+      return "Respóndela en la pastilla «Bajas» de esta pantalla.";
+    case "former_member":
+    case "rejected":
+      // Volver reabre esta misma relación: lo invita el gym o lo pide el atleta.
+      return "Si quiere volver, invítalo desde «Solicitudes» con «Invitar atleta» o pídele que solicite entrar desde su app.";
+    default:
+      // `requested` / `invited`: esas sí viven en la bandeja.
+      return "Gestiónala en la bandeja de Solicitudes.";
+  }
+}
+
+/**
  * La sanción vigente dentro del historial de estados. El bloqueo no tiene campo
  * propio: su motivo viaja en el comentario de `MembershipStatusHistory`, que es
  * append-only. Hay que quedarse con la ENTRADA MÁS RECIENTE a "blocked" — a un
@@ -265,7 +287,8 @@ export function AthletesPage() {
   const atRisk = useAtRisk(gymId, esAdmin);
   const pause = usePauseMembership(gymId);
   const resume = useResumeMembership(gymId);
-  const gymConfig = useGymConfig(gymId);
+  // `GET /gym/{id}` es solo del admin (`GymAdminDetailView`): al coach le daría 403.
+  const gymConfig = useGymConfig(esAdmin ? gymId : "");
   const updateGymConfig = useUpdateGymConfig(gymId);
   const plans = usePlans(gymId);
   const offers = usePlanOffers(gymId);
@@ -799,7 +822,10 @@ export function AthletesPage() {
         )}
         <Group gap="sm" wrap="wrap">
           {/* Riesgo y mora definen QUIÉN cae en esos filtros: se configuran aquí
-              mismo, no en una pantalla aparte donde nadie lo relacionaría. */}
+              mismo, no en una pantalla aparte donde nadie lo relacionaría. Como
+              los filtros, es solo del admin: el coach no lee ni guarda la
+              config del gimnasio (403). */}
+          {esAdmin && (
           <Popover opened={riesgoOpen} onChange={setRiesgoOpen} position="bottom-start" withArrow withinPortal>
             <Popover.Target>
               <Button
@@ -914,6 +940,7 @@ export function AthletesPage() {
               )}
             </Popover.Dropdown>
           </Popover>
+          )}
           <TextInput
             placeholder="Buscar atleta o plan…"
             value={search}
@@ -1078,6 +1105,11 @@ export function AthletesPage() {
                       <Button variant="default" size="xs" onClick={() => setSelectedMembershipId(m.id)}>
                         Ver detalle
                       </Button>
+                      {/* Recordatorio, Desligar y Confirmar/Cancelar baja son
+                          solo del admin (`required_roles = [GYM_ADMIN]`): al
+                          coach el servidor se los rechaza con 403. */}
+                      {esAdmin && (
+                      <>
                       <Menu shadow="md" position="bottom-start" withinPortal>
                         <Menu.Target>
                           <Button variant="light" size="xs" leftSection={<Bell size={14} />} loading={sendReminder.isPending}>
@@ -1123,6 +1155,8 @@ export function AthletesPage() {
                             Cancelar baja propuesta
                           </Button>
                         ))}
+                      </>
+                      )}
                     </Group>
 
                     {/* Móvil: un solo kebab con las mismas acciones */}
@@ -1136,6 +1170,8 @@ export function AthletesPage() {
                         <Menu.Item leftSection={<Eye size={14} />} onClick={() => setSelectedMembershipId(m.id)}>
                           Ver detalle
                         </Menu.Item>
+                        {esAdmin && (
+                        <>
                         <Menu.Label>Recordatorio</Menu.Label>
                         <Menu.Item leftSection={<Smartphone size={14} />} onClick={() => onReminder(m.id, m.athlete_name, "push")}>
                           Push
@@ -1170,6 +1206,8 @@ export function AthletesPage() {
                               Cancelar baja propuesta
                             </Menu.Item>
                           ))}
+                        </>
+                        )}
                       </Menu.Dropdown>
                     </Menu>
                   </>
@@ -1224,6 +1262,8 @@ export function AthletesPage() {
                 </Group>
               </div>
             </Group>
+            {/* Recordatorio y restablecer contraseña: solo del admin (403 al coach). */}
+            {esAdmin && (
             <Group gap="xs">
               <Menu shadow="md" position="bottom-start" withinPortal>
                 <Menu.Target>
@@ -1253,6 +1293,7 @@ export function AthletesPage() {
                 Restablecer contraseña
               </Button>
             </Group>
+            )}
           </Group>
 
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm" mt="md">
@@ -1274,6 +1315,12 @@ export function AthletesPage() {
             </Text>
           </SimpleGrid>
 
+          {/* Plan, cobro, congelamiento, bloqueo y perfil: todo escribe por
+              endpoints de solo admin (`required_roles = [GYM_ADMIN]`). Al coach
+              se le enseñaban y cada botón terminaba en 403; él ve la ficha y
+              sus pagos, no la administra. */}
+          {esAdmin && (
+          <>
           {/* Plan y cuota de un socio que YA está adentro. Antes esto solo se
               podía fijar al darlo de alta (bandeja de Solicitudes): subirle la
               cuota a un socio o pasarlo a otro plan obligaba al Django admin. */}
@@ -1284,9 +1331,7 @@ export function AthletesPage() {
                 Esta relación está{" "}
                 {label(MEMBERSHIP_STATUS, detail.data.status).toLowerCase()}: no se le asigna plan
                 desde aquí.{" "}
-                {detail.data.status === "blocked"
-                  ? "Levanta el bloqueo primero."
-                  : "Gestiónala en la bandeja de Solicitudes."}
+                {dondeSeGestiona(detail.data.status)}
               </Text>
             ) : (
               <>
@@ -1516,7 +1561,9 @@ export function AthletesPage() {
               sin reclamar (`profile_editable_by_gym`); después responde 403
               `athlete_profile_owned`. Ofrecer el formulario igual era prometer un
               guardado que nunca ocurría. Lo de la RELACIÓN (plan, cuota, cobro,
-              pausa, notas internas, baja) no se toca: sigue arriba. */}
+              pausa, baja) no se toca: sigue arriba. Las notas internas sólo se
+              muestran: el backend no tiene dónde escribirlas, así que no se las
+              ofrecemos como salida para corregir un dato. */}
           {detail.data.athlete_profile.profile_editable_by_gym ? (
             <Accordion variant="separated" mt="md">
               <Accordion.Item value="edit">
@@ -1549,9 +1596,11 @@ export function AthletesPage() {
           ) : (
             <Text size="sm" c="dimmed" mt="md">
               El nombre, el cumpleaños y el contacto de emergencia los edita el atleta desde su
-              app: el perfil viaja con él a los demás gimnasios. Si hay un dato mal, pídeselo a él
-              o corrígelo en tus <b>notas internas</b>.
+              app: el perfil viaja con él a los demás gimnasios. Si hay un dato mal, pídele que lo
+              corrija desde su app.
             </Text>
+          )}
+          </>
           )}
 
           <SectionLabel mt="lg" mb="xs" as="h2">

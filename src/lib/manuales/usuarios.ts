@@ -45,7 +45,7 @@ export const manualesUsuarios: ManualesPorRuta = {
           "En «Corte automático por mora» escribe cuántos días de atraso toleras antes de que la membresía pase sola a vencida (de 1 a 365) y presiona «Guardar».",
         ],
         nota:
-          "Cada número se guarda con su propio botón «Guardar». El corte tiene que ser mayor que la gracia de pago. Con gracia 0, el atleta se bloquea el mismo día que vence. Ojo: el atleta aparece en «Morosos» desde el primer día de atraso, aunque esté en gracia; el corte solo decide cuándo pasa a vencida.",
+          "Cada número se guarda con su propio botón «Guardar». El corte tiene que ser mayor que la gracia de pago. Con gracia 0, el atleta se bloquea el mismo día que vence. Ojo: el atleta aparece en «Morosos» desde el primer día de atraso, aunque esté en gracia; el corte solo decide cuándo pasa a vencida. Este botón solo lo ve quien administra el gimnasio.",
       },
       {
         titulo: "Abrir la ficha de un atleta",
@@ -53,6 +53,8 @@ export const manualesUsuarios: ManualesPorRuta = {
           "En la fila del atleta presiona «Ver detalle» (en el celular, toca los tres puntos y elige «Ver detalle»).",
           "Se abre la «Ficha del atleta» con su plan, vencimiento, cumpleaños, contacto de emergencia, nivel y objetivos, notas internas, sus pagos y su asistencia en este gimnasio.",
         ],
+        nota:
+          "Los coaches ven la ficha y los pagos, pero no la administran: no les aparecen «Recordatorio», «Restablecer contraseña», «Plan y cuota», «Cobro y renovación», «Congelamiento», «Acceso al gimnasio» ni «Completar datos del atleta». En la tabla tampoco ven «Desligar» ni «Confirmar baja».",
       },
       {
         titulo: "Mandarle un recordatorio de pago",
@@ -161,7 +163,7 @@ export const manualesUsuarios: ManualesPorRuta = {
           "Presiona «Guardar cambios».",
         ],
         nota:
-          "Solo aparece mientras el atleta no ha reclamado su cuenta. En cuanto entra al app por primera vez, su perfil pasa a ser suyo y ya solo él puede cambiar esos datos.",
+          "Solo aparece mientras el atleta no ha reclamado su cuenta. En cuanto entra al app por primera vez, su perfil pasa a ser suyo y ya solo él puede cambiar esos datos: si hay uno mal, pídele que lo corrija desde su app.",
       },
     ],
     conceptos: [
@@ -278,7 +280,7 @@ export const manualesUsuarios: ManualesPorRuta = {
       {
         sintoma: "En «Plan y cuota» dice que no se le asigna plan desde aquí.",
         solucion:
-          "La membresía está en un estado en el que no se le puede cambiar el plan (por ejemplo bloqueada, exmiembro o con baja pendiente). Si está bloqueada, levanta el bloqueo primero.",
+          "La membresía está en un estado en el que no se le puede cambiar el plan. Si está bloqueada, levanta el bloqueo primero. Si tiene baja pendiente, respóndela en la pastilla «Bajas». Si es exmiembro o la rechazaste, para que vuelva invítalo desde «Solicitudes» con «Invitar atleta» o pídele que solicite entrar desde su app. Si es una solicitud o una invitación, atiéndela en «Solicitudes».",
       },
       {
         sintoma: "El selector de plan sale vacío o dice «No se pudieron cargar los planes.»",
@@ -347,7 +349,7 @@ export const manualesUsuarios: ManualesPorRuta = {
           "Presiona «Asignar plan».",
         ],
         nota:
-          "Al asignar el plan, el atleta queda como miembro activo al instante, sin registrar ningún pago, y sale de esta bandeja: desde ahí lo ves en «Atletas».",
+          "Al asignar el plan, el atleta queda como miembro activo al instante, sin registrar ningún pago, y sale de esta bandeja: desde ahí lo ves en «Atletas». Una oferta de porcentaje recalcula la cuota: el mensaje de confirmación te dice la cuota que quedó.",
       },
       {
         titulo: "Buscar una solicitud",
@@ -430,10 +432,11 @@ export const manualesUsuarios: ManualesPorRuta = {
       {
         titulo: "Crear un plan",
         pasos: [
-          "En «Crear plan» escribe el «Nombre» (por ejemplo «Mensual CrossFit») y el «Precio (Q)».",
+          "En «Crear plan» escribe el «Nombre» (por ejemplo «Mensual CrossFit») y el «Precio (Q)». El precio va solo en números (por ejemplo 350): la «Q» ya aparece sola y el campo no acepta letras.",
           "Ajusta la «Duración (días)» (30 por defecto) y, si el plan tiene un tope, el «Límite de clases». Vacío significa sin límite.",
           "En «Servicios incluidos» elige las disciplinas que trae el plan. El atleta lo ve en el app.",
           "Marca «Acceso a clases especiales» u «Open gym» si el plan los incluye.",
+          "Deja marcada «Renovación automática» si el plan se renueva solo (viene marcada); desmárcala si prefieres registrar cada pago a mano.",
           "Ajusta la «Penalización no-show (pts)»: los puntos de comunidad que pierde quien reserva y no llega (−10 por defecto; 0 = sin penalización).",
           "Presiona «Crear plan».",
         ],
@@ -476,7 +479,7 @@ export const manualesUsuarios: ManualesPorRuta = {
       {
         titulo: "Prender, apagar o eliminar una oferta",
         pasos: [
-          "En la tabla «Ofertas» usa el interruptor «Activa» para prenderla o apagarla.",
+          "En la tabla «Ofertas» usa el interruptor «Activa» para prenderla o apagarla. Un aviso te confirma si quedó activada o desactivada; si no se pudo, el aviso te dice por qué y el interruptor queda como estaba.",
           "Para quitarla del todo presiona «Eliminar» y confirma.",
         ],
         nota: "Solo las ofertas activas aparecen al asignar un plan.",
@@ -486,15 +489,17 @@ export const manualesUsuarios: ManualesPorRuta = {
         pasos: [
           "En la tabla «Planes» presiona «Editar» en la fila del plan.",
           "Cambia el «Nombre», el «Precio (Q)», la «Duración (días)», el «Límite de clases (vacío = sin límite)» o los «Servicios incluidos».",
+          "Marca o desmarca «Acceso a clases especiales», «Open gym» y «Renovación automática».",
+          "Ajusta la «Penalización no-show (pts)» (0 = sin penalización).",
           "Presiona «Guardar».",
         ],
         nota:
-          "Desde aquí no se cambian el acceso a clases especiales, el open gym ni la penalización por no-show: esos se definen al crear el plan.",
+          "Cambiar «Renovación automática» en el plan vale para los atletas a los que se lo asignes desde ahora. A los que ya tienen el plan no les cambia: eso se corrige en la ficha de cada atleta, en «Atletas».",
       },
       {
         titulo: "Prender, apagar o eliminar un plan",
         pasos: [
-          "En la tabla «Planes» usa el interruptor «Activo» para prenderlo o apagarlo.",
+          "En la tabla «Planes» usa el interruptor «Activo» para prenderlo o apagarlo. Un aviso te confirma si quedó activado o desactivado; si no se pudo, el aviso te dice por qué y el interruptor queda como estaba.",
           "Para quitarlo presiona «Eliminar» y confirma.",
         ],
         nota:
@@ -543,7 +548,7 @@ export const manualesUsuarios: ManualesPorRuta = {
       {
         termino: "Renovación auto.",
         detalle:
-          "Si el plan se renueva solo por defecto. Lo puedes corregir para cada atleta en su ficha, en «Atletas».",
+          "Si el plan se renueva solo por defecto. Se fija al crear o editar el plan y lo hereda el atleta al asignárselo; para cada atleta lo puedes corregir en su ficha, en «Atletas».",
       },
     ],
     problemas: [

@@ -40,6 +40,30 @@ import { sortRecords } from "../lib/sortRecords";
 const OFFER_LABEL: Record<string, string> = { percent: "Descuento %", free_months: "Meses gratis" };
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
 
+/** Puntos de comunidad que hoy resta el plan por no-show (0 = sin penalización). */
+export function puntosNoShow(penalizacion: unknown): number {
+  const pts = (penalizacion as { community_points?: unknown } | null)?.community_points;
+  return typeof pts === "number" && Number.isFinite(pts) ? pts : 0;
+}
+
+/**
+ * Arma `noshow_penalty` a partir de los puntos del formulario. Al editar, conserva
+ * lo demás que ya traía la regla (p. ej. `global_points` o el mensaje): el panel
+ * solo maneja los puntos de comunidad y no debe borrar lo que no muestra.
+ * 0 o vacío = sin penalización de comunidad.
+ */
+export function armarPenalizacion(puntos: number | string, previa?: unknown): Record<string, unknown> | null {
+  const points = Number(puntos);
+  const base: Record<string, unknown> =
+    previa && typeof previa === "object" && !Array.isArray(previa)
+      ? { ...(previa as Record<string, unknown>) }
+      : { notify: true, message: "Penalización por no asistir a clase reservada." };
+  if (Number.isFinite(points) && points !== 0) return { ...base, community_points: points };
+  delete base.community_points;
+  // Sin puntos de comunidad ni globales la regla no hace nada: se manda vacía.
+  return base.global_points ? base : null;
+}
+
 export function PlansPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
@@ -56,7 +80,6 @@ export function PlansPage() {
   const deletePlan = useDeletePlan(gymId);
   const offers = usePlanOffers(gymId);
   const createOffer = useCreatePlanOffer(gymId);
-  const toggleOffer = useTogglePlanOffer(gymId);
   const deleteOffer = useDeletePlanOffer(gymId);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [sortOffers, setSortOffers] = useState<DataTableSortStatus<PlanOffer>>({
@@ -89,12 +112,13 @@ export function PlansPage() {
   };
 
   const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
+  const [price, setPrice] = useState<number | string>("");
   const [durationDays, setDurationDays] = useState<number | string>(30);
   const [classLimit, setClassLimit] = useState<number | string>("");
   const [specialAccess, setSpecialAccess] = useState(false);
   const [openGym, setOpenGym] = useState(false);
   const [noshowPoints, setNoshowPoints] = useState<number | string>(-10);
+  const [autoRenew, setAutoRenew] = useState(true);
   const [planServices, setPlanServices] = useState<string[]>([]);
 
   const [offerName, setOfferName] = useState("");
@@ -106,22 +130,19 @@ export function PlansPage() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const points = Number(noshowPoints);
     // Sin catch, un rechazo del backend (precio inválido, nombre repetido) dejaba
     // la promesa sin dueño: el formulario no se limpiaba y nadie decía por qué.
     try {
       await createPlan.mutateAsync({
         name,
-        price,
+        price: String(price),
         duration_days: Number(durationDays) || 30,
         class_limit: classLimit ? Number(classLimit) : null,
         special_classes_access: specialAccess,
         open_gym_access: openGym,
+        auto_renew_default: autoRenew,
         service_types: planServices,
-        noshow_penalty:
-          Number.isFinite(points) && points !== 0
-            ? { community_points: points, notify: true, message: "Penalización por no asistir a clase reservada." }
-            : null,
+        noshow_penalty: armarPenalizacion(noshowPoints),
       });
       notifications.show({ color: "teal", message: `Plan "${name}" creado.` });
       setName("");
@@ -178,7 +199,19 @@ export function PlansPage() {
           <SectionLabel mb={12} as="h2">Crear plan</SectionLabel>
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
             <TextInput label="Nombre" placeholder="Mensual CrossFit" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-            <TextInput label="Precio (Q)" placeholder="350" value={price} onChange={(e) => setPrice(e.currentTarget.value)} />
+            {/* Numérico y con la moneda a la vista (como la cuota en Solicitudes):
+                antes era texto libre y "Q350" o "350 al mes" llegaban al backend. */}
+            <NumberInput
+              label="Precio (Q)"
+              placeholder="350"
+              prefix="Q"
+              min={0}
+              decimalScale={2}
+              allowNegative={false}
+              thousandSeparator=","
+              value={price}
+              onChange={setPrice}
+            />
             <NumberInput label="Duración (días)" value={durationDays} onChange={setDurationDays} min={1} />
             <NumberInput label="Límite de clases" placeholder="Sin límite" value={classLimit} onChange={setClassLimit} min={0} />
           </SimpleGrid>
@@ -196,8 +229,9 @@ export function PlansPage() {
           <Group mt="md" gap="lg" align="center">
             <Checkbox label="Acceso a clases especiales" checked={specialAccess} onChange={(e) => setSpecialAccess(e.currentTarget.checked)} />
             <Checkbox label="Open gym" checked={openGym} onChange={(e) => setOpenGym(e.currentTarget.checked)} />
+            <Checkbox label="Renovación automática" checked={autoRenew} onChange={(e) => setAutoRenew(e.currentTarget.checked)} />
             <NumberInput label="Penalización no-show (pts)" value={noshowPoints} onChange={setNoshowPoints} w={170} />
-            <Button type="submit" mt={22} loading={createPlan.isPending} disabled={!name || !price}>
+            <Button type="submit" mt={22} loading={createPlan.isPending} disabled={!name || price === ""}>
               Crear plan
             </Button>
           </Group>
@@ -349,13 +383,7 @@ export function PlansPage() {
                 accessor: "is_active",
                 title: "Activa",
                 sortable: true,
-                render: (o) => (
-                  <Switch
-                    checked={o.is_active}
-                    onChange={() => toggleOffer.mutate({ offerId: o.id, is_active: !o.is_active })}
-                    color="flame"
-                  />
-                ),
+                render: (o) => <InterruptorOferta gymId={gymId} oferta={o} />,
               },
               {
                 accessor: "actions",
@@ -415,13 +443,7 @@ export function PlansPage() {
                 accessor: "is_active",
                 title: "Activo",
                 sortable: true,
-                render: (p) => (
-                  <Switch
-                    checked={p.is_active}
-                    onChange={() => updatePlan.mutate({ id: p.id, body: { is_active: !p.is_active } })}
-                    color="flame"
-                  />
-                ),
+                render: (p) => <InterruptorPlan gymId={gymId} plan={p} />,
               },
               {
                 accessor: "actions",
@@ -462,7 +484,75 @@ export function PlansPage() {
   );
 }
 
-function EditPlanModal({
+/**
+ * Interruptor «Activo» de un plan. Avisa como el resto de la pantalla: sin aviso,
+ * un fallo del servidor dejaba el interruptor como estaba sin decir nada.
+ * Exportado para probarlo suelto (`mantine-datatable` no pinta celdas en jsdom).
+ */
+export function InterruptorPlan({ gymId, plan }: { gymId: string; plan: Plan }) {
+  const updatePlan = useUpdatePlan(gymId);
+  const cambiar = () => {
+    const activar = !plan.is_active;
+    updatePlan.mutate(
+      { id: plan.id, body: { is_active: activar } },
+      {
+        onSuccess: () =>
+          notifications.show({
+            color: "teal",
+            message: activar ? `Plan "${plan.name}" activado.` : `Plan "${plan.name}" desactivado.`,
+          }),
+        onError: (error) =>
+          notifications.show({
+            color: "red",
+            message: errMsg(error, activar ? "No se pudo activar el plan." : "No se pudo desactivar el plan."),
+          }),
+      },
+    );
+  };
+  return (
+    <Switch
+      checked={plan.is_active}
+      onChange={cambiar}
+      disabled={updatePlan.isPending}
+      color="flame"
+      aria-label={`Activo: ${plan.name}`}
+    />
+  );
+}
+
+/** Interruptor «Activa» de una oferta; mismo trato que el del plan. */
+export function InterruptorOferta({ gymId, oferta }: { gymId: string; oferta: PlanOffer }) {
+  const toggleOffer = useTogglePlanOffer(gymId);
+  const cambiar = () => {
+    const activar = !oferta.is_active;
+    toggleOffer.mutate(
+      { offerId: oferta.id, is_active: activar },
+      {
+        onSuccess: () =>
+          notifications.show({
+            color: "teal",
+            message: activar ? `Oferta "${oferta.name}" activada.` : `Oferta "${oferta.name}" desactivada.`,
+          }),
+        onError: (error) =>
+          notifications.show({
+            color: "red",
+            message: errMsg(error, activar ? "No se pudo activar la oferta." : "No se pudo desactivar la oferta."),
+          }),
+      },
+    );
+  };
+  return (
+    <Switch
+      checked={oferta.is_active}
+      onChange={cambiar}
+      disabled={toggleOffer.isPending}
+      color="flame"
+      aria-label={`Activa: ${oferta.name}`}
+    />
+  );
+}
+
+export function EditPlanModal({
   plan,
   serviceOptions,
   saving,
@@ -479,13 +569,21 @@ function EditPlanModal({
     duration_days: number;
     class_limit: number | null;
     service_types: string[];
+    special_classes_access: boolean;
+    open_gym_access: boolean;
+    auto_renew_default: boolean;
+    noshow_penalty: Record<string, unknown> | null;
   }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
+  const [price, setPrice] = useState<number | string>("");
   const [duration, setDuration] = useState<number | string>(30);
   const [classLimit, setClassLimit] = useState<number | string>("");
   const [services, setServices] = useState<string[]>([]);
+  const [specialAccess, setSpecialAccess] = useState(false);
+  const [openGym, setOpenGym] = useState(false);
+  const [autoRenew, setAutoRenew] = useState(true);
+  const [noshowPoints, setNoshowPoints] = useState<number | string>(0);
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
 
   if (plan && hydratedFor !== plan.id) {
@@ -495,12 +593,26 @@ function EditPlanModal({
     setDuration(plan.duration_days ?? 30);
     setClassLimit(plan.class_limit ?? "");
     setServices(plan.service_types ?? []);
+    setSpecialAccess(!!plan.special_classes_access);
+    setOpenGym(!!plan.open_gym_access);
+    setAutoRenew(plan.auto_renew_default ?? true);
+    setNoshowPoints(puntosNoShow(plan.noshow_penalty));
   }
 
   return (
     <Modal opened={!!plan} onClose={onClose} title="Editar plan" centered>
       <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} mb="sm" />
-      <TextInput label="Precio (Q)" value={price} onChange={(e) => setPrice(e.currentTarget.value)} mb="sm" />
+      <NumberInput
+        label="Precio (Q)"
+        prefix="Q"
+        min={0}
+        decimalScale={2}
+        allowNegative={false}
+        thousandSeparator=","
+        value={price}
+        onChange={setPrice}
+        mb="sm"
+      />
       <NumberInput label="Duración (días)" value={duration} onChange={setDuration} min={1} mb="sm" />
       <NumberInput label="Límite de clases (vacío = sin límite)" value={classLimit} onChange={setClassLimit} min={0} mb="sm" />
       <MultiSelect
@@ -514,20 +626,41 @@ function EditPlanModal({
         clearable
         mb="md"
       />
+      <Stack gap="xs" mb="sm">
+        <Checkbox label="Acceso a clases especiales" checked={specialAccess} onChange={(e) => setSpecialAccess(e.currentTarget.checked)} />
+        <Checkbox label="Open gym" checked={openGym} onChange={(e) => setOpenGym(e.currentTarget.checked)} />
+        <Checkbox
+          label="Renovación automática"
+          description="Lo heredan los atletas a los que les asignes este plan desde ahora; a los que ya lo tienen no les cambia."
+          checked={autoRenew}
+          onChange={(e) => setAutoRenew(e.currentTarget.checked)}
+        />
+      </Stack>
+      <NumberInput
+        label="Penalización no-show (pts)"
+        description="0 = sin penalización."
+        value={noshowPoints}
+        onChange={setNoshowPoints}
+        mb="md"
+      />
       <Group justify="flex-end">
         <Button variant="default" onClick={onClose}>
           Cancelar
         </Button>
         <Button
-          disabled={!name || !price}
+          disabled={!name || price === ""}
           loading={saving}
           onClick={() =>
             onSave({
               name,
-              price,
+              price: String(price),
               duration_days: Number(duration) || 30,
               class_limit: classLimit === "" ? null : Number(classLimit),
               service_types: services,
+              special_classes_access: specialAccess,
+              open_gym_access: openGym,
+              auto_renew_default: autoRenew,
+              noshow_penalty: armarPenalizacion(noshowPoints, plan?.noshow_penalty),
             })
           }
         >

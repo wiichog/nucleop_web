@@ -21,7 +21,7 @@ import {
   usePlanOffers,
   usePlans,
 } from "../api/hooks";
-import { JoinRequest } from "../api/types";
+import { JoinRequest, Membership } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { PhoneInput } from "../components/PhoneInput";
 import { GlassCard } from "../components/aurora";
@@ -30,6 +30,22 @@ import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
 import { fmtQ } from "../lib/money";
 import { sortRecords } from "../lib/sortRecords";
+
+/**
+ * Confirmación de «Asignar plan». La cuota se lee de la RESPUESTA del servidor,
+ * no de lo que se tecleó: una oferta de porcentaje la recalcula allá, así que
+ * repetir lo escrito prometería un monto que el gimnasio no va a cobrar (igual
+ * que hace la ficha en Atletas).
+ */
+export function mensajeAsignacion(saved: Pick<Membership, "custom_fee" | "status">): string {
+  const cuota = saved.custom_fee ?? null;
+  return (
+    (cuota === null
+      ? "Plan asignado con el precio del plan (sin cuota personalizada)."
+      : `Plan asignado con cuota de ${fmtQ(cuota, { decimals: 2 })}.`) +
+    (saved.status === "active" ? " El atleta ya es miembro activo." : "")
+  );
+}
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
 
@@ -137,12 +153,7 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
       assign.mutate(
         { membershipId, planId, customFee: fee === "" ? null : fee, offerId: offerId ?? undefined },
         {
-          onSuccess: () =>
-            ok(
-              fee === ""
-                ? "Plan asignado con el precio del plan (sin cuota personalizada). El atleta ya es miembro activo."
-                : `Plan asignado con cuota personalizada de ${fmtQ(fee, { decimals: 2 })}. El atleta ya es miembro activo.`,
-            ),
+          onSuccess: (saved) => ok(mensajeAsignacion(saved)),
           onError: (error) =>
             fail(errMsg(error, "No se pudo asignar el plan. Inténtalo de nuevo.")),
         },
