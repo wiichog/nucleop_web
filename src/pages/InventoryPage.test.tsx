@@ -33,6 +33,7 @@ if (!window.ResizeObserver) {
 
 const espias = vi.hoisted(() => ({
   actualizar: vi.fn(),
+  movimiento: vi.fn(),
   aviso: vi.fn(),
 }));
 
@@ -83,7 +84,7 @@ vi.mock("../api/hooks", () => {
     useCreateErpProduct: () => mutacion(),
     useUpdateErpProduct: () => mutacion(espias.actualizar),
     useDeleteErpProduct: () => mutacion(),
-    useCreateErpMovement: () => mutacion(),
+    useCreateErpMovement: () => mutacion(espias.movimiento),
     useUploadProductPhoto: () => mutacion(),
     useUploadProductImages: () => mutacion(),
     useDeleteProductImage: () => mutacion(),
@@ -138,6 +139,37 @@ describe("InventoryPage · interruptor «Activo»", () => {
 
     await waitFor(() =>
       expect(espias.aviso).toHaveBeenCalledWith(expect.objectContaining({ color: "red" })),
+    );
+  });
+});
+
+describe("InventoryPage · «Entrada» rápida", () => {
+  beforeEach(() => {
+    espias.movimiento.mockReset().mockResolvedValue({});
+    espias.aviso.mockReset();
+  });
+
+  const fila = () => screen.getAllByPlaceholderText("Qty")[0];
+  const entrada = () => screen.getAllByRole("button", { name: "Entrada" })[0];
+
+  it.each(["", "abc", "0", "3.5", "-2"])("con cantidad %j avisa y no registra nada", async (valor) => {
+    pintar();
+    fireEvent.change(fila(), { target: { value: valor } });
+    fireEvent.click(entrada());
+
+    await waitFor(() =>
+      expect(espias.aviso).toHaveBeenCalledWith(expect.objectContaining({ color: "yellow" })),
+    );
+    expect(espias.movimiento).not.toHaveBeenCalled();
+  });
+
+  it("con un entero válido registra la entrada", async () => {
+    pintar();
+    fireEvent.change(fila(), { target: { value: "4" } });
+    fireEvent.click(entrada());
+
+    await waitFor(() =>
+      expect(espias.movimiento).toHaveBeenCalledWith(expect.objectContaining({ type: "purchase", qty: 4 })),
     );
   });
 });

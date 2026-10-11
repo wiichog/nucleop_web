@@ -190,8 +190,17 @@ export function InventoryPage() {
   };
 
   const onRestock = async (productId: string) => {
-    const qty = parseInt(restock[productId] ?? "", 10);
-    if (!Number.isFinite(qty) || qty <= 0) return;
+    // Antes un campo vacío o inválido hacía un `return` mudo: el botón no hacía
+    // nada y nadie sabía por qué. parseInt además aceptaba "3.5" o "3abc" como 3.
+    const texto = (restock[productId] ?? "").trim();
+    const qty = /^\d+$/.test(texto) ? Number(texto) : NaN;
+    if (!Number.isFinite(qty) || qty <= 0) {
+      notifications.show({
+        color: "yellow",
+        message: "Escribe en «Reabastecer» cuántas unidades llegaron: un número entero mayor que cero.",
+      });
+      return;
+    }
     try {
       await createMovement.mutateAsync({ product_id: productId, type: "purchase", qty });
       setRestock((prev) => ({ ...prev, [productId]: "" }));

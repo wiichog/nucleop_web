@@ -49,7 +49,7 @@ export const manualesErp: ManualesPorRuta = {
         pasos: [
           "En la pestaña «Productos», busca el producto en «Catálogo · stock actual».",
           "En la columna «Reabastecer» escribe cuántas unidades llegaron.",
-          "Presiona «Entrada».",
+          "Presiona «Entrada». Si el campo está vacío o no es un número entero mayor que cero, sale un aviso amarillo y no se registra nada.",
         ],
         nota:
           "La entrada rápida suma stock pero no queda ligada a un proveedor. Si quieres saber a quién le compraste y a qué costo, usa la pestaña «Compras a proveedor».",
@@ -318,9 +318,9 @@ export const manualesErp: ManualesPorRuta = {
           "Presiona el botón para reintentar. No vuelvas a crear los productos: siguen ahí, solo no se pudieron mostrar.",
       },
       {
-        sintoma: "Presioné «Entrada» y no pasó nada.",
+        sintoma: "Presioné «Entrada» y me salió un aviso amarillo.",
         solucion:
-          "Revisa que escribiste en «Reabastecer» un número entero mayor que cero.",
+          "El aviso dice que falta la cantidad: escribe en «Reabastecer» un número entero mayor que cero (sin decimales ni letras) y vuelve a presionar «Entrada».",
       },
       {
         sintoma: "Al registrar una merma me sale un aviso amarillo de stock negativo.",
