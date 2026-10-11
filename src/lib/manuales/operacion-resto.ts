@@ -18,7 +18,7 @@ const manualBitacora: Manual = {
         "Cada fila dice la «Fecha», «Quién» lo hizo y «Qué hizo».",
       ],
       nota:
-        "La columna «Quién» muestra el nombre de la persona y, debajo, su rol (por ejemplo «Admin de gym» o «Coach»). Si la cuenta no tiene nombre registrado, verás su correo. Si el movimiento lo hizo el sistema solo, dice «Sistema/atleta».",
+        "La columna «Quién» muestra el nombre de la persona y, debajo, su rol (por ejemplo «Admin de gym» o «Coach»). Si alguien de tu equipo no tiene nombre registrado, verás su correo. Si el movimiento lo hizo el sistema solo, dice «Sistema/atleta».",
     },
     {
       titulo: "Descargar la bitácora completa",
@@ -108,7 +108,7 @@ export const manualesOperacionResto: ManualesPorRuta = {
       {
         termino: "Clases más demandadas",
         detalle:
-          "Las 5 clases con más reservas en las fechas elegidas, agrupadas por servicio y hora (por ejemplo «CrossFit 6:00»). Solo cuenta las clases de esas fechas y no cuenta las reservas canceladas. Si no hay ninguna sale «Sin reservas registradas en el periodo.»",
+          "Hasta 5 clases, las de más reservas en las fechas elegidas, agrupadas por servicio y hora (por ejemplo «CrossFit 6:00»). Solo cuenta las clases de esas fechas y no cuenta las reservas canceladas. Si no hay ninguna sale «Sin reservas registradas en el periodo.»",
       },
       {
         termino: "Entrenamiento en el periodo",
