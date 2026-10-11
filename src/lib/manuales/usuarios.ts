@@ -478,7 +478,7 @@ export const manualesUsuarios: ManualesPorRuta = {
       {
         titulo: "Prender, apagar o eliminar una oferta",
         pasos: [
-          "En la tabla «Ofertas» usa el interruptor «Activa» para prenderla o apagarla.",
+          "En la tabla «Ofertas» usa el interruptor «Activa» para prenderla o apagarla. Un aviso te confirma si quedó activada o desactivada; si no se pudo, el aviso te dice por qué y el interruptor queda como estaba.",
           "Para quitarla del todo presiona «Eliminar» y confirma.",
         ],
         nota: "Solo las ofertas activas aparecen al asignar un plan.",
@@ -496,7 +496,7 @@ export const manualesUsuarios: ManualesPorRuta = {
       {
         titulo: "Prender, apagar o eliminar un plan",
         pasos: [
-          "En la tabla «Planes» usa el interruptor «Activo» para prenderlo o apagarlo.",
+          "En la tabla «Planes» usa el interruptor «Activo» para prenderlo o apagarlo. Un aviso te confirma si quedó activado o desactivado; si no se pudo, el aviso te dice por qué y el interruptor queda como estaba.",
           "Para quitarlo presiona «Eliminar» y confirma.",
         ],
         nota:

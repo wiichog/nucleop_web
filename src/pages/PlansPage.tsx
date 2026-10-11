@@ -56,7 +56,6 @@ export function PlansPage() {
   const deletePlan = useDeletePlan(gymId);
   const offers = usePlanOffers(gymId);
   const createOffer = useCreatePlanOffer(gymId);
-  const toggleOffer = useTogglePlanOffer(gymId);
   const deleteOffer = useDeletePlanOffer(gymId);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [sortOffers, setSortOffers] = useState<DataTableSortStatus<PlanOffer>>({
@@ -349,13 +348,7 @@ export function PlansPage() {
                 accessor: "is_active",
                 title: "Activa",
                 sortable: true,
-                render: (o) => (
-                  <Switch
-                    checked={o.is_active}
-                    onChange={() => toggleOffer.mutate({ offerId: o.id, is_active: !o.is_active })}
-                    color="flame"
-                  />
-                ),
+                render: (o) => <InterruptorOferta gymId={gymId} oferta={o} />,
               },
               {
                 accessor: "actions",
@@ -415,13 +408,7 @@ export function PlansPage() {
                 accessor: "is_active",
                 title: "Activo",
                 sortable: true,
-                render: (p) => (
-                  <Switch
-                    checked={p.is_active}
-                    onChange={() => updatePlan.mutate({ id: p.id, body: { is_active: !p.is_active } })}
-                    color="flame"
-                  />
-                ),
+                render: (p) => <InterruptorPlan gymId={gymId} plan={p} />,
               },
               {
                 accessor: "actions",
@@ -459,6 +446,74 @@ export function PlansPage() {
         }}
       />
     </div>
+  );
+}
+
+/**
+ * Interruptor «Activo» de un plan. Avisa como el resto de la pantalla: sin aviso,
+ * un fallo del servidor dejaba el interruptor como estaba sin decir nada.
+ * Exportado para probarlo suelto (`mantine-datatable` no pinta celdas en jsdom).
+ */
+export function InterruptorPlan({ gymId, plan }: { gymId: string; plan: Plan }) {
+  const updatePlan = useUpdatePlan(gymId);
+  const cambiar = () => {
+    const activar = !plan.is_active;
+    updatePlan.mutate(
+      { id: plan.id, body: { is_active: activar } },
+      {
+        onSuccess: () =>
+          notifications.show({
+            color: "teal",
+            message: activar ? `Plan "${plan.name}" activado.` : `Plan "${plan.name}" desactivado.`,
+          }),
+        onError: (error) =>
+          notifications.show({
+            color: "red",
+            message: errMsg(error, activar ? "No se pudo activar el plan." : "No se pudo desactivar el plan."),
+          }),
+      },
+    );
+  };
+  return (
+    <Switch
+      checked={plan.is_active}
+      onChange={cambiar}
+      disabled={updatePlan.isPending}
+      color="flame"
+      aria-label={`Activo: ${plan.name}`}
+    />
+  );
+}
+
+/** Interruptor «Activa» de una oferta; mismo trato que el del plan. */
+export function InterruptorOferta({ gymId, oferta }: { gymId: string; oferta: PlanOffer }) {
+  const toggleOffer = useTogglePlanOffer(gymId);
+  const cambiar = () => {
+    const activar = !oferta.is_active;
+    toggleOffer.mutate(
+      { offerId: oferta.id, is_active: activar },
+      {
+        onSuccess: () =>
+          notifications.show({
+            color: "teal",
+            message: activar ? `Oferta "${oferta.name}" activada.` : `Oferta "${oferta.name}" desactivada.`,
+          }),
+        onError: (error) =>
+          notifications.show({
+            color: "red",
+            message: errMsg(error, activar ? "No se pudo activar la oferta." : "No se pudo desactivar la oferta."),
+          }),
+      },
+    );
+  };
+  return (
+    <Switch
+      checked={oferta.is_active}
+      onChange={cambiar}
+      disabled={toggleOffer.isPending}
+      color="flame"
+      aria-label={`Activa: ${oferta.name}`}
+    />
   );
 }
 
