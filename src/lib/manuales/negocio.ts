@@ -59,10 +59,11 @@ export const manualesNegocio: ManualesPorRuta = {
       {
         titulo: "Descargar los pagos para tu contabilidad",
         pasos: [
-          "En «Historial de pagos», presiona «Exportar CSV».",
+          "Si solo quieres algunos pagos, escribe primero en el buscador de «Historial de pagos»; el botón cambia a «Exportar CSV (filtrado)».",
+          "En «Historial de pagos», presiona «Exportar CSV» (o «Exportar CSV (filtrado)»).",
           "Se descarga el archivo «pagos-nucleo.csv» con fecha, concepto, monto, método, estado, tipo (cobro, reembolso o contracargo) y los datos de la factura: estado, serie, número y referencia.",
         ],
-        nota: "El archivo trae todos los pagos, aunque tengas algo escrito en el buscador.",
+        nota: "El archivo trae exactamente los pagos que ves en la tabla, en el mismo orden. Si el buscador está vacío, trae todos. Los contracargos salen como «Contracargo», no como reembolso.",
       },
       {
         titulo: "Descargar o volver a emitir una factura electrónica",

@@ -374,6 +374,46 @@ export function EstadoDePago({ payment }: { payment: Payment }) {
   return <StatusBadge kind="paymentTx" status={payment.status} size="sm" />;
 }
 
+/**
+ * Columnas del CSV del historial. La conciliación contable se hace con serie,
+ * número y referencia de la SAT: exportar solo el estado obligaba a copiarlos a
+ * mano de la pantalla.
+ */
+export const ENCABEZADOS_CSV_PAGOS = [
+  "fecha",
+  "concepto",
+  "monto",
+  "método",
+  "estado",
+  // Un contracargo y un reembolso salían idénticos en el CSV ("Reembolsado"), y
+  // para la contabilidad del gym no son lo mismo: uno lo decidió él y el otro se
+  // lo impuso el banco.
+  "tipo",
+  "factura",
+  "serie",
+  "número",
+  "referencia",
+];
+
+/**
+ * Una fila del CSV. El «estado» dice lo mismo que la tabla (`EstadoDePago`): un
+ * contracargo llega como `refunded` y con la etiqueta cruda salía «Reembolsado».
+ */
+export function filaCsvDePago(payment: Payment): Array<string | number | null | undefined> {
+  return [
+    new Date(payment.created_at).toLocaleString("es-GT"),
+    label(PAYMENT_CONCEPT, payment.concept),
+    payment.amount,
+    label(PAYMENT_METHOD, payment.method),
+    payment.is_chargeback ? "Contracargo" : label(PAYMENT_TX_STATUS, payment.status),
+    payment.is_chargeback ? "Contracargo" : payment.refund_of ? "Reembolso" : "Cobro",
+    label(FEL_STATUS, payment.fel_status),
+    payment.fel_serie,
+    payment.fel_number,
+    payment.fel_reference,
+  ];
+}
+
 /** Fecha corta en la zona del gimnasio; `—` si no vino. */
 function fecha(valor?: string | null): string {
   return valor ? new Date(valor).toLocaleDateString("es-GT") : "—";
@@ -829,47 +869,15 @@ export function PaymentsPage() {
                 variant="default"
                 size="xs"
                 leftSection={<Download size={16} />}
+                disabled={rows.length === 0}
+                // Baja lo mismo que se ve en la tabla (buscador y orden incluidos):
+                // antes exportaba todo aunque el gym hubiera filtrado, y el archivo
+                // no coincidía con lo que tenía en pantalla.
                 onClick={() =>
-                  downloadCsv(
-                    "pagos-nucleo.csv",
-                    // La conciliación contable se hace con serie, número y
-                    // referencia de la SAT: exportar solo el estado obligaba a
-                    // copiarlos a mano de la pantalla.
-                    [
-                      "fecha",
-                      "concepto",
-                      "monto",
-                      "método",
-                      "estado",
-                      // Un contracargo y un reembolso salían idénticos en el CSV
-                      // ("Reembolsado"), y para la contabilidad del gym no son lo
-                      // mismo: uno lo decidió él y el otro se lo impuso el banco.
-                      "tipo",
-                      "factura",
-                      "serie",
-                      "número",
-                      "referencia",
-                    ],
-                    (payments.data ?? []).map((payment) => [
-                      new Date(payment.created_at).toLocaleString("es-GT"),
-                      label(PAYMENT_CONCEPT, payment.concept),
-                      payment.amount,
-                      label(PAYMENT_METHOD, payment.method),
-                      label(PAYMENT_TX_STATUS, payment.status),
-                      payment.is_chargeback
-                        ? "Contracargo"
-                        : payment.refund_of
-                          ? "Reembolso"
-                          : "Cobro",
-                      label(FEL_STATUS, payment.fel_status),
-                      payment.fel_serie,
-                      payment.fel_number,
-                      payment.fel_reference,
-                    ]),
-                  )
+                  downloadCsv("pagos-nucleo.csv", ENCABEZADOS_CSV_PAGOS, rows.map(filaCsvDePago))
                 }
               >
-                Exportar CSV
+                {q ? "Exportar CSV (filtrado)" : "Exportar CSV"}
               </Button>
             </Group>
             <TextInput
