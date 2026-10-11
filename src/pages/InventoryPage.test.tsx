@@ -35,6 +35,7 @@ const espias = vi.hoisted(() => ({
   actualizar: vi.fn(),
   movimiento: vi.fn(),
   aviso: vi.fn(),
+  subirGaleria: vi.fn(),
 }));
 
 vi.mock("@mantine/notifications", () => ({ notifications: { show: espias.aviso } }));
@@ -86,7 +87,7 @@ vi.mock("../api/hooks", () => {
     useDeleteErpProduct: () => mutacion(),
     useCreateErpMovement: () => mutacion(espias.movimiento),
     useUploadProductPhoto: () => mutacion(),
-    useUploadProductImages: () => mutacion(),
+    useUploadProductImages: () => mutacion(espias.subirGaleria),
     useDeleteProductImage: () => mutacion(),
     usePendingSummary: () => ({ data: undefined }),
   };
@@ -170,6 +171,47 @@ describe("InventoryPage · «Entrada» rápida", () => {
 
     await waitFor(() =>
       expect(espias.movimiento).toHaveBeenCalledWith(expect.objectContaining({ type: "purchase", qty: 4 })),
+    );
+  });
+});
+
+describe("InventoryPage · «Subir» de la galería", () => {
+  beforeEach(() => {
+    espias.subirGaleria.mockReset();
+    espias.aviso.mockReset();
+  });
+
+  async function elegirFotoYSubir() {
+    pintar();
+    fireEvent.click(screen.getAllByRole("button", { name: "Editar" })[0]);
+    const input = await waitFor(() => {
+      const el = document.querySelector<HTMLInputElement>('input[type="file"][multiple]');
+      if (!el) throw new Error("sin input de galería");
+      return el;
+    });
+    fireEvent.change(input, { target: { files: [new File(["x"], "foto.png", { type: "image/png" })] } });
+    fireEvent.click(screen.getByRole("button", { name: "Subir" }));
+  }
+
+  it("si el servidor la rechaza, avisa en rojo y conserva las fotos elegidas", async () => {
+    espias.subirGaleria.mockRejectedValue(new Error("red"));
+    await elegirFotoYSubir();
+
+    await waitFor(() =>
+      expect(espias.aviso).toHaveBeenCalledWith(expect.objectContaining({ color: "red" })),
+    );
+    expect(espias.aviso).not.toHaveBeenCalledWith(expect.objectContaining({ color: "teal" }));
+    expect((screen.getByRole("button", { name: "Subir" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("si sube, avisa en verde", async () => {
+    espias.subirGaleria.mockResolvedValue({});
+    await elegirFotoYSubir();
+
+    await waitFor(() =>
+      expect(espias.aviso).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "teal", message: "Imágenes agregadas." }),
+      ),
     );
   });
 });

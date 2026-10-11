@@ -769,7 +769,15 @@ function EditProductModal({
                       borderRadius: "var(--radius-pill)",
                     }}
                     loading={deleteImage.isPending && deleteImage.variables?.imageId === im.id}
-                    onClick={() => deleteImage.mutate({ id: product.id, imageId: im.id })}
+                    onClick={() =>
+                      deleteImage.mutate(
+                        { id: product.id, imageId: im.id },
+                        {
+                          onError: (error) =>
+                            notifications.show({ color: "red", message: errMsg(error, "No se pudo quitar la imagen.") }),
+                        },
+                      )
+                    }
                     aria-label="Quitar imagen"
                   >
                     ✕
@@ -794,7 +802,13 @@ function EditProductModal({
               disabled={!galleryFiles.length}
               loading={uploadImages.isPending}
               onClick={async () => {
-                await uploadImages.mutateAsync({ id: product.id, files: galleryFiles });
+                // Si falla se avisa y se conservan las fotos elegidas para reintentar.
+                try {
+                  await uploadImages.mutateAsync({ id: product.id, files: galleryFiles });
+                } catch (error) {
+                  notifications.show({ color: "red", message: errMsg(error, "No se pudieron subir las imágenes.") });
+                  return;
+                }
                 setGalleryFiles([]);
                 notifications.show({ color: "teal", message: "Imágenes agregadas." });
               }}

@@ -83,7 +83,7 @@ export const manualesErp: ManualesPorRuta = {
           "Para quitar una foto, presiona la ✕ en su esquina.",
         ],
         nota:
-          "La galería son fotos adicionales a la portada y se ven en el detalle del producto en el app. Para cambiar la portada usa «Foto del producto».",
+          "La galería son fotos adicionales a la portada y se ven en el detalle del producto en el app. Para cambiar la portada usa «Foto del producto». Si una foto no se puede subir o quitar, sale un aviso en rojo; las fotos elegidas se quedan en «Agregar imágenes» para que vuelvas a presionar «Subir».",
       },
       {
         titulo: "Dar de baja producto perdido (merma)",
