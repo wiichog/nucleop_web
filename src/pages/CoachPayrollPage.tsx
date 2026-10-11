@@ -30,9 +30,9 @@ import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora"
 import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
+import { fechaIso as iso, motivoPeriodoInvalido } from "../lib/periodo";
 import { sortRecords } from "../lib/sortRecords";
 
-const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : "");
 const money = (v: string | number) => fmtQ(v, { decimals: 2 });
 
 /** Nómina de coaches: forma de pago por coach + liquidaciones del periodo (Negocio/ERP). */
@@ -104,8 +104,19 @@ export function CoachPayrollPage() {
   if (!gymId) return <NoGymAssigned />;
   if (coaches.isError) return <PageError onRetry={() => coaches.refetch()} />;
 
+  /** Sin fechas o con el rango al revés no se genera nada: se dice por qué. */
+  const periodoInvalido = motivoPeriodoInvalido(from, to);
+
   const onGenerate = async (e: FormEvent) => {
     e.preventDefault();
+    if (periodoInvalido) {
+      notifications.show({
+        color: "red",
+        title: "Revisa el periodo a liquidar",
+        message: periodoInvalido.mensaje,
+      });
+      return;
+    }
     try {
       const result = await generate.mutateAsync({ period_start: iso(from), period_end: iso(to) });
       if (result.length > 0) {
@@ -428,9 +439,21 @@ export function CoachPayrollPage() {
             </Text>
           </div>
           <Group align="flex-end" gap="sm" wrap="wrap">
-            <DatePickerInput label="Desde" value={from} onChange={setFrom} valueFormat="YYYY-MM-DD" />
-            <DatePickerInput label="Hasta" value={to} onChange={setTo} valueFormat="YYYY-MM-DD" />
-            <Button type="submit" loading={generate.isPending}>
+            <DatePickerInput
+              label="Desde"
+              value={from}
+              onChange={setFrom}
+              valueFormat="YYYY-MM-DD"
+              error={periodoInvalido?.desde}
+            />
+            <DatePickerInput
+              label="Hasta"
+              value={to}
+              onChange={setTo}
+              valueFormat="YYYY-MM-DD"
+              error={periodoInvalido?.hasta}
+            />
+            <Button type="submit" loading={generate.isPending} disabled={!!periodoInvalido}>
               Generar liquidación
             </Button>
           </Group>

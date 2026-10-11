@@ -242,7 +242,7 @@ export const manualesNegocio: ManualesPorRuta = {
         titulo: "Generar la liquidación de un periodo",
         pasos: [
           "En «Periodo a liquidar», elige la fecha «Desde» y la fecha «Hasta». Por defecto va del primer día del mes a hoy.",
-          "Presiona «Generar liquidación».",
+          "Presiona «Generar liquidación». Si falta una fecha o «Desde» es posterior a «Hasta», el botón queda apagado y el campo dice qué corregir.",
           "Si había algo pendiente, aparece el aviso «Liquidación generada» con cuántas liquidaciones salieron y por cuánto en total.",
           "Revísalas en la tabla «Liquidaciones».",
         ],
@@ -313,9 +313,9 @@ export const manualesNegocio: ManualesPorRuta = {
         solucion: "Revisa las fechas «Desde» y «Hasta» e intenta de nuevo.",
       },
       {
-        sintoma: "Me sale «No se pudo guardar el cambio de nómina del coach.».",
+        sintoma: "El botón «Generar liquidación» está apagado.",
         solucion:
-          "El cambio no se guardó, aunque el campo siga mostrando el número nuevo. Recarga la página para ver el valor que quedó y vuelve a escribirlo.",
+          "Falta la fecha «Desde» o «Hasta», o «Desde» es posterior a «Hasta». Debajo del campo en rojo dice qué corregir. Un periodo de un solo día sí se puede.",
       },
       {
         sintoma: "No puedo escribir la tarifa o el salario de un coach.",
@@ -423,6 +423,11 @@ export const manualesNegocio: ManualesPorRuta = {
       {
         sintoma: "Me sale «Sin datos».",
         solucion: "No hay actividad en el periodo que elegiste. Prueba con otras fechas.",
+      },
+      {
+        sintoma: "Me sale «Revisa el periodo» en lugar del reporte.",
+        solucion:
+          "Falta la fecha «Desde» o «Hasta», o «Desde» es posterior a «Hasta». Corrige la fecha marcada en rojo y el reporte aparece solo.",
       },
       {
         sintoma: "«Productos más vendidos» o «Retail por categoría» salen vacíos.",
