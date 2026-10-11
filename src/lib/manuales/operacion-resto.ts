@@ -183,7 +183,7 @@ export const manualesOperacionResto: ManualesPorRuta = {
           "Presiona «Aprobar» para sumarlo a tu equipo, o «Rechazar».",
         ],
         nota:
-          "Al aprobar sale el aviso de que ya es coach de tu gimnasio. Las invitaciones que tú mandaste no se aprueban aquí: las decide el coach (tú solo puedes cancelarlas).",
+          "Mientras se guarda, solo espera el botón que tocaste en esa fila; las demás solicitudes no se bloquean. Al aprobar sale el aviso de que ya es coach de tu gimnasio. Las invitaciones que tú mandaste no se aprueban aquí: las decide el coach (tú solo puedes cancelarlas).",
       },
       {
         titulo: "Permitir o quitar que un coach suba el workout",
@@ -192,7 +192,7 @@ export const manualesOperacionResto: ManualesPorRuta = {
           "Prende o apaga el interruptor de la columna «Sube el workout».",
         ],
         nota:
-          "Prendido, el coach puede crear, editar y publicar el workout del día. Apagado, solo lo ve.",
+          "Prendido, el coach puede crear, editar y publicar el workout del día. Apagado, solo lo ve. Mientras se guarda, solo se apaga el interruptor de ese coach.",
       },
       {
         titulo: "Ver el perfil de un coach",

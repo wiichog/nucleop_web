@@ -97,6 +97,15 @@ export function CoachesPage() {
   };
 
   /**
+   * ¿Se está resolviendo ESTA solicitud (y, si se indica, con esta acción)? Un solo
+   * isPending para toda la tabla hacía girar los botones de todas las filas.
+   */
+  const decidiendo = (requestId: string, action?: "approve" | "reject" | "cancel") =>
+    decideRequest.isPending &&
+    decideRequest.variables?.requestId === requestId &&
+    (action === undefined || decideRequest.variables?.action === action);
+
+  /**
    * Aprueba o rechaza que un coach se una al gym. Sin feedback, el admin tocaba
    * "Aprobar", nada se movía y no sabía si había fallado o si el listado tardaba.
    */
@@ -294,7 +303,8 @@ export function CoachesPage() {
                       <Group gap="xs">
                         <Button
                           size="xs"
-                          loading={decideRequest.isPending}
+                          loading={decidiendo(r.id, "approve")}
+                          disabled={decidiendo(r.id)}
                           onClick={() => onDecidir(r.id, r.user_email, "approve")}
                         >
                           Aprobar
@@ -303,7 +313,8 @@ export function CoachesPage() {
                           size="xs"
                           variant="default"
                           color="red"
-                          loading={decideRequest.isPending}
+                          loading={decidiendo(r.id, "reject")}
+                          disabled={decidiendo(r.id)}
                           onClick={() => onDecidir(r.id, r.user_email, "reject")}
                         >
                           Rechazar
@@ -318,7 +329,7 @@ export function CoachesPage() {
                           size="xs"
                           variant="default"
                           color="red"
-                          loading={decideRequest.isPending}
+                          loading={decidiendo(r.id)}
                           onClick={() => onCancelarInvitacion(r.id, r.user_email)}
                         >
                           Cancelar invitación
@@ -417,7 +428,7 @@ export function CoachesPage() {
                 <div onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={c.can_program_wods}
-                    disabled={updateCoach.isPending}
+                    disabled={updateCoach.isPending && updateCoach.variables?.staffId === c.staff_role}
                     onChange={(e) => onPermisoProgramacion(c, e.currentTarget.checked)}
                     aria-label={`Permitir que ${c.name || c.email} suba el workout`}
                   />

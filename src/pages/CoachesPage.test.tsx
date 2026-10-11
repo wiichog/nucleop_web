@@ -32,21 +32,49 @@ if (!window.ResizeObserver) {
 
 const estado = vi.hoisted(() => ({
   solicitudes: [] as unknown[],
+  coaches: [] as unknown[],
   decidir: vi.fn(),
+  // Mutación en vuelo: { isPending, variables } para simular una fila guardándose.
+  decidiendo: { isPending: false, variables: undefined as unknown },
+  guardandoCoach: { isPending: false, variables: undefined as unknown },
 }));
 
 vi.mock("../api/hooks", () => {
   const consulta = (data: unknown) => ({ data, isLoading: false, isError: false, refetch: vi.fn() });
   const mutacion = () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
   return {
-    useGymCoaches: () => consulta([]),
+    useGymCoaches: () => consulta(estado.coaches),
     useCoachRequests: () => consulta(estado.solicitudes),
     useInviteCoach: () => mutacion(),
-    useDecideCoachRequest: () => ({ ...mutacion(), mutate: estado.decidir }),
-    useUpdateCoach: () => mutacion(),
+    useDecideCoachRequest: () => ({ ...mutacion(), ...estado.decidiendo, mutate: estado.decidir }),
+    useUpdateCoach: () => ({ ...mutacion(), ...estado.guardandoCoach }),
     useDeactivateCoach: () => mutacion(),
   };
 });
+
+// `mantine-datatable` no pinta celdas bajo jsdom: una tabla mínima que llama al
+// `render` de cada columna basta para probar lo que va dentro de la celda.
+vi.mock("mantine-datatable", () => ({
+  DataTable: ({
+    records,
+    columns,
+  }: {
+    records: Record<string, unknown>[];
+    columns: { accessor: string; render?: (r: Record<string, unknown>) => React.ReactNode }[];
+  }) => (
+    <table>
+      <tbody>
+        {records.map((r, i) => (
+          <tr key={i}>
+            {columns.map((c) => (
+              <td key={c.accessor}>{c.render ? c.render(r) : String(r[c.accessor] ?? "")}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  ),
+}));
 
 vi.mock("../lib/auth", () => ({
   useAuth: () => ({ primaryGymId: "gym-1" }),
@@ -89,6 +117,10 @@ const pinta = (ui: React.ReactNode) => render(<MantineProvider>{ui}</MantineProv
 afterEach(() => {
   vi.restoreAllMocks();
   estado.decidir.mockReset();
+  estado.solicitudes = [];
+  estado.coaches = [];
+  estado.decidiendo = { isPending: false, variables: undefined };
+  estado.guardandoCoach = { isPending: false, variables: undefined };
 });
 
 describe("Cancelar invitación", () => {
@@ -123,5 +155,37 @@ describe("Dar de baja", () => {
     pinta(<CoachProfileSheet coach={coach} onClose={() => {}} onDarDeBaja={onDarDeBaja} />);
     fireEvent.click(screen.getByRole("button", { name: "Dar de baja" }));
     expect(onDarDeBaja).toHaveBeenCalledWith(coach);
+  });
+});
+
+describe("Solo espera la fila que se está guardando", () => {
+  const deshabilitado = (el: HTMLElement) => (el as HTMLButtonElement).disabled;
+
+  it("aprobar una solicitud no bloquea las demás filas", () => {
+    estado.solicitudes = [
+      { ...invitacion, id: "cr-1", direction: "coach_apply" },
+      { ...invitacion, id: "cr-2", user_email: "otro@ejemplo.com", direction: "coach_apply" },
+    ];
+    estado.decidiendo = { isPending: true, variables: { requestId: "cr-1", action: "approve" } };
+    pinta(<CoachesPage />);
+
+    const [aprobar1, aprobar2] = screen.getAllByRole("button", { name: "Aprobar" });
+    const [rechazar1, rechazar2] = screen.getAllByRole("button", { name: "Rechazar" });
+    expect(aprobar1.getAttribute("data-loading")).toBe("true");
+    expect(rechazar1.getAttribute("data-loading")).toBeNull();
+    expect(deshabilitado(rechazar1)).toBe(true);
+    expect(deshabilitado(aprobar2)).toBe(false);
+    expect(deshabilitado(rechazar2)).toBe(false);
+  });
+
+  it("guardar «Sube el workout» de un coach no apaga el de los demás", () => {
+    estado.coaches = [coach, { ...coach, id: "sr-2", staff_role: "sr-2", name: "Otra Coach" }];
+    estado.guardandoCoach = { isPending: true, variables: { staffId: "sr-1", body: {} } };
+    pinta(<CoachesPage />);
+
+    const uno = screen.getByLabelText(/Coco Coach suba/) as HTMLInputElement;
+    const dos = screen.getByLabelText(/Otra Coach suba/) as HTMLInputElement;
+    expect(uno.disabled).toBe(true);
+    expect(dos.disabled).toBe(false);
   });
 });
