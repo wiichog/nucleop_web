@@ -45,7 +45,7 @@ export const manualesUsuarios: ManualesPorRuta = {
           "En «Corte automático por mora» escribe cuántos días de atraso toleras antes de que la membresía pase sola a vencida (de 1 a 365) y presiona «Guardar».",
         ],
         nota:
-          "Cada número se guarda con su propio botón «Guardar». El corte tiene que ser mayor que la gracia de pago. Con gracia 0, el atleta se bloquea el mismo día que vence. Ojo: el atleta aparece en «Morosos» desde el primer día de atraso, aunque esté en gracia; el corte solo decide cuándo pasa a vencida.",
+          "Cada número se guarda con su propio botón «Guardar». El corte tiene que ser mayor que la gracia de pago. Con gracia 0, el atleta se bloquea el mismo día que vence. Ojo: el atleta aparece en «Morosos» desde el primer día de atraso, aunque esté en gracia; el corte solo decide cuándo pasa a vencida. Este botón solo lo ve quien administra el gimnasio.",
       },
       {
         titulo: "Abrir la ficha de un atleta",
@@ -53,6 +53,8 @@ export const manualesUsuarios: ManualesPorRuta = {
           "En la fila del atleta presiona «Ver detalle» (en el celular, toca los tres puntos y elige «Ver detalle»).",
           "Se abre la «Ficha del atleta» con su plan, vencimiento, cumpleaños, contacto de emergencia, nivel y objetivos, notas internas, sus pagos y su asistencia en este gimnasio.",
         ],
+        nota:
+          "Los coaches ven la ficha y los pagos, pero no la administran: no les aparecen «Recordatorio», «Restablecer contraseña», «Plan y cuota», «Cobro y renovación», «Congelamiento», «Acceso al gimnasio» ni «Completar datos del atleta». En la tabla tampoco ven «Desligar» ni «Confirmar baja».",
       },
       {
         titulo: "Mandarle un recordatorio de pago",
