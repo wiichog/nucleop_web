@@ -20,6 +20,7 @@ import { CalendarClock, UserCheck } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
+import { CLUB_ENTRY_STATUS, CLUB_RSVP_STATUS, CLUB_SUBMISSION_SOURCE, label } from "../lib/labels";
 import {
   useClubAdminActivities,
   useClubAdminAnnouncements,
@@ -246,7 +247,7 @@ function ActividadesPanel({ clubId }: { clubId: string }) {
                         {(rsvps.data ?? []).map((row) => (
                           <Group key={row.id} gap="sm">
                             <Text size="sm">
-                              {row.athlete_name} · {row.status}
+                              {row.athlete_name} · {label(CLUB_RSVP_STATUS, row.status)}
                             </Text>
                             {row.status === "going" && (
                               <Button
@@ -383,7 +384,7 @@ function RetosPanel({ clubId }: { clubId: string }) {
             {(pendingSubmissions.data ?? []).map((sub) => (
               <Box key={sub.id} py="sm" style={rowBorder}>
                 <Text>
-                  <strong>{sub.athlete_name}</strong> · +{sub.delta} ({sub.source})
+                  <strong>{sub.athlete_name}</strong> · +{sub.delta} ({label(CLUB_SUBMISSION_SOURCE, sub.source)})
                 </Text>
                 <Text c="dimmed" size="sm">
                   Reto: {nombreReto(sub.challenge, challenges.data)}
@@ -481,7 +482,7 @@ function RetosPanel({ clubId }: { clubId: string }) {
                     ) : (
                       (challengeBoard.data ?? []).map((row) => (
                         <Text key={row.id} c="dimmed" size="sm">
-                          #{row.rank} {row.athlete_name} · {row.progress} · {row.status}
+                          #{row.rank} {row.athlete_name} · {row.progress} · {label(CLUB_ENTRY_STATUS, row.status)}
                         </Text>
                       ))
                     )}

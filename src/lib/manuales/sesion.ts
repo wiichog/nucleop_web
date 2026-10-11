@@ -23,7 +23,7 @@ export const manualesSesion: ManualesPorRuta = {
         pasos: [
           "En la pestaña «Actividades», busca la actividad en la lista «Actividades».",
           "Presiona «Ver RSVPs» para ver quién dijo que va.",
-          "Junto a cada persona que aparece como «going», presiona «Confirmar asistencia» cuando de verdad llegó.",
+          "Junto a cada persona que aparece como «Va a asistir», presiona «Confirmar asistencia» cuando de verdad llegó.",
           "Presiona «Ocultar RSVPs» para cerrar la lista.",
         ],
         nota: "Solo puedes tener abierta la lista de una actividad a la vez.",
@@ -112,18 +112,18 @@ export const manualesSesion: ManualesPorRuta = {
         detalle: "La confirmación de un miembro de que va a ir a una actividad.",
       },
       {
-        termino: "going / attended / cancelled (en los RSVPs)",
+        termino: "Va a asistir / Asistió / Canceló (en los RSVPs)",
         detalle:
-          "«going»: dijo que va. «attended»: ya le confirmaste la asistencia. «cancelled»: canceló. Solo a quien está en «going» se le puede confirmar.",
+          "«Va a asistir»: dijo que va. «Asistió»: ya le confirmaste la asistencia. «Canceló»: ya no va. Solo a quien está en «Va a asistir» se le puede confirmar.",
       },
       {
         termino: "Revisiones pendientes",
         detalle: "Avances que tus miembros subieron a un reto y que todavía no apruebas ni rechazas.",
       },
       {
-        termino: "self_report / activity_attendance (origen del avance)",
+        termino: "Autodeclarado / Asistencia validada (origen del avance)",
         detalle:
-          "«self_report»: el atleta lo declaró por su cuenta. «activity_attendance»: viene de una asistencia validada a una actividad del club.",
+          "«Autodeclarado»: el atleta lo declaró por su cuenta. «Asistencia validada»: viene de una asistencia confirmada a una actividad del club.",
       },
       {
         termino: "Meta",
@@ -131,9 +131,9 @@ export const manualesSesion: ManualesPorRuta = {
           "A cuánto hay que llegar en el reto. En la lista se ve junto a la medida («Kilómetros» o «Asistencias a actividades») y a cuántos participantes tiene.",
       },
       {
-        termino: "active / pending_review / completed (en el ranking)",
+        termino: "En curso / En revisión / Completado (en el ranking)",
         detalle:
-          "«active»: el atleta sigue en el reto. «pending_review»: tiene un avance esperando tu revisión. «completed»: ya cumplió la meta.",
+          "«En curso»: el atleta sigue en el reto. «En revisión»: tiene un avance esperando tu revisión. «Completado»: ya cumplió la meta.",
       },
       {
         termino: "Ficha del club",
@@ -167,7 +167,7 @@ export const manualesSesion: ManualesPorRuta = {
       {
         sintoma: "No veo «Confirmar asistencia» junto a una persona.",
         solucion:
-          "Solo aparece para quien está en «going». Si dice «attended» ya está confirmada; si dice «cancelled», canceló su asistencia.",
+          "Solo aparece para quien está en «Va a asistir». Si dice «Asistió» ya está confirmada; si dice «Canceló», canceló su asistencia.",
       },
     ],
     relacionadas: [{ label: "Mi perfil", href: "/panel/perfil" }],
