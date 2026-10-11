@@ -110,7 +110,7 @@ export const manualesPlataforma: ManualesPorRuta = {
       {
         termino: "Cuota mensual / Suscripción",
         detalle:
-          "Lo que el gimnasio le paga a Nucleo cada mes. En la tabla se ve con su estado entre paréntesis.",
+          "Lo que el gimnasio le paga a Nucleo cada mes. En la tabla se ve con su estado entre paréntesis: Activa, Pausada o Cancelada.",
       },
       {
         termino: "Recargo en tarjeta",

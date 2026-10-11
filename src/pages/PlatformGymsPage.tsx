@@ -138,6 +138,18 @@ const SAAS_PLANS = [
   { value: "enterprise", label: "Enterprise" },
 ];
 
+const ESTADOS_SUSCRIPCION = [
+  { value: "active", label: "Activa" },
+  { value: "paused", label: "Pausada" },
+  { value: "cancelled", label: "Cancelada" },
+];
+
+/** Etiqueta en español de un valor de catálogo; la tabla usa las mismas que el formulario. */
+export function etiquetaDe(opciones: { value: string; label: string }[], valor?: string | null): string {
+  if (!valor) return "—";
+  return opciones.find((o) => o.value === valor)?.label ?? valor;
+}
+
 const ALTA_VACIA = {
   name: "",
   location_text: "",
@@ -558,11 +570,7 @@ export function PlatformGymsPage() {
                     label="Estado suscripción"
                     value={subscriptionStatus}
                     onChange={setSubscriptionStatus}
-                    data={[
-                      { value: "active", label: "Activa" },
-                      { value: "paused", label: "Pausada" },
-                      { value: "cancelled", label: "Cancelada" },
-                    ]}
+                    data={ESTADOS_SUSCRIPCION}
                   />
                   <DateInput
                     label="Próximo cobro"
@@ -616,13 +624,18 @@ export function PlatformGymsPage() {
                   sortable: true,
                   render: (g) => g.location_text || "—",
                 },
-                { accessor: "saas_plan", title: "SaaS", sortable: true },
+                {
+                  accessor: "saas_plan",
+                  title: "SaaS",
+                  sortable: true,
+                  render: (g) => etiquetaDe(SAAS_PLANS, g.saas_plan),
+                },
                 {
                   accessor: "subscription",
                   title: "Suscripción",
                   render: (g) =>
                     g.subscription
-                      ? `${fmtQ(g.subscription.monthly_price)} (${g.subscription.status})`
+                      ? `${fmtQ(g.subscription.monthly_price)} (${etiquetaDe(ESTADOS_SUSCRIPCION, g.subscription.status)})`
                       : "—",
                 },
                 {
