@@ -867,7 +867,7 @@ export function CommunityPage() {
             ? "Publicaciones de atletas y coaches que aún no salen al feed."
             : modTab === "comentarios"
               ? "Comentarios que tus atletas reportaron: están ocultos del feed hasta que decidas."
-              : "Atletas que no están de acuerdo con una decisión tuya y piden que la revises de nuevo."}
+              : "Atletas que no están de acuerdo con una decisión tuya y piden que la revises de nuevo. Solo se apela una publicación rechazada o un comentario oculto: uno eliminado ya no existe."}
         </Text>
         {modTab === "apelaciones" ? (
           appeals.isError ? (
@@ -1235,10 +1235,11 @@ export function CommunityPage() {
       >
         <Stack gap="md">
           <Text size="sm" c="dimmed">
+            {/* El comentario se borra de verdad en el backend (`comment.delete()`): no queda
+                nada que apelar ni que devolver al feed. Sólo el post rechazado es apelable. */}
             {rechazo?.tipo === "post"
-              ? `La publicación de ${rechazo?.quien} no saldrá al feed.`
-              : `El comentario de ${rechazo?.quien} se borra para siempre y no se puede recuperar.`}{" "}
-            Se le avisa con el motivo que elijas, y podrá pedirte que lo revises de nuevo.
+              ? `La publicación de ${rechazo?.quien} no saldrá al feed. Se le avisa con el motivo que elijas, y podrá pedirte que la revises de nuevo.`
+              : `El comentario de ${rechazo?.quien} se borra para siempre y no se puede recuperar. Se le avisa con el motivo que elijas, pero ya no podrá apelar: si tenía una apelación pendiente, se descarta. Si dudas, mejor «Cancelar» y déjalo oculto.`}
           </Text>
           <Select
             label="Motivo"
@@ -1288,7 +1289,7 @@ export function CommunityPage() {
               <Text size="sm">
                 {resolucion?.appeal.kind === "post"
                   ? "La publicación vuelve al feed y se le quita el motivo de la sanción."
-                  : "El comentario deja de estar oculto, vuelve al feed y se borran los reportes que lo bajaron."}{" "}
+                  : "El comentario, que seguía oculto, vuelve al feed y se borran los reportes que lo bajaron."}{" "}
                 Al atleta se le avisa que le diste la razón.
               </Text>
             </Alert>
