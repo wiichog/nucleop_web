@@ -6189,10 +6189,9 @@ export interface components {
          *     * `google` - Google
          *     * `apple` - Apple
          *     * `facebook` - Facebook
-         *     * `managed_dependent` - Dependiente administrado
          * @enum {string}
          */
-        AccountOriginEnum: "self_signup" | "gym_invited" | "google" | "apple" | "facebook" | "managed_dependent";
+        AccountOriginEnum: "self_signup" | "gym_invited" | "google" | "apple" | "facebook";
         /**
          * @description * `athlete` - athlete
          *     * `coach` - coach
