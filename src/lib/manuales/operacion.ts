@@ -89,7 +89,28 @@ export const manualesOperacion: ManualesPorRuta = {
           "Presiona «Crear workout».",
         ],
         nota:
-          "Hay un solo workout por servicio y fecha, y lo comparten todas las clases de ese día. Para cambiarlo, edita el que ya existe en vez de crear otro. Tus coaches también pueden subirlo desde el app, salvo a quien le apagues «Sube el workout» en Coaches.",
+          "Hay un solo workout por servicio y fecha, y lo comparten todas las clases de ese día. Para cambiarlo, presiona «Editar» en su fila en vez de crear otro. Tus coaches también pueden subirlo desde el app, salvo a quien le apagues «Sube el workout» en Coaches.",
+      },
+      {
+        titulo: "Armar el workout por bloques (Fuerza A, Fuerza B, Metcon)",
+        pasos: [
+          "En el formulario del workout, en «Bloques del día», presiona «Agregar bloque» por cada parte.",
+          "En cada bloque escribe el «Título» y el «Texto», y elige el «Tipo de bloque» y su «Score». Cada bloque con score tiene su propio board, así tus atletas anotan la Fuerza A y la Fuerza B por separado.",
+          "Si el bloque es de carga, elige la «Unidad» y el «Levantamiento» (por ejemplo «Back squat»), y en «Reps por serie del peso que se anota» pon a cuántas repeticiones corresponde el peso: «5 x 3 subiendo hasta pesado» es 3; un 1RM es 1.",
+          "Activa «Board principal del día» en el bloque que más importa: es el que se muestra primero. Ordena los bloques con las flechas ↑ y ↓.",
+          "Presiona «Crear workout».",
+        ],
+        nota:
+          "Con el levantamiento elegido, lo que anota cada atleta cuenta para su RM estimado y su tabla de porcentajes en el app. Un bloque que ya tiene scores no se puede quitar ni cambiar de tipo de score.",
+      },
+      {
+        titulo: "Cambiar un workout ya creado o partirlo en bloques",
+        pasos: [
+          "En la tabla «Publicadas y borradores», presiona «Editar» en la fila del workout.",
+          "Cambia el título, la descripción o los bloques, y presiona «Guardar».",
+        ],
+        nota:
+          "Si un workout de un solo score ya tiene scores y lo partes en bloques, esos scores quedan en el bloque principal.",
       },
       {
         titulo: "Publicar, despublicar o borrar un workout",
@@ -104,6 +125,7 @@ export const manualesOperacion: ManualesPorRuta = {
           "En la pestaña «Workout», presiona «Board» en la fila del workout.",
           "Para cargar un score, elige al atleta, escribe su score (por ejemplo 3:21 o 120) y la modalidad (RX, Scaled o Foundations), y presiona «Registrar».",
           "Con «Board por clase» puedes ver solo los resultados de una hora del día.",
+          "Si el workout tiene bloques, elige arriba el bloque cuyo board quieres ver; el score que registres va a ese bloque.",
         ],
       },
       {

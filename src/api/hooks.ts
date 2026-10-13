@@ -42,6 +42,11 @@ import {
   ClassSchedule,
   DropinProduct,
   Wod,
+  WodImportConflict,
+  WodImportPrompt,
+  WodImportPublish,
+  WodImportResult,
+  WodPartInput,
   WodResult,
   BugReport,
   BugReportConfig,
@@ -993,7 +998,7 @@ export function useWods(gymId: string, date?: string) {
 export function useCreateWod(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: Partial<Wod>) =>
+    mutationFn: async (body: Omit<Partial<Wod>, "parts"> & { parts?: WodPartInput[] }) =>
       (await api.post<Wod>(`/gym/${gymId}/wods`, body)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wods", gymId] });
@@ -1006,9 +1011,18 @@ export function useCreateWod(gymId: string) {
 export function useUpdateWod(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, body }: { id: string; body: Partial<Wod> }) =>
-      (await api.patch<Wod>(`/gym/${gymId}/wods/${id}`, body)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["wods", gymId] }),
+    mutationFn: async ({
+      id,
+      body,
+    }: {
+      id: string;
+      body: Omit<Partial<Wod>, "parts"> & { parts?: WodPartInput[] };
+    }) => (await api.patch<Wod>(`/gym/${gymId}/wods/${id}`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["wods", gymId] });
+      // Renombrar una parte cambia el `part_title` que muestra el board.
+      qc.invalidateQueries({ queryKey: ["wod-board", gymId] });
+    },
   });
 }
 
@@ -1023,10 +1037,14 @@ export function useDeleteWod(gymId: string) {
   });
 }
 
-export function useWodBoard(gymId: string, wodId: string, classId?: string) {
-  const q = classId ? `?class_id=${classId}` : "";
+/** Board de un WOD; con partes, el de `partId` (sin ella, el de la parte principal). */
+export function useWodBoard(gymId: string, wodId: string, classId?: string, partId?: string) {
+  const params = new URLSearchParams();
+  if (classId) params.set("class_id", classId);
+  if (partId) params.set("part_id", partId);
+  const q = params.toString() ? `?${params}` : "";
   return useQuery({
-    queryKey: ["wod-board", gymId, wodId, classId ?? ""],
+    queryKey: ["wod-board", gymId, wodId, classId ?? "", partId ?? ""],
     queryFn: async () =>
       (await api.get<WodResult[]>(`/gym/${gymId}/wods/${wodId}/results${q}`)).data,
     enabled: !!gymId && !!wodId,
@@ -1040,10 +1058,72 @@ export function useAddWodResult(gymId: string, wodId: string) {
       athlete_id: string;
       raw_score: string;
       scaling: string;
+      part_id?: string | null;
       gym_class_id?: string | null;
       notes?: string;
     }) => (await api.post<WodResult>(`/gym/${gymId}/wods/${wodId}/results`, body)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["wod-board", gymId, wodId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["wod-board", gymId, wodId] });
+      // La lista trae `results_count` del workout y de cada bloque: sin esto la
+      // columna «Resultados» seguía en 0 y el editor dejaba quitar un bloque con
+      // scores (el backend lo rechazaba, pero el botón no debía ofrecerse).
+      qc.invalidateQueries({ queryKey: ["wods", gymId] });
+    },
+  });
+}
+
+// --- Programación por lote (prompt para otra IA + importación de su JSON) ---
+
+/** Pide el prompt para un rango. Es una mutación porque se dispara al tocar
+ *  «Copiar prompt», no al abrir el modal: así siempre sale con las fechas elegidas. */
+export function useWodImportPrompt(gymId: string) {
+  return useMutation({
+    mutationFn: async ({ desde, hasta }: { desde: string; hasta: string }) =>
+      (
+        await api.get<WodImportPrompt>(`/gym/${gymId}/wods/import/prompt`, {
+          params: { date_from: desde, date_to: hasta },
+        })
+      ).data,
+  });
+}
+
+/**
+ * Vista previa (`dry_run`) o importación. Un 400 con filas trae la vista previa
+ * en `response.data`: quien llama la muestra en vez de un error suelto.
+ */
+export function useWodImport(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      data: string;
+      date_from: string;
+      date_to: string;
+      on_conflict: WodImportConflict;
+      publish: WodImportPublish;
+      dry_run: boolean;
+    }) => (await api.post<WodImportResult>(`/gym/${gymId}/wods/import`, body)).data,
+    onSuccess: (res) => {
+      if (res.dry_run) return;
+      qc.invalidateQueries({ queryKey: ["wods", gymId] });
+      invalidarPendientes(qc, gymId);
+    },
+  });
+}
+
+/** Deshace una importación: borra los WODs del lote que todavía no tienen scores. */
+export function useUndoWodImport(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (batch: string) =>
+      (
+        await api.delete<{ deleted: number; kept_with_scores: number }>(
+          `/gym/${gymId}/wods/import/${batch}`,
+        )
+      ).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["wods", gymId] });
+      invalidarPendientes(qc, gymId);
+    },
   });
 }
 

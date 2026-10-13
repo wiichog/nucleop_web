@@ -5247,6 +5247,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/rms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description RM estimado por movimiento, de todas las marcas de carga del atleta: sus PRs
+         *     y sus scores en partes «Carga» del WOD ligadas a un movimiento. El app arma con
+         *     esto la tabla de porcentajes.
+         */
+        get: operations["me_rms_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/services/{sid}/enroll": {
         parameters: {
             query?: never;
@@ -5414,7 +5435,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * @description WODs publicados de hoy (o ?date=) de los gyms donde el atleta puede entrenar.
+         * @description WODs publicados de hoy —y desde las 20:00 también los de mañana— (o del
+         *     `?date=` exacto) de los gyms donde el atleta puede entrenar.
          *
          *     Incluye los del gym donde solo tiene un pase drop-in vigente: si va a entrenar
          *     ahí hoy, la rutina del día es justamente lo que necesita ver.
@@ -6167,9 +6189,10 @@ export interface components {
          *     * `google` - Google
          *     * `apple` - Apple
          *     * `facebook` - Facebook
+         *     * `managed_dependent` - Dependiente administrado
          * @enum {string}
          */
-        AccountOriginEnum: "self_signup" | "gym_invited" | "google" | "apple" | "facebook";
+        AccountOriginEnum: "self_signup" | "gym_invited" | "google" | "apple" | "facebook" | "managed_dependent";
         /**
          * @description * `athlete` - athlete
          *     * `coach` - coach
@@ -6332,11 +6355,27 @@ export interface components {
             current: components["schemas"]["AthleteOfMonth"] | null;
             candidates: components["schemas"]["AthleteOfMonthCandidate"][];
         };
+        /**
+         * @description PR del atleta. Dos formas de mandar la marca:
+         *
+         *     - **De carga** (`weight` + `unit`, y opcionales `reps`/`sets`, que valen 1 si no
+         *       vienen): el backend arma `value` (`texto_de_marca`). Es "2 reps con 85 lb".
+         *     - **Libre** (`value`): un tiempo, unas reps, lo que no es peso. Es lo único que
+         *       conocen los apps viejos.
+         *
+         *     Si un app viejo edita SOLO `value` de una marca de carga, los campos de carga se
+         *     limpian: si no, `value` diría una cosa y `weight` otra.
+         */
         AthletePR: {
             /** Format: uuid */
             readonly id: string;
             pr_type: string;
-            value: string;
+            value?: string;
+            /** Format: decimal */
+            weight?: string | null;
+            unit?: (components["schemas"]["UnitEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            reps?: number | null;
+            sets?: number | null;
             /** Format: date-time */
             achieved_at: string;
             /** Format: uuid */
@@ -7034,7 +7073,7 @@ export interface components {
             readonly athlete_name: string;
             /** Format: decimal */
             readonly delta: string;
-            readonly source: components["schemas"]["SourceEnum"];
+            readonly source: components["schemas"]["ClubChallengeSubmissionSourceEnum"];
             readonly status: components["schemas"]["ModerationStatus"];
             /** Format: uuid */
             readonly activity: string | null;
@@ -7054,6 +7093,12 @@ export interface components {
          * @enum {string}
          */
         ClubChallengeSubmissionReviewActionEnum: "approve" | "reject";
+        /**
+         * @description * `self_report` - Autodeclarado
+         *     * `activity_attendance` - Asistencia validada
+         * @enum {string}
+         */
+        ClubChallengeSubmissionSourceEnum: "self_report" | "activity_attendance";
         ClubChallengeWrite: {
             /** Format: uuid */
             readonly id: string;
@@ -7948,6 +7993,17 @@ export interface components {
             /** Format: date-time */
             readonly updated_at: string;
         };
+        /**
+         * @description PR del atleta. Dos formas de mandar la marca:
+         *
+         *     - **De carga** (`weight` + `unit`, y opcionales `reps`/`sets`, que valen 1 si no
+         *       vienen): el backend arma `value` (`texto_de_marca`). Es "2 reps con 85 lb".
+         *     - **Libre** (`value`): un tiempo, unas reps, lo que no es peso. Es lo único que
+         *       conocen los apps viejos.
+         *
+         *     Si un app viejo edita SOLO `value` de una marca de carga, los campos de carga se
+         *     limpian: si no, `value` diría una cosa y `weight` otra.
+         */
         GymAthletePR: {
             /** Format: uuid */
             readonly athlete: string;
@@ -7955,7 +8011,12 @@ export interface components {
             /** Format: uuid */
             readonly id: string;
             readonly pr_type: string;
-            readonly value: string;
+            value?: string;
+            /** Format: decimal */
+            weight?: string | null;
+            readonly unit: (components["schemas"]["UnitEnum"] | components["schemas"]["NullEnum"]) | null;
+            reps?: number | null;
+            sets?: number | null;
             /** Format: date-time */
             readonly achieved_at: string;
             /** Format: uuid */
@@ -8952,6 +9013,8 @@ export interface components {
         NotificationsReadAllResponse: {
             updated: number;
         };
+        /** @enum {unknown} */
+        NullEnum: null;
         /**
          * @description * `percent` - Descuento %
          *     * `free_months` - Meses gratis
@@ -9642,11 +9705,27 @@ export interface components {
             birth_date?: string | null;
             emergency_contact?: unknown;
         };
+        /**
+         * @description PR del atleta. Dos formas de mandar la marca:
+         *
+         *     - **De carga** (`weight` + `unit`, y opcionales `reps`/`sets`, que valen 1 si no
+         *       vienen): el backend arma `value` (`texto_de_marca`). Es "2 reps con 85 lb".
+         *     - **Libre** (`value`): un tiempo, unas reps, lo que no es peso. Es lo único que
+         *       conocen los apps viejos.
+         *
+         *     Si un app viejo edita SOLO `value` de una marca de carga, los campos de carga se
+         *     limpian: si no, `value` diría una cosa y `weight` otra.
+         */
         PatchedAthletePR: {
             /** Format: uuid */
             readonly id?: string;
             pr_type?: string;
             value?: string;
+            /** Format: decimal */
+            weight?: string | null;
+            unit?: (components["schemas"]["UnitEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            reps?: number | null;
+            sets?: number | null;
             /** Format: date-time */
             achieved_at?: string;
             /** Format: uuid */
@@ -10960,6 +11039,35 @@ export interface components {
          * @enum {string}
          */
         PurchaseOrderStatusEnum: "draft" | "ordered" | "partial" | "received" | "cancelled";
+        /** @description RM estimado de un movimiento (`athletes.movimientos.calcular_rms`). */
+        RM: {
+            movement: string;
+            unit: string;
+            /** Format: decimal */
+            estimated_1rm: string;
+            /** Format: decimal */
+            best_single: string | null;
+            based_on: components["schemas"]["RMBase"];
+            marks_count: number;
+            /** Format: date-time */
+            last_at: string;
+        };
+        /** @description La marca de la que sale el RM estimado. */
+        RMBase: {
+            source: components["schemas"]["RMBaseSourceEnum"];
+            /** Format: decimal */
+            weight: string;
+            unit: string;
+            reps: number;
+            /** Format: date-time */
+            achieved_at: string;
+        };
+        /**
+         * @description * `pr` - pr
+         *     * `wod` - wod
+         * @enum {string}
+         */
+        RMBaseSourceEnum: "pr" | "wod";
         RankingVisibility: {
             granted: boolean;
             /** Format: date-time */
@@ -11505,12 +11613,6 @@ export interface components {
             refresh: string;
             created: boolean;
         };
-        /**
-         * @description * `self_report` - Autodeclarado
-         *     * `activity_attendance` - Asistencia validada
-         * @enum {string}
-         */
-        SourceEnum: "self_report" | "activity_attendance";
         StaffRole: {
             role: string;
             /** Format: uuid */
@@ -11720,6 +11822,12 @@ export interface components {
          */
         TrainingSessionStatusEnum: "pending_payment" | "scheduled" | "completed" | "cancelled" | "no_show";
         /**
+         * @description * `kg` - kg
+         *     * `lb` - lb
+         * @enum {string}
+         */
+        UnitEnum: "kg" | "lb";
+        /**
          * @description WOD del día (lectura/escritura del coach o admin).
          *
          *     `parts` es opcional: un WOD sin partes funciona como siempre (un solo score). Si
@@ -11841,6 +11949,8 @@ export interface components {
             /** Format: int64 */
             time_cap_min?: number | null;
             load_unit?: components["schemas"]["LoadUnitEnum"] | components["schemas"]["BlankEnum"];
+            movement?: string | null;
+            movement_reps?: number | null;
             is_benchmark?: boolean;
             is_primary?: boolean;
             scaling_options?: unknown;
@@ -20285,6 +20395,25 @@ export interface operations {
             };
         };
     };
+    me_rms_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RM"][];
+                };
+            };
+        };
+    };
     me_services_enroll_create: {
         parameters: {
             query?: never;
@@ -20540,8 +20669,12 @@ export interface operations {
     me_wods_list: {
         parameters: {
             query?: {
+                /** @description Cliente que separa hoy/mañana por `date`: títulos sin prefijo. */
+                con_manana?: boolean;
                 /** @description The pagination cursor value. */
                 cursor?: string;
+                /** @description Un día exacto (YYYY-MM-DD). */
+                date?: string;
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
                 /** @description A search term. */

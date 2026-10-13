@@ -81,6 +81,17 @@ import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus"
 import { RowActions } from "../components/RowActions";
 import { CountBadge, Money, PageHeader, SectionLabel } from "../components/ui";
 import { ClassRequestsTab } from "./classes/ClassRequestsTab";
+import { WodPartsEditor } from "./classes/WodPartsEditor";
+import {
+  bloquesConScore,
+  errorDePartes,
+  partesOrdenadas,
+  partesParaEditar,
+  partesParaGuardar,
+  resumenDeParte,
+  tienePartes,
+  type ParteBorrador,
+} from "../lib/wodPartes";
 import { BigMetric, GlassCard, MetricTile, Stagger, delayVar } from "../components/aurora";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
@@ -115,6 +126,16 @@ const SCORE_TYPES: { value: ScoreType; label: string }[] = [
   { value: "points", label: "Puntos (mayor gana)" },
 ];
 const scoreLabel = (s: string) => SCORE_TYPES.find((o) => o.value === s)?.label ?? s;
+/** La etiqueta corta, para listar los bloques de un workout en una celda. */
+const SCORE_CORTO: Record<string, string> = {
+  for_time: "Tiempo",
+  amrap: "AMRAP",
+  rounds_reps: "Rounds + reps",
+  load: "Carga",
+  emom: "EMOM",
+  points: "Puntos",
+};
+const scoreCorto = (s: string) => SCORE_CORTO[s] ?? scoreLabel(s);
 
 const SCALINGS = [
   { value: "rx", label: "RX" },
@@ -1767,6 +1788,9 @@ function WodTab({ gymId }: { gymId: string }) {
   const [description, setDescription] = useState("");
   const [isBenchmark, setIsBenchmark] = useState(false);
   const [published, setPublished] = useState(true);
+  // Bloques del día (Fuerza A, Fuerza B, Metcon…). Vacío = un solo score.
+  const [partes, setPartes] = useState<ParteBorrador[]>([]);
+  const [editing, setEditing] = useState<Wod | null>(null);
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<Wod>>({
     columnAccessor: "title",
     direction: "asc",
@@ -1782,21 +1806,29 @@ function WodTab({ gymId }: { gymId: string }) {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+    const errorBloques = errorDePartes(partes);
+    if (errorBloques) {
+      notifications.show({ color: "red", message: errorBloques });
+      return;
+    }
+    const parts = partesParaGuardar(partes, false);
     try {
       await create.mutateAsync({
         service_type: serviceId,
         date: dateStr,
         title: title.trim(),
-        score_type: scoreType,
         description,
-        is_benchmark: isBenchmark,
         published,
+        // Con bloques, el score y el benchmark son de cada bloque: el workout
+        // refleja los de su bloque principal (lo hace el backend).
+        ...(parts ? { parts } : { score_type: scoreType, is_benchmark: isBenchmark }),
       });
       ok(published ? "Workout publicado." : "Workout guardado como borrador.");
       setTitle("");
       setDescription("");
       setIsBenchmark(false);
       setPublished(true);
+      setPartes([]);
     } catch (error) {
       fail(error, "No se pudo crear el workout.");
     }
@@ -1830,12 +1862,16 @@ function WodTab({ gymId }: { gymId: string }) {
             }}
           />
           <TextInput label="Título" placeholder="Fran" value={title} onChange={(e) => setTitle(e.currentTarget.value)} required />
-          <Select
-            label="Tipo de score"
-            data={SCORE_TYPES.filter((s) => s.value !== "none")}
-            value={scoreType}
-            onChange={(v) => setScoreType((v as ScoreType) ?? "for_time")}
-          />
+          {partes.length === 0 ? (
+            <Select
+              label="Tipo de score"
+              data={SCORE_TYPES.filter((s) => s.value !== "none")}
+              value={scoreType}
+              onChange={(v) => setScoreType((v as ScoreType) ?? "for_time")}
+            />
+          ) : (
+            <TextInput label="Tipo de score" value="Cada bloque tiene el suyo" readOnly />
+          )}
         </SimpleGrid>
         <Textarea
           label="Descripción"
@@ -1846,6 +1882,8 @@ function WodTab({ gymId }: { gymId: string }) {
           autosize
           minRows={2}
         />
+        <Divider my="md" label="Bloques del día" labelPosition="left" />
+        <WodPartsEditor partes={partes} onChange={setPartes} scoreTypes={SCORE_TYPES} />
         <Group justify="space-between" mt="md">
           <Group gap="lg">
             <Switch
@@ -1853,11 +1891,13 @@ function WodTab({ gymId }: { gymId: string }) {
               checked={published}
               onChange={(e) => setPublished(e.currentTarget.checked)}
             />
-            <Switch
-              label="Benchmark (mejorar la marca genera un PR al feed)"
-              checked={isBenchmark}
-              onChange={(e) => setIsBenchmark(e.currentTarget.checked)}
-            />
+            {partes.length === 0 ? (
+              <Switch
+                label="Benchmark (mejorar la marca genera un PR al feed)"
+                checked={isBenchmark}
+                onChange={(e) => setIsBenchmark(e.currentTarget.checked)}
+              />
+            ) : null}
           </Group>
           <Button type="submit" loading={create.isPending}>
             Crear workout
@@ -1885,6 +1925,7 @@ function WodTab({ gymId }: { gymId: string }) {
               accessor: "title",
               title: "Workout",
               sortable: true,
+              width: 320,
               render: (w) => (
                 <>
                   <Group gap="xs">
@@ -1896,11 +1937,21 @@ function WodTab({ gymId }: { gymId: string }) {
                       {w.description}
                     </Text>
                   )}
+                  {partesOrdenadas(w).map((p) => (
+                    <Text key={p.id} size="xs" c="dimmed">
+                      ▸ {resumenDeParte(p, scoreCorto)}
+                    </Text>
+                  ))}
                 </>
               ),
             },
             { accessor: "service_type_name", title: "Track", sortable: true, render: (w) => w.service_type_name || "General" },
-            { accessor: "score_type", title: "Score", render: (w) => scoreLabel(w.score_type) },
+            {
+              accessor: "score_type",
+              title: "Score",
+              render: (w) =>
+                tienePartes(w) ? `${w.parts!.length} bloques` : scoreLabel(w.score_type),
+            },
             { accessor: "results_count", title: "Resultados", sortable: true },
             {
               accessor: "published",
@@ -1922,6 +1973,7 @@ function WodTab({ gymId }: { gymId: string }) {
                 <RowActions
                   actions={[
                     { label: "Board", variant: "light", onClick: () => setOpenBoard(w) },
+                    { label: "Editar", variant: "default", onClick: () => setEditing(w) },
                     {
                       label: w.is_benchmark ? "Benchmark ✓" : "Benchmark",
                       variant: w.is_benchmark ? "filled" : "default",
@@ -1966,7 +2018,85 @@ function WodTab({ gymId }: { gymId: string }) {
       </GlassCard>
 
       <BoardModal gymId={gymId} wod={openBoard} onClose={() => setOpenBoard(null)} />
+      {/* De la lista viva, no de la foto que se tomó al tocar «Editar»: así el
+          conteo de scores de cada bloque (que bloquea quitarlo) está al día. */}
+      <EditWodModal
+        gymId={gymId}
+        wod={editing ? (rows.find((r) => r.id === editing.id) ?? editing) : null}
+        onClose={() => setEditing(null)}
+      />
     </>
+  );
+}
+
+/**
+ * Editar un workout ya creado: título, texto y sus bloques. Es donde un workout
+ * de un solo score se parte en Fuerza A / Fuerza B / Metcon.
+ */
+function EditWodModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; onClose: () => void }) {
+  return (
+    <Modal opened={!!wod} onClose={onClose} title={wod ? `Editar · ${wod.title}` : ""} size="xl" centered>
+      {/* `key`: el formulario renace con cada workout en vez de arrastrar el anterior. */}
+      {wod ? <EditWodForm key={wod.id} gymId={gymId} wod={wod} onClose={onClose} /> : null}
+    </Modal>
+  );
+}
+
+function EditWodForm({ gymId, wod, onClose }: { gymId: string; wod: Wod; onClose: () => void }) {
+  const update = useUpdateWod(gymId);
+  const [title, setTitle] = useState(wod.title);
+  const [description, setDescription] = useState(wod.description ?? "");
+  const [partes, setPartes] = useState<ParteBorrador[]>(() => partesParaEditar(wod));
+
+  const guardar = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+    const errorBloques = errorDePartes(partes);
+    if (errorBloques) {
+      notifications.show({ color: "red", message: errorBloques });
+      return;
+    }
+    const parts = partesParaGuardar(partes, tienePartes(wod));
+    try {
+      await update.mutateAsync({
+        id: wod.id,
+        body: { title: title.trim(), description, ...(parts ? { parts } : {}) },
+      });
+      ok("Workout actualizado.");
+      onClose();
+    } catch (error) {
+      fail(error, "No se pudo guardar el workout.");
+    }
+  };
+
+  return (
+    <form onSubmit={guardar}>
+      <TextInput label="Título" value={title} onChange={(e) => setTitle(e.currentTarget.value)} required />
+      <Textarea
+        label="Descripción"
+        value={description}
+        onChange={(e) => setDescription(e.currentTarget.value)}
+        mt="sm"
+        autosize
+        minRows={2}
+      />
+      {!tienePartes(wod) && wod.results_count > 0 ? (
+        <Alert color="yellow" mt="sm">
+          Este workout ya tiene {wod.results_count} scores. Si lo partes en bloques, esos scores quedan en el
+          bloque principal.
+        </Alert>
+      ) : null}
+      <Divider my="md" label="Bloques del día" labelPosition="left" />
+      <WodPartsEditor partes={partes} onChange={setPartes} scoreTypes={SCORE_TYPES} />
+      <Group justify="flex-end" mt="lg">
+        <Button variant="default" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button type="submit" loading={update.isPending}>
+          Guardar
+        </Button>
+      </Group>
+    </form>
   );
 }
 
@@ -1974,7 +2104,12 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
   const memberships = useMemberships(gymId);
   const classes = useGymClasses(gymId);
   const [classId, setClassId] = useState<string | null>(null);
-  const board = useWodBoard(gymId, wod?.id ?? "", classId ?? undefined);
+  // Con bloques, cada uno con score tiene su board: se elige cuál se mira y a cuál
+  // va el resultado. Sin bloques hay uno solo y el selector no aparece.
+  const bloques = wod ? bloquesConScore(wod) : [];
+  const [partKey, setPartKey] = useState<string | null>(null);
+  const bloque = bloques.find((b) => b.key === partKey) ?? bloques[0];
+  const board = useWodBoard(gymId, wod?.id ?? "", classId ?? undefined, bloque?.partId);
   const addResult = useAddWodResult(gymId, wod?.id ?? "");
   const [athleteId, setAthleteId] = useState<string | null>(null);
   const [score, setScore] = useState("");
@@ -2008,6 +2143,7 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
         raw_score: score.trim(),
         scaling,
         gym_class_id: classId,
+        ...(bloque?.partId ? { part_id: bloque.partId } : {}),
       });
       setScore("");
     } catch (err) {
@@ -2018,6 +2154,15 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
 
   return (
     <Modal opened={!!wod} onClose={onClose} title={wod ? `Board · ${wod.title}` : ""} size="lg" centered>
+      {bloques.length > 1 ? (
+        <SegmentedControl
+          fullWidth
+          mb="md"
+          value={bloque?.key ?? ""}
+          onChange={setPartKey}
+          data={bloques.map((b) => ({ value: b.key, label: b.titulo }))}
+        />
+      ) : null}
       <Group align="flex-end" gap="sm" component="form" onSubmit={add} mb="md">
         <Select
           label="Atleta"
@@ -2030,7 +2175,7 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
         />
         <TextInput
           label="Score"
-          placeholder={wod?.score_type === "for_time" ? "3:21" : "120"}
+          placeholder={(bloque?.scoreType ?? wod?.score_type) === "for_time" ? "3:21" : "120"}
           value={score}
           onChange={(e) => setScore(e.currentTarget.value)}
           w={{ base: "100%", sm: 120 }}

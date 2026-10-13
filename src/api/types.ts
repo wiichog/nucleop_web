@@ -1016,13 +1016,35 @@ export interface Wod {
   time_cap_min: number | null;
   movements: unknown;
   published: boolean;
+  /** Borrador programado: se publica solo a esta hora (import "el día que toca"). */
+  publish_at?: string | null;
   is_benchmark: boolean;
+  /**
+   * Bloques del día (fuerza, metcon…), cada uno con su score. Vacío = WOD de un
+   * solo bloque (el caso histórico). El WOD refleja en `score_type`/`time_cap_min`/
+   * `is_benchmark` su parte principal.
+   */
+  parts?: WodPart[];
   results_count: number;
 }
+
+// Partes e importación: del contrato generado, no a mano.
+export type WodPart = components["schemas"]["WodPart"];
+export type WodPartKind = components["schemas"]["WodPartKindEnum"];
+/** Lo que se manda al guardar partes: sin los campos de solo lectura. */
+export type WodPartInput = Omit<WodPart, "order" | "kind_display" | "results_count">;
+export type WodImportPrompt = components["schemas"]["WodImportPrompt"];
+export type WodImportResult = components["schemas"]["WodImportResult"];
+export type WodImportRow = components["schemas"]["WodImportRow"];
+export type WodImportPublish = components["schemas"]["PublishEnum"];
+export type WodImportConflict = components["schemas"]["OnConflictEnum"];
 
 export interface WodResult {
   id: string;
   wod: string;
+  /** Parte del WOD a la que pertenece (null = WOD sin partes). */
+  part?: string | null;
+  part_title?: string | null;
   gym_class: string | null;
   athlete: string;
   athlete_name: string;
