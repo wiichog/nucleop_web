@@ -104,6 +104,17 @@ export const manualesOperacion: ManualesPorRuta = {
           "Con el levantamiento elegido, lo que anota cada atleta cuenta para su RM estimado y su tabla de porcentajes en el app. Un bloque que ya tiene scores no se puede quitar ni cambiar de tipo de score.",
       },
       {
+        titulo: "Pegar la rutina completa y armar los bloques solos",
+        pasos: [
+          "Copia la rutina del día tal como la tienes escrita (con «Warmup», «Weightlifting (Power Clean)», «Fuerza:», «Custom Metcon (Tiempo)», «Workout:»…) y pégala en «Descripción».",
+          "Presiona «Armar bloques desde el texto». Sale un bloque por cada encabezado, con su texto y su «Score»: la fuerza por carga con su «Levantamiento», el metcon por tiempo, y el calentamiento sin score.",
+          "Revisa cada bloque: el título, el «Score», la «Unidad» y el «Levantamiento». Corrige lo que haga falta.",
+          "Presiona «Crear workout» (o «Guardar» si lo estás editando).",
+        ],
+        nota:
+          "El texto pasa a los bloques y en «Descripción» queda solo lo que va antes del primer encabezado. Si no te convence, presiona «Deshacer» antes de guardar. Cada encabezado tiene que ir en su propia línea. Un workout cuyos bloques ya tienen scores no se puede rearmar: edita esos bloques a mano.",
+      },
+      {
         titulo: "Cambiar un workout ya creado o partirlo en bloques",
         pasos: [
           "En la tabla «Publicadas y borradores», presiona «Editar» en la fila del workout.",

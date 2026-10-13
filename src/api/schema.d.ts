@@ -3861,6 +3861,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/wods/parts-from-text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Propone las partes de un WOD a partir del texto pegado. No escribe nada:
+         *     el formulario las muestra para revisarlas y se guardan con el WOD.
+         */
+        post: operations["gym_wods_parts_from_text_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{id}": {
         parameters: {
             query?: never;
@@ -5610,6 +5630,30 @@ export interface paths {
          *     ahí hoy, la rutina del día es justamente lo que necesita ver.
          */
         get: operations["me_wods_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/wods/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Historial de WODs del atleta: los publicados ANTES de hoy, del más reciente
+         *     al más viejo, con su propia marca en cada uno.
+         *
+         *     Alcance = el mismo que el board (`_sin_acceso`): gyms con membresía viva o pase
+         *     drop-in vigente. Un gym del que ya salió no aparece, igual que no puede abrir
+         *     su board; sus marcas siguen en su perfil (PRs, racha).
+         */
+        get: operations["me_wods_history_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9892,6 +9936,19 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["Supplier"][];
         };
+        PaginatedWodHistorialList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["WodHistorial"][];
+        };
         PaginatedWodList: {
             /**
              * Format: uri
@@ -12214,6 +12271,46 @@ export interface components {
             /** Format: date-time */
             readonly updated_at: string;
         };
+        /**
+         * @description Un WOD de un día anterior, visto por el atleta en su historial.
+         *
+         *     `my_results` son SUS marcas (una por parte, o una sola sin partes); la vista
+         *     las precarga en `mis_resultados` para no hacer una consulta por fila.
+         *     `score_open` dice si todavía puede puntuarlo (el de ayer, ver
+         *     `models.SCORE_DIAS_EXTRA`): el app ofrece "Subir score" sólo ahí.
+         */
+        WodHistorial: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            /**
+             * Format: uuid
+             * @description Track del WOD. Vacío = WOD general del gym ese día.
+             */
+            readonly service_type: string | null;
+            /** @default  */
+            readonly service_type_name: string;
+            /** Format: date */
+            readonly date: string;
+            readonly title: string;
+            readonly description: string;
+            readonly score_type: components["schemas"]["ScoreType"];
+            readonly time_cap_min: number | null;
+            /** @description Lista de movimientos/estructura. */
+            readonly movements: unknown;
+            readonly published: boolean;
+            /** Format: date-time */
+            readonly publish_at: string | null;
+            readonly is_benchmark: boolean;
+            parts?: components["schemas"]["WodPart"][];
+            readonly results_count: number;
+            /** Format: date-time */
+            readonly updated_at: string;
+            readonly gym_name: string;
+            readonly my_results: components["schemas"]["WodResult"][];
+            readonly score_open: boolean;
+        };
         /** @description Lo que pega el gym. `data` es el JSON de la IA, como texto o ya parseado. */
         WodImportInput: {
             data: unknown;
@@ -12316,6 +12413,25 @@ export interface components {
          * @enum {string}
          */
         WodPartKindEnum: "warmup" | "strength" | "skill" | "metcon" | "accessory" | "cooldown";
+        WodPartSuggestion: {
+            kind: components["schemas"]["WodPartKindEnum"];
+            title: string;
+            description: string;
+            score_type: components["schemas"]["ScoreType"];
+            time_cap_min: number | null;
+            load_unit: string;
+            movement: string | null;
+            movement_reps: number | null;
+            is_benchmark: boolean;
+        };
+        WodPartsFromText: {
+            notes: string;
+            parts: components["schemas"]["WodPartSuggestion"][];
+        };
+        /** @description El texto de la rutina tal como el gym lo copia de su sistema de programación. */
+        WodPartsFromTextInput: {
+            text: string;
+        };
         /** @description Una fila del board. `rank` lo inyecta la vista al ordenar. */
         WodResult: {
             /** Format: uuid */
@@ -18709,6 +18825,33 @@ export interface operations {
             };
         };
     };
+    gym_wods_parts_from_text_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WodPartsFromTextInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["WodPartsFromTextInput"];
+                "multipart/form-data": components["schemas"]["WodPartsFromTextInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WodPartsFromText"];
+                };
+            };
+        };
+    };
     gym_retrieve: {
         parameters: {
             query?: never;
@@ -21340,6 +21483,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedWodList"];
+                };
+            };
+        };
+    };
+    me_wods_history_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Sólo los WODs de ese gimnasio. */
+                gym_id?: string;
+                /** @description Sólo los WODs en que el atleta subió score. */
+                mine?: boolean;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description Busca en el nombre del WOD (p. ej. «Fran»). */
+                q?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedWodHistorialList"];
                 };
             };
         };

@@ -47,6 +47,7 @@ import {
   WodImportPrompt,
   WodImportPublish,
   WodImportResult,
+  WodPartsFromText,
   WodPartInput,
   WodResult,
   BugReport,
@@ -1182,6 +1183,17 @@ export function useWodImportPrompt(gymId: string) {
           params: { date_from: desde, date_to: hasta },
         })
       ).data,
+  });
+}
+
+/**
+ * Propone los bloques del WOD a partir del texto pegado. No escribe nada: el
+ * formulario los muestra y se guardan con el workout.
+ */
+export function useWodPartsFromText(gymId: string) {
+  return useMutation({
+    mutationFn: async (text: string) =>
+      (await api.post<WodPartsFromText>(`/gym/${gymId}/wods/parts-from-text`, { text })).data,
   });
 }
 

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Wod, WodPart } from "../api/types";
 import {
+  bloqueoParaReemplazar,
   bloquesConScore,
   errorDePartes,
   moverParte,
+  partesDesdeSugerencia,
   partesParaEditar,
   partesParaGuardar,
   resumenDeParte,
@@ -105,5 +107,43 @@ describe("resumenDeParte", () => {
       resumenDeParte(parte({ title: "Fuerza A", score_type: "load", movement: "back_squat", movement_reps: 3 }), label),
     ).toBe("Fuerza A · Carga · Back squat x3");
     expect(resumenDeParte(parte({ title: "Calentamiento" }), label)).toBe("Calentamiento · sin score");
+  });
+});
+
+describe("bloques armados desde el texto", () => {
+  it("las sugerencias entran como bloques nuevos y se guardan con su levantamiento", () => {
+    const borradores = partesDesdeSugerencia([
+      {
+        kind: "strength",
+        title: "Power Clean",
+        description: "5 Sets @ 70%+",
+        score_type: "load",
+        time_cap_min: null,
+        load_unit: "lb",
+        movement: "power_clean",
+        movement_reps: null,
+        is_benchmark: false,
+      },
+      {
+        kind: "metcon",
+        title: "Run Monkey Run",
+        description: "Por tiempo:",
+        score_type: "for_time",
+        time_cap_min: null,
+        load_unit: "",
+        movement: null,
+        movement_reps: null,
+        is_benchmark: false,
+      },
+    ]);
+    expect(borradores.every((b) => !("id" in b))).toBe(true);
+    const body = partesParaGuardar(borradores, false)!;
+    expect(body[0]).toMatchObject({ movement: "power_clean", load_unit: "lb", movement_reps: 1 });
+    expect(body[1]).toMatchObject({ score_type: "for_time", load_unit: "", movement: null });
+  });
+
+  it("no deja reemplazar bloques que ya tienen scores", () => {
+    expect(bloqueoParaReemplazar([{ title: "Fuerza" }])).toBeNull();
+    expect(bloqueoParaReemplazar([{ title: "Metcon", results_count: 3 }])).toMatch(/«Metcon» ya tiene scores/);
   });
 });

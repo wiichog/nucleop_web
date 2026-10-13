@@ -1,4 +1,4 @@
-import type { ScoreType, Wod, WodPart, WodPartInput } from "../api/types";
+import type { ScoreType, Wod, WodPart, WodPartInput, WodPartSuggestion } from "../api/types";
 import { nombreMovimiento } from "./movimientos";
 
 /**
@@ -64,6 +64,35 @@ export function partesParaEditar(wod: Pick<Wod, "parts">): ParteBorrador[] {
     const { order: _o, kind_display: _kd, ...resto } = p;
     return { ...resto, description: resto.description ?? "" };
   });
+}
+
+/**
+ * Los bloques que propuso el backend a partir del texto pegado, como borradores.
+ * Son nuevos (sin `id`): al guardar reemplazan a los que había.
+ */
+export function partesDesdeSugerencia(sugeridas: WodPartSuggestion[]): ParteBorrador[] {
+  return sugeridas.map((s) => ({
+    kind: s.kind,
+    title: s.title,
+    description: s.description,
+    score_type: s.score_type,
+    time_cap_min: s.time_cap_min,
+    // El backend sólo devuelve "", "kg" o "lb"; el contrato lo declara texto libre.
+    load_unit: s.load_unit as ParteBorrador["load_unit"],
+    movement: s.movement,
+    movement_reps: s.movement_reps,
+    is_benchmark: s.is_benchmark,
+  }));
+}
+
+/**
+ * Por qué no se pueden reemplazar los bloques actuales, o `null`. Un bloque con
+ * scores no se quita (el backend lo rechaza al guardar): mejor decirlo antes.
+ */
+export function bloqueoParaReemplazar(partes: ParteBorrador[]): string | null {
+  const conScores = partes.find((p) => (p.results_count ?? 0) > 0);
+  if (!conScores) return null;
+  return `«${conScores.title}» ya tiene scores: sus bloques no se pueden reemplazar. Edítalos a mano.`;
 }
 
 /** Mueve la parte `i` una posición (`-1` arriba, `+1` abajo). Fuera de rango, igual. */

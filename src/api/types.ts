@@ -1038,6 +1038,9 @@ export type WodPartKind = components["schemas"]["WodPartKindEnum"];
 /** Lo que se manda al guardar partes: sin los campos de solo lectura. */
 export type WodPartInput = Omit<WodPart, "order" | "kind_display" | "results_count">;
 export type WodImportPrompt = components["schemas"]["WodImportPrompt"];
+/** Bloques propuestos a partir del texto pegado (no se guardan solos). */
+export type WodPartsFromText = components["schemas"]["WodPartsFromText"];
+export type WodPartSuggestion = components["schemas"]["WodPartSuggestion"];
 export type WodImportResult = components["schemas"]["WodImportResult"];
 export type WodImportRow = components["schemas"]["WodImportRow"];
 export type WodImportPublish = components["schemas"]["PublishEnum"];

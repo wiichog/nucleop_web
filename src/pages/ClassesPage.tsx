@@ -81,6 +81,7 @@ import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus"
 import { RowActions } from "../components/RowActions";
 import { CountBadge, Money, PageHeader, SectionLabel } from "../components/ui";
 import { ClassRequestsTab } from "./classes/ClassRequestsTab";
+import { ArmarBloquesDesdeTexto } from "./classes/ArmarBloquesDesdeTexto";
 import { WodPartsEditor } from "./classes/WodPartsEditor";
 import {
   bloquesConScore,
@@ -1882,6 +1883,15 @@ function WodTab({ gymId }: { gymId: string }) {
           autosize
           minRows={2}
         />
+        <ArmarBloquesDesdeTexto
+          gymId={gymId}
+          description={description}
+          partes={partes}
+          onAplicar={(d, p) => {
+            setDescription(d);
+            setPartes(p);
+          }}
+        />
         <Divider my="md" label="Bloques del día" labelPosition="left" />
         <WodPartsEditor partes={partes} onChange={setPartes} scoreTypes={SCORE_TYPES} />
         <Group justify="space-between" mt="md">
@@ -2079,6 +2089,15 @@ function EditWodForm({ gymId, wod, onClose }: { gymId: string; wod: Wod; onClose
         mt="sm"
         autosize
         minRows={2}
+      />
+      <ArmarBloquesDesdeTexto
+        gymId={gymId}
+        description={description}
+        partes={partes}
+        onAplicar={(d, p) => {
+          setDescription(d);
+          setPartes(p);
+        }}
       />
       {!tienePartes(wod) && wod.results_count > 0 ? (
         <Alert color="yellow" mt="sm">
