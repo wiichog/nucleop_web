@@ -1269,6 +1269,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/billing-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Lista y crea los grupos (familiares y empresariales) de un gym. */
+        get: operations["gym_billing_groups_list"];
+        put?: never;
+        /** @description Lista y crea los grupos (familiares y empresariales) de un gym. */
+        post: operations["gym_billing_groups_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/billing-groups/{gid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["gym_billing_groups_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["gym_billing_groups_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/billing-groups/{gid}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["gym_billing_groups_close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/billing-groups/{gid}/dependents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El gym da de alta a un menor sin correo, a cargo de un tutor del grupo. */
+        post: operations["gym_billing_groups_dependents_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/billing-groups/{gid}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Agrega un miembro: alguien que ya es del gym, o un invitado nuevo por correo. */
+        post: operations["gym_billing_groups_members_add"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/billing-groups/{gid}/members/{mid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Saca a un miembro del grupo (su membresía sigue viva). */
+        delete: operations["gym_billing_groups_members_remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/billing/chargebacks": {
         parameters: {
             query?: never;
@@ -4015,6 +4116,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/billing-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["me_billing_groups_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/billing-groups/{gid}/dependents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El tutor (titular o miembro de un grupo familiar) da de alta a un menor. */
+        post: operations["me_billing_groups_dependents_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/billing-groups/{gid}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El titular pide la cuota del grupo para pagarla con `/payments/card`. */
+        post: operations["me_billing_groups_payment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/blocks": {
         parameters: {
             query?: never;
@@ -4564,6 +4715,23 @@ export interface paths {
         head?: never;
         /** @description Consentimiento granular del atleta (§7.2 / T4). */
         patch: operations["me_consents_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/me/dependents/{aid}/emancipate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El tutor le da a su dependiente un correo para que reclame su propia cuenta. */
+        post: operations["me_dependents_emancipate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/me/feed": {
@@ -6189,9 +6357,10 @@ export interface components {
          *     * `google` - Google
          *     * `apple` - Apple
          *     * `facebook` - Facebook
+         *     * `managed_dependent` - Dependiente administrado
          * @enum {string}
          */
-        AccountOriginEnum: "self_signup" | "gym_invited" | "google" | "apple" | "facebook";
+        AccountOriginEnum: "self_signup" | "gym_invited" | "google" | "apple" | "facebook" | "managed_dependent";
         /**
          * @description * `athlete` - athlete
          *     * `coach` - coach
@@ -6436,6 +6605,104 @@ export interface components {
             after?: unknown;
             /** Format: date-time */
             readonly created_at: string;
+        };
+        /** @description Vista del gym de una cuenta pagadora (panel). */
+        BillingGroup: {
+            /** Format: uuid */
+            readonly id: string;
+            kind: components["schemas"]["BillingGroupKind"];
+            readonly kind_display: string;
+            /** @description Ej. «Familia Pérez», «Banco X». */
+            name: string;
+            /** Format: uuid */
+            plan: string;
+            readonly plan_name: string;
+            /**
+             * Format: uuid
+             * @description Titular que paga la cuota del grupo desde su app.
+             */
+            payer: string;
+            readonly payer_name: string;
+            /**
+             * Format: decimal
+             * @description Precio del paquete pactado con ESTE grupo (sobreescribe el del plan).
+             */
+            custom_fee?: string | null;
+            /** Format: decimal */
+            readonly effective_fee: string;
+            /**
+             * Format: int64
+             * @description Cupos pactados con este grupo (sobreescribe los del plan).
+             */
+            max_members?: number | null;
+            readonly seats: number | null;
+            readonly seats_used: number;
+            billing_nit?: string;
+            billing_name?: string;
+            /** Format: email */
+            billing_email?: string;
+            /** Format: date */
+            renewal_date?: string | null;
+            payment_status?: components["schemas"]["PaymentStatus"];
+            is_active?: boolean;
+            readonly members: components["schemas"]["BillingGroupMember"][];
+            /** Format: uuid */
+            readonly open_payment: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /**
+         * @description Agrega a alguien que YA es del gym (`membership_id`) o lo invita por correo y lo
+         *     mete al grupo en un solo paso (misma deduplicación que la invitación normal).
+         */
+        BillingGroupAddMember: {
+            /** Format: uuid */
+            membership_id?: string;
+            /** Format: email */
+            email?: string;
+            first_name?: string;
+            last_name?: string;
+        };
+        /**
+         * @description Alta de un grupo desde el panel. El titular se indica por su membresía en este
+         *     gym o por su correo (un contacto de RR. HH. que no entrena, pero ya tiene cuenta).
+         */
+        BillingGroupCreate: {
+            kind: components["schemas"]["BillingGroupKind"];
+            name: string;
+            /** Format: uuid */
+            plan_id: string;
+            /** Format: uuid */
+            payer_membership_id?: string;
+            /** Format: email */
+            payer_email?: string;
+            /** Format: decimal */
+            custom_fee?: string | null;
+            max_members?: number | null;
+            billing_nit?: string;
+            billing_name?: string;
+            /** Format: email */
+            billing_email?: string;
+        };
+        /**
+         * @description * `family` - Familiar
+         *     * `corporate` - Empresarial
+         * @enum {string}
+         */
+        BillingGroupKind: "family" | "corporate";
+        /** @description Un miembro del grupo: solo lo que hace falta para administrarlo. */
+        BillingGroupMember: {
+            /** Format: uuid */
+            readonly membership_id: string;
+            /** Format: uuid */
+            athlete: string;
+            readonly athlete_name: string;
+            readonly is_dependent: boolean;
+            status?: components["schemas"]["MembershipStatus"];
+            readonly status_display: string;
+            /** Format: date */
+            renewal_date?: string | null;
+            payment_status?: components["schemas"]["PaymentStatus"];
         };
         /** @enum {unknown} */
         BlankEnum: "";
@@ -6719,6 +6986,8 @@ export interface components {
         };
         CheckinAction: {
             method?: components["schemas"]["CheckinActionMethodEnum"];
+            /** Format: uuid */
+            on_behalf_of?: string;
         };
         /**
          * @description * `athlete_qr` - athlete_qr
@@ -6845,6 +7114,8 @@ export interface components {
         ClassQrCheckin: {
             /** Format: uuid */
             qr_token: string;
+            /** Format: uuid */
+            on_behalf_of?: string;
         };
         /** @description Por qué el coach deja la clase; el gimnasio lo lee en su aviso. */
         ClassRelease: {
@@ -7624,6 +7895,18 @@ export interface components {
          * @enum {string}
          */
         DeliveryMethodEnum: "pickup" | "shipping";
+        /**
+         * @description Menor sin correo propio. Desde el panel se indica su tutor (`guardian_id`); desde
+         *     el app el tutor es quien lo da de alta.
+         */
+        DependentCreate: {
+            first_name: string;
+            last_name: string;
+            /** Format: date */
+            birth_date?: string | null;
+            /** Format: uuid */
+            guardian_id?: string;
+        };
         Device: {
             /** Format: uuid */
             readonly id: string;
@@ -7722,6 +8005,10 @@ export interface components {
             id: string;
             name: string;
             photo: string | null;
+        };
+        EmancipateDependent: {
+            /** Format: email */
+            email: string;
         };
         /**
          * @description Gasto tal como lo lee el panel. La anulación y la corrección NO son campos
@@ -8679,6 +8966,9 @@ export interface components {
             internal_notes?: string;
             /** Format: int64 */
             community_points?: number;
+            /** Format: uuid */
+            billing_group?: string | null;
+            readonly billing_group_name: string;
         };
         /** @description Ficha relacional segura del atleta para el panel del gimnasio. */
         MembershipDetailAdmin: {
@@ -8734,6 +9024,9 @@ export interface components {
             internal_notes?: string;
             /** Format: int64 */
             community_points?: number;
+            /** Format: uuid */
+            billing_group?: string | null;
+            readonly billing_group_name: string;
             athlete_profile: components["schemas"]["RelationshipAthlete"];
             payments: components["schemas"]["RelationshipPayment"][];
             checkins: components["schemas"]["RelationshipCheckin"][];
@@ -8781,6 +9074,9 @@ export interface components {
              * @description Fecha de retorno prevista (opcional); el cron reanuda sola al llegar.
              */
             pause_until?: string | null;
+            /** Format: uuid */
+            billing_group?: string | null;
+            readonly billing_group_name: string;
         };
         /**
          * @description * `requested` - Solicitada
@@ -8922,6 +9218,37 @@ export interface components {
             /** Format: decimal */
             unit_cost?: string | null;
             note?: string;
+        };
+        /**
+         * @description Vista del ATLETA de un grupo en el que está (como titular, miembro o tutor).
+         *
+         *     El titular ve el precio, la cuota abierta y a todos los miembros. Un miembro ve
+         *     quién paga y hasta cuándo, pero NO la lista: en un convenio empresarial un empleado
+         *     no tiene por qué ver quiénes más de su empresa van al gym. En un grupo familiar,
+         *     además, todo adulto ve a los menores del grupo, porque puede operarlos.
+         */
+        MyBillingGroup: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            gym: string;
+            readonly gym_name: string;
+            kind: components["schemas"]["BillingGroupKind"];
+            readonly kind_display: string;
+            /** @description Ej. «Familia Pérez», «Banco X». */
+            name: string;
+            readonly plan_name: string;
+            readonly payer_name: string;
+            readonly is_payer: boolean;
+            /** Format: decimal */
+            readonly effective_fee: string | null;
+            readonly seats: number | null;
+            /** Format: date */
+            renewal_date?: string | null;
+            payment_status?: components["schemas"]["PaymentStatus"];
+            readonly members: components["schemas"]["BillingGroupMember"][];
+            /** Format: uuid */
+            readonly open_payment: string | null;
         };
         /** @description Vista mínima para que el reportante vea el estado de su reporte. */
         MyBugReport: {
@@ -9741,6 +10068,16 @@ export interface components {
             /** Format: uri */
             photo?: string;
         };
+        PatchedBillingGroupUpdate: {
+            name?: string;
+            /** Format: decimal */
+            custom_fee?: string | null;
+            max_members?: number | null;
+            billing_nit?: string;
+            billing_name?: string;
+            /** Format: email */
+            billing_email?: string;
+        };
         /** @description Entrada del triage. Todo opcional: se aplica solo lo que venga. */
         PatchedBugReportTriage: {
             status?: components["schemas"]["ReportStatus"];
@@ -10028,6 +10365,12 @@ export interface components {
             service_types?: string[];
             readonly service_type_names?: string[];
             is_active?: boolean;
+            group_kind?: components["schemas"]["BillingGroupKind"] | components["schemas"]["BlankEnum"];
+            /**
+             * Format: int64
+             * @description Cupos del paquete grupal (cuántas membresías cubre el precio).
+             */
+            max_members?: number | null;
         };
         PatchedPlanOffer: {
             /** Format: uuid */
@@ -10455,6 +10798,12 @@ export interface components {
             service_types?: string[];
             readonly service_type_names: string[];
             is_active?: boolean;
+            group_kind?: components["schemas"]["BillingGroupKind"] | components["schemas"]["BlankEnum"];
+            /**
+             * Format: int64
+             * @description Cupos del paquete grupal (cuántas membresías cubre el precio).
+             */
+            max_members?: number | null;
         };
         PlanOffer: {
             /** Format: uuid */
@@ -11331,6 +11680,8 @@ export interface components {
         };
         ReservationAction: {
             client_id?: string;
+            /** Format: uuid */
+            on_behalf_of?: string;
         };
         /**
          * @description * `reserved` - Reservada
@@ -12332,7 +12683,10 @@ export interface operations {
     };
     classes_cancel_create: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Id del dependiente por el que actúa el tutor (plan familiar). */
+                on_behalf_of?: string;
+            };
             header?: never;
             path: {
                 id: string;
@@ -13838,6 +14192,204 @@ export interface operations {
                 content: {
                     "text/csv": string;
                 };
+            };
+        };
+    };
+    gym_billing_groups_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingGroup"][];
+                };
+            };
+        };
+    };
+    gym_billing_groups_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillingGroupCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["BillingGroupCreate"];
+                "multipart/form-data": components["schemas"]["BillingGroupCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingGroup"];
+                };
+            };
+        };
+    };
+    gym_billing_groups_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingGroup"];
+                };
+            };
+        };
+    };
+    gym_billing_groups_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedBillingGroupUpdate"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedBillingGroupUpdate"];
+                "multipart/form-data": components["schemas"]["PatchedBillingGroupUpdate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingGroup"];
+                };
+            };
+        };
+    };
+    gym_billing_groups_close: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingGroup"];
+                };
+            };
+        };
+    };
+    gym_billing_groups_dependents_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DependentCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["DependentCreate"];
+                "multipart/form-data": components["schemas"]["DependentCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingGroup"];
+                };
+            };
+        };
+    };
+    gym_billing_groups_members_add: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["BillingGroupAddMember"];
+                "application/x-www-form-urlencoded": components["schemas"]["BillingGroupAddMember"];
+                "multipart/form-data": components["schemas"]["BillingGroupAddMember"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingGroup"];
+                };
+            };
+        };
+    };
+    gym_billing_groups_members_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+                gym_id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -18578,6 +19130,73 @@ export interface operations {
             };
         };
     };
+    me_billing_groups_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyBillingGroup"][];
+                };
+            };
+        };
+    };
+    me_billing_groups_dependents_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DependentCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["DependentCreate"];
+                "multipart/form-data": components["schemas"]["DependentCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyBillingGroup"];
+                };
+            };
+        };
+    };
+    me_billing_groups_payment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+        };
+    };
     me_blocks_list: {
         parameters: {
             query?: never;
@@ -18647,6 +19266,8 @@ export interface operations {
             query?: {
                 /** @description The pagination cursor value. */
                 cursor?: string;
+                /** @description Id del dependiente por el que actúa el tutor (plan familiar). */
+                on_behalf_of?: string;
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
                 /** @description A search term. */
@@ -18671,6 +19292,8 @@ export interface operations {
     me_classes_history_list: {
         parameters: {
             query?: {
+                /** @description Id del dependiente por el que actúa el tutor (plan familiar). */
+                on_behalf_of?: string;
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
                 /** @description A search term. */
@@ -19334,6 +19957,32 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Consent"][];
                 };
+            };
+        };
+    };
+    me_dependents_emancipate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                aid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmancipateDependent"];
+                "application/x-www-form-urlencoded": components["schemas"]["EmancipateDependent"];
+                "multipart/form-data": components["schemas"]["EmancipateDependent"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

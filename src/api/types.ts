@@ -66,6 +66,10 @@ export type Plan = components["schemas"]["Plan"] & {
   service_types?: string[];
   service_type_names?: string[];
 };
+// Plan familiar / empresarial: un titular paga por varias membresías (cuenta pagadora).
+export type BillingGroup = components["schemas"]["BillingGroup"];
+export type BillingGroupMember = components["schemas"]["BillingGroupMember"];
+export type BillingGroupKind = components["schemas"]["BillingGroupKind"];
 export type JoinRequest = components["schemas"]["JoinRequest"];
 export type GymClass = components["schemas"]["GymClass"];
 export type GymCheckin = components["schemas"]["GymCheckin"];

@@ -24,6 +24,7 @@ import {
   Payment,
   Plan,
   PlanOffer,
+  BillingGroup,
   FeedItem,
   AthleteOfMonth,
   ErpProduct,
@@ -696,6 +697,8 @@ export function useCreatePlan(gymId: string) {
       benefits?: Record<string, unknown> | null;
       noshow_penalty?: Record<string, unknown> | null;
       service_types?: string[];
+      group_kind?: "" | "family" | "corporate";
+      max_members?: number | null;
     }) => (await api.post<Plan>(`/gym/${gymId}/plans`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plans", gymId] }),
   });
@@ -723,6 +726,101 @@ export function useDeletePlan(gymId: string) {
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/gym/${gymId}/plans/${id}`)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plans", gymId] }),
+  });
+}
+
+// --------------------------------------------------------------------------- //
+// Plan familiar / empresarial (cuentas pagadoras)
+// --------------------------------------------------------------------------- //
+
+/** Toca grupos Y membresías: agregar o quitar a alguien le cambia el plan. */
+function invalidarGrupos(qc: QueryClient, gymId: string) {
+  qc.invalidateQueries({ queryKey: ["billing-groups", gymId] });
+  qc.invalidateQueries({ queryKey: ["memberships", gymId] });
+}
+
+export function useBillingGroups(gymId: string, includeClosed = false) {
+  return useQuery({
+    queryKey: ["billing-groups", gymId, includeClosed],
+    queryFn: () =>
+      getList<BillingGroup>(
+        `/gym/${gymId}/billing-groups${includeClosed ? "?include_closed=1" : ""}`,
+      ),
+    enabled: !!gymId,
+  });
+}
+
+export type BillingGroupCreateBody = components["schemas"]["BillingGroupCreate"];
+
+export function useCreateBillingGroup(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: BillingGroupCreateBody) =>
+      (await api.post<BillingGroup>(`/gym/${gymId}/billing-groups`, body)).data,
+    onSuccess: () => invalidarGrupos(qc, gymId),
+  });
+}
+
+export function useUpdateBillingGroup(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      body,
+    }: {
+      id: string;
+      body: components["schemas"]["PatchedBillingGroupUpdate"];
+    }) => (await api.patch<BillingGroup>(`/gym/${gymId}/billing-groups/${id}`, body)).data,
+    onSuccess: () => invalidarGrupos(qc, gymId),
+  });
+}
+
+export function useAddBillingGroupMember(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      body,
+    }: {
+      id: string;
+      body: components["schemas"]["BillingGroupAddMember"];
+    }) =>
+      (await api.post<BillingGroup>(`/gym/${gymId}/billing-groups/${id}/members`, body)).data,
+    onSuccess: () => invalidarGrupos(qc, gymId),
+  });
+}
+
+export function useRemoveBillingGroupMember(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, membershipId }: { id: string; membershipId: string }) =>
+      (await api.delete<BillingGroup>(`/gym/${gymId}/billing-groups/${id}/members/${membershipId}`))
+        .data,
+    onSuccess: () => invalidarGrupos(qc, gymId),
+  });
+}
+
+export function useAddBillingGroupDependent(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      body,
+    }: {
+      id: string;
+      body: components["schemas"]["DependentCreate"];
+    }) =>
+      (await api.post<BillingGroup>(`/gym/${gymId}/billing-groups/${id}/dependents`, body)).data,
+    onSuccess: () => invalidarGrupos(qc, gymId),
+  });
+}
+
+export function useCloseBillingGroup(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      (await api.post<BillingGroup>(`/gym/${gymId}/billing-groups/${id}/close`)).data,
+    onSuccess: () => invalidarGrupos(qc, gymId),
   });
 }
 

@@ -41,6 +41,7 @@ import {
   Tag,
   TrendingDown,
   UserCog,
+  Users,
   Wallet,
 } from "lucide-react";
 import { usePendingSummary } from "../api/hooks";
@@ -103,6 +104,8 @@ const GROUPS: NavGroup[] = [
       { to: "/panel/atletas", label: "Atletas", icon: Dumbbell },
       { to: "/panel/solicitudes", label: "Solicitudes", icon: Mail },
       { to: "/panel/planes", label: "Planes y cuotas", icon: Tag },
+      // Familias y convenios con empresas: un titular paga por varios miembros.
+      { to: "/panel/planes-grupales", label: "Planes grupales", icon: Users },
     ],
   },
   {

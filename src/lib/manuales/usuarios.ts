@@ -168,6 +168,11 @@ export const manualesUsuarios: ManualesPorRuta = {
     ],
     conceptos: [
       {
+        termino: "Etiqueta de plan grupal (junto al plan)",
+        detalle:
+          "Ese atleta lo paga un plan familiar o empresarial: su cuota la cubre el titular del grupo. Por eso en su ficha no se le asigna plan ni aparece «Cobro y renovación»; todo eso se maneja en «Planes grupales».",
+      },
+      {
         termino: "Atletas activos",
         detalle:
           "La cifra grande del encabezado. Debajo dice cuántas relaciones hay en total en el padrón. Las cifras de arriba son de todo el gimnasio, no del grupo que tengas elegido.",
@@ -432,7 +437,8 @@ export const manualesUsuarios: ManualesPorRuta = {
       {
         titulo: "Crear un plan",
         pasos: [
-          "En «Crear plan» escribe el «Nombre» (por ejemplo «Mensual CrossFit») y el «Precio (Q)». El precio va solo en números (por ejemplo 350): la «Q» ya aparece sola y el campo no acepta letras.",
+          "En «Crear plan», deja el «Tipo de plan» en «Individual» (o elige «Familiar» o «Empresarial» si es un paquete para varias personas: ve la tarea siguiente).",
+          "Escribe el «Nombre» (por ejemplo «Mensual CrossFit») y el «Precio (Q)». El precio va solo en números (por ejemplo 350): la «Q» ya aparece sola y el campo no acepta letras.",
           "Ajusta la «Duración (días)» (30 por defecto) y, si el plan tiene un tope, el «Límite de clases». Vacío significa sin límite.",
           "En «Servicios incluidos» elige las disciplinas que trae el plan. El atleta lo ve en el app.",
           "Marca «Acceso a clases especiales» u «Open gym» si el plan los incluye.",
@@ -442,6 +448,18 @@ export const manualesUsuarios: ManualesPorRuta = {
         ],
         nota:
           "El botón se habilita cuando hay nombre y precio. Escribe el precio solo con números (por ejemplo 350).",
+      },
+      {
+        titulo: "Crear un plan familiar o empresarial",
+        pasos: [
+          "En «Crear plan», en «Tipo de plan» elige «Familiar» o «Empresarial».",
+          "En «Personas que cubre» escribe cuántas personas entran en el paquete (mínimo 2).",
+          "Escribe el «Nombre» (por ejemplo «Familiar x4») y el «Precio del paquete (Q)»: es lo que paga el titular por TODO el grupo, no por persona.",
+          "Completa lo demás como en cualquier plan y presiona «Crear plan».",
+          "Después ve a «Planes grupales» para armar cada familia o empresa con ese plan.",
+        ],
+        nota:
+          "En la tabla «Planes» se reconoce por la etiqueta «Familiar» o «Empresarial» con sus personas. Un plan grupal no aparece al asignar plan a un atleta suelto en «Atletas» o «Solicitudes»: se usa creando el grupo.",
       },
       {
         titulo: "Activar un servicio nuevo",
@@ -488,7 +506,7 @@ export const manualesUsuarios: ManualesPorRuta = {
         titulo: "Editar un plan",
         pasos: [
           "En la tabla «Planes» presiona «Editar» en la fila del plan.",
-          "Cambia el «Nombre», el «Precio (Q)», la «Duración (días)», el «Límite de clases (vacío = sin límite)» o los «Servicios incluidos».",
+          "Cambia el «Nombre», el «Precio (Q)», la «Duración (días)», el «Límite de clases (vacío = sin límite)» o los «Servicios incluidos». En un plan grupal también puedes cambiar el «Precio del paquete (Q)» y las «Personas que cubre».",
           "Marca o desmarca «Acceso a clases especiales», «Open gym» y «Renovación automática».",
           "Ajusta la «Penalización no-show (pts)» (0 = sin penalización).",
           "Presiona «Guardar».",
@@ -511,6 +529,11 @@ export const manualesUsuarios: ManualesPorRuta = {
         termino: "Plan",
         detalle:
           "Lo que le cobras a un atleta por ser miembro: precio, cada cuántos días se renueva, cuántas clases incluye y qué servicios trae.",
+      },
+      {
+        termino: "Plan familiar / empresarial",
+        detalle:
+          "Un paquete para varias personas que paga una sola (el titular) desde su app. Su precio es el del paquete completo. Cada miembro entrena con su propia membresía.",
       },
       {
         termino: "Límite de clases",
@@ -583,6 +606,125 @@ export const manualesUsuarios: ManualesPorRuta = {
     ],
     relacionadas: [
       { label: "Clases", href: "/panel/clases" },
+      { label: "Atletas", href: "/panel/atletas" },
+      { label: "Solicitudes", href: "/panel/solicitudes" },
+    ],
+  },
+
+  "/panel/planes-grupales": {
+    titulo: "Planes grupales",
+    paraQue:
+      "Aquí armas las familias y los convenios con empresas: una sola persona (el titular) paga el paquete desde su app y cada miembro entrena con su propia membresía, con sus puntos y su historial. También das de alta a los niños que no tienen correo.",
+    tareas: [
+      {
+        titulo: "Crear un grupo",
+        pasos: [
+          "Primero necesitas un plan familiar o empresarial: créalo en «Planes y cuotas».",
+          "Presiona «Crear grupo».",
+          "Elige «Familiar» o «Empresarial».",
+          "Escribe el «Nombre del grupo» (por ejemplo «Familia Pérez») y elige el «Plan».",
+          "En «Titular (quien paga desde su app)» elige «Ya es del gimnasio» y búscalo, o «Por su correo» si no entrena aquí (por ejemplo, el contacto de recursos humanos de la empresa).",
+          "Si pactaste otro precio o más cupos con ellos, escríbelos en «Precio pactado (Q, opcional)» y «Cupos pactados (opcional)». Vacíos, valen los del plan.",
+          "En un grupo empresarial escribe el «NIT de la empresa», la «Razón social» y el «Correo para la factura»: la factura sale a nombre de la empresa.",
+          "Presiona «Crear grupo». Se abre su ficha para que agregues a los miembros.",
+        ],
+        nota:
+          "El titular por correo tiene que tener ya una cuenta en Nucleo. El titular no queda como miembro automáticamente: si también entrena, agrégalo como miembro.",
+      },
+      {
+        titulo: "Agregar a un miembro",
+        pasos: [
+          "En la tabla, haz clic en el grupo para abrir su ficha.",
+          "En «Agregar miembro» elige «Ya es del gimnasio» y búscalo, o «Invitar por correo» y escribe su correo, nombre y apellido.",
+          "Presiona «Agregar al grupo».",
+        ],
+        nota:
+          "Desde ese momento su cuota la paga el titular: toma el plan del grupo y ya no se le cobra aparte. Si el grupo ya está pagado, queda activo al instante. Si el grupo ya ocupó sus cupos, sube los «Cupos pactados» en «Datos del grupo».",
+      },
+      {
+        titulo: "Dar de alta a un niño sin correo (dependiente)",
+        pasos: [
+          "Abre la ficha de un grupo familiar.",
+          "En «Agregar dependiente» escribe su nombre y apellido y, si quieres, su fecha de nacimiento.",
+          "Elige su «Tutor»: el titular o un adulto del grupo.",
+          "Presiona «Dar de alta».",
+        ],
+        nota:
+          "El niño no entra al app. Cualquier adulto de la familia le reserva clases y le marca la asistencia desde su propio teléfono, y los avisos del niño le llegan a su tutor. Cuando tenga correo, su tutor le puede dar su propia cuenta desde el app y conserva todo su historial.",
+      },
+      {
+        titulo: "Sacar a alguien del grupo",
+        pasos: [
+          "En la ficha del grupo, presiona «Quitar» junto al miembro y confirma.",
+          "Ve a «Atletas» y asígnale un plan individual antes de su próximo cobro.",
+        ],
+        nota:
+          "Sigue siendo miembro del gimnasio y conserva los días que el grupo ya pagó, pero queda sin plan.",
+      },
+      {
+        titulo: "Cambiar el precio, los cupos o los datos de factura",
+        pasos: [
+          "En la ficha del grupo, ve a «Datos del grupo».",
+          "Cambia lo que necesites y presiona «Guardar cambios».",
+        ],
+        nota:
+          "No se pueden dejar menos cupos que miembros. El titular y el plan no se cambian: para eso cierra el grupo y crea otro.",
+      },
+      {
+        titulo: "Cerrar un grupo",
+        pasos: [
+          "En la ficha del grupo presiona «Cerrar grupo» y confirma.",
+          "Para verlo después, activa «Ver grupos cerrados».",
+        ],
+        nota:
+          "Todos siguen siendo miembros con los días ya pagados, pero el titular deja de pagar por ellos: cada uno necesitará un plan individual.",
+      },
+    ],
+    conceptos: [
+      {
+        termino: "Titular",
+        detalle:
+          "La persona que paga la cuota de todo el grupo desde su app. Es la única que ve el precio y la cuota pendiente.",
+      },
+      {
+        termino: "Cuota pendiente",
+        detalle:
+          "El grupo tiene un cobro esperando a que el titular lo pague en su app. Cuando paga, todos los miembros quedan al día a la vez.",
+      },
+      {
+        termino: "Sin pagar aún",
+        detalle: "El grupo todavía no ha pagado su primer ciclo, así que nadie se ha activado por él.",
+      },
+      {
+        termino: "Dependiente",
+        detalle:
+          "Un niño sin correo ni app propia. Tiene su propio historial y puntos; lo opera su familia.",
+      },
+      {
+        termino: "Vencido (grupo)",
+        detalle:
+          "El titular no pagó a tiempo: todos los miembros quedan en mora a la vez. El aviso de pago le llega solo al titular, no a cada miembro.",
+      },
+    ],
+    problemas: [
+      {
+        sintoma: "El botón «Crear grupo» está apagado.",
+        solucion:
+          "No tienes ningún plan familiar o empresarial activo. Créalo en «Planes y cuotas» eligiendo el «Tipo de plan».",
+      },
+      {
+        sintoma: "Sale «No encontramos al titular».",
+        solucion:
+          "Ese correo no tiene cuenta en Nucleo. Invítalo primero en «Solicitudes» y luego crea el grupo eligiéndolo en «Ya es del gimnasio».",
+      },
+      {
+        sintoma: "A un miembro no le puedo asignar plan en «Atletas».",
+        solucion:
+          "Su plan lo define el grupo. Sácalo del grupo aquí y después asígnale su plan individual.",
+      },
+    ],
+    relacionadas: [
+      { label: "Planes y cuotas", href: "/panel/planes" },
       { label: "Atletas", href: "/panel/atletas" },
       { label: "Solicitudes", href: "/panel/solicitudes" },
     ],

@@ -10,6 +10,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { AthletesPage } from "./pages/AthletesPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { PlansPage } from "./pages/PlansPage";
+import { BillingGroupsPage } from "./pages/BillingGroupsPage";
 import { RequestsPage } from "./pages/RequestsPage";
 import { ClassesPage } from "./pages/ClassesPage";
 import { CoachesPage } from "./pages/CoachesPage";
@@ -82,6 +83,7 @@ export default function AdminShell() {
           <Route path="atletas" element={<AthletesPage />} />
           <Route path="pagos" element={<PaymentsPage />} />
           <Route path="planes" element={<PlansPage />} />
+          <Route path="planes-grupales" element={<BillingGroupsPage />} />
           {/* "servicios" fusionado en Clases (catálogo) + Planes (cobro/activación). */}
           <Route path="servicios" element={<Navigate to="/panel/planes" replace />} />
           <Route path="solicitudes" element={<RequestsPage />} />

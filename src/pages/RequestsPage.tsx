@@ -202,7 +202,11 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
               // Sin el catálogo el selector queda vacío y parece que el gym no
               // tiene planes: hay que decir que la carga falló.
               error={plans.isError ? "No se pudieron cargar los planes." : undefined}
-              data={(plans.data ?? []).map((plan) => ({ value: plan.id, label: plan.name }))}
+              // Los planes grupales se asignan creando el grupo (Planes grupales),
+              // no a una persona suelta: el backend los rechaza aquí.
+              data={(plans.data ?? [])
+                .filter((plan) => !plan.group_kind)
+                .map((plan) => ({ value: plan.id, label: plan.name }))}
             />
             {/* Numérico y con la moneda a la vista: antes era texto libre, y "350
                 al mes" o "Q350" viajaban al backend como cuota inválida. */}

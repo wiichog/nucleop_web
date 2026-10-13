@@ -38,6 +38,13 @@ import { errMsg } from "../lib/errors";
 import { sortRecords } from "../lib/sortRecords";
 
 const OFFER_LABEL: Record<string, string> = { percent: "Descuento %", free_months: "Meses gratis" };
+type TipoPlan = "" | "family" | "corporate";
+const TIPO_PLAN_OPCIONES = [
+  { value: "", label: "Individual" },
+  { value: "family", label: "Familiar" },
+  { value: "corporate", label: "Empresarial" },
+];
+const TIPO_PLAN_LABEL: Record<string, string> = { family: "Familiar", corporate: "Empresarial" };
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
 
 /** Puntos de comunidad que hoy resta el plan por no-show (0 = sin penalización). */
@@ -120,6 +127,9 @@ export function PlansPage() {
   const [noshowPoints, setNoshowPoints] = useState<number | string>(-10);
   const [autoRenew, setAutoRenew] = useState(true);
   const [planServices, setPlanServices] = useState<string[]>([]);
+  // Plan grupal: el precio es el del PAQUETE completo y lo paga un solo titular.
+  const [planKind, setPlanKind] = useState<TipoPlan>("");
+  const [planSeats, setPlanSeats] = useState<number | string>(4);
 
   const [offerName, setOfferName] = useState("");
   const [offerType, setOfferType] = useState<"percent" | "free_months">("percent");
@@ -142,6 +152,8 @@ export function PlansPage() {
         open_gym_access: openGym,
         auto_renew_default: autoRenew,
         service_types: planServices,
+        group_kind: planKind,
+        max_members: planKind ? Number(planSeats) || null : null,
         noshow_penalty: armarPenalizacion(noshowPoints),
       });
       notifications.show({ color: "teal", message: `Plan "${name}" creado.` });
@@ -149,6 +161,7 @@ export function PlansPage() {
       setPrice("");
       setClassLimit("");
       setPlanServices([]);
+      setPlanKind("");
     } catch (error) {
       notifications.show({ color: "red", message: errMsg(error, "No se pudo crear el plan.") });
     }
@@ -197,13 +210,32 @@ export function PlansPage() {
       <GlassCard padding={20} delay={0.6} style={{ marginBottom: "calc(20 * var(--u))" }}>
         <form onSubmit={onSubmit}>
           <SectionLabel mb={12} as="h2">Crear plan</SectionLabel>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm" mb="sm">
+            <Select
+              label="Tipo de plan"
+              description="Familiar o empresarial: una sola persona paga por todo el grupo."
+              data={TIPO_PLAN_OPCIONES}
+              value={planKind}
+              onChange={(v) => setPlanKind((v ?? "") as TipoPlan)}
+              allowDeselect={false}
+            />
+            {planKind && (
+              <NumberInput
+                label="Personas que cubre"
+                description="Cupos del paquete."
+                value={planSeats}
+                onChange={setPlanSeats}
+                min={2}
+              />
+            )}
+          </SimpleGrid>
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
-            <TextInput label="Nombre" placeholder="Mensual CrossFit" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+            <TextInput label="Nombre" placeholder={planKind ? "Familiar x4" : "Mensual CrossFit"} value={name} onChange={(e) => setName(e.currentTarget.value)} />
             {/* Numérico y con la moneda a la vista (como la cuota en Solicitudes):
                 antes era texto libre y "Q350" o "350 al mes" llegaban al backend. */}
             <NumberInput
-              label="Precio (Q)"
-              placeholder="350"
+              label={planKind ? "Precio del paquete (Q)" : "Precio (Q)"}
+              placeholder={planKind ? "1200" : "350"}
               prefix="Q"
               min={0}
               decimalScale={2}
@@ -231,7 +263,7 @@ export function PlansPage() {
             <Checkbox label="Open gym" checked={openGym} onChange={(e) => setOpenGym(e.currentTarget.checked)} />
             <Checkbox label="Renovación automática" checked={autoRenew} onChange={(e) => setAutoRenew(e.currentTarget.checked)} />
             <NumberInput label="Penalización no-show (pts)" value={noshowPoints} onChange={setNoshowPoints} w={170} />
-            <Button type="submit" mt={22} loading={createPlan.isPending} disabled={!name || price === ""}>
+            <Button type="submit" mt={22} loading={createPlan.isPending} disabled={!name || price === "" || (!!planKind && Number(planSeats) < 2)}>
               Crear plan
             </Button>
           </Group>
@@ -413,7 +445,22 @@ export function PlansPage() {
             sortStatus={sortPlans}
             onSortStatusChange={setSortPlans}
             columns={[
-              { accessor: "name", title: "Plan", sortable: true },
+              {
+                accessor: "name",
+                title: "Plan",
+                sortable: true,
+                render: (p) =>
+                  p.group_kind ? (
+                    <Group gap={6} wrap="nowrap">
+                      <Text size="sm">{p.name}</Text>
+                      <Badge variant="light" color="grape" size="sm">
+                        {TIPO_PLAN_LABEL[p.group_kind] ?? p.group_kind} · {p.max_members} personas
+                      </Badge>
+                    </Group>
+                  ) : (
+                    p.name
+                  ),
+              },
               {
                 accessor: "price",
                 title: "Precio",
@@ -573,6 +620,7 @@ export function EditPlanModal({
     open_gym_access: boolean;
     auto_renew_default: boolean;
     noshow_penalty: Record<string, unknown> | null;
+    max_members?: number | null;
   }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
@@ -584,6 +632,7 @@ export function EditPlanModal({
   const [openGym, setOpenGym] = useState(false);
   const [autoRenew, setAutoRenew] = useState(true);
   const [noshowPoints, setNoshowPoints] = useState<number | string>(0);
+  const [seats, setSeats] = useState<number | string>("");
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
 
   if (plan && hydratedFor !== plan.id) {
@@ -597,13 +646,15 @@ export function EditPlanModal({
     setOpenGym(!!plan.open_gym_access);
     setAutoRenew(plan.auto_renew_default ?? true);
     setNoshowPoints(puntosNoShow(plan.noshow_penalty));
+    setSeats(plan.max_members ?? "");
   }
+  const grupal = !!plan?.group_kind;
 
   return (
     <Modal opened={!!plan} onClose={onClose} title="Editar plan" centered>
       <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} mb="sm" />
       <NumberInput
-        label="Precio (Q)"
+        label={grupal ? "Precio del paquete (Q)" : "Precio (Q)"}
         prefix="Q"
         min={0}
         decimalScale={2}
@@ -613,6 +664,16 @@ export function EditPlanModal({
         onChange={setPrice}
         mb="sm"
       />
+      {grupal && (
+        <NumberInput
+          label="Personas que cubre"
+          description="Aplica a los grupos con este plan, salvo los que tienen cupos pactados propios."
+          value={seats}
+          onChange={setSeats}
+          min={2}
+          mb="sm"
+        />
+      )}
       <NumberInput label="Duración (días)" value={duration} onChange={setDuration} min={1} mb="sm" />
       <NumberInput label="Límite de clases (vacío = sin límite)" value={classLimit} onChange={setClassLimit} min={0} mb="sm" />
       <MultiSelect
@@ -648,7 +709,7 @@ export function EditPlanModal({
           Cancelar
         </Button>
         <Button
-          disabled={!name || price === ""}
+          disabled={!name || price === "" || (grupal && Number(seats) < 2)}
           loading={saving}
           onClick={() =>
             onSave({
@@ -661,6 +722,7 @@ export function EditPlanModal({
               open_gym_access: openGym,
               auto_renew_default: autoRenew,
               noshow_penalty: armarPenalizacion(noshowPoints, plan?.noshow_penalty),
+              ...(grupal ? { max_members: Number(seats) } : {}),
             })
           }
         >

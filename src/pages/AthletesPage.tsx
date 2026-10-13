@@ -1076,7 +1076,22 @@ export function AthletesPage() {
               sortable: true,
               render: (m) => <StatusBadge kind="membership" status={m.status} />,
             },
-            { accessor: "plan_name", title: "Plan", sortable: true, render: (m) => m.plan_name ?? "—" },
+            {
+              accessor: "plan_name",
+              title: "Plan",
+              sortable: true,
+              render: (m) =>
+                m.billing_group_name ? (
+                  <Group gap={6} wrap="nowrap">
+                    <Text size="sm">{m.plan_name ?? "—"}</Text>
+                    <Badge variant="light" color="grape" size="sm">
+                      {m.billing_group_name}
+                    </Badge>
+                  </Group>
+                ) : (
+                  m.plan_name ?? "—"
+                ),
+            },
             {
               accessor: "start_date",
               title: "Miembro desde",
@@ -1326,7 +1341,14 @@ export function AthletesPage() {
               cuota a un socio o pasarlo a otro plan obligaba al Django admin. */}
           <SectionLabel mt="lg" as="h2">Plan y cuota</SectionLabel>
           <Card padding="sm">
-            {efectoPlan === "cerrado" ? (
+            {detail.data.billing_group_name ? (
+              // El plan y la cuota los define el grupo; el backend rechaza asignar aquí.
+              <Text size="sm" c="dimmed">
+                Esta membresía la paga el plan grupal «{detail.data.billing_group_name}». Su
+                plan y su cuota se manejan en Planes grupales; para asignarle un plan
+                individual, sácala primero del grupo.
+              </Text>
+            ) : efectoPlan === "cerrado" ? (
               <Text size="sm" c="dimmed">
                 Esta relación está{" "}
                 {label(MEMBERSHIP_STATUS, detail.data.status).toLowerCase()}: no se le asigna plan
@@ -1344,10 +1366,13 @@ export function AthletesPage() {
                     // Sin catálogo el selector queda vacío y parece que el gym no
                     // tiene planes: hay que decir que la carga falló.
                     error={plans.isError ? "No se pudieron cargar los planes." : undefined}
-                    data={(plans.data ?? []).map((p) => ({
-                      value: p.id,
-                      label: `${p.name} · ${fmtQ(p.price, { decimals: 2 })}`,
-                    }))}
+                    // Los planes grupales van por "Planes grupales", no a una persona.
+                    data={(plans.data ?? [])
+                      .filter((p) => !p.group_kind)
+                      .map((p) => ({
+                        value: p.id,
+                        label: `${p.name} · ${fmtQ(p.price, { decimals: 2 })}`,
+                      }))}
                     comboboxProps={{ withinPortal: true }}
                   />
                   <NumberInput
@@ -1404,39 +1429,46 @@ export function AthletesPage() {
             )}
           </Card>
 
-          <SectionLabel mt="lg" as="h2">Cobro y renovación</SectionLabel>
-          {/* El vidrio lo pone el tema (`Card` → `.a-glass-card`): sin `withBorder`,
-              que duplicaría el hairline del material. */}
-          <Card padding="sm">
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-              <Switch
-                label="Renovación automática"
-                description={
-                  billing.auto_renew
-                    ? "Genera el cobro del siguiente ciclo 3 días antes de vencer."
-                    : "Al vencer no se genera cobro: hay que registrarlo a mano."
-                }
-                checked={billing.auto_renew}
-                disabled={updateBilling.isPending}
-                onChange={(e) => onBillingChange({ auto_renew: e.currentTarget.checked })}
-              />
-              <Select
-                label="Método de cobro preferido"
-                description="Con tarjeta el cobro va por Pagalo: el atleta paga la cuota + el recargo."
-                value={billing.payment_method_pref}
-                disabled={updateBilling.isPending}
-                onChange={(v) =>
-                  v && onBillingChange({ payment_method_pref: v as typeof billing.payment_method_pref })
-                }
-                data={[
-                  { value: "card", label: "Tarjeta" },
-                  { value: "cash", label: "Efectivo" },
-                  { value: "bank_transfer", label: "Transferencia" },
-                ]}
-                comboboxProps={{ withinPortal: true }}
-              />
-            </SimpleGrid>
-          </Card>
+          {/* La renovación y el método de cobro de un miembro los lleva su plan grupal
+              (cobra al titular): estos controles mentirían y además viajan por
+              assign-plan, que el backend rechaza para una membresía en grupo. */}
+          {!detail.data.billing_group_name && (
+            <>
+              <SectionLabel mt="lg" as="h2">Cobro y renovación</SectionLabel>
+              {/* El vidrio lo pone el tema (`Card` → `.a-glass-card`): sin `withBorder`,
+                  que duplicaría el hairline del material. */}
+              <Card padding="sm">
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                  <Switch
+                    label="Renovación automática"
+                    description={
+                      billing.auto_renew
+                        ? "Genera el cobro del siguiente ciclo 3 días antes de vencer."
+                        : "Al vencer no se genera cobro: hay que registrarlo a mano."
+                    }
+                    checked={billing.auto_renew}
+                    disabled={updateBilling.isPending}
+                    onChange={(e) => onBillingChange({ auto_renew: e.currentTarget.checked })}
+                  />
+                  <Select
+                    label="Método de cobro preferido"
+                    description="Con tarjeta el cobro va por Pagalo: el atleta paga la cuota + el recargo."
+                    value={billing.payment_method_pref}
+                    disabled={updateBilling.isPending}
+                    onChange={(v) =>
+                      v && onBillingChange({ payment_method_pref: v as typeof billing.payment_method_pref })
+                    }
+                    data={[
+                      { value: "card", label: "Tarjeta" },
+                      { value: "cash", label: "Efectivo" },
+                      { value: "bank_transfer", label: "Transferencia" },
+                    ]}
+                    comboboxProps={{ withinPortal: true }}
+                  />
+                </SimpleGrid>
+              </Card>
+            </>
+          )}
 
           <SectionLabel mt="lg" as="h2">Congelamiento</SectionLabel>
           <Card padding="sm">
