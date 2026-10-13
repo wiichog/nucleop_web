@@ -8,14 +8,15 @@ rostros protagonistas.
 
 | Pieza | Archivo | Unsplash | Autor |
 |---|---|---|---|
-| 1 | `fotos/vacio.jpg` | `fNnOt7ZDj_Y` | Kirill Bogomolov |
-| 3 | `fotos/grupo.jpg` | `VB5i6ZmXUoI` | Marvin Meyer |
-| 5 | `fotos/box.jpg` | `T8oxamjfNKQ` | Ricardo Henri |
-| 7 | `fotos/tiza.jpg` | `cdiAOvbwEgE` | Birk Enwald |
-| 9 | `fotos/argollas.jpg` | `uH8JDWuxFX8` | Julien Dumas |
-| 11 | `fotos/agarre.jpg` | `MJcI-gtxr4U` | yousef samuil |
+| 1 (CrossFit) | `fotos/crossfit.jpg` | `Xx1Mddhazmo` | With Mahdy |
+| 3 (Gimnasio) | `fotos/gimnasio.jpg` | `cym0gw00RMY` | Stefan Vibes |
+| 5 (box) | `fotos/box.jpg` | `T8oxamjfNKQ` | Ricardo Henri |
+| 7 (tiza) | `fotos/tiza.jpg` | `cdiAOvbwEgE` | Birk Enwald |
+| 9 (Funcional) | `fotos/funcional.jpg` | `0Wra5YYVQJE` | Karsten Winegeart |
+| 11 (Pilates) | `fotos/pilates.jpg` | `EghMraUmNeA` | Ahmet Kurt |
 
-Las de las piezas 1, 3 y 9 son las mismas que ya usa `/presentacion` (`src/presentacion/fotos.ts`).
+Las fotos de disciplinas (1, 3, 9 y 11) se buscaron para que el perfil no se lea solo de
+CrossFit: Nucleo es para cualquier disciplina.
 
 ## Ojo con el recorte
 
@@ -23,7 +24,15 @@ Las de las piezas 1, 3 y 9 son las mismas que ya usa `/presentacion` (`src/prese
   El recorte (`background-size:185%; background-position:0% 100%`) enseña solo el ~54 %
   izquierdo y los deja fuera. **No moverlo hacia la derecha.**
 
+- `funcional.jpg` (pieza 9): el atleta lleva el logo de Nike en la playera. El
+  recorte (`background-position:13% 50%`) enseña solo la onda de las cuerdas y lo deja
+  fuera. **No moverlo hacia la derecha.**
+- `gimnasio.jpg` (pieza 3): es una silueta a contraluz; no se lee cara ni marca.
+
 ## Descartadas
+
+- Ya no se usan (las cambiaron las de disciplinas): `fNnOt7ZDj_Y` (box vacío), `VB5i6ZmXUoI`
+  (grupo a contraluz), `uH8JDWuxFX8` (argollas), `MJcI-gtxr4U` (mano en mancuerna).
 
 - `ihxOnF1T2CY` y `5p8vhHUEEgY` (las de coach y tableta de la presentación): caras como
   protagonistas.
@@ -33,3 +42,19 @@ Las de las piezas 1, 3 y 9 son las mismas que ya usa `/presentacion` (`src/prese
 - `2h2i4hNipj0`, `CPSjcuuV8E8`, `4fH_sMlbKz8`, `l2rM0c0ovy4`, `nsJgbTlaZ8M`: pesas y discos
   con texto o marca.
 - `buWcS7G1_28` (la de clase de la presentación): sirve (caras desenfocadas); quedó de repuesto.
+
+### Fotos de disciplinas
+
+- `7UoAoaVVyRE` y `2sXYx7sd-kg` (pilates): logo «…Café» en la pared y marca en los reformers.
+- `m56-PAdMhM0` (pilates): las pelotas dicen VOLLO.
+- `4mvsK04V7bc` (pilates): logo «bfit» en la pared.
+- `sHfo3WOgGTU` (CrossFit): tenis NIKE y gorra adidas.
+- `wy_L8W0zcpI` (CrossFit): tenis Nike, adidas y «RAISE THE BAR» en la pared.
+- `bdAUZ3Xuz7c`, `ct2njEp0Cto` (CrossFit): ROGUE, bandera de EE. UU., rayas de adidas.
+- `LSrl4yXv2o4` (CrossFit): kettlebell con «REP FITNESS».
+- `gtqdpKsdED8` (CrossFit): remos Concept2 y discos Olympia.
+- `gnJqUTCPzzg` (gimnasio): bancas con la marca impresa.
+- `EZ94bPuaxW4` (gimnasio): marca en las caras de las mancuernas.
+- `7_Q3kiJ_pZs`, `ER28K86K4Ho`, `iW79tgCbiMs` (gimnasio): logo en las máquinas.
+- `rbSNsoXk-3A`, `yDGsn39fbD4` (gimnasio): letrero y mural con texto.
+- `nH3Nkhu-C1Y` (funcional): HYROX y caras.

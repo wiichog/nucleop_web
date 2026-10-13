@@ -1,83 +1,102 @@
-<!doctype html>
-<html lang="es-GT">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Grilla inicial Nucleo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
 <style>
-  /* Layout: el perfil de Instagram como pieza central (cuadrícula 3:4 real), y debajo
-     el guion de publicación en orden 12 → 1. Fondo ink como el manual; el naranja solo en el punto y el botón. */
+  /* Layout: a la izquierda la tesis y las reglas, a la derecha el perfil de Instagram
+     tal como se ve (cuadrícula 3:4); debajo, el guion de publicación 12 → 1.
+     Paleta de la marca: ink + paneles; el naranja solo en el punto y en el número. */
   :root {
-    --grafito: #0A0A0B;
+    --bg: #0A0A0B;
     --panel: #141416;
-    --linea: rgba(255,255,255,.09);
-    --texto: #E7E9EC;
-    --tenue: #8B9098;
-    --lima: #FC4C02;
-    --turq: rgba(255,255,255,.55);
+    --fg: #F2F0F2;
+    --tenue: rgba(242, 240, 242, .6);
+    --linea: rgba(242, 240, 242, .1);
+    --flame: #FC4C02;
+    --tel: #000000;
+    --tel-fg: #FFFFFF;
+    --tel-tenue: #C8C6CA;
+    --tel-linea: #262626;
+    --btn-bg: #F2F0F2;
+    --btn-fg: #0A0A0B;
+    --visor: rgba(5, 5, 6, .92);
     --display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
     --cuerpo: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
     color-scheme: dark;
   }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #E8E5E9; --panel: #FFFFFF; --fg: #0A0A0B; --tenue: rgba(10, 10, 11, .6); --linea: rgba(10, 10, 11, .1);
+      --btn-bg: #0A0A0B; --btn-fg: #FFFFFF; --visor: rgba(232, 229, 233, .94); color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #E8E5E9; --panel: #FFFFFF; --fg: #0A0A0B; --tenue: rgba(10, 10, 11, .6); --linea: rgba(10, 10, 11, .1);
+    --btn-bg: #0A0A0B; --btn-fg: #FFFFFF; --visor: rgba(232, 229, 233, .94); color-scheme: light;
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--grafito); color: var(--texto); font: 15px/1.6 var(--cuerpo); }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 var(--cuerpo); }
   .envoltura { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 40px 72px; }
   @media (min-width: 760px) { .envoltura { padding-inline: 32px; } }
-  .p { color: var(--lima); }
-  .k { font: 500 11px "JetBrains Mono", monospace; letter-spacing: .3em; text-transform: uppercase; color: var(--turq); }
-  h1, h2 { font-family: var(--display); letter-spacing: -.025em; line-height: 1.04; margin: 0; text-wrap: balance; color: #fff; }
-  h1 { font-size: clamp(2.2rem, 6vw, 4rem); font-weight: 500; letter-spacing: -.04em; text-transform: lowercase; margin-top: 10px; }
-  h2 { font-size: clamp(1.5rem, 3.4vw, 2.1rem); font-weight: 500; letter-spacing: -.04em; text-transform: lowercase; margin-top: 6px; }
-  .lead { color: var(--tenue); max-width: 62ch; margin: 14px 0 0; font-size: 1.02rem; }
+  .p { color: var(--flame); }
+  .k { display: inline-flex; align-items: center; gap: 10px; font: 500 11px var(--mono); letter-spacing: .3em; text-transform: uppercase; color: var(--tenue); }
+  .k::before { content: ""; width: 6px; height: 6px; border-radius: 99px; background: var(--flame); flex: none; }
+  h1, h2 { font-family: var(--display); font-weight: 500; letter-spacing: -.04em; line-height: 1.02; margin: 0; text-wrap: balance; text-transform: lowercase; }
+  h1 { font-size: clamp(2.4rem, 6.5vw, 4.4rem); margin-top: 12px; }
+  h2 { font-size: clamp(1.6rem, 3.6vw, 2.3rem); margin-top: 8px; }
+  .lead { color: var(--tenue); max-width: 60ch; margin: 16px 0 0; font-size: 1.02rem; }
 
-  .cabecera { display: grid; gap: 32px; align-items: start; }
-  @media (min-width: 900px) { .cabecera { grid-template-columns: minmax(0,1fr) 420px; gap: 56px; } }
+  .cabecera { display: grid; gap: 36px; align-items: start; }
+  @media (min-width: 900px) { .cabecera { grid-template-columns: minmax(0, 1fr) 420px; gap: 56px; } }
 
-  /* Teléfono: el perfil tal como se ve */
-  .telefono { background: #000; border: 1px solid var(--linea); border-radius: 28px; padding: 18px 0 0; overflow: hidden; max-width: 420px; width: 100%; justify-self: center; }
+  .datos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--linea); border: 1px solid var(--linea); border-radius: 14px; overflow: hidden; margin-top: 28px; max-width: 520px; }
+  .datos div { background: var(--bg); padding: 14px 16px; min-width: 0; }
+  .datos strong { display: block; font: 500 1.5rem var(--display); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .datos small { color: var(--tenue); font-size: 12.5px; }
+  .notas { margin: 24px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; max-width: 60ch; color: var(--tenue); font-size: 14px; }
+  .notas b { color: var(--fg); font-weight: 600; }
+
+  /* El teléfono es Instagram: negro siempre, en los dos temas. */
+  .telefono { background: var(--tel); color: var(--tel-fg); border: 1px solid var(--linea); border-radius: 28px; padding: 18px 0 0; overflow: hidden; max-width: 420px; width: 100%; justify-self: center; }
   .perfil { display: flex; gap: 16px; align-items: center; padding: 0 16px 14px; }
   .perfil img { width: 72px; height: 72px; border-radius: 50%; flex: none; }
-  .perfil b { display: block; color: #fff; font-size: 15px; }
-  .perfil span { display: block; font-size: 12.5px; color: #cfd2d6; line-height: 1.4; }
-  .pestanas { border-top: 1px solid #262626; text-align: center; font-size: 11px; letter-spacing: .12em; color: #fff; padding: 9px 0; }
+  .perfil div { min-width: 0; }
+  .perfil b { display: block; font-size: 15px; }
+  .perfil span { display: block; font-size: 12.5px; color: var(--tel-tenue); line-height: 1.4; }
+  .pestanas { border-top: 1px solid var(--tel-linea); text-align: center; font: 600 11px var(--cuerpo); letter-spacing: .12em; padding: 9px 0; }
   .cuadricula { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
-  .cuadricula button { all: unset; cursor: pointer; aspect-ratio: 3/4; overflow: hidden; position: relative; display: block; }
+  .cuadricula button { all: unset; cursor: pointer; aspect-ratio: 3 / 4; max-width: 100%; overflow: hidden; display: block; }
   .cuadricula button img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .25s ease; }
   .cuadricula button:hover img { transform: scale(1.03); }
-  .cuadricula button:focus-visible { outline: 2px solid var(--lima); outline-offset: -2px; }
+  .cuadricula button:focus-visible { outline: 2px solid var(--flame); outline-offset: -2px; }
 
-  .datos { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1px; background: var(--linea); border: 1px solid var(--linea); border-radius: 14px; overflow: hidden; margin-top: 28px; max-width: 520px; }
-  .datos div { background: var(--grafito); padding: 14px 16px; }
-  .datos strong { display: block; font: 700 1.6rem var(--display); color: #fff; font-variant-numeric: tabular-nums; }
-  .datos small { color: var(--tenue); font-size: 12.5px; }
-  .notas { margin: 22px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; max-width: 62ch; color: var(--tenue); font-size: 14px; }
-  .notas b { color: var(--texto); font-weight: 600; }
-
-  /* Guion */
-  .guion { margin-top: 64px; }
-  .lista { display: grid; gap: 14px; margin-top: 22px; }
-  .fila { display: grid; grid-template-columns: 112px minmax(0,1fr); gap: 18px; padding: 14px; background: var(--panel); border: 1px solid var(--linea); border-radius: 16px; scroll-margin-top: 16px; }
-  @media (min-width: 760px) { .fila { grid-template-columns: 150px minmax(0,1fr) auto; align-items: start; } }
-  .fila img { width: 100%; aspect-ratio: 4/5; object-fit: cover; border-radius: 10px; display: block; cursor: zoom-in; }
+  .guion { margin-top: 72px; }
+  .lista { display: grid; gap: 12px; margin-top: 24px; }
+  .fila { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 18px; padding: 14px; background: var(--panel); border-radius: 16px; }
+  @media (min-width: 760px) { .fila { grid-template-columns: 150px minmax(0, 1fr) auto; align-items: start; } }
+  .fila img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 10px; display: block; cursor: zoom-in; }
   .meta { min-width: 0; }
-  .orden { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
-  .orden .n { font: 700 1.2rem var(--display); color: var(--lima); font-variant-numeric: tabular-nums; }
-  .titular { font: 700 1.2rem/1.2 var(--display); color: #fff; letter-spacing: -.015em; margin: 4px 0 8px; }
-  .caption { white-space: pre-wrap; color: #C9CDD2; font-size: 14px; margin: 0; }
+  .orden { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  .orden .n { font: 500 1.3rem var(--display); color: var(--flame); font-variant-numeric: tabular-nums; }
+  .orden .k::before { display: none; }
+  .titular { font: 500 1.25rem/1.15 var(--display); letter-spacing: -.02em; margin: 6px 0 8px; text-transform: lowercase; }
+  .caption { white-space: pre-wrap; color: var(--tenue); font-size: 14px; margin: 0; overflow-wrap: anywhere; }
   .acciones { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
   @media (min-width: 760px) { .acciones { grid-column: auto; flex-direction: column; } }
-  .btn { font: 600 13px var(--cuerpo); color: var(--grafito); background: #fff; border: 0; border-radius: 99px; padding: 9px 16px; cursor: pointer; white-space: nowrap; }
-  .btn.sec { background: transparent; color: var(--texto); border: 1px solid var(--linea); }
-  .btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .btn { font: 600 13px var(--cuerpo); color: var(--btn-fg); background: var(--btn-bg); border: 0; border-radius: 99px; padding: 9px 16px; cursor: pointer; white-space: nowrap; }
+  .btn.sec { background: transparent; color: var(--fg); border: 1px solid var(--linea); }
+  .btn:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; }
+  .tira { display: flex; gap: 6px; margin: 10px 0 12px; overflow-x: auto; }
+  .tira button { all: unset; cursor: zoom-in; flex: none; width: 64px; aspect-ratio: 4 / 5; border-radius: 6px; overflow: hidden; }
+  .tira button:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; }
+  .tira img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+  .flechas { display: flex; justify-content: center; gap: 8px; margin-top: 12px; }
+  .flechas .btn:disabled { opacity: .35; cursor: default; }
   .creditos { margin-top: 48px; color: var(--tenue); font-size: 13px; max-width: 70ch; }
 
-  /* Visor */
-  /* hidden no oculta solo: .visor{display:grid} le gana al estilo del navegador. */
-  .visor[hidden] { display: none; }
-  .visor { position: fixed; inset: 0; background: rgba(5,6,8,.92); display: grid; place-items: center; padding: 24px 16px; z-index: 10; }
-  .visor img { max-height: 86vh; max-width: 100%; border-radius: 12px; }
+  .visor { position: fixed; inset: 0; background: var(--visor); display: grid; place-items: center; padding: 24px 16px; z-index: 10; }
+  .visor img { max-height: 82vh; max-width: 100%; border-radius: 12px; display: block; margin: 0 auto; }
   .visor p { margin: 12px 0 0; text-align: center; color: var(--tenue); font-size: 13px; }
   .visor .cerrar { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 16px; }
   @media (prefers-reduced-motion: reduce) { .cuadricula button img { transition: none; } }
@@ -86,25 +105,26 @@
 <div class="envoltura">
   <section class="cabecera">
     <div>
-      <div class="k">Instagram · @nucleo.fit.app</div>
+      <span class="k">Instagram · @nucleo.fit.app</span>
       <h1>grilla inicial de nucleo<span class="p">.</span></h1>
-      <p class="lead">Las 12 publicaciones con las que arranca el perfil. A la derecha, el perfil tal como se ve; abajo, cada pieza con su texto listo para copiar, en el orden en que se publica.</p>
+      <p class="lead">Las 12 publicaciones con las que arranca el perfil, para dueños de gimnasios y boxes de cualquier disciplina. A la derecha, el perfil tal como se verá; abajo, cada pieza con su texto listo para copiar, en el orden en que se publica.</p>
       <div class="datos">
         <div><strong>12</strong><small>piezas</small></div>
         <div><strong>1080×1350</strong><small>formato 4:5</small></div>
         <div><strong>12 → 1</strong><small>orden de publicación</small></div>
       </div>
       <ul class="notas">
-        <li><b>Se publica al revés.</b> Instagram pone la más reciente arriba a la izquierda, así que la 12 sale primero y la 1 al final.</li>
-        <li><b>Espaciadas.</b> A una cuenta nueva no conviene soltarle doce publicaciones juntas: mejor una o dos por día.</li>
-        <li><b>Recorte 3:4.</b> La cuadrícula del perfil recorta los lados de cada pieza; ningún texto queda en esa franja.</li>
+        <li><b>Se publica al revés.</b> Instagram pone la más reciente arriba a la izquierda: la pieza 12 sale primero y la 1 al final.</li>
+        <li><b>Espaciadas.</b> A una cuenta nueva no conviene soltarle doce publicaciones juntas; mejor una o dos por día.</li>
+        <li><b>Damero.</b> Cada fila alterna foto en negro y producto en claro. El naranja aparece una vez por pieza: el punto final del titular.</li>
+        <li><b>Recorte 3:4.</b> El perfil recorta los lados de cada pieza; ningún texto queda en esa franja.</li>
       </ul>
     </div>
 
-    <div class="telefono" aria-label="Vista del perfil">
+    <div class="telefono" aria-label="Vista previa del perfil de Instagram">
       <div class="perfil">
         <img src="finales/avatar.png" alt="Foto de perfil de Nucleo">
-        <div><b>nucleo.fit.app</b><span>Nucleo · Software para gimnasios y boxes<br>Cobros, clases y retención en un solo lugar<br>App del atleta en App Store 🇬🇹</span></div>
+        <div><b>nucleo.fit.app</b><span>Nucleo · Software para gyms<br>Deja de perder alumnos.<br>Cobros, clases y retención para tu gym o box 🇬🇹<br>App del atleta en App Store<br>👇 Agenda tu demo</span></div>
       </div>
       <div class="pestanas">▦ PUBLICACIONES</div>
       <div class="cuadricula" id="cuadricula"></div>
@@ -112,17 +132,18 @@
   </section>
 
   <section class="guion">
-    <div class="k">Guion de publicación</div>
+    <span class="k">Guion de publicación</span>
     <h2>pieza por pieza, en orden</h2>
     <div class="lista" id="lista"></div>
   </section>
 
-  <p class="creditos">Fotos de Unsplash con licencia libre (ninguna de Unsplash+), en blanco y negro y revisadas a tamaño real: sin marcas legibles ni rostros protagonistas. Las piezas claras muestran el producto con datos de ejemplo; los nombres son ficticios. Ver CREDITOS-IMAGENES.md.</p>
+  <p class="creditos">Fotos de Unsplash con licencia libre (ninguna de Unsplash+), en blanco y negro y revisadas a tamaño completo: sin marcas legibles ni rostros protagonistas. La pieza 4 es un carrusel de 5 láminas. Las piezas claras muestran el producto con datos de ejemplo; los nombres son ficticios. WhatsApp de la demo: +502 4219 3692.</p>
 </div>
 
 <div class="visor" id="visor" hidden>
   <button class="btn sec cerrar" id="cerrar" type="button">Cerrar</button>
-  <div><img id="visor-img" alt=""><p id="visor-pie"></p></div>
+  <div><img id="visor-img" alt=""><p id="visor-pie"></p>
+    <div class="flechas"><button class="btn sec" id="previa" type="button" hidden>← Anterior</button><button class="btn sec" id="siguiente" type="button" hidden>Siguiente →</button></div></div>
 </div>
 
 <script>
@@ -132,77 +153,89 @@ const PIEZAS = [
   "n": 1,
   "f": "01-deja-de-perder-alumnos",
   "t": "Deja de perder alumnos.",
-  "c": "Nucleo es el software para gimnasios y boxes que te avisa quién está dejando de venir, antes de que se vaya.\n\nCobros, clases, coaches y retención en un solo lugar.\n\n🔗 Enlace en el perfil\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #softwaregimnasio"
+  "c": "Nucleo es el software para gimnasios y boxes que te avisa quién está dejando de venir, antes de que se vaya.\n\nCobros, clases, coaches y retención en un solo lugar.\n\n🔗 Enlace en el perfil\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #softwaregimnasio",
+  "l": 1
  },
  {
   "n": 2,
   "f": "02-alumnos-en-riesgo",
   "t": "3 alumnos en riesgo.",
-  "c": "Cuando un alumno pasa varios días sin entrenar, aparece en tu panel. Tú decides cuántos días cuentan.\n\nY Nucleo le escribe solo: «Te extrañamos, reserva tu próxima clase».\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #retencion"
+  "c": "Cuando un alumno pasa varios días sin entrenar, aparece en tu panel. Tú decides cuántos días cuentan.\n\nY Nucleo le escribe solo: «Te extrañamos, reserva tu próxima clase».\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #retencion",
+  "l": 1
  },
  {
   "n": 3,
   "f": "03-cobro-solo",
   "t": "El cobro llega solo.",
-  "c": "El atleta guarda su tarjeta en el app y la mensualidad se cobra sola cada mes. Quién está al día y quién no, lo ves en el panel, no a fin de mes.\n\nAgenda tu demo por WhatsApp: +502 3948 5323\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt"
+  "c": "El atleta guarda su tarjeta en el app y la mensualidad se cobra sola cada mes. Quién está al día y quién no, lo ves en el panel, no a fin de mes.\n\nAgenda tu demo por WhatsApp: +502 4219 3692\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt",
+  "l": 1
  },
  {
   "n": 4,
   "f": "04-horario",
-  "t": "Tu horario, lleno y en orden.",
-  "c": "Armas tu horario semanal una vez y las clases se generan solas. Tus atletas reservan desde el app y, si la clase se llena, entran a la lista de espera.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #boxguatemala"
+  "t": "Todas tus clases, en un solo horario.",
+  "c": "En Nucleo las disciplinas las creas tú: CrossFit, pilates, funcional, yoga, spinning o la que des en tu gym. Cada una con sus clases, sus cupos y sus planes, en un mismo horario. Lo armas una vez y las clases se generan solas; tus atletas reservan desde el app.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #pilatesguatemala",
+  "l": 1
  },
  {
   "n": 5,
   "f": "05-asistencia-qr",
   "t": "La asistencia se pasa sola.",
-  "c": "Al terminar la clase, cada atleta escanea el QR de la clase con el app y su asistencia queda registrada.\n\nSin cuaderno ni lista en papel.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt"
+  "c": "Al terminar la clase, cada atleta escanea el QR de la clase con el app y su asistencia queda registrada.\n\nSin cuaderno ni lista en papel.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt",
+  "l": 1
  },
  {
   "n": 6,
   "f": "06-wod",
   "t": "Cada score, en su pizarra.",
-  "c": "Publicas el WOD del día y cada atleta sube su score desde el app. La pizarra se ordena sola: RX, Scaled y Foundations.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #wod"
+  "c": "Publicas el WOD del día y cada atleta sube su score desde el app. La pizarra se ordena sola: RX, Scaled y Foundations.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #wod",
+  "l": 1
  },
  {
   "n": 7,
   "f": "07-rachas",
   "t": "Rachas que nadie quiere romper.",
-  "c": "Cada clase suma puntos y alarga la racha del atleta. Insignias, marcas personales y el atleta del mes: razones para no faltar.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #comunidadfitness"
+  "c": "Cada clase suma puntos y alarga la racha del atleta. Insignias, marcas personales y el atleta del mes: razones para no faltar.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #comunidadfitness",
+  "l": 1
  },
  {
   "n": 8,
   "f": "08-pagos",
   "t": "Tarjeta, efectivo o transferencia.",
-  "c": "No todos pagan con tarjeta. Los pagos en efectivo y por transferencia se registran en el panel y activan la membresía igual.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #boxguatemala"
+  "c": "No todos pagan con tarjeta. Los pagos en efectivo y por transferencia se registran en el panel y activan la membresía igual.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #boxguatemala",
+  "l": 1
  },
  {
   "n": 9,
   "f": "09-drop-in",
   "t": "El drop-in paga antes de entrar.",
-  "c": "El atleta que viene de visita compra su drop-in en el app y llega con su QR. Tú solo lo recibes.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #dropin"
+  "c": "El atleta que viene de visita compra su drop-in en el app y llega con su QR. Tú solo lo recibes.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #dropin",
+  "l": 1
  },
  {
   "n": 10,
   "f": "10-coaches",
   "t": "La paga del coach, ya cuadrada.",
-  "c": "Asignas coach a cada clase y, si una se queda sin coach, se les ofrece a los demás. A fin de mes la liquidación sale sola: por clase o fijo más extra.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #coach"
+  "c": "Asignas coach a cada clase y, si una se queda sin coach, se les ofrece a los demás. A fin de mes la liquidación sale sola: por clase o fijo más extra.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #coach",
+  "l": 1
  },
  {
   "n": 11,
   "f": "11-historial",
   "t": "Llega con su historial.",
-  "c": "En Nucleo el atleta es uno solo: su perfil y sus marcas personales viajan con él. Lo que pasa en tu box (pagos y asistencia) es solo de tu box.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt"
+  "c": "En Nucleo el atleta es uno solo: su perfil y sus marcas personales viajan con él. Lo que pasa en tu box (pagos y asistencia) es solo de tu box.\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt",
+  "l": 1
  },
  {
   "n": 12,
   "f": "12-presentacion",
-  "t": "El software de tu box.",
-  "c": "Nucleo es software para gimnasios y boxes, hecho en Guatemala 🇬🇹\n\nPara ti: cobros, clases, coaches, inventario y retención en un panel.\nPara tus atletas: un app para reservar, hacer check-in, ver el WOD y seguir su progreso.\n\nAgenda tu demo por WhatsApp: +502 3948 5323\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #softwaregimnasio"
+  "t": "El software de tu gimnasio o box.",
+  "c": "Nucleo es software para gimnasios y boxes, hecho en Guatemala 🇬🇹\n\nPara ti: cobros, clases, coaches, inventario y retención en un panel.\nPara tus atletas: un app para reservar, hacer check-in, ver el WOD y seguir su progreso.\n\nAgenda tu demo por WhatsApp: +502 4219 3692\n\n#gimnasioguatemala #crossfitguatemala #fitnessgt #softwaregimnasio",
+  "l": 1
  }
 ];
 // PIEZAS:fin
-const src = p => `finales/${p.f}.png`;
+const src = (p, l = 1) => `finales/${p.f}${l > 1 ? "-" + l : ""}.png`;
 
 const cuadricula = document.getElementById("cuadricula");
 const lista = document.getElementById("lista");
@@ -210,7 +243,7 @@ for (const p of PIEZAS) {
   const b = document.createElement("button");
   b.type = "button";
   b.setAttribute("aria-label", `Pieza ${p.n}: ${p.t}`);
-  b.innerHTML = `<img src="${src(p)}" alt="" loading="lazy">`;
+  b.innerHTML = `<img src="${src(p)}" alt="">`;
   b.addEventListener("click", () => abrir(p));
   cuadricula.append(b);
 }
@@ -222,14 +255,16 @@ for (const p of [...PIEZAS].reverse()) {
   fila.innerHTML = `
     <img src="${src(p)}" alt="Pieza ${p.n}: ${p.t}" loading="lazy">
     <div class="meta">
-      <div class="orden"><span class="n">${String(paso).padStart(2, "0")}</span><span class="k">Se publica en ${paso === 1 ? "primer" : paso + "º"} lugar · pieza ${p.n} de la grilla</span></div>
-      <div class="titular">${p.t}</div>
+      <div class="orden"><span class="n">${String(paso).padStart(2, "0")}</span><span class="k">Se publica ${paso === 1 ? "primero" : "en el lugar " + paso} · pieza ${p.n} de la grilla</span></div>
+      <div class="titular"></div>
+      ${p.l > 1 ? `<div class="tira">${Array.from({ length: p.l }, (_, i) => `<button type="button" data-ver="${p.n}" data-l="${i + 1}" aria-label="Lámina ${i + 1} de ${p.l}"><img src="${src(p, i + 1)}" alt="" loading="lazy"></button>`).join("")}</div>` : ""}
       <p class="caption" id="texto-${p.n}"></p>
     </div>
     <div class="acciones">
       <button class="btn" type="button" data-copiar="${p.n}">Copiar texto</button>
       <button class="btn sec" type="button" data-ver="${p.n}">Ver grande</button>
     </div>`;
+  fila.querySelector(".titular").textContent = p.t;
   fila.querySelector(".caption").textContent = p.c;
   fila.querySelector("img").addEventListener("click", () => abrir(p));
   lista.append(fila);
@@ -237,7 +272,7 @@ for (const p of [...PIEZAS].reverse()) {
 
 lista.addEventListener("click", async e => {
   const ver = e.target.closest("[data-ver]");
-  if (ver) return abrir(PIEZAS[ver.dataset.ver - 1]);
+  if (ver) return abrir(PIEZAS[ver.dataset.ver - 1], Number(ver.dataset.l || 1));
   const b = e.target.closest("[data-copiar]");
   if (!b) return;
   const p = PIEZAS[b.dataset.copiar - 1];
@@ -254,15 +289,38 @@ lista.addEventListener("click", async e => {
 });
 
 const visor = document.getElementById("visor");
-function abrir(p) {
-  document.getElementById("visor-img").src = src(p);
-  document.getElementById("visor-img").alt = p.t;
-  document.getElementById("visor-pie").textContent = `Pieza ${p.n} · ${p.t} · Para guardarla, mantén presionada la imagen o usa clic derecho.`;
+let origen = null, actual = null, lamina = 1;
+function pintar() {
+  const p = actual, img = document.getElementById("visor-img");
+  img.src = src(p, lamina);
+  img.alt = p.t;
+  const parte = p.l > 1 ? ` · lámina ${lamina} de ${p.l}` : "";
+  document.getElementById("visor-pie").textContent = `Pieza ${p.n}${parte} · ${p.t} · Para guardarla, mantén presionada la imagen o usa clic derecho.`;
+  document.getElementById("previa").hidden = document.getElementById("siguiente").hidden = !(p.l > 1);
+  document.getElementById("previa").disabled = lamina === 1;
+  document.getElementById("siguiente").disabled = lamina === p.l;
+}
+function abrir(p, l = 1) {
+  if (visor.hidden) origen = document.activeElement;
+  actual = p; lamina = l;
+  pintar();
   visor.hidden = false;
   document.getElementById("cerrar").focus();
 }
-function cerrar() { visor.hidden = true; }
+function mover(d) {
+  if (!actual || !(actual.l > 1)) return;
+  lamina = Math.min(actual.l, Math.max(1, lamina + d));
+  pintar();
+}
+document.getElementById("previa").addEventListener("click", () => mover(-1));
+document.getElementById("siguiente").addEventListener("click", () => mover(1));
+function cerrar() { visor.hidden = true; origen?.focus?.(); }
 document.getElementById("cerrar").addEventListener("click", cerrar);
 visor.addEventListener("click", e => { if (e.target === visor) cerrar(); });
-addEventListener("keydown", e => { if (e.key === "Escape") cerrar(); });
+addEventListener("keydown", e => {
+  if (visor.hidden) return;
+  if (e.key === "Escape") cerrar();
+  if (e.key === "ArrowLeft") mover(-1);
+  if (e.key === "ArrowRight") mover(1);
+});
 </script>

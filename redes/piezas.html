@@ -17,6 +17,8 @@
   .foto { position:absolute; inset:0; background-size:cover; background-position:center; filter:contrast(1.05) brightness(.82); }
   .scrim { position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,10,11,.7) 0%, rgba(10,10,11,0) 24%, rgba(10,10,11,.05) 45%, rgba(10,10,11,.92) 100%); }
   /* Nada importante a menos de ~4 % de los lados: el perfil recorta a 3:4. */
+  /* Fotos con cielo o paredes claras arriba: más velo bajo el logo. */
+  .scrim.fuerte { background:linear-gradient(180deg, rgba(10,10,11,.88) 0%, rgba(10,10,11,.2) 26%, rgba(10,10,11,.05) 45%, rgba(10,10,11,.92) 100%); }
   .marca { position:absolute; top:6.5cqh; left:10cqw; height:3.6cqh; z-index:2; }
   .txt { position:absolute; left:10cqw; right:10cqw; bottom:8cqh; z-index:2; }
   .e { display:flex; align-items:center; gap:1.6cqw; font:500 1.75cqh "JetBrains Mono"; letter-spacing:.3em; text-transform:uppercase; color:rgba(255,255,255,.65); }
@@ -40,6 +42,13 @@
   .chip { font:500 1.55cqh "JetBrains Mono"; letter-spacing:.14em; text-transform:uppercase; background:var(--sub); color:var(--ink); padding:.8cqh 2.2cqw; border-radius:99px; white-space:nowrap; }
   .chip.ok { background:var(--ink); color:#fff; }
   .num { font:500 30cqh/.9 "Space Grotesk"; letter-spacing:-.06em; }
+  .puesto { display:inline-flex; align-items:center; gap:2.4cqw; }
+  .medalla { width:6.4cqh; height:6.4cqh; flex:none; }
+  /* Contador del carrusel: arriba a la derecha, dentro del recorte 3:4. */
+  .cont { position:absolute; top:6.6cqh; right:10cqw; z-index:2; font:500 1.75cqh "JetBrains Mono"; letter-spacing:.2em; color:rgba(255,255,255,.75); }
+  .clara .cont { color:rgba(0,0,0,.6); }
+  .chips { display:flex; flex-wrap:wrap; gap:1.2cqh 2cqw; }
+  .chips .chip { font-size:1.75cqh; padding:1.1cqh 2.8cqw; }
   .monto { font-family:Inter; font-weight:600; letter-spacing:-.02em; color:var(--ink); }
   .cta { display:inline-flex; align-items:center; gap:2.4cqw; margin-top:3cqh; font:500 2cqh "JetBrains Mono"; letter-spacing:.22em; text-transform:uppercase; }
   .cta::before { content:"›"; display:grid; place-items:center; width:5.2cqh; height:5.2cqh; border-radius:1.2cqh; background:var(--flame); color:#fff; font:500 4cqh/1 Inter; letter-spacing:0; }
@@ -50,9 +59,9 @@
 
 <!-- 1 · Manifiesto (foto) -->
 <div class="pieza" data-n="1">
-  <div class="foto" style="background-image:url(fotos/vacio.jpg);background-position:62% 50%"></div><div class="scrim"></div>
+  <div class="foto" style="background-image:url(fotos/crossfit.jpg);background-position:50% 45%"></div><div class="scrim"></div>
   <img class="marca" src="../public/marca/logotipo-sobre-oscuro.svg" alt="">
-  <div class="txt"><div class="e">Software para tu box</div><div class="t" style="font-size:9cqh">deja de perder alumnos<span class="p">.</span></div></div>
+  <div class="txt"><div class="e">Software para gimnasios y boxes</div><div class="t" style="font-size:9cqh">deja de perder alumnos<span class="p">.</span></div></div>
 </div>
 
 <!-- 2 · Riesgo (clara, dato) -->
@@ -70,7 +79,7 @@
 
 <!-- 3 · Cobro recurrente (foto) -->
 <div class="pieza" data-n="3">
-  <div class="foto" style="background-image:url(fotos/grupo.jpg);background-position:40% 50%"></div><div class="scrim"></div>
+  <div class="foto" style="background-image:url(fotos/gimnasio.jpg);background-position:40% 50%"></div><div class="scrim fuerte"></div>
   <img class="marca" src="../public/marca/logotipo-sobre-oscuro.svg" alt="">
   <div class="txt"><div class="e">Cobros con tarjeta</div><div class="t">el cobro llega solo<span class="p">.</span></div></div>
 </div>
@@ -79,11 +88,11 @@
 <div class="pieza clara" data-n="4">
   <img class="marca" src="../public/marca/logotipo-sobre-claro.svg" alt="">
   <div class="bento">
-    <div class="m" style="margin-bottom:.6cqh">Martes · reservas</div>
-    <div class="c"><div class="fila"><span><b>06:00</b> · CrossFit</span><span class="chip ok">20/20</span></div><div class="fila"><span><b>07:00</b> · CrossFit</span><span class="chip">16/20</span></div><div class="fila"><span><b>18:00</b> · Halterofilia</span><span class="chip ok">12/12</span></div></div>
-    <div class="c negra"><div class="fila"><span><b>Lista de espera</b> · 06:00</span><span class="m">3 atletas</span></div></div>
+    <div class="m" style="margin-bottom:.6cqh">Martes · horario</div>
+    <div class="c"><div class="fila"><span><b>06:00</b> · CrossFit</span><span class="chip ok">20/20</span></div><div class="fila"><span><b>08:00</b> · Pilates</span><span class="chip">8/10</span></div><div class="fila"><span><b>12:00</b> · Funcional</span><span class="chip">14/20</span></div><div class="fila"><span><b>18:00</b> · Gimnasio</span><span class="chip">32/40</span></div></div>
+    <div class="c negra"><div class="fila"><span><b>+ Nueva disciplina</b> · la que des</span><span class="m">con sus planes</span></div></div>
   </div>
-  <div class="txt"><div class="e">Clases y reservas</div><div class="t">tu horario, lleno y en orden<span class="p">.</span></div></div>
+  <div class="txt"><div class="e">Clases de cualquier disciplina</div><div class="t">todas tus clases, en un solo horario<span class="p">.</span></div></div>
 </div>
 
 <!-- 5 · Check-in QR (foto) -->
@@ -98,7 +107,7 @@
   <img class="marca" src="../public/marca/logotipo-sobre-claro.svg" alt="">
   <div class="bento">
     <div class="c negra"><div class="m">WOD · For time</div><div style="font:500 3.6cqh/1.25 'Space Grotesk';color:#fff;margin-top:1.4cqh;letter-spacing:-.02em">21-15-9<br>thrusters · pull-ups</div></div>
-    <div class="c"><div class="fila"><span><b>1</b> · Andrea M.</span><span><b>4:12</b> <span class="chip">RX</span></span></div><div class="fila"><span><b>2</b> · Luis G.</span><span><b>4:38</b> <span class="chip">RX</span></span></div><div class="fila"><span><b>3</b> · Sofía P.</span><span><b>5:01</b> <span class="chip">Scaled</span></span></div></div>
+    <div class="c"><div class="fila"><span class="puesto"><svg class="medalla" viewBox="0 0 24 24" aria-label="1º lugar"><g fill="none" stroke="#0A0A0B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15"/><path d="M11 12 5.12 2.2"/><path d="m13 12 5.88-9.8"/><path d="M8 7h8"/></g><circle cx="12" cy="16.6" r="6.6" fill="#0A0A0B" stroke="#0A0A0B" stroke-width="1.2"/><text x="12" y="19.9" text-anchor="middle" font-family="Space Grotesk" font-weight="600" font-size="9.2" fill="#fff">1</text></svg>Andrea M.</span><span><b>4:12</b> <span class="chip">RX</span></span></div><div class="fila"><span class="puesto"><svg class="medalla" viewBox="0 0 24 24" aria-label="2º lugar"><g fill="none" stroke="#0A0A0B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15"/><path d="M11 12 5.12 2.2"/><path d="m13 12 5.88-9.8"/><path d="M8 7h8"/></g><circle cx="12" cy="16.6" r="6.6" fill="#9C989E" stroke="#0A0A0B" stroke-width="1.2"/><text x="12" y="19.9" text-anchor="middle" font-family="Space Grotesk" font-weight="600" font-size="9.2" fill="#fff">2</text></svg>Luis G.</span><span><b>4:38</b> <span class="chip">RX</span></span></div><div class="fila"><span class="puesto"><svg class="medalla" viewBox="0 0 24 24" aria-label="3º lugar"><g fill="none" stroke="#0A0A0B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15"/><path d="M11 12 5.12 2.2"/><path d="m13 12 5.88-9.8"/><path d="M8 7h8"/></g><circle cx="12" cy="16.6" r="6.6" fill="#EBE8EB" stroke="#0A0A0B" stroke-width="1.2"/><text x="12" y="19.9" text-anchor="middle" font-family="Space Grotesk" font-weight="600" font-size="9.2" fill="#0A0A0B">3</text></svg>Sofía P.</span><span><b>5:01</b> <span class="chip">Scaled</span></span></div></div>
   </div>
   <div class="txt"><div class="e">WOD del día</div><div class="t">cada score, en su pizarra<span class="p">.</span></div></div>
 </div>
@@ -123,7 +132,7 @@
 
 <!-- 9 · Drop-in (foto) -->
 <div class="pieza" data-n="9">
-  <div class="foto" style="background-image:url(fotos/argollas.jpg);background-position:35% 50%"></div><div class="scrim"></div>
+  <div class="foto" style="background-image:url(fotos/funcional.jpg);background-position:13% 50%"></div><div class="scrim fuerte"></div>
   <img class="marca" src="../public/marca/logotipo-sobre-oscuro.svg" alt="">
   <div class="txt"><div class="e">Drop-ins</div><div class="t">el drop-in paga antes de entrar<span class="p">.</span></div></div>
 </div>
@@ -141,7 +150,7 @@
 
 <!-- 11 · Athlete Passport (foto) -->
 <div class="pieza" data-n="11">
-  <div class="foto" style="background-image:url(fotos/agarre.jpg);background-position:50% 60%"></div><div class="scrim"></div>
+  <div class="foto" style="background-image:url(fotos/pilates.jpg);background-position:50% 40%"></div><div class="scrim fuerte"></div>
   <img class="marca" src="../public/marca/logotipo-sobre-oscuro.svg" alt="">
   <div class="txt"><div class="e">Perfil del atleta</div><div class="t">llega con su historial<span class="p">.</span></div></div>
 </div>
@@ -152,12 +161,14 @@
   <div style="position:absolute;top:22cqh;left:10cqw;right:10cqw">
     <img src="../public/marca/isotipo-sobre-claro.svg" alt="" style="height:16cqh">
   </div>
-  <div class="txt"><div class="e">Hecho en Guatemala</div><div class="t">el software de tu box<span class="p">.</span></div><div class="sub">Cobros, clases, coaches y retención en un solo lugar. Y un app para tus atletas.</div><div class="cta">Agenda tu demo</div></div>
+  <div class="txt"><div class="e">Hecho en Guatemala</div><div class="t">el software de tu gimnasio o box<span class="p">.</span></div><div class="sub">Cobros, clases, coaches y retención en un solo lugar. Y un app para tus atletas.</div><div class="cta">Agenda tu demo</div></div>
 </div>
 
 <script>
-  const n = new URLSearchParams(location.search).get("n") || "1";
-  document.querySelector(`.pieza[data-n="${n}"]`).classList.add("on");
+  const q = new URLSearchParams(location.search);
+  const n = q.get("n") || "1", l = q.get("l") || "1";
+  const sel = l === "1" ? `.pieza[data-n="${n}"]:not([data-l])` : `.pieza[data-n="${n}"][data-l="${l}"]`;
+  document.querySelector(sel).classList.add("on");
 </script>
 </body>
 </html>

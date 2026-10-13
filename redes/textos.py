@@ -19,7 +19,9 @@ import re
 
 AQUI = pathlib.Path(__file__).resolve().parent
 H = "#gimnasioguatemala #crossfitguatemala #fitnessgt"
-DEMO = "Agenda tu demo por WhatsApp: +502 3948 5323"
+DEMO = "Agenda tu demo por WhatsApp: +502 4219 3692"
+# Carruseles: cuántas láminas tiene la pieza (misma tabla que generar.py).
+LAMINAS = {}
 
 PIEZAS = [
     (1, "01-deja-de-perder-alumnos", "Deja de perder alumnos.",
@@ -31,9 +33,10 @@ PIEZAS = [
     (3, "03-cobro-solo", "El cobro llega solo.",
      "El atleta guarda su tarjeta en el app y la mensualidad se cobra sola cada mes. "
      "Quién está al día y quién no, lo ves en el panel, no a fin de mes.\n\n" + DEMO + "\n\n" + H),
-    (4, "04-horario", "Tu horario, lleno y en orden.",
-     "Armas tu horario semanal una vez y las clases se generan solas. "
-     "Tus atletas reservan desde el app y, si la clase se llena, entran a la lista de espera.\n\n" + H + " #boxguatemala"),
+    (4, "04-horario", "Todas tus clases, en un solo horario.",
+     "En Nucleo las disciplinas las creas tú: CrossFit, pilates, funcional, yoga, spinning o la que des en tu gym. "
+     "Cada una con sus clases, sus cupos y sus planes, en un mismo horario. "
+     "Lo armas una vez y las clases se generan solas; tus atletas reservan desde el app.\n\n" + H + " #pilatesguatemala"),
     (5, "05-asistencia-qr", "La asistencia se pasa sola.",
      "Al terminar la clase, cada atleta escanea el QR de la clase con el app y su asistencia queda registrada.\n\n"
      "Sin cuaderno ni lista en papel.\n\n" + H),
@@ -54,7 +57,7 @@ PIEZAS = [
     (11, "11-historial", "Llega con su historial.",
      "En Nucleo el atleta es uno solo: su perfil y sus marcas personales viajan con él. "
      "Lo que pasa en tu box (pagos y asistencia) es solo de tu box.\n\n" + H),
-    (12, "12-presentacion", "El software de tu box.",
+    (12, "12-presentacion", "El software de tu gimnasio o box.",
      "Nucleo es software para gimnasios y boxes, hecho en Guatemala 🇬🇹\n\n"
      "Para ti: cobros, clases, coaches, inventario y retención en un panel.\n"
      "Para tus atletas: un app para reservar, hacer check-in, ver el WOD y seguir su progreso.\n\n"
@@ -65,10 +68,12 @@ PIEZAS = [
 def main():
     bloques = []
     for paso, (n, f, t, c) in enumerate(reversed(PIEZAS), start=1):
-        bloques.append(f"== Publicación {paso} · pieza {n} · finales/{f}.png ==\n{t}\n\n{c}\n")
+        l = LAMINAS.get(n, 1)
+        archivos = f"finales/{f}.png" + (f" + {f}-2..{l}.png (carrusel de {l})" if l > 1 else "")
+        bloques.append(f"== Publicación {paso} · pieza {n} · {archivos} ==\n{t}\n\n{c}\n")
     (AQUI / "textos.txt").write_text("\n".join(bloques))
 
-    datos = [{"n": n, "f": f, "t": t, "c": c} for n, f, t, c in PIEZAS]
+    datos = [{"n": n, "f": f, "t": t, "c": c, "l": LAMINAS.get(n, 1)} for n, f, t, c in PIEZAS]
     js = "const PIEZAS = " + json.dumps(datos, ensure_ascii=False, indent=1) + ";"
     grilla = AQUI / "grilla-inicial.html"
     html = grilla.read_text()
