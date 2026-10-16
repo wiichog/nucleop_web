@@ -95,6 +95,22 @@ export function bloqueoParaReemplazar(partes: ParteBorrador[]): string | null {
   return `«${conScores.title}» ya tiene scores: sus bloques no se pueden reemplazar. Edítalos a mano.`;
 }
 
+/** «5×2», «5 rondas», «2 reps» o "": cómo se movió el peso de un bloque de carga. */
+export function textoRondas(r: { sets?: number | null; reps?: number | null } | null | undefined): string {
+  const sets = r?.sets ?? null;
+  const reps = r?.reps ?? null;
+  if (sets && reps) return `${sets}×${reps}`;
+  if (sets) return `${sets} ${sets === 1 ? "ronda" : "rondas"}`;
+  if (reps) return `${reps} reps`;
+  return "";
+}
+
+/** Lo que devuelve un `NumberInput` («5», "" mientras está vacío), como entero de 1 a 99 o null. */
+export function enteroDe(v: number | string): number | null {
+  const n = typeof v === "number" ? v : parseInt(v, 10);
+  return Number.isInteger(n) && n >= 1 && n <= 99 ? n : null;
+}
+
 /** Mueve la parte `i` una posición (`-1` arriba, `+1` abajo). Fuera de rango, igual. */
 export function moverParte<T>(partes: T[], i: number, delta: -1 | 1): T[] {
   const j = i + delta;

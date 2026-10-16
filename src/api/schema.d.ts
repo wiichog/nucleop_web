@@ -12458,6 +12458,10 @@ export interface components {
             readonly score_value: string;
             scaling?: components["schemas"]["WodResultScalingEnum"];
             notes?: string;
+            /** Format: int64 */
+            sets?: number | null;
+            /** Format: int64 */
+            reps?: number | null;
             did_not_complete?: boolean;
             readonly rank: number;
             /** Format: date-time */
@@ -12475,6 +12479,8 @@ export interface components {
             /** @default rx */
             scaling: components["schemas"]["WodResultInputScalingEnum"];
             notes?: string;
+            sets?: number | null;
+            reps?: number | null;
         };
         /**
          * @description * `rx` - rx

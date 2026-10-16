@@ -135,6 +135,7 @@ export const manualesOperacion: ManualesPorRuta = {
         pasos: [
           "En la pestaña «Workout», presiona «Board» en la fila del workout.",
           "Para cargar un score, elige al atleta, escribe su score (por ejemplo 3:21 o 120) y la modalidad (RX, Scaled o Foundations), y presiona «Registrar».",
+          "Si el bloque es de carga, puedes anotar también «Rondas» y «Reps»: con cuántas rondas y repeticiones movió ese peso. En el board se ve junto al score («105 5×2»); el ranking sigue siendo por peso.",
           "Con «Board por clase» puedes ver solo los resultados de una hora del día.",
           "Si el workout tiene bloques, elige arriba el bloque cuyo board quieres ver; el score que registres va a ese bloque.",
         ],

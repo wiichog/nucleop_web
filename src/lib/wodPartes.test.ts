@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Wod, WodPart } from "../api/types";
 import {
+  enteroDe,
+  textoRondas,
   bloqueoParaReemplazar,
   bloquesConScore,
   errorDePartes,
@@ -145,5 +147,24 @@ describe("bloques armados desde el texto", () => {
   it("no deja reemplazar bloques que ya tienen scores", () => {
     expect(bloqueoParaReemplazar([{ title: "Fuerza" }])).toBeNull();
     expect(bloqueoParaReemplazar([{ title: "Metcon", results_count: 3 }])).toMatch(/«Metcon» ya tiene scores/);
+  });
+});
+
+describe("rondas y reps del peso", () => {
+  it("se muestran como 5×2, o lo que haya", () => {
+    expect(textoRondas({ sets: 5, reps: 2 })).toBe("5×2");
+    expect(textoRondas({ sets: 1 })).toBe("1 ronda");
+    expect(textoRondas({ sets: 4, reps: null })).toBe("4 rondas");
+    expect(textoRondas({ reps: 3 })).toBe("3 reps");
+    expect(textoRondas({})).toBe("");
+    expect(textoRondas(null)).toBe("");
+  });
+
+  it("lo del NumberInput se manda como entero de 1 a 99, o null", () => {
+    expect(enteroDe(5)).toBe(5);
+    expect(enteroDe("12")).toBe(12);
+    expect(enteroDe("")).toBeNull();
+    expect(enteroDe(0)).toBeNull();
+    expect(enteroDe(100)).toBeNull();
   });
 });

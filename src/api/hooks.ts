@@ -1160,6 +1160,9 @@ export function useAddWodResult(gymId: string, wodId: string) {
       part_id?: string | null;
       gym_class_id?: string | null;
       notes?: string;
+      /** Rondas y reps del peso (sólo bloques de carga). Ausentes = no se tocan. */
+      sets?: number | null;
+      reps?: number | null;
     }) => (await api.post<WodResult>(`/gym/${gymId}/wods/${wodId}/results`, body)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wod-board", gymId, wodId] });

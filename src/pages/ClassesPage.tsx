@@ -85,11 +85,13 @@ import { ArmarBloquesDesdeTexto } from "./classes/ArmarBloquesDesdeTexto";
 import { WodPartsEditor } from "./classes/WodPartsEditor";
 import {
   bloquesConScore,
+  enteroDe,
   errorDePartes,
   partesOrdenadas,
   partesParaEditar,
   partesParaGuardar,
   resumenDeParte,
+  textoRondas,
   tienePartes,
   type ParteBorrador,
 } from "../lib/wodPartes";
@@ -2133,7 +2135,11 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
   const [athleteId, setAthleteId] = useState<string | null>(null);
   const [score, setScore] = useState("");
   const [scaling, setScaling] = useState("rx");
+  const [sets, setSets] = useState<number | string>("");
+  const [reps, setReps] = useState<number | string>("");
   const [error, setError] = useState("");
+  // En la fuerza el peso solo no decía qué se hizo: «105 · 5×2». No rankean.
+  const esCarga = (bloque?.scoreType ?? wod?.score_type) === "load";
 
   const athleteOptions = (memberships.data ?? [])
     .filter((m) => !!m.status && ["active", "trial"].includes(m.status))
@@ -2163,8 +2169,11 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
         scaling,
         gym_class_id: classId,
         ...(bloque?.partId ? { part_id: bloque.partId } : {}),
+        ...(esCarga ? { sets: enteroDe(sets), reps: enteroDe(reps) } : {}),
       });
       setScore("");
+      setSets("");
+      setReps("");
     } catch (err) {
       const detail = (err as AxiosError<{ detail?: string }>).response?.data?.detail;
       setError(detail ?? "No se pudo registrar el resultado.");
@@ -2199,6 +2208,30 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
           onChange={(e) => setScore(e.currentTarget.value)}
           w={{ base: "100%", sm: 120 }}
         />
+        {esCarga ? (
+          <>
+            <NumberInput
+              label="Rondas"
+              placeholder="5"
+              value={sets}
+              onChange={setSets}
+              min={1}
+              max={99}
+              allowDecimal={false}
+              w={{ base: "48%", sm: 80 }}
+            />
+            <NumberInput
+              label="Reps"
+              placeholder="2"
+              value={reps}
+              onChange={setReps}
+              min={1}
+              max={99}
+              allowDecimal={false}
+              w={{ base: "48%", sm: 80 }}
+            />
+          </>
+        ) : null}
         <Select label="Modalidad" data={SCALINGS} value={scaling} onChange={(v) => setScaling(v ?? "rx")} w={{ base: "100%", sm: 140 }} />
         <Button type="submit" loading={addResult.isPending} disabled={!athleteId || !score.trim()}>
           Registrar
@@ -2246,7 +2279,14 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
                 </Table.Td>
                 <Table.Td>{r.athlete_name}</Table.Td>
                 <Table.Td>
-                  <Text fw={600}>{r.raw_score}</Text>
+                  <Group gap={6} wrap="nowrap">
+                    <Text fw={600}>{r.raw_score}</Text>
+                    {textoRondas(r) ? (
+                      <Text size="sm" c="dimmed">
+                        {textoRondas(r)}
+                      </Text>
+                    ) : null}
+                  </Group>
                 </Table.Td>
                 <Table.Td>
                   <Badge variant="light" color={r.scaling === "rx" ? "flame" : "gray"}>

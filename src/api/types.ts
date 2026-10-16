@@ -1059,6 +1059,9 @@ export interface WodResult {
   score_value: string;
   scaling: "rx" | "scaled" | "foundations";
   notes: string;
+  /** Rondas y reps con las que se movió el peso (sólo bloques de carga). No rankean. */
+  sets?: number | null;
+  reps?: number | null;
   rank?: number;
   created_at: string;
 }
