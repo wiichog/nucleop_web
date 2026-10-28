@@ -118,3 +118,9 @@
 .mm .cta::before { content: "›"; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--flame); color: #fff; font-size: 18px; letter-spacing: 0; }
 
 .mm footer { padding: 48px 0 72px; font-size: 13px; color: var(--tenue); }
+
+/* El botón de la marca, como <button>: sin el fondo ni el borde del navegador. */
+.mm .boton { background: none; border: 0; padding: 0; cursor: pointer; margin-right: 12px; }
+.mm .boton:hover::before { filter: brightness(1.1); }
+.mm .boton:focus-visible { outline: 2px solid var(--flame); outline-offset: 4px; border-radius: 8px; }
+.mm .boton:disabled { cursor: progress; opacity: 0.6; }
