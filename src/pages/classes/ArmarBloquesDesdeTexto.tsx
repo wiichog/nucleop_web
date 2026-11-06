@@ -13,8 +13,8 @@ import { bloqueoParaReemplazar, partesDesdeSugerencia, type ParteBorrador } from
  * Existe porque armar cada bloque a mano dependía de acordarse: un WOD real quedó
  * con la fuerza y sin el metcon, y nadie tenía dónde subir su tiempo.
  *
- * El texto pasa a los bloques; en la descripción queda sólo lo que no es de
- * ninguno (lo que va antes del primer encabezado). Nada se guarda hasta que se
+ * El texto pasa a los bloques; en la caja queda sólo lo que no es de ninguno
+ * (lo que va antes del primer encabezado). Nada se guarda hasta que se
  * presiona guardar, y «Deshacer» devuelve el formulario a como estaba.
  */
 export function ArmarBloquesDesdeTexto({
@@ -76,7 +76,7 @@ export function ArmarBloquesDesdeTexto({
         onClick={armar}
         loading={sugerir.isPending}
         disabled={sinTexto}
-        title={sinTexto ? "Pega primero la rutina en la descripción." : undefined}
+        title={sinTexto ? "Pega primero la rutina en la caja de arriba." : undefined}
       >
         Armar bloques desde el texto
       </Button>

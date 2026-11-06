@@ -12262,7 +12262,7 @@ export interface components {
             readonly service_type_name: string;
             /** Format: date */
             date: string;
-            title: string;
+            title?: string;
             description?: string;
             score_type?: components["schemas"]["ScoreType"];
             /** Format: int64 */

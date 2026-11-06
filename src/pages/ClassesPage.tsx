@@ -65,6 +65,7 @@ import {
   useUpdateWod,
   useWodBoard,
   useWods,
+  useWodsRango,
 } from "../api/hooks";
 import type {
   ClassCoachFields,
@@ -83,14 +84,14 @@ import { CountBadge, Money, PageHeader, SectionLabel } from "../components/ui";
 import { ClassRequestsTab } from "./classes/ClassRequestsTab";
 import { ArmarBloquesDesdeTexto } from "./classes/ArmarBloquesDesdeTexto";
 import { WodPartsEditor } from "./classes/WodPartsEditor";
+import { SemanaWods } from "./classes/SemanaWods";
+import { deIso, fechaLarga, isoLocal, lunesDe, rangoDeSemana, sumarDias, wodDelDia } from "../lib/semanaWod";
 import {
   bloquesConScore,
   enteroDe,
   errorDePartes,
-  partesOrdenadas,
   partesParaEditar,
   partesParaGuardar,
-  resumenDeParte,
   textoRondas,
   tienePartes,
   type ParteBorrador,
@@ -1768,76 +1769,110 @@ function EditScheduleModal({
 }
 
 function WodTab({ gymId }: { gymId: string }) {
+  const hoy = iso(new Date());
   const [date, setDate] = useState<Date | null>(new Date());
   const dateStr = iso(date);
   const services = useServiceTypes(gymId);
-  const wods = useWods(gymId, dateStr);
   const create = useCreateWod(gymId);
   const update = useUpdateWod(gymId);
   const remove = useDeleteWod(gymId);
   const [openBoard, setOpenBoard] = useState<Wod | null>(null);
-
-  const onDeleteWod = (id: string, wtitle: string) => {
-    if (!window.confirm(`¿Eliminar el workout "${wtitle}"?`)) return;
-    remove.mutate(id, {
-      onSuccess: () => ok(`Workout "${wtitle}" eliminado.`),
-      onError: (error) => fail(error, "No se pudo eliminar el workout."),
-    });
-  };
-
-  const [serviceId, setServiceId] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [scoreType, setScoreType] = useState<ScoreType>("for_time");
-  const [description, setDescription] = useState("");
-  const [isBenchmark, setIsBenchmark] = useState(false);
-  const [published, setPublished] = useState(true);
-  // Bloques del día (Fuerza A, Fuerza B, Metcon…). Vacío = un solo score.
-  const [partes, setPartes] = useState<ParteBorrador[]>([]);
   const [editing, setEditing] = useState<Wod | null>(null);
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<Wod>>({
-    columnAccessor: "title",
-    direction: "asc",
-  });
+
+  // La semana que se mira abajo. Sigue a la fecha del formulario, pero las
+  // flechas la mueven sola: revisar semanas pasadas no le cambia la fecha.
+  const [lunes, setLunes] = useState<Date>(() => lunesDe(new Date()));
+  const desde = isoLocal(lunes);
+  const hasta = isoLocal(sumarDias(lunes, 6));
+  const semana = useWodsRango(gymId, desde, hasta);
+  // El del día del formulario, para no ofrecer crear uno que ya existe.
+  const delDia = useWods(gymId, dateStr);
 
   const wodServices = useMemo(
     () => ((services.data ?? []) as ServiceType[]).filter((s) => s.requires_wod),
     [services.data],
   );
+  // Programa elegido; "" = General. Mientras no se elija, el primero con workout.
+  const [elegido, setElegido] = useState<string | null>(null);
+  const programa = elegido ?? wodServices[0]?.id ?? "";
+  const nombrePrograma =
+    programa === "" ? "General" : (wodServices.find((s) => s.id === programa)?.name ?? "este programa");
 
-  if (wods.isError) return <PageError onRetry={() => wods.refetch()} />;
+  const [texto, setTexto] = useState("");
+  const [partes, setPartes] = useState<ParteBorrador[]>([]);
+  const [published, setPublished] = useState(true);
+
+  if (semana.isError) return <PageError onRetry={() => semana.refetch()} />;
+
+  const existente = date ? wodDelDia((delDia.data ?? []) as Wod[], dateStr, programa) : undefined;
+
+  const cambiarFecha = (d: Date | null) => {
+    setDate(d);
+    if (d) setLunes(lunesDe(d));
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!date || partes.length === 0) return;
     const errorBloques = errorDePartes(partes);
     if (errorBloques) {
       notifications.show({ color: "red", message: errorBloques });
       return;
     }
-    const parts = partesParaGuardar(partes, false);
     try {
+      // Sin título ni descripción: cada bloque trae los suyos y el backend le
+      // pone al workout el nombre de su día. El score lo da el bloque principal.
       await create.mutateAsync({
-        service_type: serviceId,
+        service_type: programa || null,
         date: dateStr,
-        title: title.trim(),
-        description,
         published,
-        // Con bloques, el score y el benchmark son de cada bloque: el workout
-        // refleja los de su bloque principal (lo hace el backend).
-        ...(parts ? { parts } : { score_type: scoreType, is_benchmark: isBenchmark }),
+        parts: partesParaGuardar(partes, false),
       });
       ok(published ? "Workout publicado." : "Workout guardado como borrador.");
-      setTitle("");
-      setDescription("");
-      setIsBenchmark(false);
-      setPublished(true);
+      setTexto("");
       setPartes([]);
+      setPublished(true);
+      setLunes(lunesDe(date));
     } catch (error) {
       fail(error, "No se pudo crear el workout.");
     }
   };
 
-  const rows = (wods.data ?? []) as Wod[];
+  const onPublicar = (w: Wod) =>
+    update.mutate(
+      { id: w.id, body: { published: !w.published } },
+      {
+        // Publicar es lo que la hace visible en el app: si fallaba en silencio,
+        // el gym creía haberla publicado.
+        onSuccess: () =>
+          ok(
+            w.published
+              ? "Workout despublicado: ya no lo ven los atletas."
+              : "Workout publicado: ya lo ven los atletas en el app.",
+          ),
+        onError: (error) => fail(error, "No se pudo cambiar la publicación."),
+      },
+    );
+
+  const onEliminar = (w: Wod) => {
+    const cuando = fechaLarga(deIso(w.date));
+    if (!window.confirm(`¿Eliminar el workout del ${cuando}?`)) return;
+    remove.mutate(w.id, {
+      onSuccess: () => ok(`Workout del ${cuando} eliminado.`),
+      onError: (error) => fail(error, "No se pudo eliminar el workout."),
+    });
+  };
+
+  const programar = (fecha: string) => {
+    cambiarFecha(deIso(fecha));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const opcionesPrograma = [
+    ...wodServices.map((s) => ({ value: s.id, label: s.name })),
+    { value: "", label: "General (todo el gimnasio)" },
+  ];
+  const semanaRows = (semana.data ?? []) as Wod[];
 
   return (
     <>
@@ -1847,185 +1882,114 @@ function WodTab({ gymId }: { gymId: string }) {
           Workout del día
         </Title>
         <Text c="dimmed" size="sm" mb="md">
-          Un workout por servicio y fecha; lo comparten todas las clases de ese día. Se crea
-          publicado (visible para los atletas); desactiva el switch si lo quieres dejar como borrador.
+          Un workout por programa y fecha; lo comparten todas las clases de ese día. Se arma por bloques
+          (Warmup, Weightlifting, Metcon…) y cada bloque lleva su propio score.
         </Text>
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
-          <DateInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" popoverProps={{ withinPortal: true }} />
-          <Select
-            label="Servicio (track)"
-            placeholder="General"
-            clearable
-            data={wodServices.map((s) => ({ value: s.id, label: s.name }))}
-            value={serviceId}
-            onChange={(v) => {
-              setServiceId(v);
-              const svc = wodServices.find((s) => s.id === v);
-              if (svc && svc.default_score_type !== "none") setScoreType(svc.default_score_type);
-            }}
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+          <DateInput
+            label="Fecha"
+            value={date}
+            onChange={cambiarFecha}
+            valueFormat="YYYY-MM-DD"
+            popoverProps={{ withinPortal: true }}
           />
-          <TextInput label="Título" placeholder="Fran" value={title} onChange={(e) => setTitle(e.currentTarget.value)} required />
-          {partes.length === 0 ? (
-            <Select
-              label="Tipo de score"
-              data={SCORE_TYPES.filter((s) => s.value !== "none")}
-              value={scoreType}
-              onChange={(v) => setScoreType((v as ScoreType) ?? "for_time")}
-            />
-          ) : (
-            <TextInput label="Tipo de score" value="Cada bloque tiene el suyo" readOnly />
-          )}
+          <Select
+            label="Programa"
+            data={opcionesPrograma}
+            value={programa}
+            onChange={(v) => setElegido(v ?? "")}
+            allowDeselect={false}
+          />
         </SimpleGrid>
-        <Textarea
-          label="Descripción"
-          placeholder="21-15-9 thrusters + pull-ups"
-          value={description}
-          onChange={(e) => setDescription(e.currentTarget.value)}
-          mt="md"
-          autosize
-          minRows={2}
-        />
-        <ArmarBloquesDesdeTexto
-          gymId={gymId}
-          description={description}
-          partes={partes}
-          onAplicar={(d, p) => {
-            setDescription(d);
-            setPartes(p);
-          }}
-        />
-        <Divider my="md" label="Bloques del día" labelPosition="left" />
-        <WodPartsEditor partes={partes} onChange={setPartes} scoreTypes={SCORE_TYPES} />
-        <Group justify="space-between" mt="md">
-          <Group gap="lg">
-            <Switch
-              label="Publicar al crear"
-              checked={published}
-              onChange={(e) => setPublished(e.currentTarget.checked)}
+
+        {existente ? (
+          <Alert color="blue" variant="light" mt="md" title="Este día ya tiene workout">
+            <Group justify="space-between" wrap="wrap" gap="sm">
+              <Text size="sm">
+                {nombrePrograma} ya tiene workout el {date ? fechaLarga(date) : dateStr}. Cámbialo desde
+                «Editar».
+              </Text>
+              <Button size="xs" onClick={() => setEditing(existente)}>
+                Editar
+              </Button>
+            </Group>
+          </Alert>
+        ) : (
+          <>
+            <Textarea
+              label="Pega el workout"
+              description="Opcional. Pega la rutina tal como la escribes (Warmup, Weightlifting, Custom Metcon…) y presiona «Armar bloques desde el texto». Lo que se guarda son los bloques."
+              placeholder={"Warmup\n3 Sets\n200M Jog\n\nCustom Metcon (Tiempo)\nFor Time\n100 Ring Rows"}
+              value={texto}
+              onChange={(e) => setTexto(e.currentTarget.value)}
+              mt="md"
+              autosize
+              minRows={3}
+              maxRows={14}
             />
-            {partes.length === 0 ? (
+            <ArmarBloquesDesdeTexto
+              gymId={gymId}
+              description={texto}
+              partes={partes}
+              onAplicar={(d, p) => {
+                setTexto(d);
+                setPartes(p);
+              }}
+            />
+            <Divider my="md" label="Bloques del día" labelPosition="left" />
+            <WodPartsEditor partes={partes} onChange={setPartes} scoreTypes={SCORE_TYPES} />
+            <Group justify="space-between" mt="md" wrap="wrap" gap="sm">
               <Switch
-                label="Benchmark (mejorar la marca genera un PR al feed)"
-                checked={isBenchmark}
-                onChange={(e) => setIsBenchmark(e.currentTarget.checked)}
+                label="Publicar al crear"
+                checked={published}
+                onChange={(e) => setPublished(e.currentTarget.checked)}
               />
-            ) : null}
-          </Group>
-          <Button type="submit" loading={create.isPending}>
-            Crear workout
-          </Button>
-        </Group>
+              <Group gap="sm">
+                {partes.length === 0 && (
+                  <Text size="xs" c="dimmed">
+                    Agrega al menos un bloque.
+                  </Text>
+                )}
+                <Button type="submit" loading={create.isPending} disabled={!date || partes.length === 0}>
+                  Crear workout
+                </Button>
+              </Group>
+            </Group>
+          </>
+        )}
       </Card>
 
       <GlassCard delay={0.72} padding={18}>
-        <SectionLabel mb={4}>Publicadas y borradores</SectionLabel>
-        <Title order={3} mb="sm">
-          Workouts del {dateStr}
-        </Title>
-        <DataTable<Wod>
-          minHeight={140}
-          highlightOnHover
-          striped
-          idAccessor="id"
-          records={sortRecords(rows, sortStatus)}
-          fetching={wods.isLoading}
-          noRecordsText="Crea el workout del día para este servicio."
-          sortStatus={sortStatus}
-          onSortStatusChange={setSortStatus}
-          columns={[
-            {
-              accessor: "title",
-              title: "Workout",
-              sortable: true,
-              width: 320,
-              render: (w) => (
-                <>
-                  <Group gap="xs">
-                    <Text fw={600}>{w.title}</Text>
-                    {w.is_benchmark && <Badge size="xs" color="grape">Benchmark</Badge>}
-                  </Group>
-                  {w.description && (
-                    <Text c="dimmed" size="xs" lineClamp={1}>
-                      {w.description}
-                    </Text>
-                  )}
-                  {partesOrdenadas(w).map((p) => (
-                    <Text key={p.id} size="xs" c="dimmed">
-                      ▸ {resumenDeParte(p, scoreCorto)}
-                    </Text>
-                  ))}
-                </>
-              ),
-            },
-            { accessor: "service_type_name", title: "Track", sortable: true, render: (w) => w.service_type_name || "General" },
-            {
-              accessor: "score_type",
-              title: "Score",
-              render: (w) =>
-                tienePartes(w) ? `${w.parts!.length} bloques` : scoreLabel(w.score_type),
-            },
-            { accessor: "results_count", title: "Resultados", sortable: true },
-            {
-              accessor: "published",
-              title: "Estado",
-              sortable: true,
-              render: (w) =>
-                w.published ? (
-                  <Badge color="green">Publicado</Badge>
-                ) : (
-                  <Badge color="gray" variant="light">
-                    Borrador
-                  </Badge>
-                ),
-            },
-            {
-              accessor: "actions",
-              title: "Acciones",
-              render: (w) => (
-                <RowActions
-                  actions={[
-                    { label: "Board", variant: "light", onClick: () => setOpenBoard(w) },
-                    { label: "Editar", variant: "default", onClick: () => setEditing(w) },
-                    {
-                      label: w.is_benchmark ? "Benchmark ✓" : "Benchmark",
-                      variant: w.is_benchmark ? "filled" : "default",
-                      color: "grape",
-                      loading: update.isPending,
-                      onClick: () =>
-                        update.mutate(
-                          { id: w.id, body: { is_benchmark: !w.is_benchmark } },
-                          {
-                            onSuccess: () =>
-                              ok(w.is_benchmark ? "Ya no es benchmark." : "Marcada como benchmark."),
-                            onError: (error) => fail(error, "No se pudo marcar el workout."),
-                          },
-                        ),
-                    },
-                    {
-                      // Publicar la rutina es lo que la hace visible en el app: si
-                      // fallaba en silencio, el gym creía haberla publicado.
-                      label: w.published ? "Despublicar" : "Publicar",
-                      loading: update.isPending,
-                      onClick: () =>
-                        update.mutate(
-                          { id: w.id, body: { published: !w.published } },
-                          {
-                            onSuccess: () =>
-                              ok(
-                                w.published
-                                  ? "Workout despublicado: ya no lo ven los atletas."
-                                  : "Workout publicado: ya lo ven los atletas en el app.",
-                              ),
-                            onError: (error) => fail(error, "No se pudo cambiar la publicación."),
-                          },
-                        ),
-                    },
-                    { label: "Eliminar", variant: "light", color: "red", loading: remove.isPending, onClick: () => onDeleteWod(w.id, w.title) },
-                  ]}
-                />
-              ),
-            },
-          ]}
+        <Group justify="space-between" mb="sm" wrap="wrap" gap="sm">
+          <div>
+            <SectionLabel mb={4}>Programación · {nombrePrograma}</SectionLabel>
+            <Title order={3}>Semana del {rangoDeSemana(lunes)}</Title>
+          </div>
+          <Group gap={6}>
+            <Button variant="default" size="xs" onClick={() => setLunes(sumarDias(lunes, -7))} aria-label="Semana anterior">
+              ‹ Anterior
+            </Button>
+            <Button variant="default" size="xs" onClick={() => setLunes(lunesDe(new Date()))} disabled={desde === isoLocal(lunesDe(new Date()))}>
+              Esta semana
+            </Button>
+            <Button variant="default" size="xs" onClick={() => setLunes(sumarDias(lunes, 7))} aria-label="Semana siguiente">
+              Siguiente ›
+            </Button>
+          </Group>
+        </Group>
+        <SemanaWods
+          wods={semanaRows}
+          lunes={lunes}
+          programa={programa}
+          hoy={hoy}
+          cargando={semana.isLoading}
+          ocupado={update.isPending || remove.isPending}
+          etiquetaScore={scoreCorto}
+          onProgramar={programar}
+          onEditar={setEditing}
+          onBoard={setOpenBoard}
+          onPublicar={onPublicar}
+          onEliminar={onEliminar}
         />
       </GlassCard>
 
@@ -2034,7 +1998,11 @@ function WodTab({ gymId }: { gymId: string }) {
           conteo de scores de cada bloque (que bloquea quitarlo) está al día. */}
       <EditWodModal
         gymId={gymId}
-        wod={editing ? (rows.find((r) => r.id === editing.id) ?? editing) : null}
+        wod={
+          editing
+            ? ([...semanaRows, ...((delDia.data ?? []) as Wod[])].find((r) => r.id === editing.id) ?? editing)
+            : null
+        }
         onClose={() => setEditing(null)}
       />
     </>
@@ -2042,12 +2010,15 @@ function WodTab({ gymId }: { gymId: string }) {
 }
 
 /**
- * Editar un workout ya creado: título, texto y sus bloques. Es donde un workout
- * de un solo score se parte en Fuerza A / Fuerza B / Metcon.
+ * Editar un workout ya creado: sus bloques. Es donde un workout de antes (un
+ * solo texto, un solo score) se parte en Warmup / Weightlifting / Metcon.
  */
 function EditWodModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; onClose: () => void }) {
+  const titulo = wod
+    ? `Editar · ${wod.service_type_name || "General"} · ${fechaLarga(deIso(wod.date))}`
+    : "";
   return (
-    <Modal opened={!!wod} onClose={onClose} title={wod ? `Editar · ${wod.title}` : ""} size="xl" centered>
+    <Modal opened={!!wod} onClose={onClose} title={titulo} size="xl" centered>
       {/* `key`: el formulario renace con cada workout en vez de arrastrar el anterior. */}
       {wod ? <EditWodForm key={wod.id} gymId={gymId} wod={wod} onClose={onClose} /> : null}
     </Modal>
@@ -2056,13 +2027,15 @@ function EditWodModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null;
 
 function EditWodForm({ gymId, wod, onClose }: { gymId: string; wod: Wod; onClose: () => void }) {
   const update = useUpdateWod(gymId);
-  const [title, setTitle] = useState(wod.title);
-  const [description, setDescription] = useState(wod.description ?? "");
+  // Un workout de antes de los bloques trae todo en su descripción: se ofrece en
+  // la caja para armar los bloques desde ahí, y lo que quede en ella se guarda
+  // como su descripción (para que el app no repita el texto encima de los bloques).
+  const teniaDescripcion = !!wod.description?.trim();
+  const [texto, setTexto] = useState(wod.description ?? "");
   const [partes, setPartes] = useState<ParteBorrador[]>(() => partesParaEditar(wod));
 
   const guardar = async (e: FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
     const errorBloques = errorDePartes(partes);
     if (errorBloques) {
       notifications.show({ color: "red", message: errorBloques });
@@ -2072,7 +2045,7 @@ function EditWodForm({ gymId, wod, onClose }: { gymId: string; wod: Wod; onClose
     try {
       await update.mutateAsync({
         id: wod.id,
-        body: { title: title.trim(), description, ...(parts ? { parts } : {}) },
+        body: { ...(teniaDescripcion ? { description: texto } : {}), ...(parts ? { parts } : {}) },
       });
       ok("Workout actualizado.");
       onClose();
@@ -2083,21 +2056,25 @@ function EditWodForm({ gymId, wod, onClose }: { gymId: string; wod: Wod; onClose
 
   return (
     <form onSubmit={guardar}>
-      <TextInput label="Título" value={title} onChange={(e) => setTitle(e.currentTarget.value)} required />
       <Textarea
-        label="Descripción"
-        value={description}
-        onChange={(e) => setDescription(e.currentTarget.value)}
-        mt="sm"
+        label={teniaDescripcion ? "Texto del workout" : "Pega el workout"}
+        description={
+          teniaDescripcion
+            ? "Este workout es de antes de los bloques. Presiona «Armar bloques desde el texto» para pasarlo a bloques."
+            : "Opcional. Pega la rutina y presiona «Armar bloques desde el texto» para reemplazar los bloques."
+        }
+        value={texto}
+        onChange={(e) => setTexto(e.currentTarget.value)}
         autosize
         minRows={2}
+        maxRows={14}
       />
       <ArmarBloquesDesdeTexto
         gymId={gymId}
-        description={description}
+        description={texto}
         partes={partes}
         onAplicar={(d, p) => {
-          setDescription(d);
+          setTexto(d);
           setPartes(p);
         }}
       />

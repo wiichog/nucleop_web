@@ -82,22 +82,22 @@ export const manualesOperacion: ManualesPorRuta = {
         titulo: "Publicar el workout del día",
         pasos: [
           "Entra a la pestaña «Workout».",
-          "Elige la fecha y el servicio (track). Si lo dejas en «General», aplica a todo el gimnasio.",
-          "Escribe el título (por ejemplo «Fran»), elige el tipo de score y describe el workout.",
+          "Elige la «Fecha» y el «Programa» (CrossFit, Pilates…). «General (todo el gimnasio)» aplica a todas las clases de ese día.",
+          "Arma los bloques del día: pega la rutina en «Pega el workout» y presiona «Armar bloques desde el texto», o agrégalos uno por uno con «Agregar bloque».",
           "Deja activado «Publicar al crear» para que tus atletas lo vean de una vez, o desactívalo para guardarlo como borrador.",
-          "Marca «Benchmark» si es un workout de referencia: cuando un atleta mejora su marca se publica un PR en el feed.",
-          "Presiona «Crear workout».",
+          "Presiona «Crear workout». Aparece en su día, en la semana de abajo.",
         ],
         nota:
-          "Hay un solo workout por servicio y fecha, y lo comparten todas las clases de ese día. Para cambiarlo, presiona «Editar» en su fila en vez de crear otro. Tus coaches también pueden subirlo desde el app, salvo a quien le apagues «Sube el workout» en Coaches.",
+          "No hay título, tipo de score ni descripción del workout: cada bloque lleva su título, su texto y su score, y el workout se nombra solo con su día. Hay un solo workout por programa y fecha, y lo comparten todas las clases de ese día: si ese día ya tiene uno, el formulario te lo dice y te ofrece «Editar». Tus coaches también pueden subirlo desde el app, salvo a quien le apagues «Sube el workout» en Coaches.",
       },
       {
         titulo: "Armar el workout por bloques (Fuerza A, Fuerza B, Metcon)",
         pasos: [
-          "En el formulario del workout, en «Bloques del día», presiona «Agregar bloque» por cada parte.",
+          "En el formulario del workout, en «Bloques del día», presiona «Agregar bloque» por cada parte. Necesitas al menos un bloque para crear el workout.",
           "En cada bloque escribe el «Título» y el «Texto», y elige el «Tipo de bloque» y su «Score». Cada bloque con score tiene su propio board, así tus atletas anotan la Fuerza A y la Fuerza B por separado.",
           "Si el bloque es de carga, elige la «Unidad» y el «Levantamiento» (por ejemplo «Back squat»), y en «Reps por serie del peso que se anota» pon a cuántas repeticiones corresponde el peso: «5 x 3 subiendo hasta pesado» es 3; un 1RM es 1.",
           "Activa «Board principal del día» en el bloque que más importa: es el que se muestra primero. Ordena los bloques con las flechas ↑ y ↓.",
+          "Si un bloque es un workout de referencia (Fran, Murph…), márcalo como «Benchmark»: cuando un atleta mejora su marca se publica un PR en el feed.",
           "Presiona «Crear workout».",
         ],
         nota:
@@ -106,34 +106,45 @@ export const manualesOperacion: ManualesPorRuta = {
       {
         titulo: "Pegar la rutina completa y armar los bloques solos",
         pasos: [
-          "Copia la rutina del día tal como la tienes escrita (con «Warmup», «Weightlifting (Power Clean)», «Fuerza:», «Custom Metcon (Tiempo)», «Workout:»…) y pégala en «Descripción».",
+          "Copia la rutina del día tal como la tienes escrita (con «Warmup», «Weightlifting (Power Clean)», «Fuerza:», «Custom Metcon (Tiempo)», «Workout:»…) y pégala en «Pega el workout».",
           "Presiona «Armar bloques desde el texto». Sale un bloque por cada encabezado, con su texto y su «Score»: la fuerza por carga con su «Levantamiento», el metcon por tiempo, y el calentamiento sin score.",
           "Revisa cada bloque: el título, el «Score», la «Unidad» y el «Levantamiento». Corrige lo que haga falta.",
           "Presiona «Crear workout» (o «Guardar» si lo estás editando).",
         ],
         nota:
-          "El texto pasa a los bloques y en «Descripción» queda solo lo que va antes del primer encabezado. Si no te convence, presiona «Deshacer» antes de guardar. Cada encabezado tiene que ir en su propia línea. Un workout cuyos bloques ya tienen scores no se puede rearmar: edita esos bloques a mano.",
+          "El texto pasa a los bloques; en la caja queda solo lo que va antes del primer encabezado, y eso no se guarda. Si no te convence, presiona «Deshacer» antes de guardar. Cada encabezado tiene que ir en su propia línea. Un workout cuyos bloques ya tienen scores no se puede rearmar: edita esos bloques a mano.",
       },
       {
         titulo: "Cambiar un workout ya creado o partirlo en bloques",
         pasos: [
-          "En la tabla «Publicadas y borradores», presiona «Editar» en la fila del workout.",
-          "Cambia el título, la descripción o los bloques, y presiona «Guardar».",
+          "En la semana de abajo, presiona «Editar» en el día del workout.",
+          "Cambia los bloques y presiona «Guardar».",
+          "Si es un workout de antes de los bloques, su texto aparece en «Texto del workout»: presiona «Armar bloques desde el texto» para pasarlo a bloques.",
         ],
         nota:
           "Si un workout de un solo score ya tiene scores y lo partes en bloques, esos scores quedan en el bloque principal.",
       },
       {
+        titulo: "Ver la programación de la semana y semanas anteriores",
+        pasos: [
+          "En la pestaña «Workout», abajo está la semana del programa elegido arriba en «Programa», de lunes a domingo, con cada workout completo bloque por bloque.",
+          "Usa «‹ Anterior» y «Siguiente ›» para moverte de semana, y «Esta semana» para volver a la actual.",
+          "En un día sin workout, presiona «Programar»: el formulario de arriba toma esa fecha.",
+        ],
+        nota:
+          "Cada día dice si su workout está «Publicado», en «Borrador» o «Programado» (se publica solo el día que toca). El día de hoy va marcado con «Hoy».",
+      },
+      {
         titulo: "Publicar, despublicar o borrar un workout",
         pasos: [
-          "En la pestaña «Workout», busca el workout en la tabla «Publicadas y borradores».",
-          "Usa «Publicar» o «Despublicar» para mostrarlo u ocultarlo en el app, «Benchmark» para marcarlo como referencia, o «Eliminar» para borrarlo.",
+          "En la pestaña «Workout», busca el día del workout en la semana de abajo.",
+          "Usa «Publicar» o «Despublicar» para mostrarlo u ocultarlo en el app, o «Eliminar» para borrarlo.",
         ],
       },
       {
         titulo: "Ver el tablero de scores o cargar uno a mano",
         pasos: [
-          "En la pestaña «Workout», presiona «Board» en la fila del workout.",
+          "En la pestaña «Workout», presiona «Board» en el día del workout (sale cuando algún bloque tiene score).",
           "Para cargar un score, elige al atleta, escribe su score (por ejemplo 3:21 o 120) y la modalidad (RX, Scaled o Foundations), y presiona «Registrar».",
           "Si el bloque es de carga, puedes anotar también «Rondas» y «Reps»: con cuántas rondas y repeticiones movió ese peso. En el board se ve junto al score («105 5×2»); el ranking sigue siendo por peso.",
           "Con «Board por clase» puedes ver solo los resultados de una hora del día.",
@@ -203,17 +214,17 @@ export const manualesOperacion: ManualesPorRuta = {
       {
         termino: "Workout del día",
         detalle:
-          "El entrenamiento que toca en una fecha para un servicio. Solo los atletas ven los publicados; los borradores no.",
+          "El entrenamiento que toca en una fecha para un programa, armado por bloques. Los atletas solo ven los publicados; los borradores no.",
       },
       {
-        termino: "Track",
+        termino: "Programa",
         detalle:
-          "El servicio al que pertenece un workout. «General» significa que aplica a todo el gimnasio.",
+          "El servicio al que pertenece un workout (CrossFit, Pilates…). «General» significa que aplica a todo el gimnasio.",
       },
       {
-        termino: "Tipo de score",
+        termino: "Score",
         detalle:
-          "Cómo se mide el workout: por tiempo (gana el menor), AMRAP, rounds + reps, carga, EMOM o puntos (gana el mayor).",
+          "Cómo se mide un bloque: por tiempo (gana el menor), AMRAP, rounds + reps, carga, EMOM o puntos (gana el mayor). Un bloque sin score (el calentamiento) no tiene board.",
       },
       {
         termino: "RX / Scaled / Foundations",
@@ -223,7 +234,7 @@ export const manualesOperacion: ManualesPorRuta = {
       {
         termino: "Benchmark",
         detalle:
-          "Un workout de referencia. Cuando un atleta mejora su marca en él, se publica un PR en el feed.",
+          "Un bloque de referencia (Fran, Murph…). Cuando un atleta mejora su marca en él, se publica un PR en el feed.",
       },
       {
         termino: "Visitante con drop-in",
@@ -269,7 +280,7 @@ export const manualesOperacion: ManualesPorRuta = {
       {
         sintoma: "Me dice que ya existe un workout para ese día.",
         solucion:
-          "Solo hay uno por servicio y fecha. Búscalo en «Publicadas y borradores» y edítalo.",
+          "Solo hay uno por programa y fecha. Al elegir esa fecha y ese programa, el formulario te ofrece «Editar»; también lo encuentras en su día, en la semana de abajo.",
       },
       {
         sintoma: "Un coach me dice que no puede subir el workout.",
@@ -279,7 +290,7 @@ export const manualesOperacion: ManualesPorRuta = {
       {
         sintoma: "Mis atletas no ven el workout.",
         solucion:
-          "Revisa en la tabla que su estado diga «Publicado»; si dice «Borrador», presiona «Publicar».",
+          "Revisa en su día, en la semana de abajo, que diga «Publicado»; si dice «Borrador», presiona «Publicar».",
       },
       {
         sintoma: "Ya no me aparecen «Coach», «Cancelar» ni «Eliminar» en una clase.",

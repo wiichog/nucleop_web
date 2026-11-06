@@ -205,8 +205,8 @@ export function WodPartsEditor({
         </Button>
         {partes.length === 0 ? (
           <Text size="sm" c="dimmed">
-            Sin bloques el workout tiene un solo score. Agrégalos para separar, por ejemplo, Fuerza A,
-            Fuerza B y Metcon, cada uno con su board.
+            Un bloque por cada parte del día (Warmup, Fuerza, Metcon…). Cada bloque con score tiene su
+            propio board.
           </Text>
         ) : null}
       </Group>

@@ -1094,6 +1094,16 @@ export function useWods(gymId: string, date?: string) {
   });
 }
 
+/** Los workouts de un rango (la semana del panel), de todos los programas. */
+export function useWodsRango(gymId: string, desde: string, hasta: string) {
+  return useQuery({
+    // Bajo ["wods", gymId]: crear, editar o borrar ya invalida esta llave.
+    queryKey: ["wods", gymId, "rango", desde, hasta],
+    queryFn: () => getList<Wod>(`/gym/${gymId}/wods?date_from=${desde}&date_to=${hasta}`),
+    enabled: !!gymId && !!desde && !!hasta,
+  });
+}
+
 export function useCreateWod(gymId: string) {
   const qc = useQueryClient();
   return useMutation({
