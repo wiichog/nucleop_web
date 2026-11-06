@@ -8888,6 +8888,19 @@ export interface components {
          * @enum {string}
          */
         LoadUnitEnum: "kg" | "lb";
+        /**
+         * @description El de SimpleJWT con un rechazo que se entiende.
+         *
+         *     Su texto en español ("La combinación de credenciales no tiene una cuenta activa")
+         *     se lee como "tu cuenta no existe o está apagada" y manda a reclamar o a soporte,
+         *     cuando casi siempre es la contraseña. Mismo texto para correo inexistente, clave
+         *     mal escrita y cuenta desactivada: no revela cuál. Solo cambia el texto: la
+         *     llave y el `code` de la respuesta siguen igual.
+         */
+        Login: {
+            email: string;
+            password: string;
+        };
         /** @description Cierre de sesión: el refresh token a revocar (el access expira solo en 30 min). */
         Logout: {
             refresh: string;
@@ -12170,12 +12183,6 @@ export interface components {
          * @enum {string}
          */
         TicketStatusStatusEnum: "open" | "in_progress" | "resolved";
-        TokenObtainPair: {
-            email: string;
-            password: string;
-            readonly access: string;
-            readonly refresh: string;
-        };
         TokenPair: {
             access: string;
             refresh: string;
@@ -12594,9 +12601,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TokenObtainPair"];
-                "application/x-www-form-urlencoded": components["schemas"]["TokenObtainPair"];
-                "multipart/form-data": components["schemas"]["TokenObtainPair"];
+                "application/json": components["schemas"]["Login"];
+                "application/x-www-form-urlencoded": components["schemas"]["Login"];
+                "multipart/form-data": components["schemas"]["Login"];
             };
         };
         responses: {
@@ -12605,7 +12612,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TokenObtainPair"];
+                    "application/json": components["schemas"]["Login"];
                 };
             };
         };
