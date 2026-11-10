@@ -84,7 +84,7 @@ import { ArmarBloquesDesdeTexto } from "./classes/ArmarBloquesDesdeTexto";
 import { WodPartsEditor } from "./classes/WodPartsEditor";
 import { SemanaWods } from "./classes/SemanaWods";
 import { HorarioSemanal } from "./classes/HorarioSemanal";
-import { Encabezado, nombreCorto, PuntoColor, Tarjeta } from "./classes/Tarjeta";
+import { Encabezado, nombreCorto, PuntoColor, Tarjeta } from "../components/Tarjeta";
 import { horaDe, resumenHorario } from "../lib/horarioSemanal";
 import { coincideServicio, FiltroServicio, opcionesDeServicio } from "./classes/FiltroServicio";
 import {

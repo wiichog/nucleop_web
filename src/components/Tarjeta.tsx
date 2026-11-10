@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { Box, Group, Title, UnstyledButton } from "@mantine/core";
 
 /**
- * Las piezas comunes de las pestañas de Clases. Todas siguen la misma idea que
+ * Las piezas comunes del panel (nacieron en las pestañas de Clases). Siguen la misma idea que
  * el horario semanal: lo que vienes a ver va al frente, crear es un botón, tocar
  * una cosa abre sus acciones y lo pendiente sale en amarillo.
  */

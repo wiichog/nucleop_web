@@ -6,7 +6,7 @@ import type { ClassAssignmentRequest } from "../../api/types";
 import { GlassCard } from "../../components/aurora";
 import { PageError } from "../../components/PageStatus";
 import { CountBadge } from "../../components/ui";
-import { Encabezado, nombreCorto, Tarjeta } from "./Tarjeta";
+import { Encabezado, nombreCorto, Tarjeta } from "../../components/Tarjeta";
 import { errMsg } from "../../lib/errors";
 import { coincideServicio, FiltroServicio, opcionesDeServicio } from "./FiltroServicio";
 
