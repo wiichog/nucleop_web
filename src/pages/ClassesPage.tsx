@@ -85,6 +85,7 @@ import { ClassRequestsTab } from "./classes/ClassRequestsTab";
 import { ArmarBloquesDesdeTexto } from "./classes/ArmarBloquesDesdeTexto";
 import { WodPartsEditor } from "./classes/WodPartsEditor";
 import { SemanaWods } from "./classes/SemanaWods";
+import { coincideServicio, FiltroServicio, opcionesDeServicio } from "./classes/FiltroServicio";
 import { deIso, fechaLarga, isoLocal, lunesDe, rangoDeSemana, sumarDias, wodDelDia } from "../lib/semanaWod";
 import {
   bloquesConScore,
@@ -149,6 +150,9 @@ const SCALINGS = [
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : "");
 
+/** El filtro por servicio que comparten las pestañas (vive en la URL). */
+type FiltroProps = { gymId: string; servicio: string | null; setServicio: (s: string | null) => void };
+
 /** GymClass del schema + los campos del sprint de coaches. */
 type ClassRow = GymClass & ClassCoachFields;
 
@@ -163,6 +167,18 @@ export function ClassesPage() {
   // dejar al admin buscando la pestaña que acaba de tocar.
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get("tab") || "schedule";
+  // El filtro por servicio también vive en la URL y es UNO para todas las
+  // pestañas: quien elige «CrossFit» en el horario lo sigue viendo al pasar a
+  // Clases o Solicitudes, en vez de volver a filtrar en cada tabla.
+  const servicio = searchParams.get("servicio") || null;
+  const params = (t: string | null, s: string | null) => {
+    const p: Record<string, string> = {};
+    if (t && t !== "schedule") p.tab = t;
+    if (s) p.servicio = s;
+    return p;
+  };
+  const setServicio = (s: string | null) => setSearchParams(params(tab, s), { replace: true });
+  const filtro = { servicio, setServicio };
 
   if (!gymId) return <NoGymAssigned />;
 
@@ -175,7 +191,7 @@ export function ClassesPage() {
       />
       <Tabs
         value={tab}
-        onChange={(v) => setSearchParams(v && v !== "schedule" ? { tab: v } : {})}
+        onChange={(v) => setSearchParams(params(v, servicio))}
       >
         {/* Las pestañas entran justo después del hairline del hero. */}
         <Tabs.List mb="lg" className="a-rise" style={delayVar(0.5)}>
@@ -195,16 +211,16 @@ export function ClassesPage() {
         </Tabs.List>
 
         <Tabs.Panel value="services">
-          <ServicesTab gymId={gymId} />
+          <ServicesTab gymId={gymId} {...filtro} />
         </Tabs.Panel>
         <Tabs.Panel value="schedule">
-          <ScheduleTab gymId={gymId} />
+          <ScheduleTab gymId={gymId} {...filtro} />
         </Tabs.Panel>
         <Tabs.Panel value="classes">
-          <ClassesTab gymId={gymId} />
+          <ClassesTab gymId={gymId} {...filtro} />
         </Tabs.Panel>
         <Tabs.Panel value="requests">
-          <ClassRequestsTab gymId={gymId} />
+          <ClassRequestsTab gymId={gymId} {...filtro} />
         </Tabs.Panel>
         <Tabs.Panel value="wod">
           <WodTab gymId={gymId} />
@@ -241,7 +257,11 @@ function DropinsTab({ gymId }: { gymId: string }) {
   const [price, setPrice] = useState<number | "">("");
   const [error, setError] = useState("");
 
-  const rows = (products.data ?? []) as DropinProduct[];
+  const todos = (products.data ?? []) as DropinProduct[];
+  // Los pases no tienen servicio: se distinguen por tipo, así que ese es su filtro.
+  const [tipo, setTipo] = useState<string | null>(null);
+  const rows = todos.filter((p) => !tipo || p.type === tipo);
+  const tiposPresentes = DROPIN_TYPES.filter((t) => todos.some((p) => p.type === t.value));
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -307,10 +327,23 @@ function DropinsTab({ gymId }: { gymId: string }) {
       </GlassCard>
 
       <GlassCard delay={0.72} padding={18}>
-        <SectionLabel as="h2" mb={10}>Pases publicados</SectionLabel>
+        <Group justify="space-between" mb={10} wrap="wrap" gap="sm">
+          <SectionLabel as="h2">Pases publicados</SectionLabel>
+          {todos.length > 0 && (
+            <Select
+              aria-label="Filtrar por tipo de pase"
+              placeholder="Todos los tipos"
+              data={tiposPresentes}
+              value={tipo}
+              onChange={setTipo}
+              clearable
+              w={{ base: "100%", sm: 200 }}
+            />
+          )}
+        </Group>
         {rows.length === 0 ? (
           <Text c="dimmed" size="sm">
-            Aún no ofreces pases drop-in. Crea uno arriba.
+            {todos.length ? "Ningún pase coincide con el filtro." : "Aún no ofreces pases drop-in. Crea uno arriba."}
           </Text>
         ) : (
           <Table striped highlightOnHover>
@@ -377,7 +410,7 @@ function DropinsTab({ gymId }: { gymId: string }) {
 // ---------------------------------------------------------------------------
 // Servicios (catálogo)
 // ---------------------------------------------------------------------------
-function ServicesTab({ gymId }: { gymId: string }) {
+function ServicesTab({ gymId, servicio, setServicio }: FiltroProps) {
   const services = useServiceTypes(gymId);
   const create = useCreateServiceType(gymId);
   const update = useUpdateServiceType(gymId);
@@ -436,7 +469,8 @@ function ServicesTab({ gymId }: { gymId: string }) {
     }
   };
 
-  const rows = (services.data ?? []) as ServiceType[];
+  const todos = (services.data ?? []) as ServiceType[];
+  const rows = todos.filter((s) => coincideServicio(s.name, servicio));
 
   return (
     <>
@@ -508,7 +542,14 @@ function ServicesTab({ gymId }: { gymId: string }) {
       </Card>
 
       <GlassCard delay={0.72} padding={18}>
-        <SectionLabel as="h2" mb={10}>Servicios del gimnasio</SectionLabel>
+        <Group justify="space-between" mb={10} wrap="wrap" gap="sm">
+          <SectionLabel as="h2">Servicios del gimnasio</SectionLabel>
+          <FiltroServicio
+            opciones={opcionesDeServicio(todos.map((s) => s.name), servicio)}
+            value={servicio}
+            onChange={setServicio}
+          />
+        </Group>
         <DataTable<ServiceType>
           minHeight={140}
           highlightOnHover
@@ -516,7 +557,7 @@ function ServicesTab({ gymId }: { gymId: string }) {
           idAccessor="id"
           records={sortRecords(rows, sortStatus)}
           fetching={services.isLoading}
-          noRecordsText="Crea el primer servicio del gym."
+          noRecordsText={todos.length ? "Ningún servicio coincide con el filtro." : "Crea el primer servicio del gym."}
           sortStatus={sortStatus}
           onSortStatusChange={setSortStatus}
           columns={[
@@ -795,7 +836,7 @@ function EditServiceTypeModal({
 // ---------------------------------------------------------------------------
 // Horario semanal (plantillas)
 // ---------------------------------------------------------------------------
-function ScheduleTab({ gymId }: { gymId: string }) {
+function ScheduleTab({ gymId, servicio, setServicio }: FiltroProps) {
   const services = useServiceTypes(gymId);
   const schedules = useSchedules(gymId);
   const coaches = useGymCoaches(gymId);
@@ -815,6 +856,7 @@ function ScheduleTab({ gymId }: { gymId: string }) {
   const [openEnded, setOpenEnded] = useState(true);
   const [toDate, setToDate] = useState<Date | null>(null);
   const [materialized, setMaterialized] = useState<number | null>(null);
+  const [dia, setDia] = useState<string | null>(null);
   const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ClassSchedule>>({
     columnAccessor: "start_time",
     direction: "asc",
@@ -873,9 +915,12 @@ function ScheduleTab({ gymId }: { gymId: string }) {
     }
   };
 
-  const rows = ((schedules.data ?? []) as ClassSchedule[]).slice().sort((a, b) =>
-    a.start_time === b.start_time ? a.weekday - b.weekday : a.start_time.localeCompare(b.start_time),
-  );
+  const todas = (schedules.data ?? []) as ClassSchedule[];
+  const rows = todas
+    .filter((s) => coincideServicio(s.service_type_name, servicio) && (dia === null || String(s.weekday) === dia))
+    .sort((a, b) =>
+      a.start_time === b.start_time ? a.weekday - b.weekday : a.start_time.localeCompare(b.start_time),
+    );
 
   return (
     <>
@@ -937,6 +982,21 @@ function ScheduleTab({ gymId }: { gymId: string }) {
             <SectionLabel mb={4}>Franjas activas</SectionLabel>
             <Title order={3}>Horario actual</Title>
           </div>
+          <Group gap="sm" wrap="wrap">
+          <FiltroServicio
+            opciones={opcionesDeServicio(todas.map((s) => s.service_type_name), servicio)}
+            value={servicio}
+            onChange={setServicio}
+          />
+          <Select
+            aria-label="Filtrar por día"
+            placeholder="Todos los días"
+            data={WEEKDAYS}
+            value={dia}
+            onChange={setDia}
+            clearable
+            w={{ base: "100%", sm: 160 }}
+          />
           <Tooltip label="Reconstruye el calendario futuro desde los horarios activos (quita clases sobrantes sin reservas y regenera las próximas semanas)">
             <Button
               variant="light"
@@ -953,6 +1013,7 @@ function ScheduleTab({ gymId }: { gymId: string }) {
               Regenerar calendario
             </Button>
           </Tooltip>
+          </Group>
         </Group>
         {materialized !== null && (
           <Text c="flame" size="sm" mb="sm">
@@ -966,7 +1027,9 @@ function ScheduleTab({ gymId }: { gymId: string }) {
           idAccessor="id"
           records={sortRecords(rows, sortStatus)}
           fetching={schedules.isLoading}
-          noRecordsText="Agrega la primera franja del horario semanal."
+          noRecordsText={
+            todas.length ? "Ninguna franja coincide con el filtro." : "Agrega la primera franja del horario semanal."
+          }
           sortStatus={sortStatus}
           onSortStatusChange={setSortStatus}
           columns={[
@@ -1046,7 +1109,7 @@ function ScheduleTab({ gymId }: { gymId: string }) {
 // ---------------------------------------------------------------------------
 // Clases (listado + asistencia) — flujo existente
 // ---------------------------------------------------------------------------
-function ClassesTab({ gymId }: { gymId: string }) {
+function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
   const classes = useGymClasses(gymId);
   const pastClasses = useGymPastClasses(gymId);
   const coaches = useGymCoaches(gymId);
@@ -1110,19 +1173,27 @@ function ClassesTab({ gymId }: { gymId: string }) {
       ? ((pastClasses.data ?? []) as ClassRow[])
       : upcoming.filter((c) => (timeTab === "hoy" ? dayOf(c) === todayStr : dayOf(c) > todayStr));
   const q = search.trim().toLowerCase();
+  const delServicio = all.filter((c) => coincideServicio(c.class_type, servicio));
   const filtered = q
-    ? all.filter(
+    ? delServicio.filter(
         (c) =>
           c.class_type.toLowerCase().includes(q) ||
           (c.coach_name ?? coachName(c.coach ?? null) ?? "").toLowerCase().includes(q) ||
           label(CLASS_STATUS, c.status).toLowerCase().includes(q),
       )
-    : all;
+    : delServicio;
   const rows = sortRecords(filtered, sortStatus);
 
   const countHoy = upcoming.filter((c) => dayOf(c) === todayStr).length;
   const countProximas = upcoming.filter((c) => dayOf(c) > todayStr).length;
   const countPasado = (pastClasses.data ?? []).length;
+  // Los contadores del selector Pasado/Hoy/Próximas cuentan lo que la tabla va a
+  // mostrar: con un servicio elegido, «Hoy (5)» sobre una tabla de 2 filas se
+  // lee como que faltan clases. Las cifras de arriba siguen siendo del box entero.
+  const delFiltro = (lista: ClassRow[]) => lista.filter((c) => coincideServicio(c.class_type, servicio)).length;
+  const segHoy = delFiltro(upcoming.filter((c) => dayOf(c) === todayStr));
+  const segProximas = delFiltro(upcoming.filter((c) => dayOf(c) > todayStr));
+  const segPasado = delFiltro((pastClasses.data ?? []) as ClassRow[]);
 
   // Pendientes de HOY que necesitan atención: clases sin coach y clases con
   // rutina requerida cuyo WOD del día aún no está publicado.
@@ -1258,17 +1329,29 @@ function ClassesTab({ gymId }: { gymId: string }) {
               });
             }}
             data={[
-              { value: "pasado", label: `Pasado (${countPasado})` },
-              { value: "hoy", label: `Hoy (${countHoy})` },
-              { value: "proximas", label: `Próximas (${countProximas})` },
+              { value: "pasado", label: `Pasado (${segPasado})` },
+              { value: "hoy", label: `Hoy (${segHoy})` },
+              { value: "proximas", label: `Próximas (${segProximas})` },
             ]}
           />
-          <TextInput
-            placeholder="Buscar por clase, coach o estado…"
-            value={search}
-            onChange={(e) => setSearch(e.currentTarget.value)}
-            w={{ base: "100%", sm: 320 }}
-          />
+          <Group gap="sm" wrap="wrap">
+            {/* Opciones de las tres vistas juntas: cambiar de Hoy a Próximas no
+                debe hacer desaparecer el servicio que ya estaba elegido. */}
+            <FiltroServicio
+              opciones={opcionesDeServicio(
+                [...upcoming, ...((pastClasses.data ?? []) as ClassRow[])].map((c) => c.class_type),
+                servicio,
+              )}
+              value={servicio}
+              onChange={setServicio}
+            />
+            <TextInput
+              placeholder="Buscar por clase, coach o estado…"
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              w={{ base: "100%", sm: 280 }}
+            />
+          </Group>
         </Group>
         <DataTable<ClassRow>
           minHeight={160}
@@ -1277,7 +1360,9 @@ function ClassesTab({ gymId }: { gymId: string }) {
           records={rows}
           fetching={source.isLoading}
           noRecordsText={
-            timeTab === "pasado"
+            all.length && (servicio || q)
+              ? "Ninguna clase coincide con el filtro."
+              : timeTab === "pasado"
               ? "Sin clases pasadas en los últimos 60 días."
               : timeTab === "hoy"
                 ? "Sin clases hoy. Arma el horario y genera las clases del calendario."

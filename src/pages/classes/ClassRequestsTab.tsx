@@ -7,6 +7,7 @@ import { GlassCard } from "../../components/aurora";
 import { PageError } from "../../components/PageStatus";
 import { CountBadge, SectionLabel } from "../../components/ui";
 import { errMsg } from "../../lib/errors";
+import { coincideServicio, FiltroServicio, opcionesDeServicio } from "./FiltroServicio";
 
 const cuando = (iso: string) =>
   new Date(iso).toLocaleString("es-GT", {
@@ -130,9 +131,18 @@ function Ofrecida({ s }: { s: ClassAssignmentRequest }) {
  * pelota la tiene él. Se listan porque una clase esperando un sí no es una clase
  * asignada, y sin verlas el viernes se llega al lunes creyendo que estaba dada.
  */
-export function ClassRequestsTab({ gymId }: { gymId: string }) {
+export function ClassRequestsTab({
+  gymId,
+  servicio = null,
+  setServicio,
+}: {
+  gymId: string;
+  servicio?: string | null;
+  setServicio?: (s: string | null) => void;
+}) {
   const solicitudes = useClassRequests(gymId);
-  const filas = solicitudes.data ?? [];
+  const todas = solicitudes.data ?? [];
+  const filas = todas.filter((f) => coincideServicio(f.class_type, servicio));
   const pedidas = filas.filter((f) => f.kind !== "invite");
   const ofrecidas = filas.filter((f) => f.kind === "invite");
 
@@ -147,9 +157,21 @@ export function ClassRequestsTab({ gymId }: { gymId: string }) {
 
   return (
     <Stack gap="md">
-      <Group gap="sm">
-        <SectionLabel>Solicitudes de clase</SectionLabel>
-        {pedidas.length > 0 ? <CountBadge count={pedidas.length} /> : null}
+      <Group justify="space-between" wrap="wrap" gap="sm">
+        <Group gap="sm">
+          <SectionLabel>Solicitudes de clase</SectionLabel>
+          {pedidas.length > 0 ? <CountBadge count={pedidas.length} /> : null}
+        </Group>
+        {setServicio && (todas.length > 0 || servicio) ? (
+          <FiltroServicio
+            opciones={opcionesDeServicio(
+              todas.map((f) => f.class_type),
+              servicio,
+            )}
+            value={servicio}
+            onChange={setServicio}
+          />
+        ) : null}
       </Group>
       <Text size="sm" c="dimmed">
         Cuando un coach tuyo pide una clase futura que aún no tiene coach, aparece aquí. Al
@@ -160,6 +182,12 @@ export function ClassRequestsTab({ gymId }: { gymId: string }) {
         <Text size="sm" c="dimmed">
           Cargando solicitudes…
         </Text>
+      ) : pedidas.length === 0 && servicio && todas.some((f) => f.kind !== "invite") ? (
+        <GlassCard>
+          <Text size="sm" c="dimmed">
+            Ninguna solicitud de {servicio}. Quita el filtro para ver las de los demás servicios.
+          </Text>
+        </GlassCard>
       ) : pedidas.length === 0 ? (
         <GlassCard>
           <Text size="sm" c="dimmed">

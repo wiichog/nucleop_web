@@ -33,6 +33,17 @@ export const manualesOperacion: ManualesPorRuta = {
           "Las clases de las próximas semanas se generan solas a partir del horario. Si cambiaste varias franjas y el calendario no cuadra, presiona «Regenerar calendario»: quita las clases sobrantes que no tienen reservas y vuelve a generar las próximas semanas.",
       },
       {
+        titulo: "Ver solo un servicio (filtrar las tablas)",
+        pasos: [
+          "En «Servicios», «Horario semanal», «Clases» o «Solicitudes», abre la lista «Todos los servicios» que está arriba de la tabla.",
+          "Elige el servicio (por ejemplo CrossFit). La tabla muestra solo sus filas.",
+          "En «Horario semanal» también puedes elegir un día en «Todos los días».",
+          "Para volver a ver todo, presiona la ✕ de la lista.",
+        ],
+        nota:
+          "El servicio que eliges se queda al cambiar de pestaña: si filtras CrossFit en el horario, en «Clases» y «Solicitudes» también ves solo CrossFit. Los pases de «Drop-ins / Pases» no son de un servicio: ahí se filtran por tipo en «Todos los tipos».",
+      },
+      {
         titulo: "Cambiar o quitar una franja del horario",
         pasos: [
           "En la pestaña «Horario semanal», busca la franja en la tabla «Horario actual».",
