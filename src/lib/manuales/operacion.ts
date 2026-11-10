@@ -23,32 +23,36 @@ export const manualesOperacion: ManualesPorRuta = {
       {
         titulo: "Armar el horario semanal",
         pasos: [
-          "Entra a la pestaña «Horario semanal».",
-          "En «Agregar al horario» elige el servicio, la hora, los minutos, el cupo y, si ya lo sabes, el coach.",
-          "Marca los días de la semana en que se repite (puedes marcar varios a la vez).",
+          "Entra a la pestaña «Horario semanal». Ves la semana como en la pared del box: las horas hacia abajo y los días hacia el lado. Cada clase dice quién la da y cuántos caben.",
+          "Presiona «Agregar clase», o toca un espacio vacío (+) de la cuadrícula: así el día y la hora ya vienen puestos.",
+          "Elige el servicio, el coach si ya lo sabes, la hora, los minutos y el cupo.",
+          "Marca los días en que se repite (puedes marcar varios a la vez).",
           "Elige desde qué fecha aplica. Pon una fecha «Hasta» o deja activado «Sin fecha de fin» para que se repita siempre.",
-          "Presiona «Agregar».",
+          "Presiona «Agregar» (o «Agregar 5 clases» si marcaste cinco días).",
         ],
         nota:
-          "Las clases de las próximas semanas se generan solas a partir del horario. Si cambiaste varias franjas y el calendario no cuadra, presiona «Regenerar calendario»: quita las clases sobrantes que no tienen reservas y vuelve a generar las próximas semanas.",
+          "Arriba de la cuadrícula ves cuántas clases das por semana y cuántas no tienen coach. Las clases sin coach salen en amarillo. Las clases de las próximas semanas se generan solas a partir del horario. Si cambiaste varias clases y el calendario no cuadra, presiona «Regenerar calendario»: quita las clases sobrantes que no tienen reservas y vuelve a generar las próximas semanas.",
       },
       {
         titulo: "Ver solo un servicio (filtrar las tablas)",
         pasos: [
           "En «Servicios», «Horario semanal», «Clases» o «Solicitudes», abre la lista «Todos los servicios» que está arriba de la tabla.",
-          "Elige el servicio (por ejemplo CrossFit). La tabla muestra solo sus filas.",
-          "En «Horario semanal» también puedes elegir un día en «Todos los días».",
+          "Elige el servicio (por ejemplo CrossFit). La tabla, o la cuadrícula del horario, muestra solo ese servicio.",
           "Para volver a ver todo, presiona la ✕ de la lista.",
         ],
         nota:
           "El servicio que eliges se queda al cambiar de pestaña: si filtras CrossFit en el horario, en «Clases» y «Solicitudes» también ves solo CrossFit. Los pases de «Drop-ins / Pases» no son de un servicio: ahí se filtran por tipo en «Todos los tipos».",
       },
       {
-        titulo: "Cambiar o quitar una franja del horario",
+        titulo: "Cambiar, copiar o quitar una clase del horario",
         pasos: [
-          "En la pestaña «Horario semanal», busca la franja en la tabla «Horario actual».",
-          "Usa «Editar» para cambiar hora, minutos, cupo o coach, o «Quitar del horario» para sacarla.",
+          "En la pestaña «Horario semanal», toca la clase en la cuadrícula.",
+          "Cambia el coach, la hora, los minutos o el cupo y presiona «Guardar».",
+          "Para darla también otros días, presiona «Copiar a otros días»: se abre «Agregar al horario» con todo igual; marca los días y presiona «Agregar».",
+          "Para sacarla del horario, presiona «Quitar del horario».",
         ],
+        nota:
+          "Esto cambia el horario de todas las semanas. Para cambiar una sola clase (por ejemplo, el coach de este lunes), hazlo en la pestaña «Clases».",
       },
       {
         titulo: "Asignar un coach a una clase",

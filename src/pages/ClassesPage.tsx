@@ -85,6 +85,8 @@ import { ClassRequestsTab } from "./classes/ClassRequestsTab";
 import { ArmarBloquesDesdeTexto } from "./classes/ArmarBloquesDesdeTexto";
 import { WodPartsEditor } from "./classes/WodPartsEditor";
 import { SemanaWods } from "./classes/SemanaWods";
+import { HorarioSemanal } from "./classes/HorarioSemanal";
+import { horaDe, resumenHorario } from "../lib/horarioSemanal";
 import { coincideServicio, FiltroServicio, opcionesDeServicio } from "./classes/FiltroServicio";
 import { deIso, fechaLarga, isoLocal, lunesDe, rangoDeSemana, sumarDias, wodDelDia } from "../lib/semanaWod";
 import {
@@ -836,32 +838,28 @@ function EditServiceTypeModal({
 // ---------------------------------------------------------------------------
 // Horario semanal (plantillas)
 // ---------------------------------------------------------------------------
+/** Lo que trae el alta al abrirse: vacío, desde un hueco (día + hora) o copiando una clase. */
+type BorradorFranja = {
+  serviceId: string | null;
+  startTime: string;
+  duration: number;
+  capacity: number;
+  coachId: string | null;
+  weekdays: string[];
+};
+
 function ScheduleTab({ gymId, servicio, setServicio }: FiltroProps) {
   const services = useServiceTypes(gymId);
   const schedules = useSchedules(gymId);
   const coaches = useGymCoaches(gymId);
-  const create = useCreateSchedule(gymId);
   const update = useUpdateSchedule(gymId);
   const remove = useDeleteSchedule(gymId);
   const materialize = useMaterializeSchedules(gymId);
   const [editing, setEditing] = useState<ClassSchedule | null>(null);
-
-  const [serviceId, setServiceId] = useState<string | null>(null);
-  const [startTime, setStartTime] = useState("06:00");
-  const [duration, setDuration] = useState<number | string>(60);
-  const [capacity, setCapacity] = useState<number | string>(20);
-  const [coachId, setCoachId] = useState<string | null>(null);
-  const [weekdays, setWeekdays] = useState<string[]>(["0", "1", "2", "3", "4"]);
-  const [fromDate, setFromDate] = useState<Date | null>(new Date());
-  const [openEnded, setOpenEnded] = useState(true);
-  const [toDate, setToDate] = useState<Date | null>(null);
+  const [nueva, setNueva] = useState<BorradorFranja | null>(null);
   const [materialized, setMaterialized] = useState<number | null>(null);
-  const [dia, setDia] = useState<string | null>(null);
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ClassSchedule>>({
-    columnAccessor: "start_time",
-    direction: "asc",
-  });
 
+  const serviceList = (services.data ?? []) as ServiceType[];
   const serviceOptions = useMemo(
     () => ((services.data ?? []) as ServiceType[]).map((s) => ({ value: s.id, label: s.name })),
     [services.data],
@@ -873,13 +871,215 @@ function ScheduleTab({ gymId, servicio, setServicio }: FiltroProps) {
 
   if (schedules.isError) return <PageError onRetry={() => schedules.refetch()} />;
 
+  const todas = (schedules.data ?? []) as ClassSchedule[];
+  const rows = todas.filter((s) => coincideServicio(s.service_type_name, servicio));
+  const resumen = resumenHorario(rows);
+  const conServicio = new Set(rows.map((s) => s.service_type)).size > 1;
+  /** En la celda cabe un nombre, no un correo: sin nombre, va lo que está antes de la @. */
+  const coachDe = (s: ClassSchedule) => {
+    if (!s.default_coach) return null;
+    const c = (coaches.data ?? []).find((x) => x.staff_role === s.default_coach);
+    const nombre = c?.name || c?.email || "Coach";
+    return nombre.includes("@") ? nombre.split("@")[0] : nombre;
+  };
+
+  /** El alta arranca con los valores del servicio filtrado, si hay uno. */
+  const abrirNueva = (extra: Partial<BorradorFranja> = {}) => {
+    const filtrado = servicio ? serviceList.find((s) => coincideServicio(s.name, servicio)) : undefined;
+    setNueva({
+      serviceId: filtrado?.id ?? null,
+      startTime: "06:00",
+      duration: filtrado?.default_duration_min ?? 60,
+      capacity: filtrado?.default_capacity ?? 20,
+      coachId: null,
+      weekdays: ["0", "1", "2", "3", "4"],
+      ...extra,
+    });
+  };
+
+  return (
+    <>
+      <GlassCard delay={0.6} padding={18}>
+        <Group justify="space-between" mb="md" wrap="wrap" gap="sm" align="flex-end">
+          <div>
+            <SectionLabel mb={4}>Plantilla semanal</SectionLabel>
+            <Title order={3}>Horario semanal</Title>
+            <Group gap="xs" mt={4}>
+              <Text size="sm" c="dimmed">
+                {resumen.clases} {resumen.clases === 1 ? "clase" : "clases"} por semana
+              </Text>
+              {resumen.sinCoach > 0 && (
+                <Badge color="yellow" variant="light">
+                  {resumen.sinCoach} sin coach
+                </Badge>
+              )}
+            </Group>
+          </div>
+          <Group gap="sm" wrap="wrap">
+            <FiltroServicio
+              opciones={opcionesDeServicio(todas.map((s) => s.service_type_name), servicio)}
+              value={servicio}
+              onChange={setServicio}
+            />
+            <Tooltip label="Reconstruye el calendario futuro desde los horarios activos (quita clases sobrantes sin reservas y regenera las próximas semanas)">
+              <Button
+                variant="default"
+                loading={materialize.isPending}
+                onClick={async () => {
+                  try {
+                    const res = await materialize.mutateAsync();
+                    setMaterialized(res.materialized);
+                  } catch (error) {
+                    fail(error, "No se pudo regenerar el calendario.");
+                  }
+                }}
+              >
+                Regenerar calendario
+              </Button>
+            </Tooltip>
+            <Button onClick={() => abrirNueva()} disabled={!serviceOptions.length}>
+              Agregar clase
+            </Button>
+          </Group>
+        </Group>
+        {materialized !== null && (
+          <Text c="flame" size="sm" mb="sm">
+            Calendario regenerado: {materialized} clases en el horizonte.
+          </Text>
+        )}
+
+        {schedules.isLoading ? (
+          <Text c="dimmed" size="sm">
+            Cargando…
+          </Text>
+        ) : rows.length ? (
+          <>
+            <HorarioSemanal
+              franjas={rows}
+              coachDe={coachDe}
+              conServicio={conServicio}
+              onAbrir={setEditing}
+              onNueva={(dia, hora) => abrirNueva({ startTime: hora, weekdays: [String(dia)] })}
+            />
+            <Text size="xs" c="dimmed" mt="sm">
+              Toca una clase para cambiarla o quitarla. Toca un espacio vacío (+) para agregar una clase ahí.
+            </Text>
+          </>
+        ) : (
+          <Stack align="flex-start" gap="xs" py="md">
+            <Text c="dimmed">
+              {todas.length
+                ? "Este servicio todavía no tiene clases en el horario."
+                : serviceOptions.length
+                  ? "Agrega la primera clase del horario semanal."
+                  : "Crea un servicio en la pestaña «Servicios» para poder armar el horario."}
+            </Text>
+            {serviceOptions.length > 0 && (
+              <Button variant="light" onClick={() => abrirNueva()}>
+                Agregar clase
+              </Button>
+            )}
+          </Stack>
+        )}
+      </GlassCard>
+
+      <NuevaFranjaModal
+        gymId={gymId}
+        borrador={nueva}
+        serviceOptions={serviceOptions}
+        coachOptions={coachOptions}
+        onClose={() => setNueva(null)}
+      />
+
+      <EditScheduleModal
+        schedule={editing}
+        coachOptions={coachOptions}
+        saving={update.isPending}
+        removing={remove.isPending}
+        onClose={() => setEditing(null)}
+        onSave={async (body) => {
+          if (!editing) return;
+          try {
+            await update.mutateAsync({ id: editing.id, body });
+            ok("Horario actualizado.");
+            setEditing(null);
+          } catch (error) {
+            fail(error, "No se pudo actualizar el horario.");
+          }
+        }}
+        onRemove={() => {
+          if (!editing) return;
+          remove.mutate(editing.id, {
+            onSuccess: () => {
+              ok("Clase quitada del horario.");
+              setEditing(null);
+            },
+            onError: (error) => fail(error, "No se pudo quitar la clase."),
+          });
+        }}
+        onCopy={(s) => {
+          setEditing(null);
+          abrirNueva({
+            serviceId: s.service_type,
+            startTime: horaDe(s),
+            duration: s.duration_min,
+            capacity: s.capacity,
+            coachId: s.default_coach,
+            // Los días que ya tienen esta clase no se vuelven a marcar: duplicaría.
+            weekdays: [],
+          });
+        }}
+      />
+    </>
+  );
+}
+
+/** El alta de una clase al horario: un `ClassSchedule` por cada día marcado. */
+function NuevaFranjaModal({
+  gymId,
+  borrador,
+  serviceOptions,
+  coachOptions,
+  onClose,
+}: {
+  gymId: string;
+  borrador: BorradorFranja | null;
+  serviceOptions: { value: string; label: string }[];
+  coachOptions: { value: string; label: string }[];
+  onClose: () => void;
+}) {
+  const create = useCreateSchedule(gymId);
+  const [serviceId, setServiceId] = useState<string | null>(null);
+  const [startTime, setStartTime] = useState("06:00");
+  const [duration, setDuration] = useState<number | string>(60);
+  const [capacity, setCapacity] = useState<number | string>(20);
+  const [coachId, setCoachId] = useState<string | null>(null);
+  const [weekdays, setWeekdays] = useState<string[]>([]);
+  const [fromDate, setFromDate] = useState<Date | null>(new Date());
+  const [openEnded, setOpenEnded] = useState(true);
+  const [toDate, setToDate] = useState<Date | null>(null);
+  const [hydratedFor, setHydratedFor] = useState<BorradorFranja | null>(null);
+
+  if (borrador && hydratedFor !== borrador) {
+    setHydratedFor(borrador);
+    setServiceId(borrador.serviceId);
+    setStartTime(borrador.startTime);
+    setDuration(borrador.duration);
+    setCapacity(borrador.capacity);
+    setCoachId(borrador.coachId);
+    setWeekdays(borrador.weekdays);
+    setFromDate(new Date());
+    setOpenEnded(true);
+    setToDate(null);
+  }
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!serviceId || !weekdays.length) return;
     // Una fila por día seleccionado: cada celda de la cuadrícula es su propio horario.
     const creados: string[] = [];
     try {
-      for (const w of weekdays) {
+      for (const w of [...weekdays].sort()) {
         await create.mutateAsync({
           service_type: serviceId,
           weekday: Number(w),
@@ -892,7 +1092,8 @@ function ScheduleTab({ gymId, servicio, setServicio }: FiltroProps) {
         } as Partial<ClassSchedule>);
         creados.push(w);
       }
-      ok(`${creados.length} ${creados.length === 1 ? "horario creado" : "horarios creados"}.`);
+      ok(`${creados.length} ${creados.length === 1 ? "clase agregada" : "clases agregadas"} al horario.`);
+      onClose();
     } catch (error) {
       // El alta es día por día. Si falla a mitad hay que (1) decir cuántos entraron —
       // NO como texto por defecto, porque el mensaje del backend lo taparía — y
@@ -911,49 +1112,52 @@ function ScheduleTab({ gymId, servicio, setServicio }: FiltroProps) {
         });
         return;
       }
-      fail(error, "No se pudo crear el horario.");
+      fail(error, "No se pudo agregar la clase.");
     }
   };
 
-  const todas = (schedules.data ?? []) as ClassSchedule[];
-  const rows = todas
-    .filter((s) => coincideServicio(s.service_type_name, servicio) && (dia === null || String(s.weekday) === dia))
-    .sort((a, b) =>
-      a.start_time === b.start_time ? a.weekday - b.weekday : a.start_time.localeCompare(b.start_time),
-    );
-
   return (
-    <>
-      <Card mb="lg" component="form" onSubmit={submit} className="a-slide-r" style={delayVar(0.6)}>
-        <SectionLabel mb={6}>Plantilla semanal</SectionLabel>
-        <Title order={3} mb={4}>
-          Agregar al horario
-        </Title>
+    <Modal opened={!!borrador} onClose={onClose} title="Agregar al horario" centered size="lg">
+      <form onSubmit={submit}>
         <Text c="dimmed" size="sm" mb="md">
-          Ej.: CrossFit 6:00 lun–vie. Se materializan las próximas semanas automáticamente; sin fecha de fin se repite siempre.
+          Marca los días en que se repite. Las clases de las próximas semanas se generan solas.
         </Text>
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} spacing="md">
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
           <Select
             label="Servicio"
-            placeholder={serviceOptions.length ? "Selecciona" : "Crea un servicio primero"}
+            placeholder="Selecciona"
             data={serviceOptions}
             value={serviceId}
             onChange={setServiceId}
             searchable
             required
           />
+          <Select
+            label="Coach"
+            placeholder="Sin asignar"
+            clearable
+            searchable
+            value={coachId}
+            onChange={setCoachId}
+            data={coachOptions}
+          />
           <TimeInput label="Hora" value={startTime} onChange={(e) => setStartTime(e.currentTarget.value)} />
-          <NumberInput label="Minutos" value={duration} onChange={setDuration} min={15} max={300} />
-          <NumberInput label="Cupo" value={capacity} onChange={setCapacity} min={1} max={200} />
-          <Select label="Coach" placeholder="Sin asignar" clearable searchable value={coachId} onChange={setCoachId} data={coachOptions} />
+          <Group grow>
+            <NumberInput label="Minutos" value={duration} onChange={setDuration} min={15} max={300} />
+            <NumberInput label="Cupo" value={capacity} onChange={setCapacity} min={1} max={200} />
+          </Group>
         </SimpleGrid>
 
-        <Group gap="xs" my="md" grow>
+        <Text size="sm" fw={500} mt="md" mb={6}>
+          Días
+        </Text>
+        <Group gap="xs" grow>
           {WEEKDAYS.map((d) => {
             const active = weekdays.includes(d.value);
             return (
               <Button
                 key={d.value}
+                px={0}
                 variant={active ? "filled" : "default"}
                 color="flame"
                 onClick={() =>
@@ -966,143 +1170,22 @@ function ScheduleTab({ gymId, servicio, setServicio }: FiltroProps) {
           })}
         </Group>
 
-        <Group align="flex-end" gap="md">
-          <DateInput label="Desde" value={fromDate} onChange={setFromDate} valueFormat="YYYY-MM-DD" popoverProps={{ withinPortal: true }} clearable style={{ flex: 1 }} />
-          <DateInput label="Hasta" value={toDate} onChange={setToDate} valueFormat="YYYY-MM-DD" disabled={openEnded} popoverProps={{ withinPortal: true }} clearable style={{ flex: 1 }} />
-          <Switch label="Sin fecha de fin" checked={openEnded} onChange={(e) => setOpenEnded(e.currentTarget.checked)} />
-          <Button type="submit" loading={create.isPending} disabled={!serviceId || !weekdays.length} ml="auto">
-            Agregar
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="md">
+          <DateInput label="Desde" value={fromDate} onChange={setFromDate} valueFormat="YYYY-MM-DD" popoverProps={{ withinPortal: true }} clearable />
+          <DateInput label="Hasta" value={toDate} onChange={setToDate} valueFormat="YYYY-MM-DD" disabled={openEnded} popoverProps={{ withinPortal: true }} clearable />
+        </SimpleGrid>
+        <Switch mt="sm" label="Sin fecha de fin" checked={openEnded} onChange={(e) => setOpenEnded(e.currentTarget.checked)} />
+
+        <Group justify="flex-end" mt="lg">
+          <Button variant="default" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" loading={create.isPending} disabled={!serviceId || !weekdays.length}>
+            {weekdays.length > 1 ? `Agregar ${weekdays.length} clases` : "Agregar"}
           </Button>
         </Group>
-      </Card>
-
-      <GlassCard delay={0.72} padding={18}>
-        <Group justify="space-between" mb="sm" wrap="wrap" gap="sm">
-          <div>
-            <SectionLabel mb={4}>Franjas activas</SectionLabel>
-            <Title order={3}>Horario actual</Title>
-          </div>
-          <Group gap="sm" wrap="wrap">
-          <FiltroServicio
-            opciones={opcionesDeServicio(todas.map((s) => s.service_type_name), servicio)}
-            value={servicio}
-            onChange={setServicio}
-          />
-          <Select
-            aria-label="Filtrar por día"
-            placeholder="Todos los días"
-            data={WEEKDAYS}
-            value={dia}
-            onChange={setDia}
-            clearable
-            w={{ base: "100%", sm: 160 }}
-          />
-          <Tooltip label="Reconstruye el calendario futuro desde los horarios activos (quita clases sobrantes sin reservas y regenera las próximas semanas)">
-            <Button
-              variant="light"
-              loading={materialize.isPending}
-              onClick={async () => {
-                try {
-                  const res = await materialize.mutateAsync();
-                  setMaterialized(res.materialized);
-                } catch (error) {
-                  fail(error, "No se pudo regenerar el calendario.");
-                }
-              }}
-            >
-              Regenerar calendario
-            </Button>
-          </Tooltip>
-          </Group>
-        </Group>
-        {materialized !== null && (
-          <Text c="flame" size="sm" mb="sm">
-            Calendario regenerado: {materialized} clases en el horizonte.
-          </Text>
-        )}
-        <DataTable<ClassSchedule>
-          minHeight={140}
-          highlightOnHover
-          striped
-          idAccessor="id"
-          records={sortRecords(rows, sortStatus)}
-          fetching={schedules.isLoading}
-          noRecordsText={
-            todas.length ? "Ninguna franja coincide con el filtro." : "Agrega la primera franja del horario semanal."
-          }
-          sortStatus={sortStatus}
-          onSortStatusChange={setSortStatus}
-          columns={[
-            { accessor: "start_time", title: "Hora", sortable: true, render: (s) => s.start_time.slice(0, 5) },
-            { accessor: "weekday", title: "Día", sortable: true, render: (s) => weekdayLabel(s.weekday) },
-            {
-              accessor: "service_type_name",
-              title: "Servicio",
-              sortable: true,
-              render: (s) => (
-                <Group gap="xs">
-                  <span
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: "calc(4 * var(--u))",
-                      background: s.color || "#888",
-                    }}
-                  />
-                  {s.service_type_name}
-                  {s.requires_wod && <Badge size="xs" color="flame">Workout</Badge>}
-                </Group>
-              ),
-            },
-            { accessor: "capacity", title: "Cupo", sortable: true },
-            {
-              accessor: "valid_until",
-              title: "Vigencia",
-              render: (s) => (s.is_open_ended ? <Badge variant="light">Sin fin</Badge> : `hasta ${s.valid_until}`),
-            },
-            {
-              accessor: "actions",
-              title: "",
-              render: (s) => (
-                <RowActions
-                  actions={[
-                    { label: "Editar", onClick: () => setEditing(s) },
-                    {
-                      label: "Quitar del horario",
-                      color: "red",
-                      variant: "subtle",
-                      loading: remove.isPending,
-                      onClick: () =>
-                        remove.mutate(s.id, {
-                          onSuccess: () => ok("Horario quitado."),
-                          onError: (error) => fail(error, "No se pudo quitar el horario."),
-                        }),
-                    },
-                  ]}
-                />
-              ),
-            },
-          ]}
-        />
-      </GlassCard>
-
-      <EditScheduleModal
-        schedule={editing}
-        coachOptions={coachOptions}
-        saving={update.isPending}
-        onClose={() => setEditing(null)}
-        onSave={async (body) => {
-          if (!editing) return;
-          try {
-            await update.mutateAsync({ id: editing.id, body });
-            ok("Horario actualizado.");
-            setEditing(null);
-          } catch (error) {
-            fail(error, "No se pudo actualizar el horario.");
-          }
-        }}
-      />
-    </>
+      </form>
+    </Modal>
   );
 }
 
@@ -1791,14 +1874,20 @@ function EditScheduleModal({
   schedule,
   coachOptions,
   saving,
+  removing,
   onClose,
   onSave,
+  onRemove,
+  onCopy,
 }: {
   schedule: ClassSchedule | null;
   coachOptions: { value: string; label: string }[];
   saving: boolean;
+  removing: boolean;
   onClose: () => void;
   onSave: (body: Partial<ClassSchedule>) => Promise<void>;
+  onRemove: () => void;
+  onCopy: (s: ClassSchedule) => void;
 }) {
   const [startTime, setStartTime] = useState("06:00");
   const [duration, setDuration] = useState<number | string>(60);
@@ -1814,13 +1903,17 @@ function EditScheduleModal({
     setCoachId(schedule.default_coach ?? null);
   }
 
+  const titulo = schedule
+    ? `${schedule.service_type_name} · ${weekdayLabel(schedule.weekday)} ${schedule.start_time.slice(0, 5)}`
+    : "";
+
   return (
-    <Modal opened={!!schedule} onClose={onClose} title="Editar horario" centered>
-      <TimeInput label="Hora" value={startTime} onChange={(e) => setStartTime(e.currentTarget.value)} mb="sm" />
-      <Group grow mb="sm">
-        <NumberInput label="Minutos" value={duration} onChange={setDuration} min={15} max={300} />
-        <NumberInput label="Cupo" value={capacity} onChange={setCapacity} min={1} max={200} />
-      </Group>
+    <Modal opened={!!schedule} onClose={onClose} title={titulo} centered>
+      {schedule && (
+        <Text size="sm" c="dimmed" mb="md">
+          {schedule.is_open_ended ? "Se repite cada semana, sin fecha de fin." : `Se repite cada semana hasta el ${schedule.valid_until}.`}
+        </Text>
+      )}
       <Select
         label="Coach"
         placeholder="Sin asignar"
@@ -1829,25 +1922,42 @@ function EditScheduleModal({
         value={coachId}
         onChange={setCoachId}
         data={coachOptions}
-        mb="md"
+        mb="sm"
       />
-      <Group justify="flex-end">
-        <Button variant="default" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button
-          loading={saving}
-          onClick={() =>
-            onSave({
-              start_time: startTime,
-              duration_min: Number(duration),
-              capacity: Number(capacity),
-              default_coach: coachId,
-            } as Partial<ClassSchedule>)
-          }
-        >
-          Guardar
-        </Button>
+      <TimeInput label="Hora" value={startTime} onChange={(e) => setStartTime(e.currentTarget.value)} mb="sm" />
+      <Group grow mb="lg">
+        <NumberInput label="Minutos" value={duration} onChange={setDuration} min={15} max={300} />
+        <NumberInput label="Cupo" value={capacity} onChange={setCapacity} min={1} max={200} />
+      </Group>
+      <Group justify="space-between" wrap="wrap" gap="xs">
+        <Group gap="xs">
+          <Button variant="subtle" color="red" loading={removing} onClick={onRemove}>
+            Quitar del horario
+          </Button>
+          {schedule && (
+            <Button variant="subtle" onClick={() => onCopy(schedule)}>
+              Copiar a otros días
+            </Button>
+          )}
+        </Group>
+        <Group gap="xs">
+          <Button variant="default" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            loading={saving}
+            onClick={() =>
+              onSave({
+                start_time: startTime,
+                duration_min: Number(duration),
+                capacity: Number(capacity),
+                default_coach: coachId,
+              } as Partial<ClassSchedule>)
+            }
+          >
+            Guardar
+          </Button>
+        </Group>
       </Group>
     </Modal>
   );
