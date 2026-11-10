@@ -333,7 +333,7 @@ export const manualesUsuarios: ManualesPorRuta = {
           "Presiona «Enviar invitación».",
         ],
         nota:
-          "Si pusiste fechas, al aceptar la invitación el atleta queda como temporal (en prueba) entre esas fechas. El botón se habilita cuando llenas correo, nombre y apellido.",
+          "Al atleta le llega un correo de Nucleo con un botón para elegir su contraseña y entrar al app. Revisa bien el correo antes de enviar: si lo escribes mal, no le llega nada y tampoco le llegarán los avisos de su membresía. Si pusiste fechas, al aceptar la invitación el atleta queda como temporal (en prueba) entre esas fechas. El botón se habilita cuando llenas correo, nombre y apellido.",
       },
       {
         titulo: "Responder a una solicitud",
