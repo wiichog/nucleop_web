@@ -225,7 +225,7 @@ export const manualesNegocio: ManualesPorRuta = {
           "Haz clic fuera del campo: el cambio se guarda solo.",
         ],
         nota:
-          "Solo se puede escribir en la columna que corresponde a la forma de pago elegida. Coach por clase: se le acumula la tarifa por cada clase que imparte. Coach fijo: solo se le paga extra en las clases marcadas como «pagar extra».",
+          "Solo se puede escribir en la columna que corresponde a la forma de pago elegida. Coach por clase: se le acumula la tarifa por cada clase que imparte. Coach fijo: solo se le paga extra en las clases marcadas como «pagar extra». Una clase cuenta como impartida solo si no se canceló y al menos un atleta tiene asistencia: si nadie llegó, no se paga.",
       },
       {
         titulo: "Habilitar el personal trainer de un coach",
@@ -275,7 +275,8 @@ export const manualesNegocio: ManualesPorRuta = {
       },
       {
         termino: "Por clase",
-        detalle: "Se le acumula su «Tarifa por clase» por cada clase que imparte.",
+        detalle:
+          "Se le acumula su «Tarifa por clase» por cada clase que imparte. Solo cuenta la clase que no se canceló y en la que al menos un atleta tiene asistencia.",
       },
       {
         termino: "Fijo",
@@ -295,7 +296,7 @@ export const manualesNegocio: ManualesPorRuta = {
       {
         termino: "Pagos",
         detalle:
-          "Cuántas cosas suma esa liquidación: cada clase impartida, cada clase con «pagar extra» y cada sesión de personal trainer cuentan como una.",
+          "Cuántas cosas suma esa liquidación: cada clase impartida, cada clase con «pagar extra» y cada sesión de personal trainer cuentan como una. Las clases sin ninguna asistencia o canceladas no entran.",
       },
       {
         termino: "Abierta / Pagada",
