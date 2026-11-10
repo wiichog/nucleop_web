@@ -300,7 +300,7 @@ const PANTALLAS: {
     Pagina: PlatformGymsPage,
     negativa: "Sin acceso",
     conAcceso: SUPERADMIN,
-    adentro: "La red, gimnasio por gimnasio",
+    adentro: "Nuevo gimnasio",
   },
   {
     nombre: "Apelaciones escaladas",
@@ -314,7 +314,7 @@ const PANTALLAS: {
     Pagina: PlatformChargebacksPage,
     negativa: "Sin acceso",
     conAcceso: SUPERADMIN,
-    adentro: "Casos sin resolver",
+    adentro: "Expedientes",
   },
   {
     nombre: "Reportes del app",

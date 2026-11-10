@@ -1,36 +1,7 @@
-import { FormEvent, useState } from "react";
-import {
-  Badge,
-  Button,
-  Card,
-  FileInput,
-  Group,
-  Modal,
-  NumberInput,
-  Select,
-  SimpleGrid,
-  Switch,
-  Tabs,
-  TagsInput,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
-import { DateInput } from "@mantine/dates";
-import { notifications } from "@mantine/notifications";
-import { DataTable, type DataTableSortStatus } from "mantine-datatable";
+import { useState } from "react";
+import { Badge, Button, Group, SimpleGrid, Tabs, Text, TextInput } from "@mantine/core";
 import { useSearchParams } from "react-router-dom";
-import {
-  useCreateErpMovement,
-  useCreateErpProduct,
-  useDeleteErpProduct,
-  useDeleteProductImage,
-  useErpProducts,
-  usePendingSummary,
-  useUpdateErpProduct,
-  useUploadProductImages,
-  useUploadProductPhoto,
-} from "../api/hooks";
+import { useErpProducts, usePendingSummary } from "../api/hooks";
 import type { ErpProduct } from "../api/types";
 import { InventoryLedgerPanel } from "./InventoryLedgerPanel";
 import { InventoryValuationPanel } from "./InventoryValuationPanel";
@@ -38,912 +9,235 @@ import { PurchaseOrdersPanel } from "./PurchaseOrdersPanel";
 import { StoreOrdersPanel } from "./StoreOrdersPanel";
 import { SuppliersPanel } from "./SuppliersPanel";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
-import { RowActions } from "../components/RowActions";
-import { CountBadge, Money, PageHeader, SectionLabel } from "../components/ui";
-import { GlassCard, Reveal } from "../components/aurora";
+import { CountBadge, Money, PageHeader } from "../components/ui";
+import { GlassCard, delayVar } from "../components/aurora";
+import { Encabezado, Tarjeta } from "../components/Tarjeta";
 import { useAuth } from "../lib/auth";
-import { errMsg } from "../lib/errors";
-import { sortRecords } from "../lib/sortRecords";
-
-const CATEGORIES = [
-  { value: "supplement", label: "Suplemento" },
-  { value: "merch", label: "Merch / Ropa" },
-  { value: "drink", label: "Bebida / Comida" },
-  { value: "gear", label: "Equipamiento" },
-  { value: "service", label: "Servicio" },
-  { value: "other", label: "Otro" },
-];
-
-/** Nombre en español de la categoría (el servidor guarda la llave interna). */
-function categoryLabel(value: string) {
-  return CATEGORIES.find((c) => c.value === value)?.label ?? value;
-}
-
-/** Cómo se anuncia el producto en la tienda de la app. */
-function marketplaceBadge(p: ErpProduct) {
-  if (!p.show_in_marketplace) return <Text c="dimmed" size="sm">—</Text>;
-  if (p.is_upcoming)
-    return (
-      <Badge color="grape" variant="light">
-        Próximamente{p.launch_date ? ` · ${p.launch_date}` : ""}
-      </Badge>
-    );
-  if (p.delivery_days > 0)
-    return (
-      <Badge color="yellow" variant="light">
-        Entrega en {p.delivery_days} {p.delivery_days === 1 ? "día" : "días"}
-      </Badge>
-    );
-  return (
-    <Badge color="teal" variant="light">
-      Disponible
-    </Badge>
-  );
-}
+import { categoryLabel, porReabastecer, TiendaBadge } from "./inventario/catalogo";
+import { FichaProducto } from "./inventario/FichaProducto";
+import { ProductoModal } from "./inventario/ProductoModal";
 
 export function InventoryPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
-  const productsQuery = useErpProducts(gymId);
-  const { data, isLoading } = productsQuery;
-  const createProduct = useCreateErpProduct(gymId);
-  const updateProduct = useUpdateErpProduct(gymId);
-  const deleteProduct = useDeleteErpProduct(gymId);
-  const createMovement = useCreateErpMovement(gymId);
-  const uploadPhoto = useUploadProductPhoto(gymId);
   const pendientes = usePendingSummary(gymId);
   // La pestaña vive en la URL: así el badge de «pedidos por entregar» y cualquier
-  // enlace pueden abrir directamente la vista que resuelve el pendiente.
+  // enlace pueden abrir directamente la vista que resuelve el pendiente. El
+  // producto del kardex también, para que «Ver movimientos» llegue filtrado.
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get("tab") || "productos";
-
-  const [editing, setEditing] = useState<ErpProduct | null>(null);
-  const [search, setSearch] = useState("");
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ErpProduct>>({
-    columnAccessor: "name",
-    direction: "asc",
-  });
-
-  const onDelete = (p: ErpProduct) => {
-    if (!window.confirm(`¿Eliminar el producto "${p.name}"?`)) return;
-    deleteProduct
-      .mutateAsync(p.id)
-      .then(() => notifications.show({ color: "teal", message: "Producto eliminado." }))
-      .catch(() => notifications.show({ color: "red", message: "No se pudo eliminar." }));
-  };
-
-  // Activo = a la venta en el Punto de venta. Desactivarlo lo saca del POS sin
-  // borrar su historial ni su stock; el backend acepta `is_active` por PATCH.
-  const onToggleActive = (p: ErpProduct) => {
-    const activar = !p.is_active;
-    updateProduct
-      .mutateAsync({ id: p.id, body: { is_active: activar } })
-      .then(() =>
-        notifications.show({
-          color: "teal",
-          message: activar
-            ? `«${p.name}» ya aparece en el Punto de venta.`
-            : `«${p.name}» ya no aparece en el Punto de venta.`,
-        }),
-      )
-      .catch((error) =>
-        notifications.show({
-          color: "red",
-          message: errMsg(error, activar ? "No se pudo activar el producto." : "No se pudo desactivar el producto."),
-        }),
-      );
-  };
-
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState<string | null>("supplement");
-  const [salePrice, setSalePrice] = useState("");
-  const [costPrice, setCostPrice] = useState("");
-  const [reorder, setReorder] = useState<number | string>(0);
-  const [restock, setRestock] = useState<Record<string, string>>({});
-  // Tienda de la app (los mismos campos también se pueden editar después).
-  const [inMarketplace, setInMarketplace] = useState(false);
-  const [description, setDescription] = useState("");
-  const [sizes, setSizes] = useState<string[]>([]);
-  const [colors, setColors] = useState<string[]>([]);
-  const [deliveryDays, setDeliveryDays] = useState<number | string>(0);
-  const [isUpcoming, setIsUpcoming] = useState(false);
-  const [launchDate, setLaunchDate] = useState<Date | null>(null);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  // Receta (preparados/licuados).
-  const [prepared, setPrepared] = useState(false);
-  const [components, setComponents] = useState<{ component: string; qty: number }[]>([]);
-
-  const onCreate = async (event: FormEvent) => {
-    event.preventDefault();
-    // Sin catch, un rechazo del backend (precio inválido, receta incompleta) se
-    // tragaba el error y el formulario se quedaba quieto sin decir nada.
-    try {
-      const created = await createProduct.mutateAsync({
-        name,
-        category: category ?? "other",
-        sale_price: salePrice,
-        cost_price: costPrice || "0",
-        reorder_level: Number(reorder) || 0,
-        show_in_marketplace: inMarketplace,
-        description: description.trim(),
-        sizes: category === "merch" ? sizes : [],
-        colors: category === "merch" ? colors : [],
-        delivery_days: Number(deliveryDays) || 0,
-        is_upcoming: isUpcoming,
-        launch_date: launchDate ? launchDate.toLocaleDateString("en-CA") : null,
-        components: prepared ? components : [],
-      });
-      if (photoFile) await uploadPhoto.mutateAsync({ id: created.id, file: photoFile });
-      setName("");
-      setSalePrice("");
-      setCostPrice("");
-      setReorder(0);
-      setInMarketplace(false);
-      setDescription("");
-      setSizes([]);
-      setColors([]);
-      setDeliveryDays(0);
-      setIsUpcoming(false);
-      setLaunchDate(null);
-      setPhotoFile(null);
-      setPrepared(false);
-      setComponents([]);
-      notifications.show({ color: "teal", message: "Producto creado." });
-    } catch (error) {
-      notifications.show({ color: "red", message: errMsg(error, "No se pudo crear el producto.") });
-    }
-  };
-
-  const onRestock = async (productId: string) => {
-    // Antes un campo vacío o inválido hacía un `return` mudo: el botón no hacía
-    // nada y nadie sabía por qué. parseInt además aceptaba "3.5" o "3abc" como 3.
-    const texto = (restock[productId] ?? "").trim();
-    const qty = /^\d+$/.test(texto) ? Number(texto) : NaN;
-    if (!Number.isFinite(qty) || qty <= 0) {
-      notifications.show({
-        color: "yellow",
-        message: "Escribe en «Reabastecer» cuántas unidades llegaron: un número entero mayor que cero.",
-      });
-      return;
-    }
-    try {
-      await createMovement.mutateAsync({ product_id: productId, type: "purchase", qty });
-      setRestock((prev) => ({ ...prev, [productId]: "" }));
-      notifications.show({ color: "teal", message: "Entrada de inventario registrada." });
-    } catch (error) {
-      notifications.show({
-        color: "red",
-        message: errMsg(error, "No se pudo registrar la entrada de inventario."),
-      });
-    }
-  };
+  const productoKardex = searchParams.get("producto") || "";
+  const irA = (t: string, extra: Record<string, string> = {}) =>
+    setSearchParams(t !== "productos" ? { tab: t, ...extra } : {}, { replace: true });
 
   if (!gymId) return <NoGymAssigned />;
 
   return (
     <div>
-      <PageHeader
-        kicker="Negocio · ERP"
-        title="Inventario"
-        subtitle="Catálogo y stock, compras a proveedor y cuánto dinero tienes parado en bodega."
-      />
+      <PageHeader kicker="Negocio · ERP" title="Inventario" />
       {/* `keepMounted={false}`: cada pestaña dispara sus queries solo al abrirla. */}
-      <Tabs
-        value={tab}
-        onChange={(v) => setSearchParams(v && v !== "productos" ? { tab: v } : {}, { replace: true })}
-        keepMounted={false}
-      >
-        <Tabs.List mb="lg">
+      <Tabs value={tab} onChange={(v) => irA(v ?? "productos")} keepMounted={false}>
+        <Tabs.List mb="lg" className="a-rise" style={delayVar(0.5)}>
           <Tabs.Tab value="productos">Productos</Tabs.Tab>
-          <Tabs.Tab value="kardex">Kardex, mermas y ajustes</Tabs.Tab>
-          <Tabs.Tab value="compras">Compras a proveedor</Tabs.Tab>
-          <Tabs.Tab value="proveedores">Proveedores</Tabs.Tab>
-          <Tabs.Tab value="valuacion">Valuación</Tabs.Tab>
-          <Tabs.Tab
-            value="pedidos"
-            rightSection={<CountBadge count={pendientes.data?.pedidos ?? 0} size="xs" />}
-          >
-            Pedidos de la tienda
+          <Tabs.Tab value="pedidos">
+            <Group gap={6} wrap="nowrap">
+              Pedidos de la tienda
+              <CountBadge count={pendientes.data?.pedidos ?? 0} />
+            </Group>
           </Tabs.Tab>
+          <Tabs.Tab value="compras">Compras</Tabs.Tab>
+          <Tabs.Tab value="proveedores">Proveedores</Tabs.Tab>
+          <Tabs.Tab value="kardex">Movimientos</Tabs.Tab>
+          <Tabs.Tab value="valuacion">Valuación</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="productos">
-      {/* Un fallo de carga se veía como "catálogo vacío": el gym volvía a crear
-          productos que ya existían y el stock quedaba duplicado. */}
-      {productsQuery.isError && (
-        <PageError
-          message="No se pudo cargar el catálogo de productos."
-          onRetry={() => productsQuery.refetch()}
-        />
-      )}
-      {/* El alta entra con la primera tanda de tarjetas (0.6s del ritmo Aurora). */}
-      <Reveal anim="slide-r" delay={0.6}>
-      <Card mb="lg" component="form" onSubmit={onCreate}>
-        <SectionLabel as="h2" mb="sm">Nuevo producto</SectionLabel>
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} spacing="md">
-          <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-          <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIES} />
-          <TextInput label="Precio venta (Q)" value={salePrice} onChange={(e) => setSalePrice(e.currentTarget.value)} />
-          <TextInput label="Costo (Q)" value={costPrice} onChange={(e) => setCostPrice(e.currentTarget.value)} />
-          <NumberInput label="Reorden" value={reorder} onChange={setReorder} min={0} />
-        </SimpleGrid>
-
-        {category === "merch" && (
-          <>
-            <Text size="sm" c="dimmed" mt="md">
-              Es ropa/merch: agrega tallas y/o colores si aplica. El atleta los elige al comprar.
-            </Text>
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="xs">
-              <TagsInput
-                label="Tallas"
-                description="Escribe y presiona Enter por cada talla"
-                placeholder="S, M, L, XL…"
-                value={sizes}
-                onChange={setSizes}
-              />
-              <TagsInput
-                label="Colores"
-                description="Enter por cada color"
-                placeholder="Negro, Naranja…"
-                value={colors}
-                onChange={setColors}
-              />
-            </SimpleGrid>
-          </>
-        )}
-
-        <Switch
-          label="Vender en la tienda de la app"
-          description="Tus atletas lo verán y comprarán desde el marketplace del gym."
-          checked={inMarketplace}
-          onChange={(e) => setInMarketplace(e.currentTarget.checked)}
-          mt="md"
-        />
-        {inMarketplace && (
-          <>
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
-              <Textarea
-                label="Descripción"
-                placeholder="Material, beneficios, sabor…"
-                value={description}
-                onChange={(e) => setDescription(e.currentTarget.value)}
-                autosize
-                minRows={2}
-              />
-              <FileInput
-                label="Foto del producto"
-                placeholder="Subir imagen"
-                accept="image/*"
-                value={photoFile}
-                onChange={setPhotoFile}
-                clearable
-              />
-            </SimpleGrid>
-            <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mt="sm">
-              <NumberInput
-                label="Días de entrega"
-                description="0 = disponible de inmediato"
-                value={deliveryDays}
-                onChange={setDeliveryDays}
-                min={0}
-                max={120}
-              />
-              <Switch
-                label="Próximo lanzamiento (se puede apartar)"
-                checked={isUpcoming}
-                onChange={(e) => setIsUpcoming(e.currentTarget.checked)}
-              />
-              <DateInput
-                label="Fecha de lanzamiento"
-                value={launchDate}
-                onChange={setLaunchDate}
-                valueFormat="YYYY-MM-DD"
-                disabled={!isUpcoming}
-                clearable
-                popoverProps={{ withinPortal: true }}
-              />
-            </SimpleGrid>
-          </>
-        )}
-        <Switch
-          label="Es un preparado (receta)"
-          description="Ej. licuado: al venderlo se descuentan sus insumos, no el preparado."
-          checked={prepared}
-          onChange={(e) => setPrepared(e.currentTarget.checked)}
-          mt="md"
-        />
-        {prepared && (
-          <RecipeFields
-            products={data ?? []}
-            value={components}
-            onChange={setComponents}
-          />
-        )}
-
-        <Group justify="flex-end" mt="md">
-          <Button type="submit" disabled={!name || !salePrice} loading={createProduct.isPending || uploadPhoto.isPending}>
-            Agregar producto
-          </Button>
-        </Group>
-      </Card>
-      </Reveal>
-
-      <SectionLabel as="h2" mb="xs">Catálogo · stock actual</SectionLabel>
-      <GlassCard padding={14} delay={0.72}>
-        <TextInput
-          placeholder="Buscar producto o categoría…"
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          mb="md"
-          w={{ base: "100%", sm: 300 }}
-        />
-        <DataTable<ErpProduct>
-          minHeight={160}
-          highlightOnHover
-          striped
-          idAccessor="id"
-          records={sortRecords(
-            (data ?? []).filter((p) => {
-              const term = search.trim().toLowerCase();
-              return !term || p.name.toLowerCase().includes(term) || categoryLabel(p.category).toLowerCase().includes(term);
-            }),
-            sortStatus,
-          )}
-          fetching={isLoading}
-          noRecordsText="Agrega tu primer producto (suplemento, merch o bebida) para vender en recepción."
-          sortStatus={sortStatus}
-          onSortStatusChange={setSortStatus}
-          columns={[
-            {
-              accessor: "name",
-              title: "Producto",
-              sortable: true,
-              render: (p) => (
-                <Group gap="sm" wrap="nowrap">
-                  {p.photo && (
-                    <img
-                      src={p.photo}
-                      alt={p.name}
-                      style={{
-                        width: "calc(42 * var(--u))",
-                        height: "calc(32 * var(--u))",
-                        objectFit: "cover",
-                        borderRadius: "calc(8 * var(--u))",
-                        border: "1px solid var(--a-line)",
-                      }}
-                    />
-                  )}
-                  <Text size="sm" fw={600}>
-                    {p.name}
-                  </Text>
-                </Group>
-              ),
-            },
-            { accessor: "category", title: "Categoría", sortable: true, render: (p) => categoryLabel(p.category) },
-            {
-              accessor: "show_in_marketplace",
-              title: "Tienda (app)",
-              sortable: true,
-              render: (p) => marketplaceBadge(p),
-            },
-            {
-              accessor: "is_active",
-              title: "Activo",
-              sortable: true,
-              render: (p) => (
-                <Switch
-                  checked={p.is_active}
-                  onChange={() => onToggleActive(p)}
-                  disabled={updateProduct.isPending && updateProduct.variables?.id === p.id}
-                  aria-label={p.is_active ? `Desactivar ${p.name}` : `Activar ${p.name}`}
-                  color="flame"
-                />
-              ),
-            },
-            {
-              accessor: "sale_price",
-              title: "Precio",
-              sortable: true,
-              textAlign: "right",
-              render: (p) => <Money value={p.sale_price} decimals={2} block />,
-            },
-            {
-              accessor: "cost_price",
-              title: "Costo",
-              sortable: true,
-              textAlign: "right",
-              render: (p) => <Money value={p.cost_price} decimals={2} block />,
-            },
-            {
-              accessor: "margin_unit",
-              title: "Margen",
-              textAlign: "right",
-              render: (p) => <Money value={p.margin_unit} decimals={2} block />,
-            },
-            {
-              accessor: "stock_qty",
-              title: "Stock",
-              sortable: true,
-              textAlign: "right",
-              render: (p) => (
-                <Text c={p.needs_reorder ? "red" : undefined} size="sm" className="a-tabular">
-                  {p.stock_qty}
-                  {p.needs_reorder ? " ⚠" : ""}
-                </Text>
-              ),
-            },
-            {
-              accessor: "restock",
-              title: "Reabastecer",
-              render: (p) => (
-                <Group gap={6} wrap="nowrap">
-                {/*
-                  En cada onChange el valor se lee ANTES de llamar al setter, nunca dentro del
-                  updater. React pone `currentTarget` en null en cuanto el handler termina, y el
-                  updater que recibe `setState` no siempre corre en ese mismo tick: si ya hay otra
-                  actualización en cola, React lo difiere y para entonces `e.currentTarget` ya es
-                  null. Leerlo ahí revienta con un "Cannot read properties of null" que solo
-                  aparece al escribir rápido en dos campos seguidos, que es justo lo que hace la
-                  gente, y sin error boundary desmonta la página entera.
-                */}
-                  <TextInput
-                    w={70}
-                    placeholder="Qty"
-                    value={restock[p.id] ?? ""}
-                    onChange={(e) => {
-                      const valor = e.currentTarget.value;
-                      setRestock((prev) => ({ ...prev, [p.id]: valor }));
-                    }}
-                  />
-                  <Button variant="default" size="xs" onClick={() => onRestock(p.id)} loading={createMovement.isPending}>
-                    Entrada
-                  </Button>
-                </Group>
-              ),
-            },
-            {
-              accessor: "actions",
-              title: "Acciones",
-              render: (p) => (
-                <RowActions
-                  actions={[
-                    { label: "Editar", onClick: () => setEditing(p) },
-                    { label: "Eliminar", color: "red", variant: "light", onClick: () => onDelete(p) },
-                  ]}
-                />
-              ),
-            },
-          ]}
-        />
-      </GlassCard>
+          <ProductosTab gymId={gymId} onVerMovimientos={(p) => irA("kardex", { producto: p.id })} />
         </Tabs.Panel>
-
-        <Tabs.Panel value="kardex">
-          <InventoryLedgerPanel gymId={gymId} />
-        </Tabs.Panel>
-
-        <Tabs.Panel value="compras">
-          <PurchaseOrdersPanel gymId={gymId} />
-        </Tabs.Panel>
-
-        <Tabs.Panel value="proveedores">
-          <SuppliersPanel gymId={gymId} />
-        </Tabs.Panel>
-
-        <Tabs.Panel value="valuacion">
-          <InventoryValuationPanel gymId={gymId} />
-        </Tabs.Panel>
-
         <Tabs.Panel value="pedidos">
           <StoreOrdersPanel gymId={gymId} />
         </Tabs.Panel>
+        <Tabs.Panel value="compras">
+          <PurchaseOrdersPanel gymId={gymId} onIrAProveedores={() => irA("proveedores")} />
+        </Tabs.Panel>
+        <Tabs.Panel value="proveedores">
+          <SuppliersPanel gymId={gymId} />
+        </Tabs.Panel>
+        <Tabs.Panel value="kardex">
+          <InventoryLedgerPanel
+            gymId={gymId}
+            producto={productoKardex}
+            onProducto={(id) => irA("kardex", id ? { producto: id } : {})}
+          />
+        </Tabs.Panel>
+        <Tabs.Panel value="valuacion">
+          <InventoryValuationPanel gymId={gymId} />
+        </Tabs.Panel>
       </Tabs>
-
-      <EditProductModal
-        product={editing ? (data ?? []).find((p) => p.id === editing.id) ?? editing : null}
-        products={data ?? []}
-        gymId={gymId}
-        saving={updateProduct.isPending || uploadPhoto.isPending}
-        onClose={() => setEditing(null)}
-        onSave={async (body, photo) => {
-          if (!editing) return;
-          // Antes cualquier fallo decía solo «No se pudo actualizar.»: se tragaba el
-          // motivo del servidor (precio inválido, receta circular…) y, si lo que
-          // fallaba era la foto, hacía creer que tampoco se habían guardado los datos.
-          try {
-            await updateProduct.mutateAsync({ id: editing.id, body });
-          } catch (error) {
-            notifications.show({ color: "red", message: errMsg(error, "No se pudo actualizar el producto.") });
-            return;
-          }
-          if (photo) {
-            try {
-              await uploadPhoto.mutateAsync({ id: editing.id, file: photo });
-            } catch (error) {
-              const motivo = errMsg(error, "");
-              notifications.show({
-                color: "red",
-                message: `Los datos se guardaron, pero no se pudo subir la foto${motivo ? `: ${motivo}` : "."}`,
-              });
-              return;
-            }
-          }
-          notifications.show({ color: "teal", message: "Producto actualizado." });
-          setEditing(null);
-        }}
-      />
     </div>
   );
 }
 
-function EditProductModal({
-  product,
-  products,
-  gymId,
-  saving,
-  onClose,
-  onSave,
-}: {
-  product: ErpProduct | null;
-  products: ErpProduct[];
-  gymId: string;
-  saving: boolean;
-  onClose: () => void;
-  onSave: (body: Partial<ErpProduct>, photo: File | null) => Promise<void>;
-}) {
-  const uploadImages = useUploadProductImages(gymId);
-  const deleteImage = useDeleteProductImage(gymId);
-  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState<string | null>("supplement");
-  const [salePrice, setSalePrice] = useState("");
-  const [costPrice, setCostPrice] = useState("");
-  const [reorder, setReorder] = useState<number | string>(0);
-  // Tienda en la app
-  const [inMarketplace, setInMarketplace] = useState(false);
-  const [description, setDescription] = useState("");
-  const [sizes, setSizes] = useState<string[]>([]);
-  const [colors, setColors] = useState<string[]>([]);
-  const [deliveryDays, setDeliveryDays] = useState<number | string>(0);
-  const [isUpcoming, setIsUpcoming] = useState(false);
-  const [launchDate, setLaunchDate] = useState<Date | null>(null);
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [prepared, setPrepared] = useState(false);
-  const [components, setComponents] = useState<{ component: string; qty: number }[]>([]);
-  const [hydratedFor, setHydratedFor] = useState<string | null>(null);
+/**
+ * El catálogo con su stock al frente. Lo que se está acabando sale en amarillo y
+ * primero; tocar un producto abre su ficha (stock, venta, editar, movimientos).
+ */
+function ProductosTab({ gymId, onVerMovimientos }: { gymId: string; onVerMovimientos: (p: ErpProduct) => void }) {
+  const productsQuery = useErpProducts(gymId);
+  const productos = productsQuery.data ?? [];
+  const [search, setSearch] = useState("");
+  const [soloBajo, setSoloBajo] = useState(false);
+  const [abierto, setAbierto] = useState<string | null>(null);
+  // null = cerrado · "nuevo" = alta · un producto = edición.
+  const [editando, setEditando] = useState<ErpProduct | "nuevo" | null>(null);
 
-  if (product && hydratedFor !== product.id) {
-    setHydratedFor(product.id);
-    setName(product.name);
-    setCategory(product.category);
-    setSalePrice(String(product.sale_price ?? ""));
-    setCostPrice(String(product.cost_price ?? ""));
-    setReorder(product.reorder_level ?? 0);
-    setInMarketplace(product.show_in_marketplace ?? false);
-    setDescription(product.description ?? "");
-    setSizes(product.sizes ?? []);
-    setColors(product.colors ?? []);
-    setDeliveryDays(product.delivery_days ?? 0);
-    setIsUpcoming(product.is_upcoming ?? false);
-    setLaunchDate(product.launch_date ? new Date(`${product.launch_date}T00:00:00`) : null);
-    setPhoto(null);
-    setPrepared((product.components ?? []).length > 0);
-    setComponents((product.components ?? []).map((c) => ({ component: c.component, qty: c.qty })));
+  // Un fallo de carga se veía como "catálogo vacío": el gym volvía a crear
+  // productos que ya existían y el stock quedaba duplicado.
+  if (productsQuery.isError) {
+    return <PageError message="No se pudo cargar el catálogo de productos." onRetry={() => productsQuery.refetch()} />;
   }
 
+  const bajos = productos.filter(porReabastecer).length;
+  const term = search.trim().toLowerCase();
+  const filas = productos
+    .filter(
+      (p) =>
+        (!term || p.name.toLowerCase().includes(term) || categoryLabel(p.category).toLowerCase().includes(term)) &&
+        (!soloBajo || porReabastecer(p)),
+    )
+    .sort(
+      (a, b) =>
+        Number(b.is_active) - Number(a.is_active) ||
+        Number(porReabastecer(b)) - Number(porReabastecer(a)) ||
+        a.name.localeCompare(b.name, "es"),
+    );
+
+  // Siempre la versión fresca del producto: la ficha refleja el stock recién movido.
+  const ficha = productos.find((p) => p.id === abierto) ?? null;
+  const enEdicion = editando && editando !== "nuevo" ? (productos.find((p) => p.id === editando.id) ?? editando) : editando;
+
   return (
-    <Modal opened={!!product} onClose={onClose} title="Editar producto" centered size="lg">
-      <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} mb="sm" />
-      <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIES} mb="sm" />
-      <Group grow mb="sm">
-        <TextInput label="Precio venta (Q)" value={salePrice} onChange={(e) => setSalePrice(e.currentTarget.value)} />
-        <TextInput label="Costo (Q)" value={costPrice} onChange={(e) => setCostPrice(e.currentTarget.value)} />
-        <NumberInput label="Nivel de reorden" value={reorder} onChange={setReorder} min={0} />
-      </Group>
-
-      {category === "merch" && (
-        <>
-          <Text size="sm" c="dimmed">
-            Ropa/merch: agrega tallas y/o colores si aplica.
-          </Text>
-          <Group grow my="sm">
-            <TagsInput
-              label="Tallas"
-              description="Enter para agregar cada talla"
-              placeholder="S, M, L, XL…"
-              value={sizes}
-              onChange={setSizes}
-            />
-            <TagsInput
-              label="Colores"
-              description="Enter para agregar cada color"
-              placeholder="Negro, Naranja…"
-              value={colors}
-              onChange={setColors}
-            />
-          </Group>
-        </>
-      )}
-
-      <Switch
-        label="Vender en la tienda de la app"
-        description="El producto aparece en el marketplace del gym para tus atletas."
-        checked={inMarketplace}
-        onChange={(e) => setInMarketplace(e.currentTarget.checked)}
-        my="md"
-      />
-      {inMarketplace && (
-        <>
-          <Textarea
-            label="Descripción"
-            placeholder="Material, beneficios, sabor…"
-            value={description}
-            onChange={(e) => setDescription(e.currentTarget.value)}
-            autosize
-            minRows={2}
-            mb="sm"
-          />
-          <Group grow mb="sm" align="flex-end">
-            <NumberInput
-              label="Días de entrega"
-              description="0 = disponible de inmediato"
-              value={deliveryDays}
-              onChange={setDeliveryDays}
-              min={0}
-              max={120}
-            />
-            <Switch
-              label="Próximo lanzamiento (se puede apartar)"
-              checked={isUpcoming}
-              onChange={(e) => setIsUpcoming(e.currentTarget.checked)}
-            />
-            <DateInput
-              label="Fecha de lanzamiento"
-              value={launchDate}
-              onChange={setLaunchDate}
-              valueFormat="YYYY-MM-DD"
-              disabled={!isUpcoming}
-              clearable
-              popoverProps={{ withinPortal: true }}
-            />
-          </Group>
-          {product?.photo && !photo && (
-            <Group gap="sm" mb="xs">
-              <img
-                src={product.photo}
-                alt={product.name}
-                style={{
-                  width: "calc(86 * var(--u))",
-                  height: "calc(56 * var(--u))",
-                  objectFit: "cover",
-                  borderRadius: "calc(12 * var(--u))",
-                  border: "1px solid var(--a-line)",
-                }}
-              />
-              <Text c="dimmed" size="xs">
-                Foto actual — sube otra para reemplazarla.
-              </Text>
-            </Group>
-          )}
-          <FileInput
-            label="Foto del producto"
-            placeholder="Subir imagen"
-            accept="image/*"
-            value={photo}
-            onChange={setPhoto}
-            clearable
-            mb="sm"
-          />
-        </>
-      )}
-
-      <Switch
-        label="Es un preparado (receta)"
-        description="Ej. licuado: al venderlo se descuentan sus insumos, no el preparado."
-        checked={prepared}
-        onChange={(e) => setPrepared(e.currentTarget.checked)}
-        my="md"
-      />
-      {prepared && (
-        <RecipeFields
-          products={products}
-          selfId={product?.id}
-          value={components}
-          onChange={setComponents}
-        />
-      )}
-
-      {product && (
-        <>
-          <SectionLabel as="h2" mt="md" mb={6}>
-            Galería de imágenes
-          </SectionLabel>
-          <Text c="dimmed" size="xs" mb="sm">
-            Fotos adicionales del producto (además de la portada). Se muestran en el detalle en la app.
-          </Text>
-          {(product.images ?? []).length > 0 && (
-            <Group gap="xs" mb="sm">
-              {(product.images ?? []).map((im) => (
-                <div key={im.id} style={{ position: "relative" }}>
-                  <img
-                    src={im.url}
-                    alt=""
-                    style={{
-                      width: "calc(72 * var(--u))",
-                      height: "calc(72 * var(--u))",
-                      objectFit: "cover",
-                      borderRadius: "calc(12 * var(--u))",
-                      border: "1px solid var(--a-line)",
-                    }}
-                  />
-                  <Button
-                    size="xs"
-                    color="red"
-                    variant="filled"
-                    px={6}
-                    style={{
-                      position: "absolute",
-                      top: -8,
-                      right: -8,
-                      height: "calc(22 * var(--u))",
-                      borderRadius: "var(--radius-pill)",
-                    }}
-                    loading={deleteImage.isPending && deleteImage.variables?.imageId === im.id}
-                    onClick={() =>
-                      deleteImage.mutate(
-                        { id: product.id, imageId: im.id },
-                        {
-                          onError: (error) =>
-                            notifications.show({ color: "red", message: errMsg(error, "No se pudo quitar la imagen.") }),
-                        },
-                      )
-                    }
-                    aria-label="Quitar imagen"
-                  >
-                    ✕
-                  </Button>
-                </div>
-              ))}
-            </Group>
-          )}
-          <Group align="flex-end" gap="sm">
-            <FileInput
-              label="Agregar imágenes"
-              placeholder="Una o varias…"
-              accept="image/*"
-              multiple
-              value={galleryFiles}
-              onChange={(v) => setGalleryFiles(v as File[])}
-              clearable
-              style={{ flex: 1 }}
-            />
-            <Button
-              variant="default"
-              disabled={!galleryFiles.length}
-              loading={uploadImages.isPending}
-              onClick={async () => {
-                // Si falla se avisa y se conservan las fotos elegidas para reintentar.
-                try {
-                  await uploadImages.mutateAsync({ id: product.id, files: galleryFiles });
-                } catch (error) {
-                  notifications.show({ color: "red", message: errMsg(error, "No se pudieron subir las imágenes.") });
-                  return;
-                }
-                setGalleryFiles([]);
-                notifications.show({ color: "teal", message: "Imágenes agregadas." });
-              }}
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado
+        titulo="Productos"
+        avisos={
+          bajos > 0 && (
+            <Badge
+              component="button"
+              type="button"
+              color="yellow"
+              variant={soloBajo ? "filled" : "light"}
+              style={{ cursor: "pointer" }}
+              aria-pressed={soloBajo}
+              onClick={() => setSoloBajo((v) => !v)}
             >
-              Subir
-            </Button>
-          </Group>
-        </>
+              {bajos} por reabastecer
+            </Badge>
+          )
+        }
+      >
+        <TextInput
+          placeholder="Buscar producto o categoría…"
+          aria-label="Buscar producto"
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          w={{ base: "100%", sm: 240 }}
+        />
+        <Button onClick={() => setEditando("nuevo")}>Nuevo producto</Button>
+      </Encabezado>
+
+      {productsQuery.isLoading ? (
+        <Text c="dimmed" size="sm">
+          Cargando…
+        </Text>
+      ) : filas.length === 0 ? (
+        <Text c="dimmed" size="sm" py="md">
+          {productos.length
+            ? soloBajo && !term
+              ? "Nada por reabastecer."
+              : "Ningún producto coincide con la búsqueda."
+            : "Agrega tu primer producto: suplemento, merch o bebida."}
+        </Text>
+      ) : (
+        <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
+          {filas.map((p) => {
+            const bajo = porReabastecer(p);
+            return (
+              <Tarjeta
+                key={p.id}
+                etiqueta={`Abrir ${p.name}`}
+                onClick={() => setAbierto(p.id)}
+                aviso={bajo}
+                apagada={!p.is_active}
+              >
+                <Group gap="sm" wrap="nowrap" align="flex-start">
+                  {p.photo && (
+                    <img
+                      src={p.photo}
+                      alt=""
+                      style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8, flex: "0 0 auto" }}
+                    />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Text fw={700} truncate>
+                      {p.name}
+                    </Text>
+                    <Text size="xs" c="dimmed" truncate>
+                      {categoryLabel(p.category)}
+                    </Text>
+                  </div>
+                  <div style={{ textAlign: "right", flex: "0 0 auto" }}>
+                    {p.is_composite ? (
+                      <Badge size="xs" color="cyan" variant="light">
+                        Receta
+                      </Badge>
+                    ) : (
+                      <>
+                        <Text
+                          fw={700}
+                          className="a-tabular"
+                          c={bajo ? "var(--mantine-color-yellow-light-color)" : undefined}
+                          lh={1.2}
+                        >
+                          {p.stock_qty}
+                          {bajo ? " ⚠" : ""}
+                        </Text>
+                        <Text size="xs" c="dimmed" lh={1.2}>
+                          en stock
+                        </Text>
+                      </>
+                    )}
+                  </div>
+                </Group>
+                <Group justify="space-between" gap={6} mt={8} wrap="nowrap">
+                  <Text size="sm" className="a-tabular">
+                    <Money value={p.sale_price} decimals={2} />
+                  </Text>
+                  <Group gap={4} wrap="nowrap">
+                    <TiendaBadge p={p} />
+                    {!p.is_active && (
+                      <Badge size="xs" color="gray" variant="light">
+                        Inactivo
+                      </Badge>
+                    )}
+                  </Group>
+                </Group>
+              </Tarjeta>
+            );
+          })}
+        </SimpleGrid>
       )}
 
-      <Group justify="flex-end" mt="md">
-        <Button variant="default" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button
-          disabled={!name || !salePrice}
-          loading={saving}
-          onClick={() =>
-            onSave(
-              {
-                name,
-                category: category ?? "other",
-                sale_price: salePrice,
-                cost_price: costPrice || "0",
-                reorder_level: Number(reorder) || 0,
-                show_in_marketplace: inMarketplace,
-                description,
-                sizes: category === "merch" ? sizes : [],
-                colors: category === "merch" ? colors : [],
-                delivery_days: Number(deliveryDays) || 0,
-                is_upcoming: isUpcoming,
-                launch_date: launchDate ? launchDate.toLocaleDateString("en-CA") : null,
-                components: prepared ? components : [],
-              },
-              photo,
-            )
-          }
-        >
-          Guardar
-        </Button>
-      </Group>
-    </Modal>
-  );
-}
-
-/** Editor de receta (insumos) de un producto preparado, p. ej. un licuado. */
-function RecipeFields({
-  products,
-  selfId,
-  value,
-  onChange,
-}: {
-  products: ErpProduct[];
-  selfId?: string;
-  value: { component: string; qty: number }[];
-  onChange: (v: { component: string; qty: number }[]) => void;
-}) {
-  const [pick, setPick] = useState<string | null>(null);
-  const [qty, setQty] = useState<number | string>(1);
-
-  const nameOf = (id: string) => products.find((p) => p.id === id)?.name ?? id;
-  const options = products
-    .filter((p) => p.id !== selfId && !value.some((c) => c.component === p.id))
-    .map((p) => ({ value: p.id, label: `${p.name} (stock ${p.stock_qty})` }));
-
-  const add = () => {
-    if (!pick) return;
-    onChange([...value, { component: pick, qty: Number(qty) || 1 }]);
-    setPick(null);
-    setQty(1);
-  };
-
-  return (
-    <div>
-      <Text size="sm" c="dimmed" mb={6}>
-        Insumos que se descuentan del inventario al vender 1 unidad. El COGS del preparado
-        se calcula de la receta.
-      </Text>
-      {value.map((c, i) => (
-        <Group key={c.component} gap="xs" mb={6} wrap="nowrap">
-          <Text size="sm" style={{ flex: 1 }}>
-            {nameOf(c.component)}
-          </Text>
-          <NumberInput
-            w={90}
-            min={1}
-            value={c.qty}
-            onChange={(v) =>
-              onChange(value.map((x, idx) => (idx === i ? { ...x, qty: Number(v) || 1 } : x)))
-            }
-          />
-          <Button
-            variant="subtle"
-            color="red"
-            size="xs"
-            onClick={() => onChange(value.filter((_, idx) => idx !== i))}
-          >
-            Quitar
-          </Button>
-        </Group>
-      ))}
-      <Group gap="xs" align="flex-end" wrap="nowrap">
-        <Select
-          placeholder="Agregar insumo…"
-          data={options}
-          value={pick}
-          onChange={setPick}
-          searchable
-          style={{ flex: 1 }}
-        />
-        <NumberInput w={90} min={1} value={qty} onChange={setQty} />
-        <Button variant="default" size="sm" onClick={add} disabled={!pick}>
-          Añadir
-        </Button>
-      </Group>
-    </div>
+      <FichaProducto
+        producto={ficha}
+        productos={productos}
+        gymId={gymId}
+        opened={!!abierto && !editando}
+        onClose={() => setAbierto(null)}
+        onEditar={(p) => setEditando(p)}
+        onVerMovimientos={onVerMovimientos}
+      />
+      <ProductoModal producto={enEdicion} productos={productos} gymId={gymId} onClose={() => setEditando(null)} />
+    </GlassCard>
   );
 }

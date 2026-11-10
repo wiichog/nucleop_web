@@ -91,19 +91,15 @@ export function ProfilePage() {
 
   return (
     <div>
-      <PageHeader
-        kicker="Cuenta"
-        title="Mi perfil"
-        subtitle="Con qué correo entras al panel, qué rol te da acceso y desde dónde cambias tu contraseña."
-      />
+      <PageHeader kicker="Cuenta" title="Mi perfil" />
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
         <GlassCard variant="big" sheen padding={24} delay={0.6}>
-          <SectionLabel mb="xs" as="h2">
-            Sesión
-          </SectionLabel>
-          <Title order={3} mb="md">
-            Cuenta
-          </Title>
+          <Group justify="space-between" align="center" mb="md" wrap="wrap" gap="sm">
+            <Title order={2} size="h3">Cuenta</Title>
+            <Button variant="default" size="xs" leftSection={<LogOut size={14} />} onClick={logout}>
+              Cerrar sesión
+            </Button>
+          </Group>
           <Stack gap="md">
             <Dato etiqueta="Correo" valor={email || "—"} />
             <Dato etiqueta="Rol" valor={rolesLabel} />
@@ -112,35 +108,31 @@ export function ProfilePage() {
               valor={gymActual?.name ?? "—"}
             />
           </Stack>
-          <Group mt="lg">
-            <Button variant="default" leftSection={<LogOut size={16} />} onClick={logout}>
-              Cerrar sesión
-            </Button>
-          </Group>
         </GlassCard>
 
         {/* Sigue siendo un <form> de verdad: el submit y su validación no cambian. */}
         <Card component="form" onSubmit={onSubmit} className="a-slide-r" style={delayVar(0.72)}>
-          <SectionLabel mb="xs" as="h2">
-            Seguridad
-          </SectionLabel>
-          <Title order={3} mb="md">
+          <Title order={2} size="h3" mb="md">
             {sinContrasena ? "Crear contraseña" : "Cambiar contraseña"}
           </Title>
           <Stack gap="sm">
             {cambioForzado ? (
               <Text size="sm" c="dimmed">
-                Restablecieron tu contraseña, así que no te pedimos la actual: elige una nueva.
+                Restablecieron tu contraseña: no te pedimos la actual.
               </Text>
             ) : sinContrasena ? (
               <Text size="sm" c="dimmed">
-                Tu cuenta todavía no tiene contraseña, así que no te pedimos la actual. Crea una
-                para entrar también con tu correo.
+                Tu cuenta todavía no tiene contraseña: crea una para entrar también con tu correo.
               </Text>
             ) : (
               <PasswordInput label="Contraseña actual" value={current} onChange={(e) => setCurrent(e.currentTarget.value)} />
             )}
-            <PasswordInput label="Nueva contraseña" value={next} onChange={(e) => setNext(e.currentTarget.value)} />
+            <PasswordInput
+              label="Nueva contraseña"
+              placeholder="Mínimo 8 caracteres"
+              value={next}
+              onChange={(e) => setNext(e.currentTarget.value)}
+            />
             {err && (
               <Text c="red" size="sm">
                 {err}

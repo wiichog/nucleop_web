@@ -351,6 +351,8 @@ function PaseModal({
   const [hydratedFor, setHydratedFor] = useState<DropinProduct | "nuevo" | null>(null);
   const existente = pase && pase !== "nuevo" ? pase : null;
 
+  // Al cerrar se olvida lo cargado: si no, el segundo "Nuevo pase" salía con lo anterior.
+  if (!pase && hydratedFor !== null) setHydratedFor(null);
   if (pase && hydratedFor !== pase) {
     setHydratedFor(pase);
     setType((existente?.type as DropinType) ?? "one_class");
@@ -593,6 +595,9 @@ function ServiceTypeModal({
   const [hydratedFor, setHydratedFor] = useState<ServiceType | "nuevo" | null>(null);
 
   const existente = service && service !== "nuevo" ? service : null;
+  // Al cerrar se olvida lo cargado: sin esto, abrir "Nuevo servicio" otra vez
+  // ("nuevo" === "nuevo") no se reiniciaba y salía con los datos del anterior.
+  if (!service && hydratedFor !== null) setHydratedFor(null);
   if (service && hydratedFor !== service) {
     setHydratedFor(service);
     setName(existente?.name ?? "");

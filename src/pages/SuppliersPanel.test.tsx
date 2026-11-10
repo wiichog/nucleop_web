@@ -4,7 +4,8 @@ import { MantineProvider } from "@mantine/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Proveedores: la baja tiene que poder deshacerse. Antes «Dar de baja» mandaba
+ * Proveedores en tarjetas; tocar uno abre su ventana con «Dar de baja» o
+ * «Reactivar». La baja tiene que poder deshacerse. Antes «Dar de baja» mandaba
  * DELETE (soft-delete con `deleted_at`) y el listado del backend lo esconde
  * hasta del filtro «Inactivos», así que no había cómo reactivarlo. Ahora baja y
  * reactivación son el mismo PATCH sobre `is_active`.
@@ -32,31 +33,8 @@ if (!window.ResizeObserver) {
 
 const espias = vi.hoisted(() => ({
   actualizar: vi.fn(),
+  crear: vi.fn(),
   borrar: vi.fn(),
-}));
-
-// `mantine-datatable` no pinta celdas bajo jsdom: se cambia por una tabla mínima
-// que sí llama al `render` de cada columna, que es donde viven los botones.
-vi.mock("mantine-datatable", () => ({
-  DataTable: ({
-    records,
-    columns,
-  }: {
-    records: Array<Record<string, unknown>>;
-    columns: Array<{ accessor: string; render?: (r: Record<string, unknown>) => unknown }>;
-  }) => (
-    <table>
-      <tbody>
-        {records.map((r) => (
-          <tr key={String(r.id)}>
-            {columns.map((c) => (
-              <td key={c.accessor}>{(c.render ? c.render(r) : r[c.accessor]) as never}</td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  ),
 }));
 
 vi.mock("../api/hooks", () => {
@@ -75,7 +53,7 @@ vi.mock("../api/hooks", () => {
       isError: false,
       refetch: vi.fn(),
     }),
-    useCreateErpSupplier: () => mutacion(vi.fn()),
+    useCreateErpSupplier: () => mutacion(espias.crear),
     useUpdateErpSupplier: () => mutacion(espias.actualizar),
     useDeleteErpSupplier: () => mutacion(espias.borrar),
   };
@@ -85,7 +63,7 @@ import { SuppliersPanel } from "./SuppliersPanel";
 
 function pintar() {
   render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <SuppliersPanel gymId="gym-1" />
     </MantineProvider>,
   );
@@ -98,15 +76,13 @@ describe("SuppliersPanel", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
-  it("un proveedor inactivo ofrece «Reactivar» y lo reactiva por PATCH", async () => {
+  it("un proveedor inactivo ofrece «Reactivar» (no «Dar de baja») y lo reactiva por PATCH", async () => {
     pintar();
 
-    // Una sola fila inactiva → un solo «Reactivar» (y un solo «Dar de baja»).
-    const reactivar = screen.getAllByRole("button", { name: "Reactivar" });
-    expect(reactivar).toHaveLength(1);
-    expect(screen.getAllByRole("button", { name: "Dar de baja" })).toHaveLength(1);
-
-    fireEvent.click(reactivar[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Proveedor Viejo" }));
+    const reactivar = await screen.findByRole("button", { name: "Reactivar" });
+    expect(screen.queryByRole("button", { name: "Dar de baja" })).toBeNull();
+    fireEvent.click(reactivar);
     await waitFor(() => expect(espias.actualizar).toHaveBeenCalledTimes(1));
     expect(espias.actualizar.mock.calls[0][0]).toEqual({
       id: "sup-2",
@@ -117,12 +93,41 @@ describe("SuppliersPanel", () => {
   it("dar de baja marca inactivo (reversible), nunca borra", async () => {
     pintar();
 
-    fireEvent.click(screen.getByRole("button", { name: "Dar de baja" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Distribuidora Activa" }));
+    const baja = await screen.findByRole("button", { name: "Dar de baja" });
+    expect(screen.queryByRole("button", { name: "Reactivar" })).toBeNull();
+    fireEvent.click(baja);
     await waitFor(() => expect(espias.actualizar).toHaveBeenCalledTimes(1));
     expect(espias.actualizar.mock.calls[0][0]).toEqual({
       id: "sup-1",
       body: { is_active: false },
     });
     expect(espias.borrar).not.toHaveBeenCalled();
+  });
+
+  it("alta y edición son la misma ventana: «Nuevo proveedor» crea con lo escrito", async () => {
+    espias.crear.mockReset().mockResolvedValue({});
+    pintar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Nuevo proveedor" }));
+    const crear = (await screen.findByRole("button", { name: "Crear proveedor" })) as HTMLButtonElement;
+    expect(crear.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Nombre"), { target: { value: "Suplementos GT" } });
+    fireEvent.change(screen.getByLabelText("NIT"), { target: { value: "123" } });
+    fireEvent.click(crear);
+
+    await waitFor(() => expect(espias.crear).toHaveBeenCalledTimes(1));
+    expect(espias.crear.mock.calls[0][0]).toMatchObject({ name: "Suplementos GT", tax_id: "123" });
+  });
+
+  it("editar abre con los datos del proveedor y guarda por PATCH", async () => {
+    pintar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Distribuidora Activa" }));
+    expect(((await screen.findByLabelText("Nombre")) as HTMLInputElement).value).toBe("Distribuidora Activa");
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() => expect(espias.actualizar).toHaveBeenCalledTimes(1));
+    expect(espias.actualizar.mock.calls[0][0]).toMatchObject({ id: "sup-1", body: { name: "Distribuidora Activa" } });
   });
 });

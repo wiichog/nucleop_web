@@ -1,23 +1,13 @@
 import { useMemo, useState } from "react";
-import {
-  Badge,
-  Box,
-  Button,
-  Group,
-  Modal,
-  SegmentedControl,
-  SimpleGrid,
-  Stack,
-  Text,
-  Textarea,
-} from "@mantine/core";
+import { Badge, Box, Button, Group, Modal, Select, Stack, Text, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { usePlatformChargebacks, useResolvePlatformChargeback } from "../api/hooks";
 import type { Chargeback } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
-import { PageError, PageLoading, useCuentaSinCargar } from "../components/PageStatus";
+import { PageError, useCuentaSinCargar } from "../components/PageStatus";
+import { Encabezado, Tarjeta } from "../components/Tarjeta";
 import { Money, PageHeader, SectionLabel } from "../components/ui";
-import { GlassCard, MetricTile, Stagger } from "../components/aurora";
+import { GlassCard } from "../components/aurora";
 import { errMsg } from "../lib/errors";
 import { fmtQ, toNumber } from "../lib/money";
 import { useAuth } from "../lib/auth";
@@ -28,8 +18,7 @@ import { CHARGEBACK_STATUS, CHARGEBACK_STATUS_COLOR, PAYMENT_CONCEPT, label } fr
  * una razón de dinero: con la custodia puente (`PAGALO.SUPPORTS_SPLIT=False`) el
  * 100 % de lo cobrado con tarjeta cae en la cuenta de Nucleo y se deposita al gym
  * a fin de mes. Si el atleta disputa dos meses después, el banco le quita el
- * dinero a **Nucleo** cuando el gym ya cobró: Nucleo adelanta el descubierto, así
- * que es la plataforma la que tiene que estar mirando esta lista.
+ * dinero a **Nucleo** cuando el gym ya cobró.
  *
  * Quién se come la pérdida lo decide el backend, no esta pantalla: el contracargo
  * es un `Payment` negativo que `calcular_estado_cuenta` resta del depósito del gym
@@ -40,13 +29,17 @@ import { CHARGEBACK_STATUS, CHARGEBACK_STATUS_COLOR, PAYMENT_CONCEPT, label } fr
  * El gym responde con su evidencia desde su propia pantalla de pagos; aquí sólo
  * se registra el FALLO del banco, que es lo único que mueve dinero de vuelta.
  */
+
+/** Recibido o con evidencia: todavía puede mover dinero. */
+const estaAbierto = (c: Pick<Chargeback, "status">) => c.status === "open" || c.status === "submitted";
+
 /**
  * Totales de los contadores. Sólo las disputas abiertas (recibidas o con
  * evidencia) pueden mover dinero todavía: una ganada volvió y una perdida ya está
  * contabilizada como pérdida firme.
  */
 export function resumirContracargos(casos: Chargeback[]) {
-  const abiertos = casos.filter((c) => c.status === "open" || c.status === "submitted");
+  const abiertos = casos.filter(estaAbierto);
   return {
     expuesto: abiertos.reduce((total, c) => total + toNumber(c.total_lost), 0),
     sinResolver: abiertos.length,
@@ -56,20 +49,39 @@ export function resumirContracargos(casos: Chargeback[]) {
   };
 }
 
+/**
+ * Lo abierto primero, y entre lo abierto el que vence antes (sin fecha límite al
+ * final); lo resuelto después, lo más reciente arriba.
+ */
+export function ordenarContracargos(casos: Chargeback[]): Chargeback[] {
+  const limite = (c: Chargeback) => (c.evidence_due_at ? Date.parse(c.evidence_due_at) : Infinity);
+  return casos.slice().sort((a, b) => {
+    const abiertoA = estaAbierto(a);
+    const abiertoB = estaAbierto(b);
+    if (abiertoA !== abiertoB) return abiertoA ? -1 : 1;
+    if (abiertoA) return limite(a) - limite(b);
+    return Date.parse(b.created_at) - Date.parse(a.created_at);
+  });
+}
+
+const FILTROS = [
+  { value: "", label: "Todos" },
+  { value: "open", label: "Recibidos" },
+  { value: "submitted", label: "Con evidencia" },
+  { value: "won", label: "Ganados" },
+  { value: "lost", label: "Perdidos" },
+];
+
+const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-GT");
+
 export function PlatformChargebacksPage() {
   const { isSuperuser } = useAuth();
   const sinCuenta = useCuentaSinCargar();
   const [estado, setEstado] = useState<string>("");
   const casos = usePlatformChargebacks({ status: estado || undefined }, isSuperuser);
-  const resolver = useResolvePlatformChargeback();
+  const [abiertoId, setAbiertoId] = useState<string | null>(null);
 
-  const [resolucion, setResolucion] = useState<{
-    caso: Chargeback;
-    result: "won" | "lost";
-  } | null>(null);
-  const [nota, setNota] = useState("");
-
-  const filas = useMemo(() => casos.data ?? [], [casos.data]);
+  const filas = useMemo(() => ordenarContracargos(casos.data ?? []), [casos.data]);
   // Los contadores de arriba son de TODA la red, no del filtro: con «Ganados»
   // marcaban 0 en disputa aunque hubiera casos abiertos. Sin filtro comparte la
   // caché con la lista (misma llave), así que no cuesta otra petición.
@@ -84,29 +96,132 @@ export function PlatformChargebacksPage() {
   if (!isSuperuser) {
     return (
       <Stack>
-        <PageHeader title="Contracargos de la red" />
+        <PageHeader title="Contracargos" />
         <EmptyState title="Sin acceso" description="Esta bandeja es del equipo de Nucleo." />
       </Stack>
     );
   }
 
-  const confirmar = async () => {
-    if (!resolucion) return;
+  const abierto = filas.find((c) => c.id === abiertoId) ?? null;
+  const contadoresListos = !todos.isLoading && !todos.isError;
+
+  return (
+    <div>
+      <PageHeader kicker="Plataforma · Cobranza" title="Contracargos" />
+
+      <GlassCard delay={0.6} padding={18}>
+        <Encabezado
+          titulo="Expedientes"
+          avisos={
+            contadoresListos && (
+              <>
+                {sinResolver > 0 && (
+                  <Badge color="yellow" variant="light">
+                    {sinResolver} sin resolver · {fmtQ(expuesto, { decimals: 2 })} en disputa
+                  </Badge>
+                )}
+                {perdido > 0 && (
+                  <Badge color="red" variant="light">
+                    Pérdida firme {fmtQ(perdido, { decimals: 2 })}
+                  </Badge>
+                )}
+              </>
+            )
+          }
+        >
+          <Select
+            aria-label="Filtrar por estado"
+            data={FILTROS}
+            value={estado}
+            onChange={(v) => setEstado(v ?? "")}
+            allowDeselect={false}
+            w={{ base: "100%", sm: 170 }}
+          />
+        </Encabezado>
+
+        {casos.isError ? (
+          <PageError
+            message={errMsg(casos.error, "No se pudieron cargar los contracargos.")}
+            onRetry={() => casos.refetch()}
+          />
+        ) : casos.isLoading ? (
+          <Text c="dimmed" size="sm">
+            Cargando…
+          </Text>
+        ) : !filas.length ? (
+          <Text c="dimmed" size="sm">
+            {estado ? "Ningún contracargo en ese estado." : "Ningún atleta de la red ha disputado un cobro."}
+          </Text>
+        ) : (
+          <Stack gap={6}>
+            {filas.map((c) => {
+              const abiertoCaso = estaAbierto(c);
+              return (
+                <Tarjeta
+                  key={c.id}
+                  etiqueta={`Abrir el contracargo de ${c.athlete_name} en ${c.gym_name}`}
+                  onClick={() => setAbiertoId(c.id)}
+                  aviso={abiertoCaso}
+                  apagada={!abiertoCaso}
+                >
+                  <Group justify="space-between" wrap="nowrap" gap="sm" align="flex-start">
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <Text size="sm" truncate>
+                        <b>{c.gym_name}</b>{" "}
+                        <Text span c="dimmed">
+                          · {c.athlete_name} · {label(PAYMENT_CONCEPT, c.concept)}
+                        </Text>
+                      </Text>
+                      <Text size="xs" c="dimmed" lineClamp={1} mt={2}>
+                        {c.reason || "El banco no detalló el motivo."}
+                      </Text>
+                      {abiertoCaso && c.evidence_due_at && (
+                        <Text size="xs" mt={2} c="var(--mantine-color-yellow-light-color)">
+                          Responde antes del {fecha(c.evidence_due_at)}
+                        </Text>
+                      )}
+                    </div>
+                    <Stack gap={4} align="flex-end">
+                      <Money value={c.total_lost} decimals={2} c="var(--nucleo-danger)" />
+                      <Badge size="xs" variant="light" color={CHARGEBACK_STATUS_COLOR[c.status] ?? "gray"}>
+                        {label(CHARGEBACK_STATUS, c.status)}
+                      </Badge>
+                    </Stack>
+                  </Group>
+                </Tarjeta>
+              );
+            })}
+          </Stack>
+        )}
+      </GlassCard>
+
+      <ContracargoModal caso={abierto} onClose={() => setAbiertoId(null)} />
+    </div>
+  );
+}
+
+/** El expediente completo y, si sigue abierto, el fallo del banco. */
+function ContracargoModal({ caso, onClose }: { caso: Chargeback | null; onClose: () => void }) {
+  const resolver = useResolvePlatformChargeback();
+  const [nota, setNota] = useState("");
+  const [paraId, setParaId] = useState<string | null>(null);
+  if (caso && paraId !== caso.id) {
+    setParaId(caso.id);
+    setNota("");
+  }
+
+  const confirmar = async (result: "won" | "lost") => {
+    if (!caso) return;
     try {
-      await resolver.mutateAsync({
-        chargebackId: resolucion.caso.id,
-        result: resolucion.result,
-        notes: nota.trim(),
-      });
+      await resolver.mutateAsync({ chargebackId: caso.id, result, notes: nota.trim() });
       notifications.show({
-        color: resolucion.result === "won" ? "teal" : "gray",
+        color: result === "won" ? "teal" : "gray",
         message:
-          resolucion.result === "won"
+          result === "won"
             ? "Disputa ganada: se registró el pago de compensación y el ciclo del atleta vuelve si nadie más lo movió."
             : "Disputa perdida: la pérdida queda firme. La cuota ya se descontó del depósito del gimnasio y Nucleo no recupera su recargo.",
       });
-      setResolucion(null);
-      setNota("");
+      onClose();
     } catch (err) {
       notifications.show({
         color: "red",
@@ -115,202 +230,112 @@ export function PlatformChargebacksPage() {
     }
   };
 
+  const enCurso = (r: "won" | "lost") => resolver.isPending && resolver.variables?.result === r;
+
   return (
-    <Stack>
-      <PageHeader
-        kicker="Plataforma · Cobranza"
-        title="Contracargos de la red"
-        subtitle="Disputas de tarjeta de todos los gimnasios. El banco le retira el dinero a Nucleo; la cuota se descuenta del próximo depósito del gimnasio y Nucleo pierde su recargo."
-      />
-
-      <Stagger from={0.6}>
-        <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
-          <MetricTile
-            label="En disputa"
-            value={todos.isLoading || todos.isError ? "—" : fmtQ(expuesto, { decimals: 2 })}
-            tone="var(--nucleo-accent)"
-            hint="Dinero que el banco ya retiró y que todavía se puede recuperar respondiendo a tiempo."
-          />
-          <MetricTile
-            label="Casos sin resolver"
-            value={todos.isLoading || todos.isError ? "—" : sinResolver}
-            hint="Recibidos o con evidencia enviada, esperando el fallo del banco."
-          />
-          <MetricTile
-            label="Pérdida firme"
-            value={todos.isLoading || todos.isError ? "—" : fmtQ(perdido, { decimals: 2 })}
-            hint="Disputas ya perdidas. No vuelven: son el costo real del fraude y del servicio no reconocido."
-          />
-        </SimpleGrid>
-      </Stagger>
-
-      <GlassCard variant="core" delay={0.84}>
-        <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb="md">
-          <SectionLabel mb={0} as="h2">
-            Expedientes
-          </SectionLabel>
-          <SegmentedControl
-            value={estado}
-            onChange={setEstado}
-            data={[
-              { value: "", label: "Todos" },
-              { value: "open", label: "Recibidos" },
-              { value: "submitted", label: "Con evidencia" },
-              { value: "won", label: "Ganados" },
-              { value: "lost", label: "Perdidos" },
-            ]}
-          />
-        </Group>
-
-        {casos.isError ? (
-          <PageError
-            message={errMsg(casos.error, "No se pudieron cargar los contracargos.")}
-            onRetry={() => casos.refetch()}
-          />
-        ) : casos.isLoading ? (
-          <PageLoading />
-        ) : !filas.length ? (
-          <Text c="dimmed" size="sm">
-            {estado
-              ? "Ningún contracargo en ese estado."
-              : "Ningún atleta de la red ha disputado un cobro."}
-          </Text>
-        ) : (
-          <Stack gap="sm">
-            {filas.map((c) => (
-              <Box
-                key={c.id}
-                p="sm"
-                style={{ border: "1px solid var(--a-line)", borderRadius: "calc(16 * var(--u))" }}
-              >
-                <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
-                  <div style={{ minWidth: 0 }}>
-                    <Group gap={6} mb={6}>
-                      <Badge
-                        size="xs"
-                        variant="light"
-                        color={CHARGEBACK_STATUS_COLOR[c.status] ?? "gray"}
-                      >
-                        {label(CHARGEBACK_STATUS, c.status)}
-                      </Badge>
-                      <Badge size="xs" variant="light" color="flame">
-                        {label(PAYMENT_CONCEPT, c.concept)}
-                      </Badge>
-                      <Text size="xs" c="dimmed">
-                        {c.gym_name} · {c.athlete_name} ·{" "}
-                        {new Date(c.created_at).toLocaleString("es-GT")}
-                      </Text>
-                    </Group>
-                    <Text size="sm">
-                      {c.reason || "El banco no detalló el motivo."}
-                      {c.reason_code ? ` (código ${c.reason_code})` : ""}
-                    </Text>
-                    <Text size="xs" c="dimmed" mt={4}>
-                      Caso {c.case_reference || "sin referencia"} · cuota del gym{" "}
-                      {fmtQ(c.amount, { decimals: 2 })} + recargo de Nucleo{" "}
-                      {fmtQ(c.surcharge, { decimals: 2 })}
-                      {c.evidence_due_at
-                        ? ` · responde antes del ${new Date(c.evidence_due_at).toLocaleDateString("es-GT")}`
-                        : ""}
-                    </Text>
-                  </div>
-                  <Money value={c.total_lost} decimals={2} c="var(--nucleo-danger)" />
-                </Group>
-
-                {c.evidence_submitted_at && (
-                  <Box mt="sm">
-                    <SectionLabel mb={4}>
-                      Evidencia del gimnasio ·{" "}
-                      {new Date(c.evidence_submitted_at).toLocaleDateString("es-GT")}
-                    </SectionLabel>
-                    <Text size="sm" c="dimmed">
-                      {c.evidence_notes || "(sin descargo escrito)"}
-                    </Text>
-                    {c.evidence_url && (
-                      <Text size="xs" mt={4}>
-                        <a href={c.evidence_url} target="_blank" rel="noreferrer">
-                          {c.evidence_url}
-                        </a>
-                      </Text>
-                    )}
-                  </Box>
-                )}
-
-                {c.resolution_notes && (
-                  <Text size="xs" c="dimmed" mt={8}>
-                    Resolución registrada: {c.resolution_notes}
-                  </Text>
-                )}
-
-                {c.status === "open" || c.status === "submitted" ? (
-                  <Group gap="xs" mt="sm">
-                    <Button
-                      size="xs"
-                      onClick={() => {
-                        setResolucion({ caso: c, result: "won" });
-                        setNota("");
-                      }}
-                    >
-                      El banco nos dio la razón
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="default"
-                      color="red"
-                      onClick={() => {
-                        setResolucion({ caso: c, result: "lost" });
-                        setNota("");
-                      }}
-                    >
-                      Disputa perdida
-                    </Button>
-                  </Group>
-                ) : (
-                  <Text size="xs" c="dimmed" mt="sm">
-                    Resuelta el{" "}
-                    {c.resolved_at ? new Date(c.resolved_at).toLocaleDateString("es-GT") : "—"}.
-                  </Text>
-                )}
-              </Box>
-            ))}
-          </Stack>
-        )}
-      </GlassCard>
-
-      <Modal
-        opened={!!resolucion}
-        onClose={() => setResolucion(null)}
-        title={resolucion?.result === "won" ? "Disputa ganada" : "Disputa perdida"}
-        centered
-      >
-        <Stack>
-          <Text size="sm" c="dimmed">
-            {resolucion?.result === "won"
-              ? "Se registra un pago POSITIVO de compensación (el movimiento negativo no se edita nunca) y se le devuelve el ciclo a la membresía sólo si nadie más la movió mientras tanto."
-              : "La pérdida queda firme: la cuota ya descontada del depósito del gimnasio no se le devuelve y Nucleo no recupera su recargo."}
-          </Text>
-          <Textarea
-            label="Nota de la resolución (opcional)"
-            placeholder="Qué dijo el banco y con qué evidencia se cerró."
-            value={nota}
-            onChange={(e) => setNota(e.currentTarget.value)}
-            autosize
-            minRows={2}
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setResolucion(null)}>
-              Cancelar
-            </Button>
-            <Button
-              color={resolucion?.result === "won" ? undefined : "red"}
-              loading={resolver.isPending}
-              onClick={confirmar}
-            >
-              Confirmar
-            </Button>
+    <Modal
+      opened={!!caso}
+      onClose={onClose}
+      title={caso ? `${caso.gym_name} · ${caso.athlete_name}` : ""}
+      centered
+      size="lg"
+    >
+      {caso && (
+        <Stack gap="md">
+          <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
+            <Group gap={6}>
+              <Badge variant="light" color={CHARGEBACK_STATUS_COLOR[caso.status] ?? "gray"}>
+                {label(CHARGEBACK_STATUS, caso.status)}
+              </Badge>
+              <Badge variant="light" color="flame">
+                {label(PAYMENT_CONCEPT, caso.concept)}
+              </Badge>
+              <Text size="xs" c="dimmed">
+                {new Date(caso.created_at).toLocaleString("es-GT")}
+              </Text>
+            </Group>
+            <Money value={caso.total_lost} decimals={2} c="var(--nucleo-danger)" />
           </Group>
+
+          <div>
+            <Text size="sm">
+              {caso.reason || "El banco no detalló el motivo."}
+              {caso.reason_code ? ` (código ${caso.reason_code})` : ""}
+            </Text>
+            <Text size="xs" c="dimmed" mt={4}>
+              Caso {caso.case_reference || "sin referencia"} · cuota del gym{" "}
+              {fmtQ(caso.amount, { decimals: 2 })} + recargo de Nucleo {fmtQ(caso.surcharge, { decimals: 2 })}
+              {caso.evidence_due_at ? ` · responde antes del ${fecha(caso.evidence_due_at)}` : ""}
+            </Text>
+          </div>
+
+          {caso.evidence_submitted_at ? (
+            <Box>
+              <SectionLabel mb={4}>Evidencia del gimnasio · {fecha(caso.evidence_submitted_at)}</SectionLabel>
+              <Text size="sm" c="dimmed" style={{ whiteSpace: "pre-wrap" }}>
+                {caso.evidence_notes || "(sin descargo escrito)"}
+              </Text>
+              {caso.evidence_url && (
+                <Text size="xs" mt={4} style={{ wordBreak: "break-all" }}>
+                  <a href={caso.evidence_url} target="_blank" rel="noreferrer">
+                    {caso.evidence_url}
+                  </a>
+                </Text>
+              )}
+            </Box>
+          ) : estaAbierto(caso) ? (
+            <Badge color="yellow" variant="light" w="fit-content">
+              Sin evidencia del gimnasio
+            </Badge>
+          ) : null}
+
+          {caso.resolution_notes && (
+            <Text size="xs" c="dimmed">
+              Resolución registrada: {caso.resolution_notes}
+            </Text>
+          )}
+
+          {estaAbierto(caso) ? (
+            <>
+              <Textarea
+                label="Nota de la resolución (opcional)"
+                placeholder="Qué dijo el banco y con qué evidencia se cerró."
+                value={nota}
+                onChange={(e) => setNota(e.currentTarget.value)}
+                autosize
+                minRows={2}
+              />
+              {/* Quién absorbe lo decide el backend: la cuota sale del próximo
+                  depósito del gimnasio y Nucleo pierde su recargo. */}
+              <Text size="xs" c="dimmed">
+                Si se pierde, la cuota sale del próximo depósito del gimnasio y Nucleo no recupera su recargo.
+              </Text>
+              <Group justify="flex-end" gap="xs">
+                <Button
+                  color="red"
+                  variant="light"
+                  loading={enCurso("lost")}
+                  disabled={resolver.isPending && !enCurso("lost")}
+                  onClick={() => confirmar("lost")}
+                >
+                  Disputa perdida
+                </Button>
+                <Button
+                  loading={enCurso("won")}
+                  disabled={resolver.isPending && !enCurso("won")}
+                  onClick={() => confirmar("won")}
+                >
+                  El banco nos dio la razón
+                </Button>
+              </Group>
+            </>
+          ) : (
+            <Text size="xs" c="dimmed">
+              Resuelta el {caso.resolved_at ? fecha(caso.resolved_at) : "—"}.
+            </Text>
+          )}
         </Stack>
-      </Modal>
-    </Stack>
+      )}
+    </Modal>
   );
 }

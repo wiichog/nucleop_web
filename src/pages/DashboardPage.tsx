@@ -1,37 +1,22 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Divider, Group, SimpleGrid, Text } from "@mantine/core";
+import { Badge, Button, Group, Progress, SimpleGrid, Stack, Text } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
-import {
-  Activity,
-  CalendarClock,
-  CheckCircle2,
-  Dumbbell,
-  Flame,
-  Receipt,
-  Trophy,
-  UserPlus,
-  Users,
-} from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { useDashboard, usePendingSummary } from "../api/hooks";
-import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { CountBadge, PageHeader, SectionLabel } from "../components/ui";
-import {
-  BigMetric,
-  GlassCard,
-  MetricTile,
-  Stagger,
-  WaveChart,
-} from "../components/aurora";
+import type { PendingSummary } from "../api/types";
+import { NoGymAssigned, PageError } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
+import { GlassCard } from "../components/aurora";
+import { Encabezado, Tarjeta } from "../components/Tarjeta";
 import { fmtQ } from "../lib/money";
 import { PENDING_ITEMS } from "../lib/pending";
 import { useAuth } from "../lib/auth";
 
 /**
- * Dashboard = vitrina del lenguaje **Aurora**. Reproduce la composición del
- * dashboard de la referencia: hero a la izquierda, cifra protagonista, la onda
- * que se dibuja sola, y un rail de tarjetas de vidrio a la derecha con el
- * estado actual del gimnasio.
+ * La portada del panel responde primero «¿qué tengo que atender hoy?»: los
+ * pendientes en amarillo, cada uno lleva a la pantalla donde se resuelve. Después
+ * cómo está la comunidad hoy y, al final, los números del periodo.
  */
 
 function firstOfMonth() {
@@ -53,282 +38,254 @@ export function etiquetaClaseDemandada(c: { class_type: string; horario: string 
   return hora ? `${c.class_type} ${hora}` : c.class_type;
 }
 
-/** Pendientes por resolver: la bandeja de entrada del operador. */
-function PendingPanel({ gymId }: { gymId: string }) {
+export interface Pendiente {
+  key: string;
+  label: string;
+  to: string;
+  count: number;
+}
+
+/**
+ * Lo que espera una decisión del gimnasio, en el orden de urgencia de
+ * `PENDING_ITEMS`, sin los ceros.
+ */
+export function pendientesPorAtender(counts: PendingSummary | undefined): Pendiente[] {
+  if (!counts) return [];
+  return PENDING_ITEMS.map((i) => ({ key: i.key, label: i.label, to: i.to, count: counts[i.key] ?? 0 })).filter(
+    (i) => i.count > 0,
+  );
+}
+
+/** Una cifra que se toca para ir a donde se trabaja. `aviso` la pinta en amarillo. */
+function Cifra({
+  label,
+  value,
+  to,
+  aviso,
+}: {
+  label: string;
+  value: number | string;
+  to?: string;
+  aviso?: boolean;
+}) {
+  const navigate = useNavigate();
+  return (
+    <Tarjeta
+      etiqueta={`${label}: ${value}`}
+      onClick={to ? () => navigate(to) : undefined}
+      aviso={aviso}
+    >
+      <Text size="xs" c="dimmed" lineClamp={2}>
+        {label}
+      </Text>
+      <Text fw={700} fz={{ base: 20, sm: 22 }} className="a-tabular" mt={2}>
+        {value}
+      </Text>
+    </Tarjeta>
+  );
+}
+
+/** Lo que espera una decisión del gimnasio: la bandeja del día. */
+function PorAtender({ gymId }: { gymId: string }) {
   const navigate = useNavigate();
   const pending = usePendingSummary(gymId);
-  const counts = pending.data;
-  if (!counts) return null;
+  const items = pendientesPorAtender(pending.data);
+  const total = items.reduce((acc, i) => acc + i.count, 0);
 
-  const activos = PENDING_ITEMS.filter((i) => (counts[i.key] ?? 0) > 0);
-
-  if (activos.length === 0) {
-    return (
-      <GlassCard padding={16} className="a-rise" style={{ marginBottom: "calc(18 * var(--u))" }}>
+  return (
+    <GlassCard delay={0.5} padding={18}>
+      <Encabezado
+        titulo="Por atender"
+        avisos={
+          total > 0 && (
+            <Badge color="yellow" variant="light">
+              {total}
+            </Badge>
+          )
+        }
+      />
+      {pending.isError ? (
+        <PageError message="No se pudieron cargar tus pendientes." onRetry={() => pending.refetch()} />
+      ) : pending.isLoading ? (
+        <Text size="sm" c="dimmed">
+          Cargando…
+        </Text>
+      ) : items.length === 0 ? (
         <Group gap="xs">
           <CheckCircle2 size={19} color="var(--mantine-color-teal-5)" strokeWidth={1.9} />
           <Text fw={600} size="sm">
             Todo al día
           </Text>
-          <Text c="dimmed" size="sm">
-            No hay pendientes por aprobar.
-          </Text>
         </Group>
-      </GlassCard>
-    );
-  }
+      ) : (
+        <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
+          {items.map((i) => (
+            <Tarjeta key={i.key} aviso etiqueta={`${i.label}: ${i.count}`} onClick={() => navigate(i.to)}>
+              <Group justify="space-between" wrap="nowrap" gap="sm">
+                <Text size="sm" fw={600} style={{ minWidth: 0 }}>
+                  {i.label}
+                </Text>
+                <Text fw={700} fz={20} className="a-tabular">
+                  {i.count}
+                </Text>
+              </Group>
+              <Text size="xs" mt={4} c="var(--mantine-color-yellow-light-color)">
+                Resolver →
+              </Text>
+            </Tarjeta>
+          ))}
+        </SimpleGrid>
+      )}
+    </GlassCard>
+  );
+}
 
+/** Cómo está la comunidad hoy. No depende del periodo. */
+function Hoy({
+  gymId,
+  activos,
+  porVencer,
+  servicios,
+}: {
+  gymId: string;
+  activos?: number;
+  porVencer?: number;
+  servicios?: number;
+}) {
+  // Mientras carga, un 0 mentiría («no hay clases sin coach»): va un guion.
+  const counts = usePendingSummary(gymId).data;
+  const sinCoach = counts?.clases_sin_coach ?? 0;
+  const enRiesgo = counts?.en_riesgo ?? 0;
   return (
-    <div style={{ marginBottom: "calc(18 * var(--u))" }}>
-      <SectionLabel mb={10} as="h2">Pendientes por resolver · {counts.total}</SectionLabel>
-      <Stagger
-        from={0.52}
-        style={{ display: "flex", flexWrap: "wrap", gap: "calc(10 * var(--u))" }}
-      >
-        {activos.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className="a-chip a-lift"
-            style={{ cursor: "pointer" }}
-            onClick={() => navigate(item.to)}
-          >
-            {item.label}
-            <CountBadge count={counts[item.key] ?? 0} />
-          </button>
-        ))}
-      </Stagger>
-    </div>
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado titulo="Hoy" />
+      <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} spacing="sm">
+        <Cifra label="Atletas activos" value={activos ?? "—"} to="/panel/atletas" />
+        <Cifra
+          label="Clases de hoy sin coach"
+          value={counts ? sinCoach : "—"}
+          to="/panel/clases?tab=classes"
+          aviso={sinCoach > 0}
+        />
+        <Cifra label="Por vencer" value={porVencer ?? "—"} to="/panel/atletas?filtro=por_vencer" />
+        <Cifra label="En riesgo" value={counts ? enRiesgo : "—"} to="/panel/atletas?filtro=en_riesgo" />
+        <Cifra label="Servicios activos" value={servicios ?? "—"} to="/panel/clases?tab=services" />
+      </SimpleGrid>
+    </GlassCard>
   );
 }
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
-  const [from, setFrom] = useState<Date | null>(firstOfMonth());
-  const [to, setTo] = useState<Date | null>(new Date());
-  const dashboard = useDashboard(gymId, toIso(from), toIso(to));
+  // El rango se aplica cuando las dos fechas están puestas: a medio elegir, la
+  // consulta sin rango traería otro periodo y los números brincarían.
+  const [rango, setRango] = useState<[Date | null, Date | null]>([firstOfMonth(), new Date()]);
+  const [periodo, setPeriodo] = useState<[Date, Date]>([firstOfMonth(), new Date()]);
+  const dashboard = useDashboard(gymId, toIso(periodo[0]), toIso(periodo[1]));
 
   if (!gymId) return <NoGymAssigned />;
-  if (dashboard.isError) return <PageError onRetry={() => dashboard.refetch()} />;
 
   const d = dashboard.data;
   // El corte (top 5) lo decide el backend; aquí se muestran todas las que lleguen.
   const demanda = d?.clases_mas_demandadas ?? [];
+  const maxDemanda = Math.max(1, ...demanda.map((c) => c.reservas));
 
   return (
     <div>
-      <PageHeader
-        kicker="Operación"
-        title="Tu gimnasio, en un vistazo"
-        subtitle="Ingresos, actividad y estado de la comunidad en el periodo seleccionado. Todo lo que necesitas revisar antes de abrir el box."
-      />
+      <PageHeader kicker="Operación" title="Tu gimnasio hoy" />
 
-      <PendingPanel gymId={gymId} />
+      <Stack gap="lg">
+        <PorAtender gymId={gymId} />
 
-      {/* Retícula de la referencia: columna principal + rail de tarjetas. */}
-      <div className="a-dash-grid">
-        {/* ── Columna principal ────────────────────────────────────────── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "calc(20 * var(--u))" }}>
-          <GlassCard padding={16} delay={0.6}>
-            <Group gap="md" wrap="wrap" align="flex-end">
-              <SectionLabel mb={0}>Periodo</SectionLabel>
-              <DatePickerInput
-                label="Desde"
-                value={from}
-                onChange={setFrom}
-                valueFormat="YYYY-MM-DD"
-                size="sm"
-              />
-              <DatePickerInput
-                label="Hasta"
-                value={to}
-                onChange={setTo}
-                valueFormat="YYYY-MM-DD"
-                size="sm"
-              />
-            </Group>
-          </GlassCard>
+        <Hoy
+          gymId={gymId}
+          activos={d?.atletas_activos}
+          porVencer={d?.proximos_vencimientos}
+          servicios={d?.servicios_activos}
+        />
 
-          {dashboard.isLoading || !d ? (
-            <PageLoading label="Cargando KPIs…" />
+        <GlassCard delay={0.7} padding={18}>
+          <Encabezado titulo="Periodo">
+            <DatePickerInput
+              type="range"
+              aria-label="Periodo"
+              value={rango}
+              onChange={(v) => {
+                setRango(v);
+                if (v[0] && v[1]) setPeriodo([v[0], v[1]]);
+              }}
+              valueFormat="DD/MM/YYYY"
+              size="sm"
+              w={{ base: "100%", sm: 260 }}
+            />
+            <Button variant="subtle" size="sm" onClick={() => navigate("/panel/reportes")}>
+              Reportes →
+            </Button>
+          </Encabezado>
+
+          {dashboard.isError ? (
+            <PageError onRetry={() => dashboard.refetch()} />
+          ) : dashboard.isLoading || !d ? (
+            <Text size="sm" c="dimmed">
+              Cargando…
+            </Text>
           ) : (
-            <>
-              {/* Cifra protagonista: el equivalente del "10°C" de la referencia. */}
-              <GlassCard variant="core" sheen padding={26} delay={0.7}>
-                <BigMetric
-                  label="Ingresos del periodo"
-                  value={fmtQ(d.ingresos_total)}
-                  fz="clamp(34px, calc(58 * var(--u)), 68px)"
-                  delay={1.04}
-                />
-                <Group
-                  gap="lg"
-                  mt="lg"
-                  className="a-rise"
-                  style={{ animationDelay: "1.16s" }}
-                  wrap="wrap"
-                >
-                  <div>
-                    <SectionLabel mb={4}>Tarjeta</SectionLabel>
-                    <Text fw={600} className="a-tabular">
-                      {fmtQ(d.ingresos_tarjeta)}
-                    </Text>
-                  </div>
-                  <Divider orientation="vertical" />
-                  <div>
-                    <SectionLabel mb={4}>Manual</SectionLabel>
-                    <Text fw={600} className="a-tabular">
-                      {fmtQ(d.ingresos_manual)}
-                    </Text>
-                  </div>
-                </Group>
+            <Stack gap="lg">
+              <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+                <Cifra label="Ingresos" value={fmtQ(d.ingresos_total)} to="/panel/pagos" />
+                <Cifra label="Tarjeta" value={fmtQ(d.ingresos_tarjeta)} to="/panel/pagos" />
+                <Cifra label="Manual" value={fmtQ(d.ingresos_manual)} to="/panel/pagos" />
+              </SimpleGrid>
 
-                <Group
-                  justify="space-between"
-                  mt="xl"
-                  wrap="wrap"
-                  gap="md"
-                  className="a-rise"
-                  style={{ animationDelay: "1.28s" }}
-                >
-                  <Group gap={7}>
-                    <Receipt size={16} strokeWidth={1.8} style={{ opacity: 0.75 }} />
-                    <Text size="sm" fw={500}>
-                      {d.pagos ?? 0} pagos
-                    </Text>
-                  </Group>
-                  <Group gap={7}>
-                    <UserPlus size={16} strokeWidth={1.8} style={{ opacity: 0.75 }} />
-                    <Text size="sm" fw={500}>
-                      {d.nuevos_atletas ?? 0} nuevos atletas
-                    </Text>
-                  </Group>
-                  <Group gap={7}>
-                    <Activity size={16} strokeWidth={1.8} style={{ opacity: 0.75 }} />
-                    <Text size="sm" fw={500}>
-                      {d.checkins ?? 0} check-ins
-                    </Text>
-                  </Group>
-                </Group>
-              </GlassCard>
-
-              {/* La firma gráfica: la onda se traza sola y el relleno la sigue. */}
-              <GlassCard padding={24} delay={0.82}>
-                <SectionLabel mb={14} as="h2">Clases más demandadas</SectionLabel>
-                {demanda.length === 0 ? (
-                  <Text c="dimmed" size="sm">
-                    Sin reservas registradas en el periodo.
-                  </Text>
-                ) : (
-                  <WaveChart
-                    values={demanda.map((c) => c.reservas)}
-                    labels={demanda.map(etiquetaClaseDemandada)}
-                    formatValue={(v) => v}
-                    height={190}
-                    delay={1.5}
-                  />
-                )}
-              </GlassCard>
+              <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="sm">
+                <Cifra label="Pagos" value={d.pagos ?? 0} to="/panel/pagos" />
+                <Cifra label="Nuevos atletas" value={d.nuevos_atletas ?? 0} to="/panel/atletas" />
+                <Cifra label="Check-ins" value={d.checkins ?? 0} to="/panel/clases?tab=classes" />
+                <Cifra label="Workouts publicados" value={d.wods_publicados ?? 0} to="/panel/clases?tab=wod" />
+                <Cifra label="Scores subidos" value={d.resultados_wod ?? 0} to="/panel/clases?tab=wod" />
+                <Cifra label="PRs nuevos" value={d.prs_nuevos ?? 0} />
+              </SimpleGrid>
 
               <div>
-                <SectionLabel mb={12} as="h2">Entrenamiento en el periodo</SectionLabel>
-                <Stagger from={1.0}>
-                  <SimpleGrid cols={{ base: 2, md: 4 }} spacing="md">
-                    <MetricTile
-                      label="WODs publicados"
-                      value={d.wods_publicados ?? 0}
-                      icon={<Flame size={16} strokeWidth={1.8} />}
-                      tone="var(--nucleo-accent)"
-                    />
-                    <MetricTile
-                      label="Resultados de WOD"
-                      value={d.resultados_wod ?? 0}
-                      icon={<Trophy size={16} strokeWidth={1.8} />}
-                    />
-                    <MetricTile
-                      label="Nuevos PRs"
-                      value={d.prs_nuevos ?? 0}
-                      icon={<Dumbbell size={16} strokeWidth={1.8} />}
-                    />
-                    <MetricTile
-                      label="Servicios activos"
-                      value={d.servicios_activos ?? 0}
-                      icon={<CalendarClock size={16} strokeWidth={1.8} />}
-                    />
-                  </SimpleGrid>
-                </Stagger>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* ── Rail derecho: el estado actual del gimnasio ───────────────── */}
-        {d && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "calc(20 * var(--u))",
-              position: "sticky",
-              top: "calc(var(--a-header-h) + 12 * var(--u))",
-            }}
-          >
-            <GlassCard variant="big" sheen padding={24} delay={0.8}>
-              <Group gap={7} mb="lg" className="a-rise" style={{ animationDelay: "1.04s" }}>
-                <Users size={16} strokeWidth={1.9} style={{ opacity: 0.85 }} />
-                <Text fw={600} size="sm">
-                  Atletas activos
+                <Text fw={600} size="sm" mb="xs">
+                  Clases más demandadas
                 </Text>
-              </Group>
-              <BigMetric value={d.atletas_activos ?? 0} delay={1.16} />
-              <Text size="sm" c="dimmed" mt="md" className="a-rise" style={{ animationDelay: "1.28s" }}>
-                Membresías vigentes en este gimnasio.
-              </Text>
-            </GlassCard>
-
-            <GlassCard delay={0.92} padding={20}>
-              <Group justify="space-between" align="center" wrap="nowrap">
-                <div style={{ minWidth: 0 }}>
-                  <div className="a-kicker">Cobranza</div>
-                  <Text fw={600} fz="lg" mt={5} style={{ letterSpacing: "-0.02em" }}>
-                    Morosos
+                {demanda.length === 0 ? (
+                  <Text c="dimmed" size="sm">
+                    Sin reservas en el periodo.
                   </Text>
-                </div>
-                <div className="a-metric a-metric--sm" style={{ color: "var(--nucleo-danger)" }}>
-                  {d.morosos ?? 0}
-                </div>
-              </Group>
-            </GlassCard>
-
-            <GlassCard delay={1.03} padding={20}>
-              <Group justify="space-between" align="center" wrap="nowrap">
-                <div style={{ minWidth: 0 }}>
-                  <div className="a-kicker">Retención</div>
-                  <Text fw={600} fz="lg" mt={5} style={{ letterSpacing: "-0.02em" }}>
-                    Por vencer
-                  </Text>
-                </div>
-                <div className="a-metric a-metric--sm" style={{ color: "var(--nucleo-warning)" }}>
-                  {d.proximos_vencimientos ?? 0}
-                </div>
-              </Group>
-            </GlassCard>
-
-            <GlassCard delay={1.14} padding={20}>
-              <Group justify="space-between" align="center" wrap="nowrap">
-                <div style={{ minWidth: 0 }}>
-                  <div className="a-kicker">Catálogo</div>
-                  <Text fw={600} fz="lg" mt={5} style={{ letterSpacing: "-0.02em" }}>
-                    Servicios
-                  </Text>
-                </div>
-                <div className="a-metric a-metric--sm">{d.servicios_activos ?? 0}</div>
-              </Group>
-            </GlassCard>
-          </div>
-        )}
-      </div>
+                ) : (
+                  <Stack gap={8}>
+                    {demanda.map((c) => {
+                      const etiqueta = etiquetaClaseDemandada(c);
+                      return (
+                        <div key={etiqueta}>
+                          <Group justify="space-between" gap="sm" mb={3} wrap="nowrap">
+                            <Text size="sm" truncate>
+                              {etiqueta}
+                            </Text>
+                            <Text size="sm" fw={600} className="a-tabular">
+                              {c.reservas}
+                            </Text>
+                          </Group>
+                          <Progress
+                            value={(c.reservas / maxDemanda) * 100}
+                            size="sm"
+                            color="flame"
+                            aria-label={`${etiqueta}: ${c.reservas} reservas`}
+                          />
+                        </div>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </div>
+            </Stack>
+          )}
+        </GlassCard>
+      </Stack>
     </div>
   );
 }

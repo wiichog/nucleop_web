@@ -4,6 +4,7 @@ import {
   Alert,
   Badge,
   Button,
+  Divider,
   Group,
   Modal,
   NumberInput,
@@ -17,7 +18,6 @@ import {
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import { Plus, Trash2 } from "lucide-react";
 import {
   useBranches,
@@ -30,14 +30,12 @@ import {
   useReceiveErpPurchaseOrder,
 } from "../api/hooks";
 import type { ErpPurchaseOrder, PurchaseOrderStatus } from "../api/types";
-import { DetailSheet } from "../components/DetailSheet";
 import { PageError, PageLoading } from "../components/PageStatus";
-import { RowActions } from "../components/RowActions";
 import { GlassCard } from "../components/aurora";
+import { Encabezado, Tarjeta } from "../components/Tarjeta";
 import { errMsg } from "../lib/errors";
 import { fmtQ } from "../lib/money";
-import { Money, SectionLabel } from "../components/ui";
-import { sortRecords } from "../lib/sortRecords";
+import { Money } from "../components/ui";
 
 const PO_STATUS: Record<string, { label: string; color: string }> = {
   draft: { label: "Borrador", color: "gray" },
@@ -46,6 +44,9 @@ const PO_STATUS: Record<string, { label: string; color: string }> = {
   received: { label: "Recibida", color: "teal" },
   cancelled: { label: "Anulada", color: "red" },
 };
+
+/** Las que aún esperan mercadería: se pueden recibir o anular. */
+const ABIERTAS: PurchaseOrderStatus[] = ["draft", "ordered", "partial"];
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : undefined);
 
@@ -63,7 +64,14 @@ const LINEA_VACIA: LineaNueva = { product_id: null, qty: 1, unit_cost: "" };
  * movimiento de inventario se genera en el backend con el costo real de la
  * compra, así que aquí nunca se toca `stock_qty` a mano.
  */
-export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
+export function PurchaseOrdersPanel({
+  gymId,
+  onIrAProveedores,
+}: {
+  gymId: string;
+  /** Sin proveedores no hay orden posible: el aviso lleva a darlos de alta. */
+  onIrAProveedores?: () => void;
+}) {
   const [estado, setEstado] = useState<string | null>("");
   const [proveedorFiltro, setProveedorFiltro] = useState<string | null>("");
   const orders = useErpPurchaseOrders(gymId, {
@@ -87,17 +95,14 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
   const [yaOrdenada, setYaOrdenada] = useState(true);
   const [lineas, setLineas] = useState<LineaNueva[]>([{ ...LINEA_VACIA }]);
 
-  // Ficha + recepción.
+  // Ficha + recepción + anulación.
   const [abierta, setAbierta] = useState<string>("");
   const detalle = useErpPurchaseOrder(gymId, abierta);
   const [recibido, setRecibido] = useState<Record<string, number | string>>({});
   const [actualizarCosto, setActualizarCosto] = useState(true);
   const [notaRecepcion, setNotaRecepcion] = useState("");
-
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ErpPurchaseOrder>>({
-    columnAccessor: "created_at",
-    direction: "desc",
-  });
+  const [anulando, setAnulando] = useState(false);
+  const [motivoAnulacion, setMotivoAnulacion] = useState("");
 
   const supplierData = useMemo(
     () => (suppliers.data ?? []).map((s) => ({ value: s.id, label: s.name })),
@@ -165,6 +170,8 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
     setRecibido({});
     setActualizarCosto(true);
     setNotaRecepcion("");
+    setAnulando(false);
+    setMotivoAnulacion("");
   };
 
   const onRecibir = async (orden: ErpPurchaseOrder, todo: boolean) => {
@@ -199,10 +206,10 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
   };
 
   const onAnular = async (orden: ErpPurchaseOrder) => {
-    const reason = window.prompt("Motivo de la anulación de la orden:", "");
-    if (reason === null) return;
     try {
-      await anular.mutateAsync({ id: orden.id, reason });
+      await anular.mutateAsync({ id: orden.id, reason: motivoAnulacion.trim() });
+      setAnulando(false);
+      setMotivoAnulacion("");
       notifications.show({
         color: "teal",
         message: "Orden anulada. Lo ya recibido se queda en el inventario.",
@@ -213,144 +220,134 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
   };
 
   const orden = detalle.data;
-  const puedeRecibir = !!orden && ["draft", "ordered", "partial"].includes(orden.status);
+  const puedeRecibir = !!orden && ABIERTAS.includes(orden.status);
+
+  // Lo que falta por llegar va primero; dentro de cada grupo, lo más reciente.
+  const filas = (orders.data ?? [])
+    .slice()
+    .sort(
+      (a, b) =>
+        Number(ABIERTAS.includes(b.status)) - Number(ABIERTAS.includes(a.status)) ||
+        b.created_at.localeCompare(a.created_at),
+    );
+  const porRecibir = (orders.data ?? []).filter((o) => ABIERTAS.includes(o.status)).length;
+  const sinProveedores = !supplierData.length && !suppliers.isLoading;
+
+  if (orders.isError) return <PageError onRetry={() => orders.refetch()} />;
 
   return (
-    <div>
-      {orders.isError && <PageError onRetry={() => orders.refetch()} />}
-
-      <GlassCard padding={20} delay={0.6} style={{ marginBottom: "calc(16 * var(--u))" }}>
-        <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
-          <div>
-            <SectionLabel as="h2" mb={6}>Órdenes de compra</SectionLabel>
-            <Text c="dimmed" size="sm">
-              Lo que le pediste a cada proveedor. Al marcar la recepción, el stock entra solo con
-              el costo real de la compra.
-            </Text>
-          </div>
-          <Button
-            leftSection={<Plus size={16} />}
-            onClick={() => setCreando(true)}
-            disabled={!supplierData.length}
-          >
-            Nueva orden
-          </Button>
-        </Group>
-        {!supplierData.length && !suppliers.isLoading && (
-          <Alert color="yellow" variant="light" mt="md">
-            Primero da de alta un proveedor en la pestaña «Proveedores».
-          </Alert>
-        )}
-      </GlassCard>
-
-      <GlassCard padding={16} delay={0.72} style={{ marginBottom: "calc(16 * var(--u))" }}>
-        <Group align="flex-end" gap="md" wrap="wrap">
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado
+        titulo="Compras"
+        avisos={
+          porRecibir > 0 && (
+            <Badge color="yellow" variant="light">
+              {porRecibir} por recibir
+            </Badge>
+          )
+        }
+      >
+        <Select
+          aria-label="Estado"
+          placeholder="Todos los estados"
+          value={estado}
+          onChange={setEstado}
+          clearable
+          w={{ base: "100%", sm: 180 }}
+          data={Object.entries(PO_STATUS).map(([value, s]) => ({ value, label: s.label }))}
+        />
+        {supplierData.length > 1 && (
           <Select
-            label="Estado"
-            placeholder="Todos"
-            value={estado}
-            onChange={setEstado}
-            clearable
-            w={{ base: "100%", sm: 220 }}
-            data={Object.entries(PO_STATUS).map(([value, s]) => ({ value, label: s.label }))}
-          />
-          <Select
-            label="Proveedor"
-            placeholder="Todos"
+            aria-label="Proveedor"
+            placeholder="Todos los proveedores"
             value={proveedorFiltro}
             onChange={setProveedorFiltro}
             clearable
             searchable
-            w={{ base: "100%", sm: 260 }}
+            w={{ base: "100%", sm: 200 }}
             data={supplierData}
           />
-        </Group>
-      </GlassCard>
+        )}
+        <Button onClick={() => setCreando(true)} disabled={!supplierData.length}>
+          Nueva orden
+        </Button>
+      </Encabezado>
+      {sinProveedores && (
+        <Text
+          size="sm"
+          mb="sm"
+          c="var(--mantine-color-yellow-light-color)"
+          component={onIrAProveedores ? "button" : "p"}
+          onClick={onIrAProveedores}
+          style={onIrAProveedores ? { cursor: "pointer", textDecoration: "underline", background: "none", border: 0, padding: 0 } : undefined}
+        >
+          Primero agrega un proveedor →
+        </Text>
+      )}
 
-      <SectionLabel as="h2" mb="xs">Historial de órdenes</SectionLabel>
-      <GlassCard padding={14} delay={0.84}>
-        <DataTable<ErpPurchaseOrder>
-          minHeight={160}
-          highlightOnHover
-          striped
-          idAccessor="id"
-          records={sortRecords(orders.data ?? [], sortStatus)}
-          fetching={orders.isLoading}
-          noRecordsText="Sin órdenes de compra todavía."
-          sortStatus={sortStatus}
-          onSortStatusChange={setSortStatus}
-          columns={[
-            { accessor: "supplier_name", title: "Proveedor", sortable: true },
-            {
-              accessor: "reference",
-              title: "Referencia",
-              sortable: true,
-              render: (o) => o.reference || "—",
-            },
-            {
-              accessor: "status",
-              title: "Estado",
-              sortable: true,
-              render: (o) => {
-                const s = PO_STATUS[o.status] ?? { label: o.status, color: "gray" };
-                return (
-                  <Badge color={s.color} variant="light">
+      {orders.isLoading ? (
+        <Text c="dimmed" size="sm">
+          Cargando…
+        </Text>
+      ) : filas.length === 0 ? (
+        <Text c="dimmed" size="sm" py="md">
+          {estado || proveedorFiltro ? "Ninguna orden con ese filtro." : "Sin órdenes de compra todavía."}
+        </Text>
+      ) : (
+        <Stack gap={6}>
+          {filas.map((o) => {
+            const s = PO_STATUS[o.status] ?? { label: o.status, color: "gray" };
+            const abiertaO = ABIERTAS.includes(o.status);
+            return (
+              <Tarjeta
+                key={o.id}
+                etiqueta={`Orden de ${o.supplier_name}${o.reference ? `, ${o.reference}` : ""}`}
+                onClick={() => abrirFicha(o)}
+                aviso={abiertaO}
+                apagada={o.status === "cancelled"}
+              >
+                <Group gap="sm" wrap="nowrap">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Text size="sm" fw={600} truncate>
+                      {o.supplier_name}
+                      {o.reference && (
+                        <Text span c="dimmed" fw={400}>
+                          {" · "}
+                          {o.reference}
+                        </Text>
+                      )}
+                    </Text>
+                    <Text size="xs" c="dimmed" truncate>
+                      {abiertaO
+                        ? o.expected_on
+                          ? `Llega el ${o.expected_on}`
+                          : "Sin fecha de llegada"
+                        : o.ordered_on
+                          ? `Ordenada el ${o.ordered_on}`
+                          : `Creada el ${o.created_at.slice(0, 10)}`}
+                      {o.status === "partial" ? ` · recibido ${fmtQ(o.received_total, { decimals: 2 })}` : ""}
+                    </Text>
+                  </div>
+                  <Badge size="sm" color={s.color} variant="light">
                     {s.label}
                   </Badge>
-                );
-              },
-            },
-            {
-              accessor: "total",
-              title: "Total",
-              sortable: true,
-              textAlign: "right",
-              render: (o) => <Money value={o.total} decimals={2} block />,
-            },
-            {
-              accessor: "received_total",
-              title: "Recibido",
-              textAlign: "right",
-              render: (o) => <Money value={o.received_total} decimals={2} block />,
-            },
-            {
-              accessor: "expected_on",
-              title: "Llega",
-              sortable: true,
-              render: (o) => o.expected_on || "—",
-            },
-            {
-              accessor: "actions",
-              title: "Acciones",
-              render: (o) => (
-                <RowActions
-                  actions={[
-                    {
-                      label: ["draft", "ordered", "partial"].includes(o.status)
-                        ? "Recibir"
-                        : "Ver",
-                      onClick: () => abrirFicha(o),
-                    },
-                    ["draft", "ordered", "partial"].includes(o.status) && {
-                      label: "Anular",
-                      color: "red",
-                      variant: "subtle" as const,
-                      onClick: () => onAnular(o),
-                    },
-                  ]}
-                />
-              ),
-            },
-          ]}
-        />
-      </GlassCard>
+                  <Text size="sm" fw={600} w={96} ta="right" className="a-tabular">
+                    <Money value={o.total} decimals={2} />
+                  </Text>
+                </Group>
+              </Tarjeta>
+            );
+          })}
+        </Stack>
+      )}
 
-      {/* Ficha de la orden + recepción de mercadería. */}
-      <DetailSheet
+      {/* Ficha de la orden: recepción de mercadería y anulación. */}
+      <Modal
         opened={!!abierta}
         onClose={() => setAbierta("")}
         title={orden ? `Orden · ${orden.supplier_name}` : "Orden de compra"}
-        size={560}
+        size="lg"
+        centered
       >
         {detalle.isError ? (
           <PageError onRetry={() => detalle.refetch()} />
@@ -379,67 +376,67 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
               </Alert>
             )}
 
-            <SectionLabel as="h2" mt="xs">Productos</SectionLabel>
-            <Table>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Producto</Table.Th>
-                  <Table.Th ta="right">Pedido</Table.Th>
-                  <Table.Th ta="right">Recibido</Table.Th>
-                  {puedeRecibir && <Table.Th ta="right">Llegó</Table.Th>}
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {orden.lines.map((l) => (
-                  <Table.Tr key={l.id}>
-                    <Table.Td>
-                      <Text size="sm" fw={600}>
-                        {l.product_name}
-                      </Text>
-                      <Text c="dimmed" size="xs">
-                        {fmtQ(l.unit_cost, { decimals: 2 })} c/u
-                      </Text>
-                    </Table.Td>
-                    <Table.Td ta="right" className="a-tabular">
-                      {l.qty}
-                    </Table.Td>
-                    <Table.Td ta="right" className="a-tabular">
-                      {l.received_qty}
-                    </Table.Td>
-                    {puedeRecibir && (
-                      <Table.Td ta="right">
-                        <NumberInput
-                          w={92}
-                          min={0}
-                          max={l.pending_qty}
-                          placeholder={String(l.pending_qty)}
-                          value={recibido[l.id] ?? ""}
-                          onChange={(v) => setRecibido((r) => ({ ...r, [l.id]: v }))}
-                          disabled={l.pending_qty <= 0}
-                        />
-                      </Table.Td>
-                    )}
+            <Table.ScrollContainer minWidth={puedeRecibir ? 420 : 320}>
+              <Table verticalSpacing="xs">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Producto</Table.Th>
+                    <Table.Th ta="right">Pedido</Table.Th>
+                    <Table.Th ta="right">Recibido</Table.Th>
+                    {puedeRecibir && <Table.Th ta="right">Llegó</Table.Th>}
                   </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+                </Table.Thead>
+                <Table.Tbody>
+                  {orden.lines.map((l) => (
+                    <Table.Tr key={l.id}>
+                      <Table.Td>
+                        <Text size="sm" fw={600}>
+                          {l.product_name}
+                        </Text>
+                        <Text c="dimmed" size="xs">
+                          {fmtQ(l.unit_cost, { decimals: 2 })} c/u
+                        </Text>
+                      </Table.Td>
+                      <Table.Td ta="right" className="a-tabular">
+                        {l.qty}
+                      </Table.Td>
+                      <Table.Td ta="right" className="a-tabular">
+                        {l.received_qty}
+                      </Table.Td>
+                      {puedeRecibir && (
+                        <Table.Td ta="right">
+                          <NumberInput
+                            w={84}
+                            min={0}
+                            max={l.pending_qty}
+                            aria-label={`Llegó de ${l.product_name}`}
+                            placeholder={String(l.pending_qty)}
+                            value={recibido[l.id] ?? ""}
+                            onChange={(v) => setRecibido((r) => ({ ...r, [l.id]: v }))}
+                            disabled={l.pending_qty <= 0}
+                          />
+                        </Table.Td>
+                      )}
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
 
             {puedeRecibir && (
               <>
                 <Switch
                   label="Actualizar el costo del producto con esta compra"
-                  description="Deja el costo del catálogo al día para que el margen no mienta."
                   checked={actualizarCosto}
                   onChange={(e) => setActualizarCosto(e.currentTarget.checked)}
-                  mt="xs"
                 />
                 <TextInput
                   label="Nota de la recepción"
-                  placeholder="Ej. llegaron 2 cajas golpeadas"
+                  placeholder="Llegaron 2 cajas golpeadas"
                   value={notaRecepcion}
                   onChange={(e) => setNotaRecepcion(e.currentTarget.value)}
                 />
-                <Group justify="flex-end" gap="sm">
+                <Group justify="flex-end" gap="sm" wrap="wrap">
                   <Button
                     variant="default"
                     onClick={() => onRecibir(orden, false)}
@@ -451,11 +448,37 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
                     Recibir todo lo pendiente
                   </Button>
                 </Group>
+
+                <Divider />
+                {anulando ? (
+                  <Group gap="xs" align="flex-end" wrap="wrap">
+                    <TextInput
+                      label="Motivo de la anulación"
+                      placeholder="Opcional"
+                      value={motivoAnulacion}
+                      onChange={(e) => setMotivoAnulacion(e.currentTarget.value)}
+                      style={{ flex: 1, minWidth: 200 }}
+                      data-autofocus
+                    />
+                    <Button variant="default" onClick={() => setAnulando(false)}>
+                      No anular
+                    </Button>
+                    <Button color="red" loading={anular.isPending} onClick={() => onAnular(orden)}>
+                      Anular orden
+                    </Button>
+                  </Group>
+                ) : (
+                  <Group justify="flex-start">
+                    <Button variant="subtle" color="red" onClick={() => setAnulando(true)}>
+                      Anular
+                    </Button>
+                  </Group>
+                )}
               </>
             )}
           </Stack>
         )}
-      </DetailSheet>
+      </Modal>
 
       {/* Alta de la orden. */}
       <Modal
@@ -516,17 +539,20 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
 
           <Switch
             label="Ya está ordenada al proveedor"
-            description="Sin marcar queda como «Borrador». Un borrador ya no se edita: solo se puede «Recibir» o «Anular». Si te equivocaste, anúlala y crea otra."
             checked={yaOrdenada}
             onChange={(e) => setYaOrdenada(e.currentTarget.checked)}
           />
 
-          <SectionLabel as="h2" mt="xs">Productos</SectionLabel>
+          <Text fw={700} size="sm" mt="xs">
+            Productos
+          </Text>
           <Stack gap="xs">
             {lineas.map((l, i) => (
-              <Group key={i} gap="xs" align="flex-end" wrap="nowrap">
+              // En celular el producto ocupa su renglón y cantidad + costo bajan al siguiente.
+              <Group key={i} gap="xs" align="flex-end" wrap="wrap">
                 <Select
                   label={i === 0 ? "Producto" : undefined}
+                  aria-label={i === 0 ? undefined : "Producto"}
                   placeholder="Elige…"
                   value={l.product_id}
                   onChange={(v) =>
@@ -534,11 +560,12 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
                   }
                   data={productData}
                   searchable
-                  style={{ flex: 1, minWidth: 0 }}
+                  style={{ flex: "1 1 200px", minWidth: 0 }}
                 />
                 <NumberInput
                   label={i === 0 ? "Cant." : undefined}
-                  w={90}
+                  aria-label={i === 0 ? undefined : "Cantidad"}
+                  w={84}
                   min={1}
                   value={l.qty}
                   onChange={(v) =>
@@ -547,6 +574,8 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
                 />
                 <TextInput
                   label={i === 0 ? "Costo (Q)" : undefined}
+                  aria-label={i === 0 ? undefined : "Costo (Q)"}
+                  inputMode="decimal"
                   w={110}
                   placeholder="Del catálogo"
                   value={l.unit_cost}
@@ -600,6 +629,6 @@ export function PurchaseOrdersPanel({ gymId }: { gymId: string }) {
           </Group>
         </Stack>
       </Modal>
-    </div>
+    </GlassCard>
   );
 }

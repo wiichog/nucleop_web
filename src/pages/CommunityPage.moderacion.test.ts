@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
 import pagina from "./CommunityPage.tsx?raw";
+import moderacion from "./comunidad/ModeracionTab.tsx?raw";
+import atletaDelMes from "./comunidad/AtletaDelMesTab.tsx?raw";
 import { MANUALES } from "../lib/manuales";
 
 // El backend BORRA el comentario al eliminarlo (`comment.delete()`): no queda nada que
 // apelar ni que devolver al feed. Los textos no pueden prometer lo contrario.
 describe("Feed: eliminar un comentario no se puede apelar", () => {
   it("la ventana «Eliminar comentario» no promete una revisión", () => {
-    const rama = pagina.match(/`El comentario de \$\{rechazo\?\.quien\}[^`]*`/)?.[0] ?? "";
+    const rama = moderacion.match(/`El comentario de \$\{rechazo\?\.quien\}[^`]*`/)?.[0] ?? "";
     expect(rama).toContain("para siempre");
     expect(rama).toContain("ya no podrá apelar");
     expect(rama).not.toContain("revises de nuevo");
+  });
+
+  it("el aviso al eliminar no dice que el autor puede debatirlo", () => {
+    expect(moderacion).not.toContain("Comentario eliminado. El autor recibe el motivo y puede debatirlo.");
   });
 
   it("el manual del feed dice que el comentario eliminado no se apela", () => {
@@ -21,20 +27,28 @@ describe("Feed: eliminar un comentario no se puede apelar", () => {
 // Publicar anuncios y elegir atleta del mes son `required_roles=["gym_admin"]` en el
 // backend: al coach le responden 403. La pantalla no se los ofrece.
 describe("Feed: el coach no ve lo que el servidor le rechaza", () => {
-  it("las tarjetas de atleta del mes, publicar anuncio y anuncios publicados van tras esAdmin", () => {
+  it("la pestaña Anuncios y su panel van tras esAdmin", () => {
     expect(pagina).toContain("const esAdmin = administraGym(roles, isSuperuser, gymId);");
-    const bloque = pagina.slice(pagina.indexOf("{esAdmin && ("));
-    expect(bloque.indexOf("Atleta del mes por clase")).toBeGreaterThan(0);
-    expect(bloque.indexOf("Publicar anuncio en el feed")).toBeGreaterThan(0);
-    expect(pagina).toContain("{esAdmin && <AnunciosPublicados");
-    // El histórico sí lo puede leer el coach: sigue fuera del bloque.
-    const fin = pagina.indexOf("{esAdmin && <AnunciosPublicados");
-    expect(pagina.indexOf("Histórico de atletas del mes")).toBeGreaterThan(fin);
+    expect(pagina).toContain('{esAdmin && <Tabs.Tab value="anuncios">Anuncios</Tabs.Tab>}');
+    const panel = pagina.indexOf('<Tabs.Panel value="anuncios">');
+    expect(panel).toBeGreaterThan(0);
+    expect(pagina.lastIndexOf("{esAdmin && (", panel)).toBeGreaterThan(0);
+    // Un enlace viejo con ?tab=anuncios no deja al coach en una pestaña vacía.
+    expect(pagina).toContain('!esAdmin && pedida === "anuncios" ? "moderar" : pedida');
   });
 
-  it("el manual le explica al coach por qué no ve esas tarjetas", () => {
+  it("elegir atleta del mes va tras esAdmin; el histórico no", () => {
+    expect(atletaDelMes).toContain("{esAdmin && <Vigentes");
+    expect(atletaDelMes).toContain("<Historico gymId={gymId}");
+    expect(atletaDelMes.indexOf("<Historico gymId={gymId}")).toBeGreaterThan(
+      atletaDelMes.indexOf("{esAdmin && <Vigentes"),
+    );
+    expect(atletaDelMes).not.toMatch(/\{esAdmin && <Historico/);
+  });
+
+  it("el manual le explica al coach por qué no ve esas partes", () => {
     const texto = JSON.stringify(Object.values(MANUALES));
-    expect(texto).toContain("Soy coach y no veo «Atleta del mes por clase», «Publicar anuncio en el feed» ni «Anuncios publicados».");
+    expect(texto).toContain("Soy coach y no veo la pestaña «Anuncios» ni puedo elegir al atleta del mes.");
   });
 });
 

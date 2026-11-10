@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import compras from "./PurchaseOrdersPanel.tsx?raw";
 import inventario from "./InventoryPage.tsx?raw";
+import proveedores from "./SuppliersPanel.tsx?raw";
+import producto from "./inventario/ProductoModal.tsx?raw";
+import ajuste from "./inventario/AjusteStock.tsx?raw";
 
 /**
  * `e.currentTarget` dentro del updater de un `setX(prev => …)` tumba la página al
@@ -44,5 +47,11 @@ describe("currentTarget nunca dentro del updater de setState", () => {
 
   it("Inventario lee el valor antes del setter", () => {
     expect(updatersQueLeenCurrentTarget(inventario)).toEqual([]);
+    expect(updatersQueLeenCurrentTarget(producto)).toEqual([]);
+    expect(updatersQueLeenCurrentTarget(ajuste)).toEqual([]);
+  });
+
+  it("Proveedores lee el valor antes del setter", () => {
+    expect(updatersQueLeenCurrentTarget(proveedores)).toEqual([]);
   });
 });

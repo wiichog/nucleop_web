@@ -3,23 +3,20 @@ import {
   Badge,
   Box,
   Button,
-  Grid,
   Group,
   Modal,
   SegmentedControl,
   Stack,
-  Table,
   Text,
   Textarea,
-  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useGymTickets, useTicketReply, useTicketStatus } from "../api/hooks";
+import { usePendingSummary, useGymTickets, useTicketReply, useTicketStatus } from "../api/hooks";
 import type { GymTicket } from "../api/types";
-import { EmptyState } from "../components/EmptyState";
-import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { PageHeader, SectionLabel } from "../components/ui";
-import { FilterChip, GlassCard, Stagger } from "../components/aurora";
+import { NoGymAssigned, PageError } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
+import { GlassCard } from "../components/aurora";
+import { Encabezado, Tarjeta } from "../components/Tarjeta";
 import { useAuth } from "../lib/auth";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -28,13 +25,28 @@ const STATUS_COLOR: Record<string, string> = {
   resolved: "teal",
 };
 
-/** Filtros de la bandeja como pastillas de vidrio (lenguaje Aurora). */
 const FILTROS = [
   { value: "", label: "Todos" },
   { value: "open", label: "Abiertos" },
   { value: "in_progress", label: "En progreso" },
   { value: "resolved", label: "Resueltos" },
 ];
+
+const ORDEN: Record<GymTicket["status"], number> = { open: 0, in_progress: 1, resolved: 2 };
+
+/**
+ * La bandeja con lo que espera respuesta al frente: abiertos, luego en progreso y
+ * al final los resueltos. Dentro de cada grupo se respeta el orden del backend.
+ */
+export function ordenarBandeja<T extends Pick<GymTicket, "status">>(rows: T[]): T[] {
+  return rows
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => (ORDEN[a.t.status] ?? 9) - (ORDEN[b.t.status] ?? 9) || a.i - b.i)
+    .map(({ t }) => t);
+}
+
+const fechaCorta = (iso: string) =>
+  new Date(iso).toLocaleDateString("es-GT", { day: "2-digit", month: "short" });
 
 /** Superficie de una burbuja de conversación: vidrio, nunca un bloque opaco. */
 function burbuja(esStaff: boolean) {
@@ -45,26 +57,31 @@ function burbuja(esStaff: boolean) {
   };
 }
 
-/** Adjunto: miniatura clicable que abre la imagen completa en un modal (antes la
+/** Adjunto: miniatura que abre la imagen completa en un modal (antes la
  *  imagen salía a tamaño completo y se veía gigante — ticket bb66e7e7). */
 function TicketImage({ src }: { src: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <img
-        src={src}
-        alt="adjunto"
+      <button
+        type="button"
         onClick={() => setOpen(true)}
-        style={{
-          height: "calc(88 * var(--u))",
-          width: "calc(88 * var(--u))",
-          objectFit: "cover",
-          borderRadius: "calc(12 * var(--u))",
-          border: "1px solid var(--a-line)",
-          marginTop: "calc(8 * var(--u))",
-          cursor: "zoom-in",
-        }}
-      />
+        aria-label="Ver foto en grande"
+        style={{ padding: 0, border: 0, background: "none", cursor: "zoom-in", display: "block" }}
+      >
+        <img
+          src={src}
+          alt="adjunto"
+          style={{
+            height: "calc(88 * var(--u))",
+            width: "calc(88 * var(--u))",
+            objectFit: "cover",
+            borderRadius: "calc(12 * var(--u))",
+            border: "1px solid var(--a-line)",
+            marginTop: "calc(8 * var(--u))",
+          }}
+        />
+      </button>
       <Modal opened={open} onClose={() => setOpen(false)} size="lg" centered title="Adjunto">
         <img src={src} alt="adjunto" style={{ width: "100%", borderRadius: "calc(14 * var(--u))" }} />
       </Modal>
@@ -77,29 +94,115 @@ export function TicketsPage() {
   const gymId = primaryGymId ?? "";
   const [filter, setFilter] = useState<string>("");
   const tickets = useGymTickets(gymId, filter || undefined);
-  const reply = useTicketReply(gymId);
-  const setStatus = useTicketStatus(gymId);
+  const porAtender = usePendingSummary(gymId).data?.tickets ?? 0;
   const [selectedId, setSelectedId] = useState<string>("");
-  const [replyText, setReplyText] = useState("");
 
   if (!gymId) return <NoGymAssigned />;
-  if (tickets.isError) return <PageError onRetry={() => tickets.refetch()} />;
 
-  const rows = tickets.data ?? [];
+  const rows = ordenarBandeja(tickets.data ?? []);
   const selected: GymTicket | undefined = rows.find((t) => t.id === selectedId);
+
+  return (
+    <div>
+      <PageHeader kicker="Operación · Soporte" title="Reportes / tickets" />
+
+      <GlassCard delay={0.6} padding={18}>
+        <Encabezado
+          titulo="Bandeja"
+          avisos={
+            porAtender > 0 && (
+              <Badge color="yellow" variant="light">
+                {porAtender} por atender
+              </Badge>
+            )
+          }
+        >
+          <SegmentedControl
+            size="xs"
+            aria-label="Filtrar reportes"
+            value={filter}
+            onChange={setFilter}
+            data={FILTROS}
+          />
+        </Encabezado>
+
+        {tickets.isError ? (
+          <PageError onRetry={() => tickets.refetch()} />
+        ) : tickets.isLoading ? (
+          <Text size="sm" c="dimmed">
+            Cargando…
+          </Text>
+        ) : rows.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            {filter ? "Ningún reporte con este filtro." : "Sin reportes. Los que manden tus atletas desde su app llegan aquí."}
+          </Text>
+        ) : (
+          <Stack gap={6}>
+            {rows.map((t) => (
+              <Tarjeta
+                key={t.id}
+                etiqueta={`Abrir reporte: ${t.subject}`}
+                aviso={t.status === "open"}
+                apagada={t.status === "resolved"}
+                onClick={() => setSelectedId(t.id)}
+              >
+                <Group justify="space-between" wrap="nowrap" gap="sm">
+                  <div style={{ minWidth: 0 }}>
+                    <Text size="sm" fw={600} truncate>
+                      {t.subject}
+                    </Text>
+                    <Text size="xs" c="dimmed" truncate>
+                      {t.athlete_name} · {t.category_display} · {fechaCorta(t.created_at)}
+                      {t.messages.length > 0 ? ` · 💬 ${t.messages.length}` : ""}
+                    </Text>
+                  </div>
+                  <Badge color={STATUS_COLOR[t.status]} variant="light" style={{ flex: "0 0 auto" }}>
+                    {t.status_display}
+                  </Badge>
+                </Group>
+              </Tarjeta>
+            ))}
+          </Stack>
+        )}
+      </GlassCard>
+
+      <Conversacion gymId={gymId} ticket={selected ?? null} onClose={() => setSelectedId("")} />
+    </div>
+  );
+}
+
+/** El reporte abierto: estado, conversación y respuesta, en una ventana. */
+export function Conversacion({
+  gymId,
+  ticket,
+  onClose,
+}: {
+  gymId: string;
+  ticket: GymTicket | null;
+  onClose: () => void;
+}) {
+  const reply = useTicketReply(gymId);
+  const setStatus = useTicketStatus(gymId);
+  const [replyText, setReplyText] = useState("");
+  // Al abrir otro reporte, la respuesta a medias del anterior no se arrastra.
+  const [para, setPara] = useState<string | null>(null);
+  if (ticket && para !== ticket.id) {
+    setPara(ticket.id);
+    setReplyText("");
+  }
 
   // Cierre riguroso (ticket bb66e7e7): resolver notifica al atleta → se avisa
   // antes; reabrir un resuelto también se confirma.
   const onChangeStatus = (next: string) => {
-    if (!selected || next === selected.status) return;
+    if (!ticket || next === ticket.status) return;
     if (next === "resolved") {
       if (!window.confirm("Se notificará al atleta que marcaste su reporte como RESUELTO. ¿Continuar?"))
         return;
-    } else if (selected.status === "resolved") {
+    } else if (ticket.status === "resolved") {
       if (!window.confirm("Este ticket estaba resuelto. ¿Reabrirlo?")) return;
     }
     setStatus.mutate(
-      { ticketId: selected.id, status: next },
+      { ticketId: ticket.id, status: next },
       {
         onSuccess: () =>
           notifications.show({
@@ -112,9 +215,9 @@ export function TicketsPage() {
   };
 
   const onReply = async () => {
-    if (!selected || !replyText.trim()) return;
+    if (!ticket || !replyText.trim()) return;
     try {
-      await reply.mutateAsync({ ticketId: selected.id, body: replyText.trim() });
+      await reply.mutateAsync({ ticketId: ticket.id, body: replyText.trim() });
       setReplyText("");
       notifications.show({ color: "teal", message: "Respuesta enviada." });
     } catch {
@@ -123,141 +226,74 @@ export function TicketsPage() {
   };
 
   return (
-    <div>
-      <PageHeader
-        kicker="Operación · Soporte"
-        title="Reportes / tickets"
-        subtitle="Lo que reportan tus atletas: contesta, dale seguimiento y ciérralo cuando quede resuelto."
-      />
+    <Modal opened={!!ticket} onClose={onClose} title={ticket?.subject ?? ""} size="lg" centered>
+      {ticket && (
+        <>
+          <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+            <Text c="dimmed" size="sm">
+              {ticket.category_display} · {ticket.athlete_name}
+            </Text>
+            <SegmentedControl
+              size="xs"
+              aria-label="Estado del reporte"
+              value={ticket.status}
+              onChange={onChangeStatus}
+              disabled={setStatus.isPending}
+              data={[
+                { value: "open", label: "Abierto" },
+                { value: "in_progress", label: "En progreso" },
+                { value: "resolved", label: "Resuelto" },
+              ]}
+            />
+          </Group>
 
-      <Stagger
-        from={0.52}
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "calc(10 * var(--u))",
-          marginBottom: "calc(18 * var(--u))",
-        }}
-      >
-        {FILTROS.map((f) => (
-          <FilterChip
-            key={f.value || "todos"}
-            active={filter === f.value}
-            onClick={() => setFilter(f.value)}
-          >
-            {f.label}
-          </FilterChip>
-        ))}
-      </Stagger>
-
-      <Grid gutter="lg" align="stretch">
-        <Grid.Col span={{ base: 12, lg: selected ? 5 : 12 }}>
-        <SectionLabel as="h2">Bandeja · {rows.length}</SectionLabel>
-        {tickets.isLoading ? (
-          <PageLoading />
-        ) : !rows.length ? (
-          <EmptyState title="Sin tickets" description="Los reportes de tus atletas aparecerán aquí." />
-        ) : (
-          <GlassCard padding={12} delay={0.6}>
-            <Table highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Asunto</Table.Th>
-                  <Table.Th>Atleta</Table.Th>
-                  <Table.Th>Estado</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {rows.map((t) => (
-                  <Table.Tr
-                    key={t.id}
-                    onClick={() => setSelectedId(t.id)}
-                    style={{ cursor: "pointer", background: t.id === selectedId ? "rgba(255,255,255,0.09)" : undefined }}
-                  >
-                    <Table.Td>
-                      <Text size="sm" fw={500}>{t.subject}</Text>
-                      <Text size="xs" c="dimmed">{t.category_display}</Text>
-                    </Table.Td>
-                    <Table.Td>{t.athlete_name}</Table.Td>
-                    <Table.Td>
-                      <Badge color={STATUS_COLOR[t.status]} variant="light">{t.status_display}</Badge>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </GlassCard>
-        )}
-        </Grid.Col>
-
-        {selected && (
-          <Grid.Col span={{ base: 12, lg: 7 }}>
-          <SectionLabel as="h2">Conversación</SectionLabel>
-          {/* El detalle monta al hacer clic: el retardo es corto a propósito. */}
-          <GlassCard variant="big" padding={22} delay={0.06}>
-            <Group justify="space-between" align="flex-start">
-              <div>
-                <Title order={3}>{selected.subject}</Title>
-                <Text c="dimmed" size="sm">
-                  {selected.category_display} · {selected.athlete_name}
-                </Text>
-              </div>
-              <SegmentedControl
-                size="xs"
-                value={selected.status}
-                onChange={onChangeStatus}
-                data={[
-                  { value: "open", label: "Abierto" },
-                  { value: "in_progress", label: "En progreso" },
-                  { value: "resolved", label: "Resuelto" },
-                ]}
-              />
-            </Group>
-
-            <Stack gap="sm" mt="md">
-              <Box p="sm" style={burbuja(false)}>
+          <Stack gap="sm" mt="md">
+            <Box p="sm" style={burbuja(false)}>
+              <Text size="xs" c="dimmed" mb={2}>
+                {ticket.athlete_name} · {new Date(ticket.created_at).toLocaleString("es-GT")}
+              </Text>
+              <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                {ticket.body}
+              </Text>
+              {ticket.photo && <TicketImage src={ticket.photo} />}
+            </Box>
+            {ticket.messages.map((m) => (
+              <Box
+                key={m.id}
+                p="sm"
+                style={{
+                  ...burbuja(m.is_staff),
+                  alignSelf: m.is_staff ? "flex-end" : "flex-start",
+                  maxWidth: "85%",
+                }}
+              >
                 <Text size="xs" c="dimmed" mb={2}>
-                  {selected.athlete_name} · {new Date(selected.created_at).toLocaleString("es-GT")}
+                  {m.author_name} · {new Date(m.created_at).toLocaleString("es-GT")}
                 </Text>
-                <Text size="sm">{selected.body}</Text>
-                {selected.photo && <TicketImage src={selected.photo} />}
+                <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                  {m.body}
+                </Text>
+                {m.photo && <TicketImage src={m.photo} />}
               </Box>
-              {selected.messages.map((m) => (
-                <Box
-                  key={m.id}
-                  p="sm"
-                  style={{
-                    ...burbuja(m.is_staff),
-                    alignSelf: m.is_staff ? "flex-end" : "flex-start",
-                    maxWidth: "85%",
-                  }}
-                >
-                  <Text size="xs" c="dimmed" mb={2}>
-                    {m.author_name} · {new Date(m.created_at).toLocaleString("es-GT")}
-                  </Text>
-                  <Text size="sm">{m.body}</Text>
-                  {m.photo && <TicketImage src={m.photo} />}
-                </Box>
-              ))}
-            </Stack>
+            ))}
+          </Stack>
 
-            <Group mt="md" align="flex-end">
-              <Textarea
-                style={{ flex: 1 }}
-                placeholder="Escribe una respuesta…"
-                value={replyText}
-                onChange={(e) => setReplyText(e.currentTarget.value)}
-                autosize
-                minRows={1}
-              />
-              <Button onClick={onReply} loading={reply.isPending} disabled={!replyText.trim()}>
-                Responder
-              </Button>
-            </Group>
-          </GlassCard>
-          </Grid.Col>
-        )}
-      </Grid>
-    </div>
+          <Textarea
+            mt="md"
+            placeholder="Escribe una respuesta…"
+            aria-label="Respuesta"
+            value={replyText}
+            onChange={(e) => setReplyText(e.currentTarget.value)}
+            autosize
+            minRows={2}
+          />
+          <Group justify="flex-end" mt="sm">
+            <Button onClick={onReply} loading={reply.isPending} disabled={!replyText.trim()}>
+              Responder
+            </Button>
+          </Group>
+        </>
+      )}
+    </Modal>
   );
 }

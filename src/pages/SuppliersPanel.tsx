@@ -1,31 +1,12 @@
-import { FormEvent, useState } from "react";
-import {
-  Badge,
-  Button,
-  Card,
-  Group,
-  Modal,
-  Select,
-  SimpleGrid,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { type ChangeEvent, useState } from "react";
+import { Badge, Button, Group, Modal, Select, SimpleGrid, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { DataTable, type DataTableSortStatus } from "mantine-datatable";
-import {
-  useCreateErpSupplier,
-  useErpSuppliers,
-  useUpdateErpSupplier,
-} from "../api/hooks";
+import { useCreateErpSupplier, useErpSuppliers, useUpdateErpSupplier } from "../api/hooks";
 import type { ErpSupplier } from "../api/types";
 import { PageError } from "../components/PageStatus";
-import { RowActions } from "../components/RowActions";
-import { GlassCard, Reveal } from "../components/aurora";
-import { SectionLabel } from "../components/ui";
+import { GlassCard } from "../components/aurora";
+import { Encabezado, Tarjeta } from "../components/Tarjeta";
 import { errMsg } from "../lib/errors";
-import { sortRecords } from "../lib/sortRecords";
 
 /** Campos editables del proveedor (los mismos en el alta y en la edición). */
 interface FormProveedor {
@@ -37,19 +18,21 @@ interface FormProveedor {
   notes: string;
 }
 
-const VACIO: FormProveedor = {
-  name: "",
-  contact_name: "",
-  phone: "",
-  email: "",
-  tax_id: "",
-  notes: "",
-};
+const VACIO: FormProveedor = { name: "", contact_name: "", phone: "", email: "", tax_id: "", notes: "" };
+
+const formDe = (s: ErpSupplier): FormProveedor => ({
+  name: s.name,
+  contact_name: s.contact_name ?? "",
+  phone: s.phone ?? "",
+  email: s.email ?? "",
+  tax_id: s.tax_id ?? "",
+  notes: s.notes ?? "",
+});
 
 /**
  * Proveedores del gym: a quién se le compra el inventario. Es el catálogo del
- * que cuelgan las órdenes de compra, así que darlos de alta aquí es el paso
- * previo a cargar mercadería.
+ * que cuelgan las órdenes de compra. Tocar uno abre la misma ventana del alta,
+ * con sus datos y con «Dar de baja» o «Reactivar».
  */
 export function SuppliersPanel({ gymId }: { gymId: string }) {
   const [search, setSearch] = useState("");
@@ -60,50 +43,40 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
   const crear = useCreateErpSupplier(gymId);
   const actualizar = useUpdateErpSupplier(gymId);
 
-  const [alta, setAlta] = useState<FormProveedor>(VACIO);
-  const [editando, setEditando] = useState<ErpSupplier | null>(null);
-  const [edicion, setEdicion] = useState<FormProveedor>(VACIO);
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ErpSupplier>>({
-    columnAccessor: "name",
-    direction: "asc",
-  });
+  // null = cerrado · "nuevo" = alta · un proveedor = edición.
+  const [abierto, setAbierto] = useState<ErpSupplier | "nuevo" | null>(null);
+  const [form, setForm] = useState<FormProveedor>(VACIO);
+  const existente = abierto && abierto !== "nuevo" ? abierto : null;
 
-  const onCrear = async (event: FormEvent) => {
-    event.preventDefault();
+  const abrir = (s: ErpSupplier | "nuevo") => {
+    setAbierto(s);
+    setForm(s === "nuevo" ? VACIO : formDe(s));
+  };
+
+  /*
+   * En cada onChange el valor se lee ANTES de llamar al setter, nunca dentro del
+   * updater: React pone `currentTarget` en null en cuanto el handler termina y el
+   * updater puede correr después. Leerlo ahí revienta al escribir rápido.
+   */
+  const campo = (k: keyof FormProveedor) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const valor = e.currentTarget.value;
+    setForm((f) => ({ ...f, [k]: valor }));
+  };
+
+  const guardar = async () => {
     try {
-      await crear.mutateAsync(alta);
-      setAlta(VACIO);
-      notifications.show({ color: "teal", message: "Proveedor agregado." });
+      if (existente) {
+        await actualizar.mutateAsync({ id: existente.id, body: form });
+        notifications.show({ color: "teal", message: "Proveedor actualizado." });
+      } else {
+        await crear.mutateAsync(form);
+        notifications.show({ color: "teal", message: "Proveedor agregado." });
+      }
+      setAbierto(null);
     } catch (error) {
       notifications.show({
         color: "red",
-        message: errMsg(error, "No se pudo agregar el proveedor."),
-      });
-    }
-  };
-
-  const abrirEdicion = (s: ErpSupplier) => {
-    setEditando(s);
-    setEdicion({
-      name: s.name,
-      contact_name: s.contact_name ?? "",
-      phone: s.phone ?? "",
-      email: s.email ?? "",
-      tax_id: s.tax_id ?? "",
-      notes: s.notes ?? "",
-    });
-  };
-
-  const guardarEdicion = async () => {
-    if (!editando) return;
-    try {
-      await actualizar.mutateAsync({ id: editando.id, body: edicion });
-      setEditando(null);
-      notifications.show({ color: "teal", message: "Proveedor actualizado." });
-    } catch (error) {
-      notifications.show({
-        color: "red",
-        message: errMsg(error, "No se pudo actualizar el proveedor."),
+        message: errMsg(error, existente ? "No se pudo actualizar el proveedor." : "No se pudo agregar el proveedor."),
       });
     }
   };
@@ -126,11 +99,9 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
     try {
       await actualizar.mutateAsync({ id: s.id, body: { is_active: false } });
       notifications.show({ color: "teal", message: "Proveedor dado de baja." });
+      setAbierto(null);
     } catch (error) {
-      notifications.show({
-        color: "red",
-        message: errMsg(error, "No se pudo dar de baja al proveedor."),
-      });
+      notifications.show({ color: "red", message: errMsg(error, "No se pudo dar de baja al proveedor.") });
     }
   };
 
@@ -138,269 +109,133 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
     try {
       await actualizar.mutateAsync({ id: s.id, body: { is_active: true } });
       notifications.show({ color: "teal", message: "Proveedor reactivado." });
+      setAbierto(null);
     } catch (error) {
-      notifications.show({
-        color: "red",
-        message: errMsg(error, "No se pudo reactivar al proveedor."),
-      });
+      notifications.show({ color: "red", message: errMsg(error, "No se pudo reactivar al proveedor.") });
     }
   };
 
-  const filas = sortRecords(
-    (suppliers.data ?? []).filter((s) => {
-      const term = search.trim().toLowerCase();
-      return (
+  const term = search.trim().toLowerCase();
+  const filas = (suppliers.data ?? [])
+    .filter(
+      (s) =>
         !term ||
         s.name.toLowerCase().includes(term) ||
         (s.contact_name ?? "").toLowerCase().includes(term) ||
-        (s.tax_id ?? "").toLowerCase().includes(term)
-      );
-    }),
-    sortStatus,
-  );
+        (s.tax_id ?? "").toLowerCase().includes(term),
+    )
+    .sort((a, b) => Number(b.is_active) - Number(a.is_active) || a.name.localeCompare(b.name, "es"));
+
+  if (suppliers.isError) return <PageError onRetry={() => suppliers.refetch()} />;
 
   return (
-    <div>
-      {suppliers.isError && <PageError onRetry={() => suppliers.refetch()} />}
-
-      {/* Alta: primera tanda del ritmo Aurora (0.6s). */}
-      <Reveal anim="slide-r" delay={0.6}>
-      <Card mb="lg" component="form" onSubmit={onCrear}>
-        <SectionLabel as="h2" mb={6}>Nuevo proveedor</SectionLabel>
-        <Text c="dimmed" size="sm" mb="md">
-          A quién le compras. Después le levantas órdenes de compra y, al recibirlas, el stock
-          entra solo con su costo real.
-        </Text>
-        <Stack gap="md">
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-          {/*
-            En cada onChange el valor se lee ANTES de llamar al setter, nunca dentro del
-            updater. React pone `currentTarget` en null en cuanto el handler termina, y el
-            updater que recibe `setState` no siempre corre en ese mismo tick: si ya hay otra
-            actualización en cola, React lo difiere y para entonces `e.currentTarget` ya es
-            null. Leerlo ahí revienta con un "Cannot read properties of null" que solo
-            aparece al escribir rápido en dos campos seguidos, que es justo lo que hace la
-            gente, y sin error boundary desmonta la página entera.
-          */}
-            <TextInput
-              label="Nombre"
-              value={alta.name}
-              onChange={(e) => {
-                const valor = e.currentTarget.value;
-                setAlta((f) => ({ ...f, name: valor }));
-              }}
-            />
-            <TextInput
-              label="Contacto"
-              value={alta.contact_name}
-              onChange={(e) => {
-                const valor = e.currentTarget.value;
-                setAlta((f) => ({ ...f, contact_name: valor }));
-              }}
-            />
-            <TextInput
-              label="Teléfono"
-              value={alta.phone}
-              onChange={(e) => {
-                const valor = e.currentTarget.value;
-                setAlta((f) => ({ ...f, phone: valor }));
-              }}
-            />
-            <TextInput
-              label="Correo"
-              value={alta.email}
-              onChange={(e) => {
-                const valor = e.currentTarget.value;
-                setAlta((f) => ({ ...f, email: valor }));
-              }}
-            />
-            <TextInput
-              label="NIT"
-              value={alta.tax_id}
-              onChange={(e) => {
-                const valor = e.currentTarget.value;
-                setAlta((f) => ({ ...f, tax_id: valor }));
-              }}
-            />
-            <TextInput
-              label="Notas"
-              value={alta.notes}
-              onChange={(e) => {
-                const valor = e.currentTarget.value;
-                setAlta((f) => ({ ...f, notes: valor }));
-              }}
-            />
-          </SimpleGrid>
-          <Group justify="flex-end">
-            <Button type="submit" disabled={!alta.name.trim()} loading={crear.isPending}>
-              Agregar proveedor
-            </Button>
-          </Group>
-        </Stack>
-      </Card>
-      </Reveal>
-
-      <GlassCard
-        padding={16}
-        delay={0.72}
-        style={{ marginBottom: "calc(16 * var(--u))" }}
-      >
-        <Group align="flex-end" gap="md" wrap="wrap">
-          <TextInput
-            label="Buscar"
-            placeholder="Nombre, contacto o NIT…"
-            value={search}
-            onChange={(e) => setSearch(e.currentTarget.value)}
-            w={{ base: "100%", sm: 280 }}
-          />
-          <Select
-            label="Estado"
-            value={activos}
-            onChange={setActivos}
-            w={{ base: "100%", sm: 180 }}
-            data={[
-              { value: "activos", label: "Activos" },
-              { value: "inactivos", label: "Inactivos" },
-              { value: "todos", label: "Todos" },
-            ]}
-          />
-        </Group>
-      </GlassCard>
-
-      <SectionLabel as="h2" mb="xs">Proveedores del gym</SectionLabel>
-      <GlassCard padding={14} delay={0.84}>
-        <DataTable<ErpSupplier>
-          minHeight={160}
-          highlightOnHover
-          striped
-          idAccessor="id"
-          records={filas}
-          fetching={suppliers.isLoading}
-          noRecordsText="Agrega tu primer proveedor para poder levantar órdenes de compra."
-          sortStatus={sortStatus}
-          onSortStatusChange={setSortStatus}
-          columns={[
-            { accessor: "name", title: "Proveedor", sortable: true },
-            {
-              accessor: "contact_name",
-              title: "Contacto",
-              sortable: true,
-              render: (s) => s.contact_name || "—",
-            },
-            { accessor: "phone", title: "Teléfono", render: (s) => s.phone || "—" },
-            { accessor: "email", title: "Correo", render: (s) => s.email || "—" },
-            { accessor: "tax_id", title: "NIT", render: (s) => s.tax_id || "—" },
-            {
-              accessor: "is_active",
-              title: "Estado",
-              sortable: true,
-              render: (s) => (
-                <Badge color={s.is_active ? "teal" : "gray"} variant="light">
-                  {s.is_active ? "Activo" : "Inactivo"}
-                </Badge>
-              ),
-            },
-            {
-              accessor: "actions",
-              title: "Acciones",
-              render: (s) => (
-                <RowActions
-                  actions={[
-                    { label: "Editar", onClick: () => abrirEdicion(s) },
-                    s.is_active
-                      ? {
-                          label: "Dar de baja",
-                          color: "red",
-                          variant: "subtle" as const,
-                          onClick: () => darDeBaja(s),
-                        }
-                      : {
-                          label: "Reactivar",
-                          color: "teal",
-                          variant: "light" as const,
-                          onClick: () => reactivar(s),
-                        },
-                  ]}
-                />
-              ),
-            },
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado titulo="Proveedores">
+        <TextInput
+          placeholder="Nombre, contacto o NIT…"
+          aria-label="Buscar proveedor"
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          w={{ base: "100%", sm: 220 }}
+        />
+        <Select
+          aria-label="Estado"
+          value={activos}
+          onChange={setActivos}
+          allowDeselect={false}
+          w={{ base: "100%", sm: 140 }}
+          data={[
+            { value: "activos", label: "Activos" },
+            { value: "inactivos", label: "Inactivos" },
+            { value: "todos", label: "Todos" },
           ]}
         />
-      </GlassCard>
+        <Button onClick={() => abrir("nuevo")}>Nuevo proveedor</Button>
+      </Encabezado>
+
+      {suppliers.isLoading ? (
+        <Text c="dimmed" size="sm">
+          Cargando…
+        </Text>
+      ) : filas.length === 0 ? (
+        <Text c="dimmed" size="sm" py="md">
+          {term
+            ? "Ningún proveedor coincide con la búsqueda."
+            : activos === "inactivos"
+              ? "No tienes proveedores dados de baja."
+              : "Agrega tu primer proveedor para poder hacer órdenes de compra."}
+        </Text>
+      ) : (
+        <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
+          {filas.map((s) => (
+            <Tarjeta key={s.id} etiqueta={`Abrir ${s.name}`} onClick={() => abrir(s)} apagada={!s.is_active}>
+              <Group justify="space-between" gap={6} wrap="nowrap">
+                <Text fw={700} truncate>
+                  {s.name}
+                </Text>
+                {!s.is_active && (
+                  <Badge size="xs" color="gray" variant="light">
+                    Inactivo
+                  </Badge>
+                )}
+              </Group>
+              <Text size="xs" c="dimmed" truncate>
+                {[s.contact_name, s.phone].filter(Boolean).join(" · ") || "Sin contacto"}
+              </Text>
+              {s.tax_id && (
+                <Text size="xs" c="dimmed" truncate>
+                  NIT {s.tax_id}
+                </Text>
+              )}
+            </Tarjeta>
+          ))}
+        </SimpleGrid>
+      )}
 
       <Modal
-        opened={!!editando}
-        onClose={() => setEditando(null)}
-        title="Editar proveedor"
+        opened={!!abierto}
+        onClose={() => setAbierto(null)}
+        title={existente ? "Editar proveedor" : "Nuevo proveedor"}
         centered
       >
-        <Stack gap="md">
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-            <TextInput
-              label="Nombre"
-              value={edicion.name}
-              onChange={(e) => {
-                const valor = e.currentTarget.value;
-                setEdicion((f) => ({ ...f, name: valor }));
-              }}
-            />
-            <TextInput
-              label="Contacto"
-              value={edicion.contact_name}
-              onChange={(e) => {
-                const valor = e.currentTarget.value;
-                setEdicion((f) => ({ ...f, contact_name: valor }));
-              }}
-            />
-            <TextInput
-              label="Teléfono"
-              value={edicion.phone}
-              onChange={(e) => {
-                const valor = e.currentTarget.value;
-                setEdicion((f) => ({ ...f, phone: valor }));
-              }}
-            />
-            <TextInput
-              label="Correo"
-              value={edicion.email}
-              onChange={(e) => {
-                const valor = e.currentTarget.value;
-                setEdicion((f) => ({ ...f, email: valor }));
-              }}
-            />
-            <TextInput
-              label="NIT"
-              value={edicion.tax_id}
-              onChange={(e) => {
-                const valor = e.currentTarget.value;
-                setEdicion((f) => ({ ...f, tax_id: valor }));
-              }}
-            />
+        <Stack gap="sm">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+            <TextInput label="Nombre" value={form.name} onChange={campo("name")} data-autofocus />
+            <TextInput label="Contacto" value={form.contact_name} onChange={campo("contact_name")} />
+            <TextInput label="Teléfono" type="tel" value={form.phone} onChange={campo("phone")} />
+            <TextInput label="Correo" type="email" value={form.email} onChange={campo("email")} />
+            <TextInput label="NIT" value={form.tax_id} onChange={campo("tax_id")} />
           </SimpleGrid>
-          <Textarea
-            label="Notas"
-            value={edicion.notes}
-            onChange={(e) => {
-              const valor = e.currentTarget.value;
-              setEdicion((f) => ({ ...f, notes: valor }));
-            }}
-            autosize
-            minRows={2}
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setEditando(null)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={guardarEdicion}
-              disabled={!edicion.name.trim()}
-              loading={actualizar.isPending}
-            >
-              Guardar
-            </Button>
+          <Textarea label="Notas" value={form.notes} onChange={campo("notes")} autosize minRows={2} />
+          <Group justify="space-between" mt="xs" wrap="wrap">
+            {existente ? (
+              existente.is_active ? (
+                <Button variant="subtle" color="red" loading={actualizar.isPending} onClick={() => darDeBaja(existente)}>
+                  Dar de baja
+                </Button>
+              ) : (
+                <Button variant="light" color="teal" loading={actualizar.isPending} onClick={() => reactivar(existente)}>
+                  Reactivar
+                </Button>
+              )
+            ) : (
+              <span />
+            )}
+            <Group gap="xs">
+              <Button variant="default" onClick={() => setAbierto(null)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={guardar}
+                disabled={!form.name.trim()}
+                loading={crear.isPending || (actualizar.isPending && !!existente)}
+              >
+                {existente ? "Guardar" : "Crear proveedor"}
+              </Button>
+            </Group>
           </Group>
         </Stack>
       </Modal>
-    </div>
+    </GlassCard>
   );
 }

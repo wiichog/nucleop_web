@@ -1,20 +1,24 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import {
   Avatar,
+  Badge,
+  Box,
   Button,
   Group,
+  Modal,
   SimpleGrid,
   Switch,
   Text,
   Textarea,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { Eye, MapPin, RotateCcw } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { useGymConfig, useUpdateGymProfile } from "../api/hooks";
+import type { GymAdmin } from "../api/types";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
 import { GlassCard } from "../components/aurora";
+import { Encabezado } from "../components/Tarjeta";
 import { PageHeader, SectionLabel } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
@@ -102,33 +106,114 @@ export function VistaDelAtleta({ ficha }: { ficha: FichaForm }) {
   );
 }
 
+/** La ficha guardada, como texto editable. */
+function fichaDe(g: GymAdmin | undefined): FichaForm {
+  if (!g) return VACIA;
+  return {
+    name: g.name ?? "",
+    logo_url: g.logo_url ?? "",
+    description: g.description ?? "",
+    location_text: g.location_text ?? "",
+    address: g.address ?? "",
+    lat: g.lat ?? "",
+    lng: g.lng ?? "",
+    is_public: g.is_public ?? true,
+  };
+}
+
+/**
+ * Lo que le falta a la ficha para que un atleta la encuentre y la entienda. Sale
+ * en amarillo arriba: sin logo, sin descripción o sin coordenadas el gimnasio se
+ * ve a medias o cae al final de «gimnasios cerca».
+ */
+export function faltantesDeFicha(f: FichaForm): string[] {
+  const faltan: string[] = [];
+  if (!f.logo_url.trim()) faltan.push("logo");
+  if (!f.description.trim()) faltan.push("descripción");
+  if (!f.location_text.trim() && !f.address.trim()) faltan.push("ubicación");
+  if (!f.lat.trim() || !f.lng.trim()) faltan.push("coordenadas");
+  return faltan;
+}
+
 export function GymProfilePage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
   const gym = useGymConfig(gymId);
-  const guardar = useUpdateGymProfile(gymId);
-  const [form, setForm] = useState<FichaForm>(VACIA);
-
-  // Se rellena cuando llega la ficha (y al cambiar de gimnasio con el selector
-  // del header): sin esto, el formulario mostraba el gym anterior.
-  useEffect(() => {
-    const g = gym.data;
-    if (!g) return;
-    setForm({
-      name: g.name ?? "",
-      logo_url: g.logo_url ?? "",
-      description: g.description ?? "",
-      location_text: g.location_text ?? "",
-      address: g.address ?? "",
-      lat: g.lat ?? "",
-      lng: g.lng ?? "",
-      is_public: g.is_public ?? true,
-    });
-  }, [gym.data?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [editando, setEditando] = useState(false);
 
   if (!gymId) return <NoGymAssigned />;
   if (gym.isError) return <PageError onRetry={() => gym.refetch()} />;
   if (!gym.data) return <PageLoading label="Cargando la ficha del gimnasio…" />;
+
+  const guardada = fichaDe(gym.data);
+  const faltan = faltantesDeFicha(guardada);
+  const coords = guardada.lat && guardada.lng ? `${guardada.lat}, ${guardada.lng}` : "—";
+
+  return (
+    <div>
+      <PageHeader kicker="Operación · Ficha" title="Cómo se ve tu gimnasio" />
+
+      <GlassCard delay={0.6} padding={18}>
+        <Encabezado
+          titulo="Tu ficha"
+          avisos={
+            faltan.length > 0 && (
+              <Badge color="yellow" variant="light">
+                Falta {faltan.join(", ")}
+              </Badge>
+            )
+          }
+        >
+          <Button onClick={() => setEditando(true)}>Editar ficha</Button>
+        </Encabezado>
+
+        <VistaDelAtleta ficha={guardada} />
+
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm" mt="lg">
+          <div>
+            <SectionLabel mb={4}>Dirección</SectionLabel>
+            <Text size="sm">{guardada.address || "—"}</Text>
+          </div>
+          <div>
+            <SectionLabel mb={4}>Coordenadas</SectionLabel>
+            <Text size="sm" className="a-tabular">
+              {coords}
+            </Text>
+          </div>
+          <div>
+            <SectionLabel mb={4}>Directorio público</SectionLabel>
+            <Text size="sm">{guardada.is_public ? "Apareces" : "Oculto"}</Text>
+          </div>
+        </SimpleGrid>
+      </GlassCard>
+
+      <EditarFicha gymId={gymId} gym={gym.data} opened={editando} onClose={() => setEditando(false)} />
+    </div>
+  );
+}
+
+/** La ventana de edición, con la vista previa arriba que sigue a lo que escribes. */
+function EditarFicha({
+  gymId,
+  gym,
+  opened,
+  onClose,
+}: {
+  gymId: string;
+  gym: GymAdmin;
+  opened: boolean;
+  onClose: () => void;
+}) {
+  const guardar = useUpdateGymProfile(gymId);
+  const [form, setForm] = useState<FichaForm>(() => fichaDe(gym));
+  // Se rellena al abrir (y si cambia el gimnasio con el selector del header):
+  // cerrar sin guardar descarta lo escrito.
+  const [hidratadaCon, setHidratadaCon] = useState<GymAdmin | null>(opened ? gym : null);
+  if (opened && hidratadaCon !== gym) {
+    setHidratadaCon(gym);
+    setForm(fichaDe(gym));
+  }
+  if (!opened && hidratadaCon) setHidratadaCon(null);
 
   const set = (campo: keyof FichaForm, valor: string | boolean) =>
     setForm((f) => ({ ...f, [campo]: valor }));
@@ -170,6 +255,7 @@ export function GymProfilePage() {
         return;
       }
       ok("Ficha actualizada. Los atletas ya la ven así en su app.");
+      onClose();
     } catch (error) {
       // 400 típico: `logo_url` que no es una URL absoluta (el backend valida el
       // formato) — el mensaje del campo llega en el cuerpo y hay que mostrarlo.
@@ -177,145 +263,87 @@ export function GymProfilePage() {
     }
   };
 
-  const revertir = () => {
-    const g = gym.data!;
-    setForm({
-      name: g.name ?? "",
-      logo_url: g.logo_url ?? "",
-      description: g.description ?? "",
-      location_text: g.location_text ?? "",
-      address: g.address ?? "",
-      lat: g.lat ?? "",
-      lng: g.lng ?? "",
-      is_public: g.is_public ?? true,
-    });
-  };
-
   return (
-    <div>
-      <PageHeader
-        kicker="Gimnasio · Ficha"
-        title="Cómo se ve tu gimnasio"
-        subtitle="Nombre, logo, descripción y ubicación: exactamente lo que el atleta ve en su app y en el directorio de la red."
-      />
-
-      <GlassCard
-        variant="core"
-        sheen
-        padding={24}
-        delay={0.6}
-        style={{ marginBottom: "calc(20 * var(--u))" }}
-      >
-        <Group gap={8} mb="md" c="dimmed">
-          <Eye size={15} />
-          <SectionLabel mb={0} as="h2">
-            Vista previa del atleta
-          </SectionLabel>
-        </Group>
-        <VistaDelAtleta ficha={form} />
-      </GlassCard>
-
+    <Modal opened={opened} onClose={onClose} title="Editar ficha" size="lg" centered>
       <form onSubmit={onSubmit}>
-        <GlassCard padding={22} delay={0.74} style={{ marginBottom: "calc(18 * var(--u))" }}>
-          <SectionLabel mb={6} as="h2">
-            Identidad
-          </SectionLabel>
-          <Title order={3} mb="md">
-            Nombre, logo y descripción
-          </Title>
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-            <TextInput
-              label="Nombre del gimnasio"
-              required
-              maxLength={120}
-              value={form.name}
-              onChange={(e) => set("name", e.currentTarget.value)}
-            />
-            <TextInput
-              label="Logo (URL)"
-              description="Enlace directo a la imagen (https://…). Cuadrada se ve mejor."
-              placeholder="https://…"
-              value={form.logo_url}
-              onChange={(e) => set("logo_url", e.currentTarget.value)}
-            />
-          </SimpleGrid>
-          <Textarea
-            mt="sm"
-            label="Descripción"
-            description="Dos líneas: qué se entrena aquí y para quién. Es lo que lee alguien que todavía no te conoce."
-            autosize
-            minRows={3}
-            maxRows={8}
-            value={form.description}
-            onChange={(e) => set("description", e.currentTarget.value)}
+        <Box
+          p="sm"
+          mb="md"
+          aria-label="Vista previa del atleta"
+          style={{ borderRadius: 10, border: "1px solid var(--a-line, var(--mantine-color-default-border))" }}
+        >
+          <VistaDelAtleta ficha={form} />
+        </Box>
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+          <TextInput
+            label="Nombre del gimnasio"
+            required
+            maxLength={120}
+            value={form.name}
+            onChange={(e) => set("name", e.currentTarget.value)}
+            data-autofocus
           />
-        </GlassCard>
-
-        <GlassCard padding={22} delay={0.84} style={{ marginBottom: "calc(18 * var(--u))" }}>
-          <SectionLabel mb={6} as="h2">
-            Ubicación
-          </SectionLabel>
-          <Title order={3} mb="md">
-            Dónde estás
-          </Title>
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-            <TextInput
-              label="Zona o ciudad"
-              description="Lo que se muestra bajo el nombre. Ej.: “Zona 15, Guatemala”."
-              maxLength={255}
-              value={form.location_text}
-              onChange={(e) => set("location_text", e.currentTarget.value)}
-            />
-            <TextInput
-              label="Dirección"
-              description="La dirección exacta, para quien ya va en camino."
-              maxLength={255}
-              value={form.address}
-              onChange={(e) => set("address", e.currentTarget.value)}
-            />
-            {/* Las coordenadas no son decorativas: ordenan el listado de
-                "gimnasios cerca" del atleta. Sin ellas el gym cae al final. */}
-            <TextInput
-              label="Latitud"
-              description="Opcional. Sin coordenadas no apareces ordenado por cercanía."
-              placeholder="14.599512"
-              value={form.lat}
-              onChange={(e) => set("lat", e.currentTarget.value)}
-            />
-            <TextInput
-              label="Longitud"
-              placeholder="-90.518944"
-              value={form.lng}
-              onChange={(e) => set("lng", e.currentTarget.value)}
-            />
-          </SimpleGrid>
-          <Switch
-            mt="md"
-            label="Aparecer en el directorio público de Nucleo"
-            description={
-              form.is_public
-                ? "Cualquier atleta de la red puede encontrarte y pedir entrar."
-                : "Solo te encuentran quienes ya son de la casa o tienen tu invitación."
-            }
-            checked={form.is_public}
-            onChange={(e) => set("is_public", e.currentTarget.checked)}
+          <TextInput
+            label="Logo (URL)"
+            placeholder="https://…"
+            value={form.logo_url}
+            onChange={(e) => set("logo_url", e.currentTarget.value)}
           />
-        </GlassCard>
-
-        <Group gap="sm">
+        </SimpleGrid>
+        <Textarea
+          mt="sm"
+          label="Descripción"
+          placeholder="Qué se entrena aquí y para quién"
+          autosize
+          minRows={3}
+          maxRows={8}
+          value={form.description}
+          onChange={(e) => set("description", e.currentTarget.value)}
+        />
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm" mt="sm">
+          <TextInput
+            label="Zona o ciudad"
+            placeholder="Zona 15, Guatemala"
+            maxLength={255}
+            value={form.location_text}
+            onChange={(e) => set("location_text", e.currentTarget.value)}
+          />
+          <TextInput
+            label="Dirección"
+            maxLength={255}
+            value={form.address}
+            onChange={(e) => set("address", e.currentTarget.value)}
+          />
+          {/* Las coordenadas no son decorativas: ordenan el listado de
+              "gimnasios cerca" del atleta. Sin ellas el gym cae al final. */}
+          <TextInput
+            label="Latitud"
+            placeholder="14.599512"
+            value={form.lat}
+            onChange={(e) => set("lat", e.currentTarget.value)}
+          />
+          <TextInput
+            label="Longitud"
+            placeholder="-90.518944"
+            value={form.lng}
+            onChange={(e) => set("lng", e.currentTarget.value)}
+          />
+        </SimpleGrid>
+        <Switch
+          mt="md"
+          label="Aparecer en el directorio público de Nucleo"
+          checked={form.is_public}
+          onChange={(e) => set("is_public", e.currentTarget.checked)}
+        />
+        <Group justify="flex-end" mt="lg" gap="xs">
+          <Button variant="default" disabled={guardar.isPending} onClick={onClose}>
+            Cancelar
+          </Button>
           <Button type="submit" loading={guardar.isPending}>
             Guardar ficha
           </Button>
-          <Button
-            variant="default"
-            leftSection={<RotateCcw size={16} />}
-            disabled={guardar.isPending}
-            onClick={revertir}
-          >
-            Descartar cambios
-          </Button>
         </Group>
       </form>
-    </div>
+    </Modal>
   );
 }

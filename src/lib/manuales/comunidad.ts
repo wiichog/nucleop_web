@@ -5,80 +5,33 @@ export const manualesComunidad: ManualesPorRuta = {
   "/panel/comunidad": {
     titulo: "Feed y atleta del mes",
     paraQue:
-      "Aquí le hablas a tu comunidad: publicas anuncios en el feed, destacas al atleta del mes de cada clase y decides qué se queda en el feed cuando un atleta sube algo o reporta un comentario.",
+      "Aquí le hablas a tu comunidad y la cuidas. La pantalla abre en «Moderar»: lo que tus atletas subieron o reportaron y espera tu decisión. En las otras pestañas publicas anuncios, eliges al atleta del mes de cada clase y ves el feed tal como lo ven tus atletas.",
     tareas: [
       {
-        titulo: "Publicar un anuncio en el feed",
+        titulo: "Ver lo que espera tu decisión",
         pasos: [
-          "Ve a la tarjeta «Publicar anuncio en el feed».",
-          "Escribe el «Título» y el «Mensaje».",
-          "En «Segmento» deja «Todo el gym» o elige «Solo …» una clase para que solo lo vean los atletas de esa clase.",
-          "Si quieres, agrega una «Foto (opcional)» o un «Video (opcional)». La foto se muestra en vista previa antes de publicar.",
-          "Presiona «Publicar anuncio».",
+          "Entra a la pestaña «Moderar». El número junto a su nombre dice cuántas cosas esperan.",
+          "En «Por moderar» aparece todo lo pendiente, dividido en «Publicaciones», «Comentarios reportados» y «Apelaciones». Cada grupo dice cuántas tiene en amarillo.",
+          "Si no hay nada, dice «Nada pendiente.».",
         ],
         nota:
-          "El botón se enciende cuando el anuncio tiene título y mensaje. Al publicarse, el formulario se limpia y te sale un aviso confirmando a quién le llegó.",
-      },
-      {
-        titulo: "Corregir un anuncio ya publicado",
-        pasos: [
-          "Baja a «Anuncios publicados» y busca el anuncio en la tabla.",
-          "Presiona «Editar».",
-          "En la ventana «Corregir anuncio» cambia el «Título», el «Mensaje» o el «Segmento».",
-          "Si hace falta, usa «Reemplazar foto» o «Reemplazar video» para subir otro archivo.",
-          "Presiona «Guardar cambios».",
-        ],
-        nota:
-          "Corregir no vuelve a notificar a nadie: tus atletas ven el texto nuevo en el feed, pero no reciben otro aviso en el teléfono. En la tabla queda la marca «Corregido el …».",
-      },
-      {
-        titulo: "Quitar un anuncio del feed",
-        pasos: [
-          "En «Anuncios publicados», presiona «Quitar» en la fila del anuncio.",
-          "Confirma en la ventana que te pregunta si quieres quitarlo del feed.",
-        ],
-        nota:
-          "El anuncio deja de verse en el app, pero el aviso que ya les llegó al teléfono no se puede deshacer.",
-      },
-      {
-        titulo: "Elegir al atleta del mes de una clase",
-        pasos: [
-          "Ve a la tarjeta «Atleta del mes por clase». Hay una fila para «Todo el gym» y una por cada clase.",
-          "En la fila que quieras, busca y elige al atleta en la lista.",
-          "Presiona «Publicar» para confirmarlo.",
-        ],
-        nota:
-          "Elegir en la lista no publica nada: solo se publica cuando presionas «Publicar». Al publicarse, el anuncio sale al feed con una imagen enmarcada con la foto del atleta, y esa imagen aparece junto a la lista.",
-      },
-      {
-        titulo: "Quitar al atleta del mes de una clase",
-        pasos: [
-          "En «Atleta del mes por clase», borra al atleta de la lista de esa fila.",
-          "Presiona «Quitar».",
-        ],
-      },
-      {
-        titulo: "Consultar los atletas del mes anteriores",
-        pasos: [
-          "Baja a «Histórico de atletas del mes».",
-          "Revisa el mes, la clase, el atleta y la imagen del anuncio. Haz clic en la imagen para verla en grande.",
-        ],
+          "Un grupo vacío no se muestra. Si un grupo no pudo cargar, sale el mensaje de error con «Reintentar»: en ese caso no asumas que no hay nada pendiente.",
       },
       {
         titulo: "Aprobar o rechazar una publicación de un atleta o coach",
         pasos: [
-          "Baja a «Pendientes de moderación» y elige «Publicaciones».",
+          "En «Moderar», busca el grupo «Publicaciones».",
           "Revisa el texto, las fotos o videos, y las etiquetas («Reportado ×…», «IA: …»).",
           "Presiona «Aprobar» para que salga al feed, o «Rechazar…» para no publicarla.",
           "Si rechazas, en la ventana «Rechazar publicación» elige el «Motivo», escribe si quieres una «Nota para el autor (opcional)» y presiona «Rechazar».",
         ],
         nota:
-          "El motivo es obligatorio: es lo que le llega al autor, y con eso puede pedirte que lo revises de nuevo.",
+          "El motivo es obligatorio: es lo que le llega al autor, y con eso puede pedirte que revises de nuevo la publicación (una apelación).",
       },
       {
         titulo: "Revisar un comentario reportado",
         pasos: [
-          "En «Pendientes de moderación», elige «Comentarios».",
+          "En «Moderar», busca el grupo «Comentarios reportados».",
           "Lee el comentario: mientras está en esta lista ya está oculto del feed.",
           "Presiona «Restaurar» para que vuelva a verse, o «Eliminar…» para borrarlo.",
           "Si eliminas, en la ventana «Eliminar comentario» elige el «Motivo», agrega si quieres una nota y presiona «Eliminar».",
@@ -89,45 +42,100 @@ export const manualesComunidad: ManualesPorRuta = {
       {
         titulo: "Responder una apelación",
         pasos: [
-          "En «Pendientes de moderación», elige «Apelaciones».",
+          "En «Moderar», busca el grupo «Apelaciones».",
           "Revisa el «Contenido sancionado», el motivo que se le dio y «Lo que dice el atleta».",
           "Presiona «Aceptar y republicar» si le das la razón, o «Mantener la decisión» si no.",
           "En la ventana que se abre, escribe si quieres una «Nota para el atleta (opcional)» y confirma con el botón del mismo nombre.",
         ],
         nota:
-          "Solo llegan apelaciones de publicaciones rechazadas y de comentarios ocultos; un comentario que eliminaste ya no existe y no se puede apelar. Aceptar no solo cierra el caso: la publicación o el comentario oculto vuelven al feed. Si mantienes la decisión, el atleta puede pedirle una última revisión a Nucleo; en ese caso la apelación queda como «El atleta pidió una última revisión a Nucleo» y ya no la resuelves tú.",
+          "Solo llegan apelaciones de publicaciones rechazadas y de comentarios ocultos; un comentario que eliminaste ya no existe y no se puede apelar. Aceptar no solo cierra el caso: la publicación vuelve al feed y se le quita la sanción, o el comentario oculto vuelve a verse y se borran los reportes que lo bajaron. Al atleta se le avisa en los dos casos. Si mantienes la decisión, el atleta puede pedirle una última revisión a Nucleo; en ese caso la apelación queda atenuada con «El atleta pidió una última revisión a Nucleo» y ya no la resuelves tú.",
       },
       {
         titulo: "Revisar la señal de moderación",
         pasos: [
-          "Baja a «Señal de moderación».",
-          "Revisa qué atletas tienen varios bloqueos o reportes y cuándo fue la «Última señal».",
-          "Decide si conviene hablar con esa persona. La tabla no aplica ninguna sanción por sí sola.",
+          "En «Moderar», baja a «Señal de moderación».",
+          "Cada tarjeta dice cuántos bloqueos y reportes tiene ese atleta y la fecha de la última señal.",
+          "Decide si conviene hablar con esa persona. La señal no aplica ninguna sanción por sí sola.",
         ],
         nota:
-          "Nunca se muestra quién bloqueó ni quién reportó, y no hay forma de averiguarlo desde el panel. Solo cuenta lo que pasó en tu gimnasio en los últimos 90 días.",
+          "Nunca se muestra quién bloqueó ni quién reportó, y no hay forma de averiguarlo desde el panel: revelarlo expondría a quien se protegió, que además comparte clase con esa persona. Solo cuenta lo que pasó en tu gimnasio en los últimos 90 días. Si dice «Nadie llega al umbral.», tu comunidad está tranquila.",
+      },
+      {
+        titulo: "Publicar un anuncio en el feed",
+        pasos: [
+          "Entra a la pestaña «Anuncios» y presiona «Nuevo anuncio».",
+          "Escribe el «Título» y el «Mensaje».",
+          "En «Segmento» deja «Todo el gym» o elige «Solo …» una clase para que solo lo vean los atletas de esa clase.",
+          "Si quieres, agrega una «Foto (opcional)» o un «Video (opcional)». La foto se muestra en vista previa antes de publicar.",
+          "Presiona «Publicar anuncio».",
+        ],
+        nota:
+          "El botón se enciende cuando el anuncio tiene título y mensaje. Al publicarse, la ventana se cierra y te sale un aviso confirmando a quién le llegó. Si falla, lo que escribiste se queda en la ventana.",
+      },
+      {
+        titulo: "Corregir un anuncio ya publicado",
+        pasos: [
+          "En «Anuncios», toca el anuncio en la lista.",
+          "En la ventana «Corregir anuncio» cambia el «Título», el «Mensaje» o el «Segmento».",
+          "Si hace falta, usa «Reemplazar foto» o «Reemplazar video» para subir otro archivo.",
+          "Presiona «Guardar cambios».",
+        ],
+        nota:
+          "Corregir no vuelve a notificar a nadie: tus atletas ven el texto nuevo en el feed, pero no reciben otro aviso en el teléfono. En la lista queda la marca «Corregido el …».",
+      },
+      {
+        titulo: "Quitar un anuncio del feed",
+        pasos: [
+          "En «Anuncios», toca el anuncio.",
+          "En la ventana, presiona «Quitar del feed».",
+          "Confirma en la ventana que te pregunta si quieres quitarlo.",
+        ],
+        nota:
+          "El anuncio deja de verse en el app, pero el aviso que ya les llegó al teléfono no se puede deshacer.",
+      },
+      {
+        titulo: "Elegir al atleta del mes de una clase",
+        pasos: [
+          "Entra a la pestaña «Atleta del mes». Hay una tarjeta para «Todo el gym» y una por cada clase; las que dicen «Sin elegir» salen en amarillo.",
+          "Toca la tarjeta de la clase.",
+          "En «Atleta», busca y elige al atleta.",
+          "Presiona «Publicar» para confirmarlo.",
+        ],
+        nota:
+          "Elegir en la lista no publica nada: solo se publica cuando presionas «Publicar». Al publicarse, el anuncio sale al feed con una imagen enmarcada con la foto del atleta, y esa imagen aparece en la tarjeta.",
+      },
+      {
+        titulo: "Quitar al atleta del mes de una clase",
+        pasos: [
+          "En «Atleta del mes», toca la tarjeta de la clase.",
+          "Presiona «Quitar».",
+        ],
+      },
+      {
+        titulo: "Consultar los atletas del mes anteriores",
+        pasos: [
+          "En la pestaña «Atleta del mes», baja a «Histórico».",
+          "Cada tarjeta dice el atleta, el mes y la clase. Toca la imagen para verla en grande.",
+        ],
       },
       {
         titulo: "Ver lo que hay en el feed",
         pasos: [
-          "Baja a la tarjeta «Feed».",
+          "Entra a la pestaña «Feed».",
           "Cada publicación muestra su tipo, quién la hizo, la fecha, las reacciones y cuántos comentarios tiene.",
         ],
       },
     ],
     conceptos: [
       {
-        termino: "Destacados vigentes",
-        detalle: "Cuántos atletas del mes están publicados ahora mismo.",
-      },
-      {
-        termino: "Actividad en el feed",
-        detalle: "Cuántas publicaciones ven hoy tus atletas en el feed.",
-      },
-      {
-        termino: "Atletas activos",
+        termino: "Moderar (el número de la pestaña)",
         detalle:
-          "Los atletas con membresía activa o en prueba. Solo ellos aparecen en la lista para elegir al atleta del mes.",
+          "La suma de publicaciones por aprobar, comentarios reportados y apelaciones. Es lo único de esta pantalla que espera una decisión tuya.",
+      },
+      {
+        termino: "Sin elegir",
+        detalle:
+          "La clase no tiene atleta del mes publicado. La tarjeta sale en amarillo y arriba se cuentan las que faltan.",
       },
       {
         termino: "Segmento",
@@ -135,9 +143,9 @@ export const manualesComunidad: ManualesPorRuta = {
           "A quién va un anuncio: «Todo el gym» o «Solo» una clase. Las clases de la lista son los servicios activos de tu gimnasio, aunque todavía no tengan clases en el calendario.",
       },
       {
-        termino: "Pendientes de moderación",
+        termino: "Atleta (lista del atleta del mes)",
         detalle:
-          "La suma de publicaciones por aprobar, comentarios reportados y apelaciones. Es lo único de esta pantalla que espera una decisión tuya.",
+          "Solo salen los atletas con membresía activa o en prueba.",
       },
       {
         termino: "Atleta / Coach",
@@ -169,7 +177,7 @@ export const manualesComunidad: ManualesPorRuta = {
       {
         termino: "Bloqueos / Reportes (señal de moderación)",
         detalle:
-          "Cuántas personas bloquearon o reportaron a ese atleta. Un atleta aparece al llegar a un mínimo de cualquiera de los dos, y los bloqueos solo se muestran desde ese mínimo, por eso puedes ver una fila con reportes y cero bloqueos.",
+          "Cuántas personas bloquearon o reportaron a ese atleta. Un atleta aparece al llegar a un mínimo de cualquiera de los dos, y los bloqueos solo se muestran desde ese mínimo (en un box pequeño un solo bloqueo delataría a quien lo hizo), por eso puedes ver un atleta con reportes y cero bloqueos.",
       },
       {
         termino: "Tipos del feed",
@@ -179,23 +187,27 @@ export const manualesComunidad: ManualesPorRuta = {
     ],
     problemas: [
       {
-        sintoma: "El botón «Publicar anuncio» está apagado.",
+        sintoma: "El botón «Publicar anuncio» o «Guardar cambios» está apagado.",
         solucion: "Le falta el título o el mensaje. Llena los dos.",
       },
       {
         sintoma: "Me salió «No se pudo publicar el anuncio. Intenta de nuevo.»",
         solucion:
-          "El anuncio no se publicó y lo que escribiste sigue en el formulario. Revisa el mensaje del aviso (por ejemplo, un archivo muy pesado), corrige y vuelve a presionar «Publicar anuncio».",
+          "El anuncio no se publicó y lo que escribiste sigue en la ventana. Revisa el mensaje del aviso (por ejemplo, un archivo muy pesado), corrige y vuelve a presionar «Publicar anuncio».",
       },
       {
         sintoma: "Me salió «No se pudo publicar el atleta del mes».",
-        solucion:
-          "Revisa que el atleta siga activo en el gimnasio e intenta de nuevo.",
+        solucion: "Revisa que el atleta siga activo en el gimnasio e intenta de nuevo.",
       },
       {
         sintoma: "Elegí al atleta del mes pero no aparece en el feed.",
         solucion:
-          "Elegirlo en la lista no lo publica. Presiona «Publicar» en esa misma fila.",
+          "Elegirlo en la lista no lo publica. Presiona «Publicar» en la misma ventana.",
+      },
+      {
+        sintoma: "El botón «Publicar» del atleta del mes está apagado.",
+        solucion:
+          "No has elegido a nadie, o elegiste al mismo atleta que ya está publicado.",
       },
       {
         sintoma: "El botón «Rechazar» o «Eliminar» de la ventana está apagado.",
@@ -207,14 +219,14 @@ export const manualesComunidad: ManualesPorRuta = {
           "Si dice «No se pudo cargar el padrón o los destacados publicados.», presiona «Reintentar». Si carga pero falta alguien, revisa que su membresía esté activa o en prueba.",
       },
       {
-        sintoma: "Una bandeja de moderación dice que no se pudo cargar.",
+        sintoma: "Un grupo de «Moderar» dice que no se pudo cargar.",
         solucion:
           "Presiona «Reintentar»: mientras no cargue, puede haber publicaciones, comentarios o apelaciones esperando tu respuesta.",
       },
       {
-        sintoma: "Soy coach y no veo «Atleta del mes por clase», «Publicar anuncio en el feed» ni «Anuncios publicados».",
+        sintoma: "Soy coach y no veo la pestaña «Anuncios» ni puedo elegir al atleta del mes.",
         solucion:
-          "Elegir al atleta del mes y publicar o corregir anuncios le toca al administrador del gimnasio. Como coach entras a esta pantalla para moderar y para ver el histórico de atletas del mes.",
+          "Elegir al atleta del mes y publicar o corregir anuncios le toca al administrador del gimnasio. Como coach entras a esta pantalla para moderar, ver el feed y consultar el «Histórico» de atletas del mes.",
       },
     ],
     relacionadas: [
@@ -227,12 +239,13 @@ export const manualesComunidad: ManualesPorRuta = {
   "/panel/clubes": {
     titulo: "Clubes del gimnasio",
     paraQue:
-      "Aquí creas los clubes de tu box (running, cycling, rowing…) y apruebas o rechazas los que proponen tus atletas. En cuanto apruebas un club, quien lo propuso lo administra.",
+      "Aquí creas los clubes de tu box (running, cycling, rowing…) y apruebas o rechazas los que proponen tus atletas. Los que esperan tu decisión salen primero, en amarillo. En cuanto apruebas un club, quien lo propuso lo administra.",
     tareas: [
       {
         titulo: "Crear un club",
         pasos: [
-          "En «Crear club» escribe el «Nombre del club» (por ejemplo «Runners 1821»).",
+          "Presiona «Nuevo club».",
+          "Escribe el «Nombre del club» (por ejemplo «Runners 1821»).",
           "Escribe el «Tipo» (running, cycling, rowing…).",
           "Presiona «Crear club».",
         ],
@@ -241,16 +254,16 @@ export const manualesComunidad: ManualesPorRuta = {
       {
         titulo: "Aprobar un club que propuso un atleta",
         pasos: [
-          "Cuando hay solicitudes, aparece la tarjeta «Solicitudes pendientes».",
-          "Busca el club y presiona «Aprobar».",
+          "Los clubes por aprobar salen primero, en amarillo, y arriba se cuentan («… por aprobar»).",
+          "En la tarjeta del club, presiona «Aprobar».",
         ],
         nota: "Al aprobarlo, su creador ya puede administrarlo.",
       },
       {
         titulo: "Rechazar un club",
         pasos: [
-          "En «Solicitudes pendientes», presiona «Rechazar» en la fila del club.",
-          "Escribe el «Motivo del rechazo» (por ejemplo, que ya existe un club de running).",
+          "En la tarjeta amarilla del club, presiona «Rechazar».",
+          "Escribe el «Motivo» (por ejemplo, que ya existe un club de running).",
           "Presiona «Rechazar club».",
         ],
         nota:
@@ -259,29 +272,21 @@ export const manualesComunidad: ManualesPorRuta = {
       {
         titulo: "Consultar todos los clubes",
         pasos: [
-          "Baja a «Todos los clubes».",
-          "Ordena la tabla haciendo clic en «Club», «Tipo», «Estado» o «Miembros».",
+          "Cada tarjeta dice el nombre, el estado, el tipo y cuántos miembros tiene. Los rechazados salen atenuados, al final.",
+          "Cuando hay más de seis clubes, elige «Nombre» o «Miembros» arriba para ordenarlos.",
         ],
       },
     ],
     conceptos: [
       {
-        termino: "Clubes registrados",
-        detalle: "Todos los clubes del gimnasio, en cualquier estado.",
-      },
-      {
-        termino: "Aprobados",
-        detalle: "Los clubes que ya ven tus atletas.",
-      },
-      {
-        termino: "Miembros en clubes",
+        termino: "Miembros",
         detalle:
-          "La suma de miembros de todos los clubes. Un atleta que está en dos clubes cuenta dos veces.",
+          "Cuántos atletas están en ese club. Un atleta que está en dos clubes cuenta en los dos.",
       },
       {
         termino: "Pendiente / Aprobado / Rechazado",
         detalle:
-          "El estado del club. «Pendiente» espera tu decisión; «Aprobado» ya está visible; «Rechazado» no se publicó.",
+          "El estado del club. «Pendiente» espera tu decisión (tarjeta amarilla); «Aprobado» ya lo ven tus atletas; «Rechazado» no se publicó.",
       },
     ],
     problemas: [
@@ -290,8 +295,8 @@ export const manualesComunidad: ManualesPorRuta = {
         solucion: "Llena el «Nombre del club» y el «Tipo»: los dos son obligatorios.",
       },
       {
-        sintoma: "No veo la tarjeta «Solicitudes pendientes».",
-        solucion: "Solo aparece cuando hay algún club esperando tu decisión.",
+        sintoma: "No veo ningún club en amarillo.",
+        solucion: "No hay ninguno esperando tu decisión.",
       },
       {
         sintoma: "Me salió «No se pudo registrar la decisión sobre el club.»",
@@ -307,12 +312,12 @@ export const manualesComunidad: ManualesPorRuta = {
   "/panel/contenido-clubes": {
     titulo: "Contenido de los clubes",
     paraQue:
-      "Aquí lees lo que se publica dentro de los clubes de tu gimnasio y retiras lo que no debería estar. Lo que denuncian los miembros va de primero.",
+      "Aquí lees lo que se publica dentro de los clubes de tu gimnasio y retiras lo que no debería estar. Lo que denuncian los miembros va de primero, en amarillo.",
     tareas: [
       {
         titulo: "Revisar lo que denunciaron los miembros",
         pasos: [
-          "En la tarjeta «Denuncias por revisar», deja elegido «Denunciado».",
+          "La pantalla abre en «Denunciado». Arriba se cuenta lo que está «por revisar».",
           "Lee cada publicación: el texto, la foto si tiene, el club, el autor y la fecha.",
           "Si no debería estar, presiona «Retirar…». Si está bien, déjala: sigue publicada.",
         ],
@@ -323,7 +328,7 @@ export const manualesComunidad: ManualesPorRuta = {
         titulo: "Retirar una publicación de un club",
         pasos: [
           "Presiona «Retirar…» en la publicación.",
-          "En la ventana «Retirar del club» elige el «Motivo».",
+          "En la ventana «Retirar de …» elige el «Motivo».",
           "Si quieres, escribe una «Nota para el autor (opcional)».",
           "Presiona «Retirar».",
         ],
@@ -342,13 +347,13 @@ export const manualesComunidad: ManualesPorRuta = {
         titulo: "Ver todo lo publicado en tus clubes",
         pasos: [
           "Elige «Todo». Se muestra de lo más reciente a lo más viejo.",
-          "Usa «Club» para ver un solo club y «Tipo de contenido» para ver solo anuncios, actividades, retos o publicaciones de miembros.",
+          "Arriba a la derecha, cambia «Todos los clubes» por un club para ver solo ese, y «Todos los tipos» por anuncios, actividades, retos o publicaciones de miembros.",
         ],
       },
       {
         titulo: "Revisar denuncias en clubes sin gimnasio (solo soporte de Nucleo)",
         pasos: [
-          "Baja a «Denuncias en clubes sin gimnasio (Nucleo)».",
+          "Baja a «Clubes sin gimnasio (Nucleo)».",
           "Usa «Retirar…» o «Restaurar» igual que en la cola de tu gimnasio.",
         ],
         nota:
@@ -357,22 +362,19 @@ export const manualesComunidad: ManualesPorRuta = {
     ],
     conceptos: [
       {
-        termino: "Denunciado por miembros",
-        detalle: "Lo que algún miembro de un club marcó como indebido.",
-      },
-      {
-        termino: "Publicado ahora",
-        detalle: "Lo que hoy ven los miembros de tus clubes.",
-      },
-      {
-        termino: "Retirado",
+        termino: "Por revisar",
         detalle:
-          "Ya no lo ven los miembros del club, pero se conserva con su motivo. Se puede restaurar.",
+          "Lo denunciado que sigue publicado: es lo que espera tu decisión y sale en amarillo. Lo denunciado que ya retiraste sigue en «Denunciado», pero no cuenta.",
+      },
+      {
+        termino: "Denunciado / Todo / Retirado",
+        detalle:
+          "Las tres listas. «Denunciado»: lo que algún miembro marcó como indebido. «Todo»: todo lo publicado. «Retirado»: lo que ya no ven los miembros, conservado con su motivo y que se puede restaurar.",
       },
       {
         termino: "Moderación al instante",
         detalle:
-          "Dentro de un club lo publicado sale de una vez, sin esperar aprobación. Las imágenes pasan por la moderación automática; el texto no lo revisa ningún sistema, por eso la denuncia de un miembro es la única alarma sobre lo que se escribe.",
+          "Dentro de un club lo publicado sale de una vez, sin esperar aprobación: sus avisos son perecederos y un club puede no tener gimnasio que los apruebe. Las imágenes pasan por la moderación automática; el texto no lo revisa ningún sistema, por eso la denuncia de un miembro es la única alarma sobre lo que se escribe.",
       },
       {
         termino: "Anuncio / Actividad / Reto / Publicación de un miembro",
@@ -409,7 +411,7 @@ export const manualesComunidad: ManualesPorRuta = {
       {
         sintoma: "No encuentro una publicación que sé que existe.",
         solucion:
-          "Revisa los filtros «Club» y «Tipo de contenido»: déjalos en «Todos los clubes» y «Todos los tipos».",
+          "Revisa los filtros de arriba a la derecha: déjalos en «Todos los clubes» y «Todos los tipos».",
       },
     ],
     relacionadas: [

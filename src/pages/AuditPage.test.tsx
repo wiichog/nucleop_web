@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { describe, expect, it, vi } from "vitest";
 
@@ -46,6 +46,8 @@ const filas = vi.hoisted(() => [
     action: "membership_transition",
     entity: "membership",
     created_at: "2026-10-01T11:00:00Z",
+    before: { status: "active" },
+    after: { status: "paused" },
   },
 ]);
 
@@ -59,6 +61,13 @@ vi.mock("../lib/auth", () => ({
 
 import { AuditPage } from "./AuditPage";
 
+const pintar = () =>
+  render(
+    <MantineProvider>
+      <AuditPage />
+    </MantineProvider>,
+  );
+
 describe("AuditPage", () => {
   it("«Quién» muestra el nombre y el rol; sin actor, solo el rol", () => {
     render(
@@ -69,5 +78,22 @@ describe("AuditPage", () => {
     expect(screen.getByText("Carla Coach")).toBeTruthy();
     expect(screen.getByText("Admin de gym")).toBeTruthy();
     expect(screen.getByText("Sistema/atleta")).toBeTruthy();
+  });
+
+  it("buscar deja solo los movimientos que coinciden (por persona o por lo que hizo)", () => {
+    pintar();
+    fireEvent.change(screen.getByLabelText("Buscar en la bitácora"), { target: { value: "venta" } });
+    expect(screen.getByText("Registró una venta")).toBeTruthy();
+    expect(screen.queryByText("Cambió el estado de una membresía")).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("Buscar en la bitácora"), { target: { value: "carla" } });
+    expect(screen.getByText("Registró una venta")).toBeTruthy();
+  });
+
+  it("tocar un movimiento abre su detalle con el antes y el después", async () => {
+    pintar();
+    fireEvent.click(screen.getByRole("button", { name: "Ver detalle: Cambió el estado de una membresía" }));
+    expect(await screen.findByText("Antes")).toBeTruthy();
+    expect(screen.getByText("Después")).toBeTruthy();
   });
 });

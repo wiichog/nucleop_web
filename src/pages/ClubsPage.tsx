@@ -1,45 +1,51 @@
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import {
   Badge,
   Button,
   Group,
   Modal,
+  SegmentedControl,
   SimpleGrid,
-  Table,
+  Stack,
   Text,
   Textarea,
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { DataTable, type DataTableSortStatus } from "mantine-datatable";
-import { CheckCircle2, Flag, Users } from "lucide-react";
-import { useGymClubs, useDecideClub, useCreateGymClub } from "../api/hooks";
+import { useCreateGymClub, useDecideClub, useGymClubs } from "../api/hooks";
 import type { GymClub } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
-import { PageHeader, SectionLabel } from "../components/ui";
-import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora";
+import { PageHeader } from "../components/ui";
+import { GlassCard } from "../components/aurora";
+import { Encabezado, Tarjeta } from "../components/Tarjeta";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
-import { sortRecords } from "../lib/sortRecords";
 import { CLUB_STATUS, label } from "../lib/labels";
 
 const BADGE_COLOR: Record<string, string> = {
   pending: "yellow",
   approved: "teal",
-  rejected: "red",
+  rejected: "gray",
 };
 
+/** Lo que espera decisión primero; lo rechazado al final. */
+const ORDEN_ESTADO: Record<string, number> = { pending: 0, approved: 1, rejected: 2 };
+
+type Orden = "nombre" | "miembros";
+
+/**
+ * Clubes del gimnasio. Los que proponen los atletas salen primero, en amarillo y
+ * con sus dos decisiones a la mano; crear uno es un botón que abre una ventana.
+ */
 export function ClubsPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
   const clubs = useGymClubs(gymId);
   const decide = useDecideClub(gymId);
   const createClub = useCreateGymClub(gymId);
+  const [creando, setCreando] = useState(false);
   const [form, setForm] = useState({ name: "", club_type: "" });
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<GymClub>>({
-    columnAccessor: "name",
-    direction: "asc",
-  });
+  const [orden, setOrden] = useState<Orden>("nombre");
   const deciding = (clubId: string) => decide.isPending && decide.variables?.clubId === clubId;
   // Rechazo con motivo: el atleta solicitante LEE esta nota en su app, así que un
   // rechazo mudo es lo peor que puede pasarle a alguien que propuso un club.
@@ -49,12 +55,12 @@ export function ClubsPage() {
   if (!gymId) return <NoGymAssigned />;
   if (clubs.isError) return <PageError onRetry={() => clubs.refetch()} />;
 
-  const onCreate = async (e: FormEvent) => {
-    e.preventDefault();
+  const onCreate = async () => {
     try {
       await createClub.mutateAsync({ name: form.name.trim(), club_type: form.club_type.trim() });
       notifications.show({ color: "teal", message: `Club "${form.name.trim()}" creado y aprobado.` });
       setForm({ name: "", club_type: "" });
+      setCreando(false);
     } catch (error) {
       notifications.show({ color: "red", message: errMsg(error, "No se pudo crear el club.") });
     }
@@ -84,103 +90,85 @@ export function ClubsPage() {
     );
   };
 
-  const rows = clubs.data ?? [];
-  const pending = rows.filter((c) => c.status === "pending");
-  const aprobados = rows.filter((c) => c.status === "approved").length;
-  const miembros = rows.reduce((total, c) => total + (c.member_count ?? 0), 0);
+  const rows = (clubs.data ?? []).slice().sort(
+    (a, b) =>
+      (ORDEN_ESTADO[a.status] ?? 1) - (ORDEN_ESTADO[b.status] ?? 1) ||
+      (orden === "miembros" ? (b.member_count ?? 0) - (a.member_count ?? 0) : 0) ||
+      a.name.localeCompare(b.name, "es"),
+  );
+  const pendientes = rows.filter((c) => c.status === "pending").length;
+  const formValido = !!form.name.trim() && !!form.club_type.trim();
 
   return (
     <div>
-      <PageHeader
-        kicker="Comunidad · Clubes"
-        title="Clubes del gimnasio"
-        subtitle="Crea los clubes de tu box y resuelve las solicitudes que proponen tus atletas: el creador administra el club en cuanto lo apruebas."
-      />
+      <PageHeader kicker="Comunidad · Clubes" title="Clubes del gimnasio" />
 
-      {/* Retrato del padrón de clubes, derivado del mismo listado de abajo. */}
-      <Stagger from={0.6} style={{ marginBottom: "calc(20 * var(--u))" }}>
-        <SimpleGrid cols={{ base: 2, md: 3 }} spacing="md">
-          <MetricTile
-            label="Clubes registrados"
-            value={clubs.isLoading ? "—" : rows.length}
-            icon={<Flag size={16} strokeWidth={1.8} />}
-          />
-          <MetricTile
-            label="Aprobados"
-            value={clubs.isLoading ? "—" : aprobados}
-            icon={<CheckCircle2 size={16} strokeWidth={1.8} />}
-            hint="Ya visibles para tus atletas."
-          />
-          <MetricTile
-            label="Miembros en clubes"
-            value={clubs.isLoading ? "—" : miembros}
-            icon={<Users size={16} strokeWidth={1.8} />}
-          />
-        </SimpleGrid>
-      </Stagger>
-
-      <GlassCard padding={24} delay={0.72} style={{ marginBottom: "calc(20 * var(--u))" }}>
-        <SectionLabel as="h2" mb={12}>Crear club</SectionLabel>
-        <form onSubmit={onCreate}>
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-            <TextInput
-              label="Nombre del club"
-              placeholder="Runners 1821"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
-            />
-            <TextInput
-              label="Tipo"
-              placeholder="running, cycling, rowing…"
-              value={form.club_type}
-              onChange={(e) => setForm({ ...form, club_type: e.currentTarget.value })}
-            />
-          </SimpleGrid>
-          <Button type="submit" mt="md" loading={createClub.isPending} disabled={!form.name.trim() || !form.club_type.trim()}>
-            Crear club
-          </Button>
-        </form>
-      </GlassCard>
-
-      {/* El borde flame solo aparece cuando de verdad hay algo que decidir. */}
-      {pending.length > 0 && (
-        <GlassCard
-          variant="core"
-          sheen
-          padding={24}
-          delay={0.84}
-          style={{ marginBottom: "calc(20 * var(--u))" }}
+      <GlassCard delay={0.6} padding={18}>
+        <Encabezado
+          titulo="Clubes"
+          avisos={
+            pendientes > 0 ? (
+              <Badge color="yellow" variant="light">
+                {pendientes} por aprobar
+              </Badge>
+            ) : null
+          }
         >
-          <BigMetric
-            label="Solicitudes pendientes"
-            value={pending.length}
-            size="sm"
-            hint="Clubes propuestos por atletas esperando tu decisión."
-            delay={1.04}
-          />
-          <div style={{ height: "calc(14 * var(--u))" }} />
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Club</Table.Th>
-                <Table.Th>Tipo</Table.Th>
-                <Table.Th>Acciones</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {pending.map((c) => (
-                <Table.Tr key={c.id}>
-                  <Table.Td>{c.name}</Table.Td>
-                  <Table.Td>{c.club_type}</Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
+          {rows.length > 6 && (
+            <SegmentedControl
+              size="xs"
+              value={orden}
+              onChange={(v) => setOrden(v as Orden)}
+              aria-label="Ordenar clubes"
+              data={[
+                { value: "nombre", label: "Nombre" },
+                { value: "miembros", label: "Miembros" },
+              ]}
+            />
+          )}
+          <Button onClick={() => setCreando(true)}>Nuevo club</Button>
+        </Encabezado>
+
+        {clubs.isLoading ? (
+          <Text c="dimmed" size="sm">
+            Cargando…
+          </Text>
+        ) : rows.length === 0 ? (
+          <Text c="dimmed" size="sm">
+            Crea el primer club de tu box: running, cycling, rowing…
+          </Text>
+        ) : (
+          <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
+            {rows.map((c) => {
+              const pendiente = c.status === "pending";
+              return (
+                <Tarjeta
+                  key={c.id}
+                  etiqueta={`Club ${c.name}`}
+                  aviso={pendiente}
+                  apagada={c.status === "rejected"}
+                >
+                  <Group gap={8} wrap="nowrap" justify="space-between">
+                    <Text fw={700} truncate>
+                      {c.name}
+                    </Text>
+                    <Badge size="xs" variant="light" color={BADGE_COLOR[c.status] ?? "yellow"}>
+                      {label(CLUB_STATUS, c.status)}
+                    </Badge>
+                  </Group>
+                  <Text size="xs" c="dimmed" mt={4}>
+                    {c.club_type} · {c.member_count ?? 0} {(c.member_count ?? 0) === 1 ? "miembro" : "miembros"}
+                  </Text>
+                  {pendiente && (
+                    <Group gap="xs" mt="sm">
                       <Button size="xs" loading={deciding(c.id)} onClick={() => onDecidir(c, "approve")}>
                         Aprobar
                       </Button>
                       <Button
                         size="xs"
-                        variant="default"
-                        loading={deciding(c.id)}
+                        variant="light"
+                        color="red"
+                        disabled={deciding(c.id)}
                         onClick={() => {
                           setMotivo("");
                           setRechazando(c);
@@ -189,43 +177,46 @@ export function ClubsPage() {
                         Rechazar
                       </Button>
                     </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </GlassCard>
-      )}
-
-      <GlassCard padding={20} delay={0.96}>
-        <SectionLabel as="h2" mb={12}>Todos los clubes</SectionLabel>
-        <DataTable<GymClub>
-          minHeight={140}
-          highlightOnHover
-          striped
-          idAccessor="id"
-          records={sortRecords(rows as GymClub[], sortStatus)}
-          fetching={clubs.isLoading}
-          noRecordsText="Cuando un atleta cree un club para este gimnasio, aparecerá aquí."
-          sortStatus={sortStatus}
-          onSortStatusChange={setSortStatus}
-          columns={[
-            { accessor: "name", title: "Club", sortable: true },
-            { accessor: "club_type", title: "Tipo", sortable: true },
-            {
-              accessor: "status",
-              title: "Estado",
-              sortable: true,
-              render: (c) => (
-                <Badge color={BADGE_COLOR[c.status] ?? "yellow"} variant="light">
-                  {label(CLUB_STATUS, c.status)}
-                </Badge>
-              ),
-            },
-            { accessor: "member_count", title: "Miembros", sortable: true, render: (c) => <Text size="sm">{c.member_count ?? 0}</Text> },
-          ]}
-        />
+                  )}
+                </Tarjeta>
+              );
+            })}
+          </SimpleGrid>
+        )}
       </GlassCard>
+
+      <Modal opened={creando} onClose={() => setCreando(false)} title="Nuevo club" centered>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (formValido) onCreate();
+          }}
+        >
+          <Stack gap="sm">
+            <TextInput
+              label="Nombre del club"
+              placeholder="Runners 1821"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+              data-autofocus
+            />
+            <TextInput
+              label="Tipo"
+              placeholder="running, cycling, rowing…"
+              value={form.club_type}
+              onChange={(e) => setForm({ ...form, club_type: e.currentTarget.value })}
+            />
+            <Group justify="flex-end" gap="sm" mt="xs">
+              <Button variant="default" onClick={() => setCreando(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" loading={createClub.isPending} disabled={!formValido}>
+                Crear club
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Modal>
 
       <Modal
         opened={!!rechazando}
@@ -233,12 +224,8 @@ export function ClubsPage() {
         title={`Rechazar "${rechazando?.name ?? ""}"`}
         centered
       >
-        <Text size="sm" c="dimmed" mb="sm">
-          El atleta que lo propuso verá este motivo en su app. Si lo dejas vacío se le envía un
-          mensaje genérico.
-        </Text>
         <Textarea
-          label="Motivo del rechazo"
+          label="Motivo (lo ve quien lo propuso)"
           placeholder="Ya existe un club de running en el gimnasio…"
           maxLength={255}
           autosize
@@ -246,6 +233,7 @@ export function ClubsPage() {
           value={motivo}
           onChange={(e) => setMotivo(e.currentTarget.value)}
           mb="lg"
+          data-autofocus
         />
         <Group justify="flex-end" gap="sm">
           <Button variant="default" onClick={() => setRechazando(null)}>

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import pagina from "./PlatformChargebacksPage.tsx?raw";
 import { MANUALES } from "../lib/manuales";
 import type { Chargeback } from "../api/types";
-import { resumirContracargos } from "./PlatformChargebacksPage";
+import { ordenarContracargos, resumirContracargos } from "./PlatformChargebacksPage";
 
 /**
  * Quién absorbe un contracargo lo decide el backend: el `Payment` negativo se resta
@@ -49,5 +49,27 @@ describe("Contracargos: los contadores no dependen del filtro", () => {
   it("el manual avisa que los contadores no dependen del filtro", () => {
     const manual = JSON.stringify(MANUALES["/panel/plataforma/contracargos"]);
     expect(manual).toMatch(/sin importar qué filtro/);
+  });
+});
+
+/** Lo que vienes a ver va al frente: lo abierto primero, el que vence antes arriba. */
+describe("Contracargos: orden de la lista", () => {
+  it("abiertos primero por fecha límite (sin fecha al final) y luego lo resuelto, lo más reciente arriba", () => {
+    const caso = (id: string, status: string, created_at: string, evidence_due_at: string | null = null) =>
+      ({ id, status, created_at, evidence_due_at }) as unknown as Chargeback;
+    const orden = ordenarContracargos([
+      caso("ganado-viejo", "won", "2026-09-01T10:00:00Z"),
+      caso("abierto-sin-fecha", "open", "2026-10-01T10:00:00Z"),
+      caso("perdido-nuevo", "lost", "2026-10-20T10:00:00Z"),
+      caso("evidencia-vence-pronto", "submitted", "2026-10-05T10:00:00Z", "2026-11-12T00:00:00Z"),
+      caso("abierto-vence-luego", "open", "2026-10-03T10:00:00Z", "2026-11-30T00:00:00Z"),
+    ]).map((c) => c.id);
+    expect(orden).toEqual([
+      "evidencia-vence-pronto",
+      "abierto-vence-luego",
+      "abierto-sin-fecha",
+      "perdido-nuevo",
+      "ganado-viejo",
+    ]);
   });
 });

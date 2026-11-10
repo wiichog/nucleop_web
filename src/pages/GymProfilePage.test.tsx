@@ -67,7 +67,7 @@ vi.mock("../lib/auth", () => ({
   useAuth: () => ({ primaryGymId: "gym-1", isSuperuser: false }),
 }));
 
-import { GymProfilePage } from "./GymProfilePage";
+import { faltantesDeFicha, GymProfilePage } from "./GymProfilePage";
 
 /** Reemplaza el contenido de un campo controlado (un solo `change`, como el DOM). */
 function escribir(campo: HTMLElement, valor: string) {
@@ -79,12 +79,16 @@ function ultimo<T>(lista: readonly T[]): T | undefined {
   return lista[lista.length - 1];
 }
 
-function pintar() {
-  return render(
+/** Pinta la ficha y abre «Editar ficha», que es donde vive el formulario. */
+async function pintar() {
+  const r = render(
     <MantineProvider>
       <GymProfilePage />
     </MantineProvider>,
   );
+  fireEvent.click(screen.getByRole("button", { name: "Editar ficha" }));
+  await screen.findByLabelText(/Nombre del gimnasio/);
+  return r;
 }
 
 beforeEach(() => {
@@ -111,10 +115,10 @@ beforeEach(() => {
 
 describe("ficha del gimnasio", () => {
   it("la vista previa sigue lo que se está escribiendo, no lo guardado", async () => {
-    pintar();
+    await pintar();
 
-    // Arranca con lo guardado: el nombre sale dos veces (campo + vista previa).
-    expect(screen.getAllByText("Box Zona 10").length).toBeGreaterThan(0);
+    // Arranca con lo guardado: el nombre sale en la ficha y en la vista previa.
+    expect(screen.getAllByText("Box Zona 10").length).toBeGreaterThan(1);
 
     const nombre = screen.getByLabelText(/Nombre del gimnasio/);
     escribir(nombre, "Box Cayalá");
@@ -124,7 +128,7 @@ describe("ficha del gimnasio", () => {
   });
 
   it("guarda solo la ficha: la economía del contrato no viaja nunca", async () => {
-    pintar();
+    await pintar();
 
     fireEvent.click(screen.getByRole("button", { name: /Guardar ficha/ }));
 
@@ -147,7 +151,7 @@ describe("ficha del gimnasio", () => {
     // El servidor contesta 200 pero devuelve el nombre viejo: el caso real de un
     // campo de solo lectura, que es exactamente cómo "parece hecho y no lo está".
     estado.respuesta = { ...estado.gym };
-    pintar();
+    await pintar();
 
     const nombre = screen.getByLabelText(/Nombre del gimnasio/);
     escribir(nombre, "Box Cayalá");
@@ -162,7 +166,7 @@ describe("ficha del gimnasio", () => {
     // El campo vacío ya lo frena la validación nativa del navegador (`required`);
     // lo que se prueba aquí es el hueco que esa validación deja pasar y dejaría
     // al gimnasio sin nombre visible en la app de todos sus atletas.
-    pintar();
+    await pintar();
 
     escribir(screen.getByLabelText(/Nombre del gimnasio/), "   ");
     fireEvent.click(screen.getByRole("button", { name: /Guardar ficha/ }));
@@ -172,7 +176,7 @@ describe("ficha del gimnasio", () => {
   });
 
   it("una coordenada imposible se frena aquí y no sale a la API", async () => {
-    pintar();
+    await pintar();
 
     escribir(screen.getByLabelText(/Latitud/), "999");
     fireEvent.click(screen.getByRole("button", { name: /Guardar ficha/ }));
@@ -183,7 +187,7 @@ describe("ficha del gimnasio", () => {
 
   it("borrar las coordenadas manda null, que es quitarlas (no la cadena vacía)", async () => {
     estado.gym = { ...estado.gym, lat: "14.599512", lng: "-90.518944" };
-    pintar();
+    await pintar();
 
     escribir(screen.getByLabelText(/Latitud/), "");
     escribir(screen.getByLabelText(/Longitud/), "");
@@ -192,5 +196,30 @@ describe("ficha del gimnasio", () => {
     await waitFor(() => expect(estado.guardado).toHaveLength(1));
     expect(estado.guardado[0].lat).toBeNull();
     expect(estado.guardado[0].lng).toBeNull();
+  });
+
+  it("lo que le falta a la ficha sale arriba en amarillo", () => {
+    render(
+      <MantineProvider>
+        <GymProfilePage />
+      </MantineProvider>,
+    );
+    // El gym de prueba no tiene logo ni coordenadas.
+    expect(screen.getByText("Falta logo, coordenadas")).toBeTruthy();
+  });
+
+  it("faltantesDeFicha: una ficha completa no pide nada", () => {
+    const completa = {
+      name: "Box",
+      logo_url: "https://x/logo.png",
+      description: "Funcional",
+      location_text: "Zona 10",
+      address: "",
+      lat: "14.6",
+      lng: "-90.5",
+      is_public: true,
+    };
+    expect(faltantesDeFicha(completa)).toEqual([]);
+    expect(faltantesDeFicha({ ...completa, lng: "", description: " " })).toEqual(["descripción", "coordenadas"]);
   });
 });

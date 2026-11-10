@@ -1,20 +1,30 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { GymStatement, Payment, Payout } from "../api/types";
+import type { GymStatement, Membership, Payment, Payout } from "../api/types";
 import {
   CeldaFactura,
+  coincidePago,
   ENCABEZADOS_CSV_PAGOS,
   EstadoDeCuenta,
   EstadoDePago,
+  FacturaCorta,
   filaCsvDePago,
+  PorCobrar,
 } from "./PaymentsPage";
 
 /** Lo que contesta `useGymStatement` en las pruebas del estado de cuenta. */
 const cuenta = vi.hoisted(() => ({ data: null as GymStatement | null }));
+/** El padrón que contesta `useMemberships` y lo que recibe el pago manual. */
+const padron = vi.hoisted(() => ({
+  data: [] as Membership[],
+  registrados: [] as Record<string, unknown>[],
+  falla: false,
+}));
 
-// Solo se reemplaza el estado de cuenta; el resto del módulo queda real.
+// Se reemplazan el estado de cuenta, el padrón y el pago manual; el resto del
+// módulo queda real.
 vi.mock("../api/hooks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api/hooks")>()),
   useGymStatement: () => ({
@@ -24,6 +34,26 @@ vi.mock("../api/hooks", async (importOriginal) => ({
     isLoading: false,
     refetch: () => {},
   }),
+  useMemberships: () => ({
+    data: padron.data,
+    error: null,
+    isError: false,
+    isLoading: false,
+    refetch: () => {},
+  }),
+  useRegisterManualPayment: () => ({
+    isPending: false,
+    mutateAsync: async (body: Record<string, unknown>) => {
+      padron.registrados.push(body);
+      if (padron.falla) throw new Error("rechazado");
+      return {};
+    },
+  }),
+}));
+
+const avisos = vi.hoisted(() => ({ show: [] as { color?: string; message?: string }[] }));
+vi.mock("@mantine/notifications", () => ({
+  notifications: { show: (n: { color?: string; message?: string }) => avisos.show.push(n) },
 }));
 
 /**
@@ -59,6 +89,25 @@ if (!window.ResizeObserver) {
     unobserve() {}
     disconnect() {}
   } as unknown as typeof ResizeObserver;
+}
+
+// Abrir una ventana de Mantine bajo jsdom es lento; con la máquina cargada
+// (varias suites a la vez) estas pruebas rozaban el límite de 5 s.
+vi.setConfig({ testTimeout: 20_000 });
+
+/**
+ * El botón de una ventana por su texto. `getByRole` recorre el árbol de
+ * accesibilidad entero y, con la máquina cargada, estas pruebas pasaban de los
+ * 5 s; el texto exacto basta para saber de qué botón se trata.
+ */
+function boton(ventana: HTMLElement, texto: string): HTMLButtonElement {
+  // El título de la ventana puede decir lo mismo que su botón («Registrar pago»).
+  const el = within(ventana)
+    .getAllByText(texto)
+    .map((t) => t.closest("button"))
+    .find(Boolean);
+  if (!el) throw new Error(`No hay botón «${texto}»`);
+  return el as HTMLButtonElement;
 }
 
 function pago(over: Partial<Payment> = {}): Payment {
@@ -309,5 +358,132 @@ describe("PaymentsPage · el CSV etiqueta bien los contracargos", () => {
 
   it("cada fila trae una celda por encabezado", () => {
     expect(filaCsvDePago(pago())).toHaveLength(ENCABEZADOS_CSV_PAGOS.length);
+  });
+});
+
+/** La factura en la fila de la tabla: lo que falta hacer se ve en amarillo/rojo. */
+describe("PaymentsPage · la factura en la tabla", () => {
+  const pintarCorta = (p: Payment) =>
+    render(
+      <MantineProvider>
+        <FacturaCorta payment={p} />
+      </MantineProvider>,
+    );
+
+  it("una emitida con documento muestra su folio", () => {
+    pintarCorta(pago());
+    expect(screen.getByText("A-1234")).toBeTruthy();
+  });
+
+  it("una emitida que perdió el documento dice «Sin documento», no el folio", () => {
+    pintarCorta(pago({ fel_document_url: "", can_retry_fel: true }));
+    expect(screen.getByText("Sin documento")).toBeTruthy();
+    expect(screen.queryByText("A-1234")).toBeNull();
+  });
+
+  it("una fallida lo dice", () => {
+    pintarCorta(pago({ fel_status: "failed", fel_serie: "", fel_number: "", can_retry_fel: true }));
+    expect(screen.getByText("Fallida")).toBeTruthy();
+  });
+});
+
+/** El buscador del historial ahora también encuentra por atleta. */
+describe("PaymentsPage · buscador del historial", () => {
+  it("encuentra por nombre del atleta, concepto, método y contracargo", () => {
+    expect(coincidePago(pago(), "ana")).toBe(true);
+    expect(coincidePago(pago(), "membres")).toBe(true);
+    expect(coincidePago(pago(), "tarjeta")).toBe(true);
+    expect(coincidePago(pago({ status: "refunded", is_chargeback: true }), "contracargo")).toBe(true);
+    expect(coincidePago(pago(), "pedro")).toBe(false);
+  });
+});
+
+/**
+ * «Por cobrar»: quién debe, el más atrasado primero, y tocarlo abre «Registrar
+ * pago» con el atleta y su cuota puestos. El pago viaja igual que antes.
+ */
+describe("PaymentsPage · por cobrar", () => {
+  function membresia(over: Partial<Membership>): Membership {
+    return {
+      id: "m1",
+      athlete_name: "Ana López",
+      status: "active",
+      payment_status: "overdue",
+      plan_name: "Mensual",
+      renewal_date: "2026-10-01",
+      effective_fee: "350.00",
+      ...over,
+    } as Membership;
+  }
+
+  function pintarPorCobrar() {
+    return render(
+      <MantineProvider>
+        <PorCobrar gymId="gym-1" />
+      </MantineProvider>,
+    );
+  }
+
+  afterEach(() => {
+    padron.data = [];
+    padron.registrados = [];
+    padron.falla = false;
+    avisos.show = [];
+  });
+
+  it("lista solo a los morosos, el más atrasado primero, con su total", () => {
+    padron.data = [
+      membresia({ id: "m1", athlete_name: "Ana López", renewal_date: "2026-10-01" }),
+      membresia({ id: "m2", athlete_name: "Beto Paz", renewal_date: "2026-09-15", effective_fee: "200.00" }),
+      membresia({ id: "m3", athlete_name: "Carla al día", payment_status: "up_to_date" }),
+    ];
+    pintarPorCobrar();
+
+    const filas = screen.getAllByLabelText(/^Registrar pago de /);
+    expect(filas.map((f) => f.getAttribute("aria-label"))).toEqual([
+      "Registrar pago de Beto Paz",
+      "Registrar pago de Ana López",
+    ]);
+    expect(screen.queryByText(/Carla/)).toBeNull();
+    expect(screen.getByText(/2 vencidos/)).toBeTruthy();
+    // Una fecha sin hora no se corre al día anterior por la zona horaria.
+    expect(screen.getByText("Venció el 1/10/2026")).toBeTruthy();
+  });
+
+  it("sin morosos lo dice y el botón de registrar sigue ahí", () => {
+    padron.data = [membresia({ payment_status: "up_to_date" })];
+    pintarPorCobrar();
+    expect(screen.getByText(/Nadie debe/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Registrar pago" })).toBeTruthy();
+  });
+
+  it("tocar a un moroso abre el pago con su cuota y lo registra igual que antes", async () => {
+    padron.data = [membresia({})];
+    pintarPorCobrar();
+
+    fireEvent.click(screen.getByLabelText("Registrar pago de Ana López"));
+    const ventana = await screen.findByRole("dialog");
+    expect((within(ventana).getByLabelText("Monto") as HTMLInputElement).value).toBe("Q350");
+    fireEvent.click(boton(ventana, "Registrar pago"));
+
+    await waitFor(() =>
+      expect(padron.registrados).toEqual([
+        { membership_id: "m1", amount: "350", method: "cash", proof_file: undefined },
+      ]),
+    );
+    expect(avisos.show[0]?.color).toBe("teal");
+  });
+
+  it("si el registro falla, la ventana sigue abierta y dice por qué", async () => {
+    padron.data = [membresia({})];
+    padron.falla = true;
+    pintarPorCobrar();
+
+    fireEvent.click(screen.getByLabelText("Registrar pago de Ana López"));
+    const ventana = await screen.findByRole("dialog");
+    fireEvent.click(boton(ventana, "Registrar pago"));
+
+    await waitFor(() => expect(avisos.show[0]?.color).toBe("red"));
+    expect(screen.getByRole("dialog")).toBeTruthy();
   });
 });

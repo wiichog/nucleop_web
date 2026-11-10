@@ -32,15 +32,24 @@ export const PENDING_ITEMS: { key: PendingKey; label: string; to: string }[] = [
   // Debido proceso: un descargo sin revisar deja al atleta sancionado sin
   // respuesta, y si el gym no contesta la apelación escala a Nucleo.
   { key: "apelaciones", label: "Apelaciones por revisar", to: "/panel/comunidad" },
-  { key: "clases_sin_wod", label: "Clases sin workout (próx. 48h)", to: "/panel/clases" },
+  { key: "clases_sin_wod", label: "Clases sin workout (próx. 48h)", to: "/panel/clases?tab=wod" },
   { key: "tickets", label: "Reportes abiertos", to: "/panel/tickets" },
   { key: "pedidos", label: "Pedidos por entregar", to: "/panel/inventario?tab=pedidos" },
   { key: "clubes", label: "Clubes por aprobar", to: "/panel/clubes" },
+  // Suma a `total` en el backend y no estaba listado: la campana contaba algo que
+  // no aparecía en ningún lado.
+  {
+    key: "denuncias_club",
+    label: "Contenido de clubes denunciado",
+    to: "/panel/contenido-clubes",
+  },
   // Baja que pidió el ATLETA: suma a `total` en el backend, así que si no se
   // listaba aquí la campana marcaba pendientes y el desplegable decía "todo al
   // día" — y el gym nunca se enteraba de que alguien pidió irse.
   { key: "bajas", label: "Bajas por confirmar", to: "/panel/atletas?filtro=bajas" },
-  { key: "morosos", label: "Atletas morosos", to: "/panel/atletas?filtro=morosos" },
+  // A Membresías y no al padrón: su pestaña "Por cobrar" (la que abre) lista a los
+  // morosos y tocarlos abre "Registrar pago" con su cuota puesta.
+  { key: "morosos", label: "Atletas morosos", to: "/panel/pagos" },
 ];
 
 /**

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import { NavLink as RouterNavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
+  Box,
   Burger,
   Drawer,
   Group,
@@ -436,7 +437,10 @@ export function Layout() {
         <header className="a-header">
           <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" color="#fff" />
-            <div style={{ minWidth: 0 }}>
+            {/* En celular no cabe junto a los botones de la derecha (que no se
+                encogen) y quedaba encimado al selector del gimnasio, que ya dice
+                dónde estás. */}
+            <Box visibleFrom="sm" style={{ minWidth: 0 }}>
               <div className="a-hello a-rise" style={{ animationDelay: ".14s" }}>
                 Bienvenido
               </div>
@@ -452,7 +456,7 @@ export function Layout() {
               >
                 {email || activeGym?.name || "Panel del gimnasio"}
               </div>
-            </div>
+            </Box>
           </Group>
 
           <Group gap="sm" wrap="nowrap" style={{ flex: "none" }}>

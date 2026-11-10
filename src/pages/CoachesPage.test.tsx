@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Coach, CoachRequest } from "../api/types";
 
@@ -52,30 +53,6 @@ vi.mock("../api/hooks", () => {
   };
 });
 
-// `mantine-datatable` no pinta celdas bajo jsdom: una tabla mínima que llama al
-// `render` de cada columna basta para probar lo que va dentro de la celda.
-vi.mock("mantine-datatable", () => ({
-  DataTable: ({
-    records,
-    columns,
-  }: {
-    records: Record<string, unknown>[];
-    columns: { accessor: string; render?: (r: Record<string, unknown>) => React.ReactNode }[];
-  }) => (
-    <table>
-      <tbody>
-        {records.map((r, i) => (
-          <tr key={i}>
-            {columns.map((c) => (
-              <td key={c.accessor}>{c.render ? c.render(r) : String(r[c.accessor] ?? "")}</td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  ),
-}));
-
 vi.mock("../lib/auth", () => ({
   useAuth: () => ({ primaryGymId: "gym-1" }),
 }));
@@ -112,7 +89,12 @@ const coach: Coach = {
   rating_count: 0,
 };
 
-const pinta = (ui: React.ReactNode) => render(<MantineProvider>{ui}</MantineProvider>);
+const pinta = (ui: React.ReactNode) =>
+  render(
+    <MemoryRouter>
+      <MantineProvider>{ui}</MantineProvider>
+    </MemoryRouter>,
+  );
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -178,14 +160,46 @@ describe("Solo espera la fila que se está guardando", () => {
     expect(deshabilitado(rechazar2)).toBe(false);
   });
 
-  it("guardar «Sube el workout» de un coach no apaga el de los demás", () => {
+  it("guardar «Sube el workout» de un coach no apaga el de los demás", async () => {
     estado.coaches = [coach, { ...coach, id: "sr-2", staff_role: "sr-2", name: "Otra Coach" }];
     estado.guardandoCoach = { isPending: true, variables: { staffId: "sr-1", body: {} } };
     pinta(<CoachesPage />);
 
-    const uno = screen.getByLabelText(/Coco Coach suba/) as HTMLInputElement;
-    const dos = screen.getByLabelText(/Otra Coach suba/) as HTMLInputElement;
-    expect(uno.disabled).toBe(true);
-    expect(dos.disabled).toBe(false);
+    // El interruptor vive en el perfil: tocar al coach lo abre.
+    fireEvent.click(screen.getByRole("button", { name: "Abrir perfil de Otra Coach" }));
+    const otra = (await screen.findByLabelText(/Otra Coach suba/)) as HTMLInputElement;
+    expect(otra.disabled).toBe(false);
+  });
+
+  it("el perfil del coach que se está guardando muestra el interruptor en espera", () => {
+    pinta(
+      <CoachProfileSheet coach={coach} onClose={() => {}} onDarDeBaja={() => {}} onPermiso={() => {}} guardandoPermiso />,
+    );
+    expect((screen.getByLabelText(/Coco Coach suba/) as HTMLInputElement).disabled).toBe(true);
+  });
+});
+
+describe("Lo pendiente va al frente", () => {
+  it("las solicitudes para unirse salen arriba en amarillo con su contador", () => {
+    estado.solicitudes = [
+      { ...invitacion, id: "cr-1", direction: "coach_apply" },
+      { ...invitacion, id: "cr-2", user_email: "otro@ejemplo.com", direction: "gym_invite" },
+    ];
+    pinta(<CoachesPage />);
+    expect(screen.getByText("1 por aprobar")).toBeTruthy();
+    expect(screen.getByText("Invitados")).toBeTruthy();
+  });
+
+  it("«Invitar coach» abre la ventana de invitación", async () => {
+    pinta(<CoachesPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Invitar coach" }));
+    expect(await screen.findByRole("button", { name: "Invitar" })).toBeTruthy();
+  });
+
+  it("cambiar el permiso desde el perfil avisa con el coach y el valor nuevo", () => {
+    const onPermiso = vi.fn();
+    pinta(<CoachProfileSheet coach={coach} onClose={() => {}} onDarDeBaja={() => {}} onPermiso={onPermiso} />);
+    fireEvent.click(screen.getByLabelText(/Coco Coach suba/));
+    expect(onPermiso).toHaveBeenCalledWith(coach, false);
   });
 });

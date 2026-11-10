@@ -1,11 +1,13 @@
 import { FormEvent, useEffect, useState } from "react";
 import {
-  Box,
+  Badge,
   Button,
   FileInput,
   Group,
   Image,
+  Modal,
   NumberInput,
+  Popover,
   Select,
   SimpleGrid,
   Stack,
@@ -13,10 +15,10 @@ import {
   Text,
   Textarea,
   TextInput,
+  Title,
 } from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { CalendarClock, UserCheck } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
@@ -39,14 +41,9 @@ import {
 } from "../api/hooks";
 import { EmptyState } from "../components/EmptyState";
 import { PageError, PageLoading, useCuentaSinCargar } from "../components/PageStatus";
-import { PageHeader, SectionLabel } from "../components/ui";
-import { BigMetric, GlassCard, MetricTile, Stagger, cssVars } from "../components/aurora";
-
-/** Hairline del material Aurora: separa filas sin dibujar una caja. */
-const rowBorder = { borderBottom: "1px solid var(--a-line)" };
-
-/** Separación estándar entre tarjetas de un panel. */
-const CARD_GAP = "calc(20 * var(--u))";
+import { Encabezado, nombreCorto, Tarjeta } from "../components/Tarjeta";
+import { CountBadge, PageHeader } from "../components/ui";
+import { GlassCard, cssVars } from "../components/aurora";
 
 /**
  * Medidas que el servidor sabe llevar en un reto (ver `clubs/antifraud.py` y
@@ -83,13 +80,41 @@ export function estadoRevision(
   return { loading: esEste, disabled: enEsta && !esEste };
 }
 
+/**
+ * Las próximas primero (la más cercana arriba) y luego las pasadas (la más
+ * reciente arriba): lo que se viene a preparar va al frente.
+ */
+export function ordenarActividades<T extends { starts_at: string }>(lista: T[], ahora = Date.now()): T[] {
+  const t = (a: T) => Date.parse(a.starts_at);
+  const proximas = lista.filter((a) => t(a) >= ahora).sort((a, b) => t(a) - t(b));
+  const pasadas = lista.filter((a) => t(a) < ahora).sort((a, b) => t(b) - t(a));
+  return [...proximas, ...pasadas];
+}
+
+const cuando = (iso: string) =>
+  new Date(iso).toLocaleString("es-GT", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+
+const ok = (message: string) => notifications.show({ color: "teal", message });
+const fail = (error: unknown, fallback: string) =>
+  notifications.show({ color: "red", message: errMsg(error, fallback) });
+
 export function ClubAdminPage() {
-  const { primaryClubId, clubIds } = useAuth();
+  const { primaryClubId } = useAuth();
   const sinCuenta = useCuentaSinCargar();
   const clubId = primaryClubId ?? "";
   // La pestaña vive en la URL para poder enlazar directo a anuncios o al perfil.
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get("tab") || "actividades";
+  // El contador va en la pestaña: un avance sin revisar no se resuelve solo y el
+  // atleta se queda esperando sus puntos. Misma llave que la lista de Retos.
+  const pendientes = useClubAdminPendingSubmissions(clubId).data?.length ?? 0;
 
   // Si /me falló no hay roles, y tampoco club: no decirle a un club_admin que no tiene club.
   if (sinCuenta) return sinCuenta;
@@ -104,24 +129,21 @@ export function ClubAdminPage() {
 
   return (
     <div>
-      <PageHeader
-        kicker="Mi club"
-        title="Administrar club"
-        subtitle={`Publica anuncios, crea actividades y retos, y mantén la ficha del club al día.${
-          clubIds.length > 1 ? " Cambia de club desde el selector del encabezado." : ""
-        }`}
-      />
+      <PageHeader kicker="Mi club" title="Administrar club" />
 
       <Tabs
         value={tab}
-        onChange={(v) =>
-          setSearchParams(v && v !== "actividades" ? { tab: v } : {}, { replace: true })
-        }
+        onChange={(v) => setSearchParams(v && v !== "actividades" ? { tab: v } : {}, { replace: true })}
         keepMounted={false}
       >
         <Tabs.List mb="lg" className="a-wipe-right" style={cssVars({ "--d": "0.52s" })}>
           <Tabs.Tab value="actividades">Actividades</Tabs.Tab>
-          <Tabs.Tab value="retos">Retos</Tabs.Tab>
+          <Tabs.Tab value="retos">
+            <Group gap={6} wrap="nowrap">
+              Retos
+              {pendientes ? <CountBadge count={pendientes} /> : null}
+            </Group>
+          </Tabs.Tab>
           <Tabs.Tab value="anuncios">Anuncios</Tabs.Tab>
           <Tabs.Tab value="perfil">Perfil del club</Tabs.Tab>
         </Tabs.List>
@@ -148,11 +170,72 @@ export function ClubAdminPage() {
 // ---------------------------------------------------------------------------
 function ActividadesPanel({ clubId }: { clubId: string }) {
   const activities = useClubAdminActivities(clubId);
-  const createActivity = useClubAdminCreateActivity(clubId);
-  const [expandedActivity, setExpandedActivity] = useState<string | null>(null);
-  const rsvps = useClubAdminRsvps(clubId, expandedActivity ?? "");
-  const confirm = useClubAdminConfirm(clubId, expandedActivity ?? "");
+  const [nueva, setNueva] = useState(false);
+  const [abiertaId, setAbiertaId] = useState<string | null>(null);
 
+  if (activities.isError)
+    return (
+      <PageError
+        message="No se pudieron cargar las actividades del club."
+        onRetry={() => activities.refetch()}
+      />
+    );
+
+  const ahora = Date.now();
+  const lista = ordenarActividades(activities.data ?? [], ahora);
+  const abierta = lista.find((a) => a.id === abiertaId) ?? null;
+
+  return (
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado titulo="Actividades">
+        <Button onClick={() => setNueva(true)}>Nueva actividad</Button>
+      </Encabezado>
+      {activities.isLoading ? (
+        <Text c="dimmed" size="sm">
+          Cargando…
+        </Text>
+      ) : !lista.length ? (
+        <Text c="dimmed" size="sm">
+          Crea la primera actividad del club: una rodada, una carrera, un entreno juntos…
+        </Text>
+      ) : (
+        <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
+          {lista.map((a) => (
+            <Tarjeta
+              key={a.id}
+              etiqueta={`Ver quién va a ${a.name}`}
+              onClick={() => setAbiertaId(a.id)}
+              apagada={Date.parse(a.starts_at) < ahora}
+            >
+              <Text fw={700} truncate>
+                {a.name}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {cuando(a.starts_at)}
+              </Text>
+              {a.location ? (
+                <Text size="xs" c="dimmed" truncate>
+                  {a.location}
+                </Text>
+              ) : null}
+              <Badge size="xs" mt={6} variant="light" color={a.rsvp_count ? "teal" : "gray"}>
+                {a.rsvp_count ?? 0} {a.rsvp_count === 1 ? "va" : "van"}
+              </Badge>
+            </Tarjeta>
+          ))}
+        </SimpleGrid>
+      )}
+
+      <NuevaActividadModal clubId={clubId} opened={nueva} onClose={() => setNueva(false)} />
+      <Modal opened={!!abierta} onClose={() => setAbiertaId(null)} title={abierta?.name ?? ""} centered>
+        {abierta && <Rsvps clubId={clubId} activityId={abierta.id} />}
+      </Modal>
+    </GlassCard>
+  );
+}
+
+function NuevaActividadModal({ clubId, opened, onClose }: { clubId: string; opened: boolean; onClose: () => void }) {
+  const createActivity = useClubAdminCreateActivity(clubId);
   const [name, setName] = useState("");
   const [startsAt, setStartsAt] = useState<Date | null>(null);
   const [location, setLocation] = useState("");
@@ -164,188 +247,315 @@ function ActividadesPanel({ clubId }: { clubId: string }) {
         name,
         starts_at: (startsAt ?? new Date()).toISOString(),
         location,
+        // El servidor todavía no cobra actividades de club (el manual lo dice).
         is_free: true,
       });
-      notifications.show({ color: "teal", message: `Actividad "${name}" creada.` });
+      ok(`Actividad "${name}" creada.`);
       setName("");
       setStartsAt(null);
       setLocation("");
+      onClose();
     } catch (error) {
-      notifications.show({ color: "red", message: errMsg(error, "No se pudo crear la actividad.") });
+      fail(error, "No se pudo crear la actividad.");
     }
   };
 
-  // Retrato del panel: se deriva de las actividades que ya están en pantalla.
-  const lista = activities.data ?? [];
-  const rsvpsTotal = lista.reduce((total, a) => total + (a.rsvp_count ?? 0), 0);
-
   return (
-    <>
-      <Stagger from={0.6} style={{ marginBottom: CARD_GAP }}>
-        <SimpleGrid cols={{ base: 2, md: 2 }} spacing="md">
-          <MetricTile
-            label="Actividades publicadas"
-            value={activities.isLoading ? "—" : lista.length}
-            icon={<CalendarClock size={16} strokeWidth={1.8} />}
-          />
-          <MetricTile
-            label="RSVPs acumulados"
-            value={activities.isLoading ? "—" : rsvpsTotal}
-            icon={<UserCheck size={16} strokeWidth={1.8} />}
-            hint="Confirmaciones de tus miembros."
-          />
-        </SimpleGrid>
-      </Stagger>
-
-      <GlassCard padding={24} delay={0.72} style={{ marginBottom: CARD_GAP }}>
-        <SectionLabel as="h2" mb={12}>Nueva actividad</SectionLabel>
-        <form onSubmit={onCreate}>
-          <Stack gap="sm" maw={460}>
-            <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
-            <DateTimePicker label="Fecha y hora" value={startsAt} onChange={setStartsAt} valueFormat="YYYY-MM-DD HH:mm" />
-            <TextInput label="Ubicación" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
-            {/* El servidor todavía no cobra actividades de club: se dice claro en vez de insinuarlo. */}
-            <Text c="dimmed" size="xs">
-              Las actividades del club son gratuitas para tus miembros.
-            </Text>
+    <Modal opened={opened} onClose={onClose} title="Nueva actividad" centered>
+      <form onSubmit={onCreate}>
+        <Stack gap="sm">
+          <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} required data-autofocus />
+          <DateTimePicker label="Fecha y hora" value={startsAt} onChange={setStartsAt} valueFormat="YYYY-MM-DD HH:mm" />
+          <TextInput label="Ubicación" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
+          <Group justify="flex-end">
             <Button type="submit" loading={createActivity.isPending}>
               Crear actividad
             </Button>
-          </Stack>
-        </form>
-      </GlassCard>
+          </Group>
+        </Stack>
+      </form>
+    </Modal>
+  );
+}
 
-      <GlassCard padding={24} delay={0.84}>
-        <SectionLabel as="h2" mb={12}>Actividades</SectionLabel>
-        {activities.isError ? (
-          <PageError
-            message="No se pudieron cargar las actividades del club."
-            onRetry={() => activities.refetch()}
-          />
-        ) : activities.isLoading ? (
-          <PageLoading />
-        ) : !(activities.data ?? []).length ? (
-          <EmptyState title="Sin actividades" description="Crea la primera actividad del club." />
-        ) : (
-          <Stack gap={0}>
-            {(activities.data ?? []).map((activity) => (
-              <Box key={activity.id} py="sm" style={rowBorder}>
-                <Text fw={600}>{activity.name}</Text>
-                <Text c="dimmed" size="sm">
-                  {new Date(activity.starts_at).toLocaleString("es-GT")}
-                  {activity.location ? ` · ${activity.location}` : ""}
-                  {activity.rsvp_count != null ? ` · ${activity.rsvp_count} RSVPs` : ""}
-                </Text>
-                <Button
-                  variant="default"
-                  size="xs"
-                  mt={6}
-                  onClick={() => setExpandedActivity(expandedActivity === activity.id ? null : activity.id)}
-                >
-                  {expandedActivity === activity.id ? "Ocultar RSVPs" : "Ver RSVPs"}
-                </Button>
-                {expandedActivity === activity.id && (
-                  <Box mt="sm">
-                    {rsvps.isError ? (
-                      <PageError
-                        message="No se pudieron cargar los RSVPs de esta actividad."
-                        onRetry={() => rsvps.refetch()}
-                      />
-                    ) : rsvps.isLoading ? (
-                      <PageLoading />
-                    ) : !(rsvps.data ?? []).length ? (
-                      <Text c="dimmed" size="sm">
-                        Nadie ha confirmado asistencia todavía.
-                      </Text>
-                    ) : (
-                      <Stack gap="xs">
-                        {(rsvps.data ?? []).map((row) => (
-                          <Group key={row.id} gap="sm">
-                            <Text size="sm">
-                              {row.athlete_name} · {label(CLUB_RSVP_STATUS, row.status)}
-                            </Text>
-                            {row.status === "going" && (
-                              <Button
-                                size="xs"
-                                // Sólo gira la fila que se está confirmando, no todas.
-                                loading={confirm.isPending && confirm.variables === row.athlete}
-                                onClick={() =>
-                                  confirm.mutate(row.athlete, {
-                                    onSuccess: () =>
-                                      notifications.show({
-                                        color: "teal",
-                                        message: `Asistencia de ${row.athlete_name} confirmada.`,
-                                      }),
-                                    onError: (error) =>
-                                      notifications.show({
-                                        color: "red",
-                                        message: errMsg(error, "No se pudo confirmar la asistencia."),
-                                      }),
-                                  })
-                                }
-                              >
-                                Confirmar asistencia
-                              </Button>
-                            )}
-                          </Group>
-                        ))}
-                      </Stack>
-                    )}
-                  </Box>
-                )}
-              </Box>
-            ))}
-          </Stack>
-        )}
-      </GlassCard>
-    </>
+/** Quién dijo que va, y confirmar a quien llegó. */
+function Rsvps({ clubId, activityId }: { clubId: string; activityId: string }) {
+  const rsvps = useClubAdminRsvps(clubId, activityId);
+  const confirm = useClubAdminConfirm(clubId, activityId);
+
+  if (rsvps.isError)
+    return (
+      <PageError
+        message="No se pudieron cargar los RSVPs de esta actividad."
+        onRetry={() => rsvps.refetch()}
+      />
+    );
+  if (rsvps.isLoading) return <PageLoading />;
+  const lista = rsvps.data ?? [];
+  if (!lista.length)
+    return (
+      <Text c="dimmed" size="sm">
+        Nadie ha confirmado asistencia todavía.
+      </Text>
+    );
+
+  return (
+    <Stack gap={6}>
+      {lista.map((row) => (
+        <Tarjeta key={row.id} etiqueta={row.athlete_name} aviso={row.status === "going"}>
+          <Group justify="space-between" wrap="nowrap" gap="sm">
+            <div style={{ minWidth: 0 }}>
+              <Text size="sm" fw={600} truncate>
+                {nombreCorto(row.athlete_name)}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {label(CLUB_RSVP_STATUS, row.status)}
+              </Text>
+            </div>
+            {row.status === "going" && (
+              <Button
+                size="xs"
+                // Sólo gira la fila que se está confirmando, no todas.
+                loading={confirm.isPending && confirm.variables === row.athlete}
+                onClick={() =>
+                  confirm.mutate(row.athlete, {
+                    onSuccess: () => ok(`Asistencia de ${row.athlete_name} confirmada.`),
+                    onError: (error) => fail(error, "No se pudo confirmar la asistencia."),
+                  })
+                }
+              >
+                Confirmar asistencia
+              </Button>
+            )}
+          </Group>
+        </Tarjeta>
+      ))}
+    </Stack>
   );
 }
 
 // ---------------------------------------------------------------------------
 // Retos + revisión de avances
 // ---------------------------------------------------------------------------
+type Revision = ReturnType<typeof useClubAdminReviewSubmission>;
+
+/** Un avance por revisar con sus dos decisiones. El rechazo pide motivo al presionarlo. */
+function Avance({
+  sub,
+  reto,
+  review,
+}: {
+  sub: { id: string; athlete_name: string; delta: string | number; source: string };
+  reto: string;
+  review: Revision;
+}) {
+  const [rechazando, setRechazando] = useState(false);
+  const [nota, setNota] = useState("");
+
+  /**
+   * Al rechazar se pide motivo: el atleta lo lee en su app (`my_last_review.note`),
+   * y un rechazo mudo en un reto con puntos de por medio es la forma más rápida de
+   * perder a quien participa.
+   */
+  const decidir = (action: "approve" | "reject") =>
+    review.mutate(
+      { submissionId: sub.id, action, note: action === "reject" ? nota.trim() : undefined },
+      {
+        onSuccess: () => {
+          setRechazando(false);
+          ok(action === "approve" ? "Avance aprobado." : "Avance rechazado.");
+        },
+        onError: (error) => fail(error, "No se pudo revisar el avance."),
+      },
+    );
+
+  return (
+    <Tarjeta etiqueta={`Avance de ${sub.athlete_name}`} aviso>
+      <Group justify="space-between" wrap="wrap" gap="sm">
+        <div style={{ minWidth: 200, flex: 1 }}>
+          <Text size="sm">
+            <b>{nombreCorto(sub.athlete_name)}</b> +{sub.delta}{" "}
+            <Text span c="dimmed">
+              · {reto} · {label(CLUB_SUBMISSION_SOURCE, sub.source)}
+            </Text>
+          </Text>
+        </div>
+        <Group gap="xs">
+          <Button size="xs" {...estadoRevision(review, sub.id, "approve")} onClick={() => decidir("approve")}>
+            Aprobar
+          </Button>
+          <Popover opened={rechazando} onChange={setRechazando} position="bottom-end" withArrow trapFocus>
+            <Popover.Target>
+              <Button
+                size="xs"
+                color="red"
+                variant="light"
+                disabled={estadoRevision(review, sub.id, "reject").disabled}
+                onClick={() => setRechazando((v) => !v)}
+              >
+                Rechazar
+              </Button>
+            </Popover.Target>
+            <Popover.Dropdown>
+              <Stack gap="xs" w={240}>
+                <TextInput
+                  size="xs"
+                  placeholder="Motivo (lo ve el atleta)"
+                  value={nota}
+                  onChange={(e) => setNota(e.currentTarget.value)}
+                  data-autofocus
+                />
+                <Button
+                  size="xs"
+                  color="red"
+                  loading={estadoRevision(review, sub.id, "reject").loading}
+                  onClick={() => decidir("reject")}
+                >
+                  Rechazar avance
+                </Button>
+              </Stack>
+            </Popover.Dropdown>
+          </Popover>
+        </Group>
+      </Group>
+    </Tarjeta>
+  );
+}
+
 function RetosPanel({ clubId }: { clubId: string }) {
   const challenges = useClubAdminChallenges(clubId);
-  const createChallenge = useClubAdminCreateChallenge(clubId);
-  const [expandedChallenge, setExpandedChallenge] = useState<string | null>(null);
-  const challengeBoard = useClubAdminChallengeLeaderboard(clubId, expandedChallenge ?? "");
-  // La cola es de todo el club: abrir el ranking de un reto no la filtra (antes
-  // lo hacía en silencio y el contador parecía bajar solo).
+  // La cola es de todo el club: abrir el ranking de un reto no la filtra.
   const pendingSubmissions = useClubAdminPendingSubmissions(clubId);
   const reviewSubmission = useClubAdminReviewSubmission(clubId);
+  const [nuevo, setNuevo] = useState(false);
+  const [abiertoId, setAbiertoId] = useState<string | null>(null);
 
+  const pendientes = pendingSubmissions.data ?? [];
+  const retos = challenges.data ?? [];
+  const abierto = retos.find((c) => c.id === abiertoId) ?? null;
+
+  return (
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado
+        titulo="Por revisar"
+        avisos={
+          pendientes.length > 0 && (
+            <Badge color="yellow" variant="light">
+              {pendientes.length} por revisar
+            </Badge>
+          )
+        }
+      />
+      {pendingSubmissions.isError ? (
+        <PageError
+          message="No se pudieron cargar los avances por revisar."
+          onRetry={() => pendingSubmissions.refetch()}
+        />
+      ) : pendingSubmissions.isLoading ? (
+        <Text c="dimmed" size="sm">
+          Cargando…
+        </Text>
+      ) : !pendientes.length ? (
+        <Text c="dimmed" size="sm">
+          Nada pendiente.
+        </Text>
+      ) : (
+        <Stack gap={6}>
+          {pendientes.map((sub) => (
+            <Avance
+              key={sub.id}
+              sub={sub}
+              reto={nombreReto(sub.challenge, challenges.data)}
+              review={reviewSubmission}
+            />
+          ))}
+        </Stack>
+      )}
+
+      <Group justify="space-between" wrap="wrap" gap="sm" mt="xl" mb="sm">
+        <Title order={4}>Retos</Title>
+        <Button onClick={() => setNuevo(true)}>Nuevo reto</Button>
+      </Group>
+      {challenges.isError ? (
+        <PageError message="No se pudieron cargar los retos." onRetry={() => challenges.refetch()} />
+      ) : challenges.isLoading ? (
+        <Text c="dimmed" size="sm">
+          Cargando…
+        </Text>
+      ) : !retos.length ? (
+        <Text c="dimmed" size="sm">
+          Crea el primer reto del club.
+        </Text>
+      ) : (
+        <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
+          {retos.map((c) => {
+            const terminado = !!c.ends_at && Date.parse(c.ends_at) < Date.now();
+            return (
+              <Tarjeta key={c.id} etiqueta={`Ver ranking de ${c.name}`} onClick={() => setAbiertoId(c.id)} apagada={terminado}>
+                <Text fw={700} truncate>
+                  {c.name}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Meta {c.target_value} ({etiquetaMetrica(c.metric)})
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {c.participant_count ?? 0} participantes
+                  {c.ends_at ? ` · ${terminado ? "terminó" : "termina"} ${new Date(c.ends_at).toLocaleDateString("es-GT")}` : ""}
+                </Text>
+                {c.points_reward ? (
+                  <Badge size="xs" mt={6} variant="light" color="flame">
+                    {c.points_reward} pts
+                  </Badge>
+                ) : null}
+              </Tarjeta>
+            );
+          })}
+        </SimpleGrid>
+      )}
+
+      <NuevoRetoModal clubId={clubId} opened={nuevo} onClose={() => setNuevo(false)} />
+      <Modal opened={!!abierto} onClose={() => setAbiertoId(null)} title={abierto?.name ?? ""} centered>
+        {abierto && <Ranking clubId={clubId} challengeId={abierto.id} />}
+      </Modal>
+    </GlassCard>
+  );
+}
+
+function Ranking({ clubId, challengeId }: { clubId: string; challengeId: string }) {
+  const board = useClubAdminChallengeLeaderboard(clubId, challengeId);
+  if (board.isError)
+    return <PageError message="No se pudo cargar el ranking del reto." onRetry={() => board.refetch()} />;
+  if (board.isLoading) return <PageLoading label="Cargando el ranking…" />;
+  const filas = board.data ?? [];
+  if (!filas.length)
+    return (
+      <Text c="dimmed" size="sm">
+        Aún nadie registra avances en este reto.
+      </Text>
+    );
+  return (
+    <Stack gap={4}>
+      {filas.map((row) => (
+        <Group key={row.id} justify="space-between" wrap="nowrap" gap="sm">
+          <Text size="sm" truncate>
+            <b>#{row.rank}</b> {row.athlete_name}
+          </Text>
+          <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+            {row.progress} · {label(CLUB_ENTRY_STATUS, row.status)}
+          </Text>
+        </Group>
+      ))}
+    </Stack>
+  );
+}
+
+function NuevoRetoModal({ clubId, opened, onClose }: { clubId: string; opened: boolean; onClose: () => void }) {
+  const createChallenge = useClubAdminCreateChallenge(clubId);
   const [challengeName, setChallengeName] = useState("");
   const [challengeMetric, setChallengeMetric] = useState<string>("distance_km");
   const [challengeTarget, setChallengeTarget] = useState("50");
   const [challengePoints, setChallengePoints] = useState<number | string>(30);
   const [challengeEnds, setChallengeEnds] = useState<Date | null>(null);
-
-  /**
-   * Revisa un avance. Al rechazar se pide motivo: el atleta lo lee en su app
-   * (`my_last_review.note`), y un rechazo mudo en un reto con puntos de por medio
-   * es la forma más rápida de perder a quien participa.
-   */
-  const onReview = (submissionId: string, action: "approve" | "reject") => {
-    let note: string | undefined;
-    if (action === "reject") {
-      const motivo = window.prompt("¿Por qué rechazas este avance? El atleta lo verá en su app.", "");
-      if (motivo === null) return; // canceló el diálogo
-      note = motivo.trim();
-    }
-    reviewSubmission.mutate(
-      { submissionId, action, note },
-      {
-        onSuccess: () =>
-          notifications.show({
-            color: "teal",
-            message: action === "approve" ? "Avance aprobado." : "Avance rechazado.",
-          }),
-        onError: (error) =>
-          notifications.show({ color: "red", message: errMsg(error, "No se pudo revisar el avance.") }),
-      },
-    );
-  };
 
   const onCreateChallenge = async (e: FormEvent) => {
     e.preventDefault();
@@ -361,159 +571,68 @@ function RetosPanel({ clubId }: { clubId: string }) {
         ends_at: ends.toISOString(),
         points_reward: Math.max(0, Math.floor(Number(challengePoints) || 0)),
       });
-      notifications.show({ color: "teal", message: `Reto "${challengeName}" creado.` });
+      ok(`Reto "${challengeName}" creado.`);
       setChallengeName("");
       setChallengeMetric("distance_km");
       setChallengeTarget("50");
       setChallengePoints(30);
       setChallengeEnds(null);
+      onClose();
     } catch (error) {
-      notifications.show({ color: "red", message: errMsg(error, "No se pudo crear el reto.") });
+      fail(error, "No se pudo crear el reto.");
     }
   };
 
   return (
-    <>
-      {/* La cola que manda en este panel: puntos de reto esperando decisión. */}
-      <GlassCard variant="core" sheen padding={24} delay={0.6} style={{ marginBottom: CARD_GAP }}>
-        <BigMetric
-          label="Revisiones pendientes"
-          value={pendingSubmissions.isLoading ? "—" : (pendingSubmissions.data ?? []).length}
-          size="sm"
-          hint="Avances que tus miembros subieron y aún no apruebas."
-          delay={1.0}
-        />
-        <div style={{ height: "calc(14 * var(--u))" }} />
-        {pendingSubmissions.isError ? (
-          <PageError
-            message="No se pudieron cargar los avances por revisar."
-            onRetry={() => pendingSubmissions.refetch()}
-          />
-        ) : pendingSubmissions.isLoading ? (
-          <PageLoading />
-        ) : !(pendingSubmissions.data ?? []).length ? (
-          <Text c="dimmed" size="sm">
-            No hay avances por revisar.
-          </Text>
-        ) : (
-          <Stack gap={0}>
-            {(pendingSubmissions.data ?? []).map((sub) => (
-              <Box key={sub.id} py="sm" style={rowBorder}>
-                <Text>
-                  <strong>{sub.athlete_name}</strong> · +{sub.delta} ({label(CLUB_SUBMISSION_SOURCE, sub.source)})
-                </Text>
-                <Text c="dimmed" size="sm">
-                  Reto: {nombreReto(sub.challenge, challenges.data)}
-                </Text>
-                <Group gap="xs" mt={6}>
-                  <Button
-                    size="xs"
-                    {...estadoRevision(reviewSubmission, sub.id, "approve")}
-                    onClick={() => onReview(sub.id, "approve")}
-                  >
-                    Aprobar
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="default"
-                    color="red"
-                    {...estadoRevision(reviewSubmission, sub.id, "reject")}
-                    onClick={() => onReview(sub.id, "reject")}
-                  >
-                    Rechazar
-                  </Button>
-                </Group>
-              </Box>
-            ))}
-          </Stack>
-        )}
-      </GlassCard>
-
-      <GlassCard padding={24} delay={0.72}>
-        <SectionLabel as="h2" mb={12}>Retos</SectionLabel>
-        <Stack gap="sm" maw={460} mb="lg" component="form" onSubmit={onCreateChallenge}>
-          <TextInput label="Nombre del reto" value={challengeName} onChange={(e) => setChallengeName(e.currentTarget.value)} required />
-          <Select
-            label="Medida"
-            data={METRICAS_RETO.map((m) => ({ value: m.value, label: m.label }))}
-            value={challengeMetric}
-            onChange={(v) => v && setChallengeMetric(v)}
-            allowDeselect={false}
-            description={
-              challengeMetric === "activity_count"
-                ? "Cada asistencia que confirmes en una actividad del club suma 1."
-                : "Cada atleta sube los kilómetros que hizo. Los avances pequeños se suman solos; los grandes y el que completa la meta esperan tu revisión."
-            }
-          />
+    <Modal opened={opened} onClose={onClose} title="Nuevo reto" centered>
+      <form onSubmit={onCreateChallenge}>
+        <Stack gap="sm">
           <TextInput
-            label={challengeMetric === "activity_count" ? "Meta (asistencias)" : "Meta (km)"}
-            value={challengeTarget}
-            onChange={(e) => setChallengeTarget(e.currentTarget.value)}
+            label="Nombre del reto"
+            value={challengeName}
+            onChange={(e) => setChallengeName(e.currentTarget.value)}
             required
+            data-autofocus
           />
-          <NumberInput
-            label="Puntos al completarlo"
-            value={challengePoints}
-            onChange={setChallengePoints}
-            min={0}
-            allowDecimal={false}
-            allowNegative={false}
-          />
-          <DateTimePicker label="Termina (opcional)" value={challengeEnds} onChange={setChallengeEnds} valueFormat="YYYY-MM-DD HH:mm" />
-          <Button type="submit" loading={createChallenge.isPending}>
-            Crear reto
-          </Button>
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+            <Select
+              label="Medida"
+              data={METRICAS_RETO.map((m) => ({ value: m.value, label: m.label }))}
+              value={challengeMetric}
+              onChange={(v) => v && setChallengeMetric(v)}
+              allowDeselect={false}
+            />
+            <TextInput
+              label={challengeMetric === "activity_count" ? "Meta (asistencias)" : "Meta (km)"}
+              value={challengeTarget}
+              onChange={(e) => setChallengeTarget(e.currentTarget.value)}
+              inputMode="decimal"
+              required
+            />
+            <NumberInput
+              label="Puntos al completarlo"
+              value={challengePoints}
+              onChange={setChallengePoints}
+              min={0}
+              allowDecimal={false}
+              allowNegative={false}
+            />
+            <DateTimePicker
+              label="Termina (opcional)"
+              value={challengeEnds}
+              onChange={setChallengeEnds}
+              valueFormat="YYYY-MM-DD HH:mm"
+              clearable
+            />
+          </SimpleGrid>
+          <Group justify="flex-end">
+            <Button type="submit" loading={createChallenge.isPending}>
+              Crear reto
+            </Button>
+          </Group>
         </Stack>
-        {challenges.isError ? (
-          <PageError message="No se pudieron cargar los retos." onRetry={() => challenges.refetch()} />
-        ) : challenges.isLoading ? (
-          <PageLoading />
-        ) : !(challenges.data ?? []).length ? (
-          <EmptyState title="Sin retos" description="Crea el primer reto del club." />
-        ) : (
-          <Stack gap={0}>
-            {(challenges.data ?? []).map((challenge) => (
-              <Box key={challenge.id} py="sm" style={rowBorder}>
-                <Text fw={600}>{challenge.name}</Text>
-                <Text c="dimmed" size="sm">
-                  Meta {challenge.target_value} ({etiquetaMetrica(challenge.metric)}) · {challenge.participant_count ?? 0} participantes
-                </Text>
-                <Button
-                  variant="default"
-                  size="xs"
-                  mt={6}
-                  onClick={() => setExpandedChallenge(expandedChallenge === challenge.id ? null : challenge.id)}
-                >
-                  {expandedChallenge === challenge.id ? "Ocultar ranking" : "Ver ranking"}
-                </Button>
-                {expandedChallenge === challenge.id && (
-                  <Stack gap={4} mt="sm">
-                    {challengeBoard.isError ? (
-                      <PageError
-                        message="No se pudo cargar el ranking del reto."
-                        onRetry={() => challengeBoard.refetch()}
-                      />
-                    ) : challengeBoard.isLoading ? (
-                      <PageLoading label="Cargando el ranking…" />
-                    ) : !(challengeBoard.data ?? []).length ? (
-                      <Text c="dimmed" size="sm">
-                        Aún nadie registra avances en este reto.
-                      </Text>
-                    ) : (
-                      (challengeBoard.data ?? []).map((row) => (
-                        <Text key={row.id} c="dimmed" size="sm">
-                          #{row.rank} {row.athlete_name} · {row.progress} · {label(CLUB_ENTRY_STATUS, row.status)}
-                        </Text>
-                      ))
-                    )}
-                  </Stack>
-                )}
-              </Box>
-            ))}
-          </Stack>
-        )}
-      </GlassCard>
-    </>
+      </form>
+    </Modal>
   );
 }
 
@@ -522,9 +641,100 @@ function RetosPanel({ clubId }: { clubId: string }) {
 // ---------------------------------------------------------------------------
 function AnunciosPanel({ clubId }: { clubId: string }) {
   const anuncios = useClubAdminAnnouncements(clubId);
-  const crear = useClubAdminCreateAnnouncement(clubId);
   const borrar = useClubAdminDeleteAnnouncement(clubId);
+  const [nuevo, setNuevo] = useState(false);
+  const [abiertoId, setAbiertoId] = useState<string | null>(null);
 
+  const lista = anuncios.data ?? [];
+  const abierto = lista.find((a) => a.id === abiertoId) ?? null;
+
+  const onBorrar = (id: string, titulo: string) => {
+    if (!window.confirm(`¿Borrar el anuncio "${titulo}"? Desaparece del feed de tus miembros.`)) return;
+    borrar.mutate(id, {
+      onSuccess: () => {
+        ok("Anuncio borrado.");
+        setAbiertoId(null);
+      },
+      onError: (error) => fail(error, "No se pudo borrar el anuncio."),
+    });
+  };
+
+  return (
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado titulo="Anuncios">
+        <Button onClick={() => setNuevo(true)}>Nuevo anuncio</Button>
+      </Encabezado>
+      {anuncios.isError ? (
+        <PageError message="No se pudieron cargar los anuncios del club." onRetry={() => anuncios.refetch()} />
+      ) : anuncios.isLoading ? (
+        <Text c="dimmed" size="sm">
+          Cargando…
+        </Text>
+      ) : !lista.length ? (
+        <Text c="dimmed" size="sm">
+          Publica el primero para avisarle algo a todo el club.
+        </Text>
+      ) : (
+        <Stack gap={6}>
+          {lista.map((a) => (
+            <Tarjeta key={a.id} etiqueta={`Abrir anuncio ${a.title}`} onClick={() => setAbiertoId(a.id)}>
+              <Group wrap="nowrap" gap="sm" align="flex-start">
+                {a.photo && (
+                  <img
+                    src={a.photo}
+                    alt=""
+                    style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, flex: "0 0 auto" }}
+                  />
+                )}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <Text fw={600} truncate>
+                    {a.title}
+                  </Text>
+                  <Text size="sm" c="dimmed" lineClamp={2}>
+                    {a.body}
+                  </Text>
+                  <Text size="xs" c="dimmed" mt={2}>
+                    {new Date(a.created_at).toLocaleString("es-GT")}
+                  </Text>
+                </div>
+              </Group>
+            </Tarjeta>
+          ))}
+        </Stack>
+      )}
+
+      <NuevoAnuncioModal clubId={clubId} opened={nuevo} onClose={() => setNuevo(false)} />
+      <Modal opened={!!abierto} onClose={() => setAbiertoId(null)} title={abierto?.title ?? ""} centered>
+        {abierto && (
+          <Stack gap="sm">
+            <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+              {abierto.body}
+            </Text>
+            {abierto.photo && (
+              <Image src={abierto.photo} alt={abierto.title} radius="md" style={{ border: "1px solid var(--a-line)" }} />
+            )}
+            <Text size="xs" c="dimmed">
+              {new Date(abierto.created_at).toLocaleString("es-GT")}
+            </Text>
+            <Group justify="flex-end">
+              <Button
+                color="red"
+                variant="light"
+                loading={borrar.isPending && borrar.variables === abierto.id}
+                onClick={() => onBorrar(abierto.id, abierto.title)}
+              >
+                Borrar
+              </Button>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
+    </GlassCard>
+  );
+}
+
+function NuevoAnuncioModal({ clubId, opened, onClose }: { clubId: string; opened: boolean; onClose: () => void }) {
+  const crear = useClubAdminCreateAnnouncement(clubId);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
@@ -533,124 +743,54 @@ function AnunciosPanel({ clubId }: { clubId: string }) {
     e.preventDefault();
     try {
       await crear.mutateAsync({ title: title.trim(), body: body.trim(), photo });
-      notifications.show({
-        color: "teal",
-        message: "Anuncio publicado. Tus miembros ya lo tienen en su app.",
-      });
+      ok("Anuncio publicado. Tus miembros ya lo tienen en su app.");
       setTitle("");
       setBody("");
       setPhoto(null);
+      onClose();
     } catch (error) {
-      notifications.show({ color: "red", message: errMsg(error, "No se pudo publicar el anuncio.") });
+      fail(error, "No se pudo publicar el anuncio.");
     }
   };
 
-  const onBorrar = (id: string, titulo: string) => {
-    if (!window.confirm(`¿Borrar el anuncio "${titulo}"? Desaparece del feed de tus miembros.`)) return;
-    borrar.mutate(id, {
-      onSuccess: () => notifications.show({ color: "teal", message: "Anuncio borrado." }),
-      onError: (error) =>
-        notifications.show({ color: "red", message: errMsg(error, "No se pudo borrar el anuncio.") }),
-    });
-  };
-
   return (
-    <>
-      <GlassCard padding={24} delay={0.6} style={{ marginBottom: CARD_GAP }}>
-        <SectionLabel as="h2" mb={8}>Nuevo anuncio</SectionLabel>
-        <Text c="dimmed" size="sm" mb="md">
-          Se publica en el feed del club y les llega como notificación a sus miembros.
-        </Text>
-        <form onSubmit={onPublicar}>
-          <Stack gap="sm" maw={520}>
-            <TextInput
-              label="Título"
-              placeholder="Rodada del domingo"
-              value={title}
-              onChange={(e) => setTitle(e.currentTarget.value)}
-              maxLength={120}
-              required
-            />
-            <Textarea
-              label="Mensaje"
-              placeholder="Salimos a las 6:00 del parqueo del gym…"
-              value={body}
-              onChange={(e) => setBody(e.currentTarget.value)}
-              autosize
-              minRows={3}
-              required
-            />
-            <FileInput
-              label="Foto (opcional)"
-              placeholder="Subir imagen"
-              accept="image/*"
-              value={photo}
-              onChange={setPhoto}
-              clearable
-            />
-            <Group justify="flex-end">
-              <Button type="submit" loading={crear.isPending} disabled={!title.trim() || !body.trim()}>
-                Publicar anuncio
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </GlassCard>
-
-      <GlassCard padding={24} delay={0.72}>
-        <SectionLabel as="h2" mb={12}>Publicados</SectionLabel>
-        {anuncios.isError ? (
-          <PageError
-            message="No se pudieron cargar los anuncios del club."
-            onRetry={() => anuncios.refetch()}
+    <Modal opened={opened} onClose={onClose} title="Nuevo anuncio" centered>
+      <form onSubmit={onPublicar}>
+        <Stack gap="sm">
+          <TextInput
+            label="Título"
+            placeholder="Rodada del domingo"
+            value={title}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+            maxLength={120}
+            required
+            data-autofocus
           />
-        ) : anuncios.isLoading ? (
-          <PageLoading />
-        ) : !(anuncios.data ?? []).length ? (
-          <EmptyState
-            title="Sin anuncios"
-            description="Publica el primero para avisarle algo a todo el club."
+          <Textarea
+            label="Mensaje"
+            placeholder="Salimos a las 6:00 del parqueo del gym…"
+            value={body}
+            onChange={(e) => setBody(e.currentTarget.value)}
+            autosize
+            minRows={3}
+            required
           />
-        ) : (
-          <Stack gap={0}>
-            {(anuncios.data ?? []).map((a) => (
-              <Box key={a.id} py="sm" style={rowBorder}>
-                <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
-                  <div style={{ minWidth: 0 }}>
-                    <Text fw={600}>{a.title}</Text>
-                    <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
-                      {a.body}
-                    </Text>
-                    <Text c="dimmed" size="xs" mt={4}>
-                      {new Date(a.created_at).toLocaleString("es-GT")}
-                    </Text>
-                    {a.photo && (
-                      <Image
-                        src={a.photo}
-                        alt={a.title}
-                        radius="lg"
-                        mt="xs"
-                        maw={240}
-                        style={{ border: "1px solid var(--a-line)" }}
-                      />
-                    )}
-                  </div>
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    color="red"
-                    loading={borrar.isPending && borrar.variables === a.id}
-                    onClick={() => onBorrar(a.id, a.title)}
-                  >
-                    Borrar
-                  </Button>
-                </Group>
-              </Box>
-            ))}
-          </Stack>
-        )}
-      </GlassCard>
-    </>
+          <FileInput
+            label="Foto (opcional)"
+            placeholder="Subir imagen"
+            accept="image/*"
+            value={photo}
+            onChange={setPhoto}
+            clearable
+          />
+          <Group justify="flex-end">
+            <Button type="submit" loading={crear.isPending} disabled={!title.trim() || !body.trim()}>
+              Publicar anuncio
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </Modal>
   );
 }
 
@@ -680,74 +820,77 @@ function PerfilPanel({ clubId }: { clubId: string }) {
         photo,
       });
       setPhoto(null);
-      notifications.show({ color: "teal", message: "Ficha del club actualizada." });
+      ok("Ficha del club actualizada.");
     } catch (error) {
-      notifications.show({ color: "red", message: errMsg(error, "No se pudo guardar la ficha.") });
+      fail(error, "No se pudo guardar la ficha.");
     }
   };
 
   if (perfil.isError)
-    return (
-      <PageError message="No se pudo cargar la ficha del club." onRetry={() => perfil.refetch()} />
-    );
+    return <PageError message="No se pudo cargar la ficha del club." onRetry={() => perfil.refetch()} />;
   if (perfil.isLoading) return <PageLoading label="Cargando la ficha…" />;
 
   return (
-    <GlassCard padding={24} delay={0.6}>
-      <SectionLabel as="h2" mb={8}>Ficha del club</SectionLabel>
-      <Text c="dimmed" size="sm" mb="md">
-        Es lo que ven los atletas al encontrar tu club en la app. Si el club es público y su estado
-        lo decide el gimnasio, eso no se edita desde aquí.
-      </Text>
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado titulo="Ficha del club" />
       <form onSubmit={onGuardar}>
-        <Stack gap="sm" maw={520}>
-          <TextInput
-            label="Nombre"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
-            required
-          />
-          <TextInput
-            label="Tipo"
-            placeholder="running, cycling, rowing…"
-            value={form.club_type}
-            onChange={(e) => setForm({ ...form, club_type: e.currentTarget.value })}
-          />
-          <Textarea
-            label="Descripción"
-            placeholder="Quiénes somos, cuándo entrenamos, a quién buscamos…"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
-            autosize
-            minRows={3}
-          />
-          {perfil.data?.photo && !photo && (
-            <div>
-              <SectionLabel mb={6}>Foto actual</SectionLabel>
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
+          <Stack gap="sm">
+            <TextInput
+              label="Nombre"
+              value={form.name}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setForm((f) => ({ ...f, name: valor }));
+              }}
+              required
+            />
+            <TextInput
+              label="Tipo"
+              placeholder="running, cycling, rowing…"
+              value={form.club_type}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setForm((f) => ({ ...f, club_type: valor }));
+              }}
+            />
+            <Textarea
+              label="Descripción"
+              placeholder="Quiénes somos, cuándo entrenamos, a quién buscamos…"
+              value={form.description}
+              onChange={(e) => {
+                const valor = e.currentTarget.value;
+                setForm((f) => ({ ...f, description: valor }));
+              }}
+              autosize
+              minRows={3}
+            />
+          </Stack>
+          <Stack gap="sm">
+            {perfil.data?.photo && !photo && (
               <Image
                 src={perfil.data.photo}
                 alt={perfil.data.name}
-                radius="lg"
+                radius="md"
                 maw={240}
                 style={{ border: "1px solid var(--a-line)" }}
               />
-            </div>
-          )}
-          <FileInput
-            label="Foto del club"
-            description="Reemplaza la actual. Formato cuadrado se ve mejor."
-            placeholder="Subir imagen"
-            accept="image/*"
-            value={photo}
-            onChange={setPhoto}
-            clearable
-          />
-          <Group justify="flex-end">
-            <Button type="submit" loading={guardar.isPending} disabled={!form.name.trim()}>
-              Guardar ficha
-            </Button>
-          </Group>
-        </Stack>
+            )}
+            <FileInput
+              label="Foto del club"
+              placeholder="Subir imagen"
+              accept="image/*"
+              value={photo}
+              onChange={setPhoto}
+              clearable
+            />
+          </Stack>
+        </SimpleGrid>
+        <Group justify="flex-end" mt="md">
+          <Button type="submit" loading={guardar.isPending} disabled={!form.name.trim()}>
+            Guardar ficha
+          </Button>
+        </Group>
       </form>
     </GlassCard>
   );

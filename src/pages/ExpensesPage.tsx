@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   FileInput,
+  Grid,
   Group,
   Modal,
   Select,
@@ -15,7 +16,7 @@ import {
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { DataTable, type DataTableSortStatus } from "mantine-datatable";
+import { Paperclip, Search } from "lucide-react";
 import {
   useBranches,
   useCorrectErpExpense,
@@ -25,29 +26,26 @@ import {
   useVoidErpExpense,
 } from "../api/hooks";
 import type { ErpExpense } from "../api/types";
-import { DetailSheet } from "../components/DetailSheet";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
-import { RowActions } from "../components/RowActions";
-import { Money, PageHeader, SectionLabel } from "../components/ui";
-import { BigMetric, GlassCard } from "../components/aurora";
+import { Encabezado, Tarjeta } from "../components/Tarjeta";
+import { Money, PageHeader } from "../components/ui";
+import { GlassCard } from "../components/aurora";
 import { errMsg } from "../lib/errors";
 import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
-import { sortRecords } from "../lib/sortRecords";
-
-const CATEGORIES = [
-  { value: "rent", label: "Renta" },
-  { value: "utilities", label: "Servicios" },
-  { value: "equipment", label: "Equipo" },
-  { value: "marketing", label: "Marketing" },
-  { value: "payroll", label: "Nómina" },
-  { value: "inventory", label: "Compra de inventario" },
-  { value: "other", label: "Otro" },
-];
-
-const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
-  CATEGORIES.map((c) => [c.value, c.label]),
-);
+import {
+  CATEGORIAS_GASTO,
+  categoriaGasto,
+  faltaComprobante,
+  fechaCorta,
+  filtrarGastos,
+  mesDe,
+  ordenarGastos,
+  periodosDisponibles,
+  tieneComprobante,
+  TODO,
+  type OrdenGastos,
+} from "./gastos/gastos";
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : "");
 
@@ -82,11 +80,25 @@ export function mensajeCorreccion(monto: ErpExpense["amount"]) {
   return `Gasto corregido. Se anuló el original y se registró uno nuevo por ${fmtQ(monto, { decimals: 2 })}.`;
 }
 
+const ESTADOS = [
+  { value: "vigentes", label: "Vigentes" },
+  { value: "anulados", label: "Anulados" },
+  { value: "todos", label: "Todos" },
+];
+
+const ORDENES: { value: OrdenGastos; label: string }[] = [
+  { value: "recientes", label: "Más recientes" },
+  { value: "monto", label: "Mayor monto" },
+];
+
+const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
+
 export function ExpensesPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
+  const hoy = useMemo(() => new Date(), []);
 
-  // Filtros del listado (los resuelve el backend, no el cliente).
+  // Filtros del servidor (estado y categoría) y del panel (mes, texto, orden).
   const [estado, setEstado] = useState<string | null>("vigentes");
   const [categoria, setCategoria] = useState<string | null>("");
   const voided = estado === "anulados" ? true : estado === "vigentes" ? false : undefined;
@@ -100,18 +112,19 @@ export function ExpensesPage() {
   const correctExpense = useCorrectErpExpense(gymId);
   const uploadProof = useUploadExpenseProof(gymId);
 
+  const [periodo, setPeriodo] = useState<string>(() => mesDe(new Date()));
+  const [search, setSearch] = useState("");
+  const [orden, setOrden] = useState<OrdenGastos>("recientes");
+  const [soloSinComprobante, setSoloSinComprobante] = useState(false);
+
   // Alta.
+  const [nuevoAbierto, setNuevoAbierto] = useState(false);
   const [category, setCategory] = useState<string | null>("rent");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState<Date | null>(new Date());
   const [branch, setBranch] = useState<string | null>("");
   const [proof, setProof] = useState<File | null>(null);
-  const [search, setSearch] = useState("");
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ErpExpense>>({
-    columnAccessor: "incurred_on",
-    direction: "desc",
-  });
 
   // Ficha, anulación, corrección y comprobante.
   const [ficha, setFicha] = useState<ErpExpense | null>(null);
@@ -133,6 +146,7 @@ export function ExpensesPage() {
     () => (branches.data ?? []).map((b) => ({ value: b.id, label: b.name })),
     [branches.data],
   );
+  const nombreSede = (id: string | null) => (id ? branchData.find((b) => b.value === id)?.label : undefined);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -148,6 +162,7 @@ export function ExpensesPage() {
       setAmount("");
       setDescription("");
       setProof(null);
+      setNuevoAbierto(false);
       notifications.show({ color: "teal", message: "Gasto registrado." });
     } catch (error) {
       notifications.show({ color: "red", message: errMsg(error, "No se pudo registrar el gasto.") });
@@ -155,6 +170,7 @@ export function ExpensesPage() {
   };
 
   const abrirCorreccion = (e: ErpExpense) => {
+    setFicha(null);
     setCorrigiendo(e);
     setCorreccionProof(null);
     setCorreccion({
@@ -164,6 +180,18 @@ export function ExpensesPage() {
       incurred_on: e.incurred_on ? new Date(`${e.incurred_on}T00:00:00`) : null,
       branch: e.branch ?? "",
     });
+  };
+
+  const abrirAnulacion = (e: ErpExpense) => {
+    setFicha(null);
+    setAnulando(e);
+    setMotivo("");
+  };
+
+  const abrirAdjunto = (e: ErpExpense) => {
+    setFicha(null);
+    setAdjuntando(e);
+    setAdjunto(null);
   };
 
   const confirmarAnulacion = async () => {
@@ -218,259 +246,247 @@ export function ExpensesPage() {
 
   if (!gymId) return <NoGymAssigned />;
 
-  const filas = sortRecords(
-    (expenses.data ?? []).filter((e) => {
-      const term = search.trim().toLowerCase();
-      return (
-        !term ||
-        (e.description ?? "").toLowerCase().includes(term) ||
-        (CATEGORY_LABEL[e.category] ?? e.category).toLowerCase().includes(term)
-      );
-    }),
-    sortStatus,
+  const todos = expenses.data ?? [];
+  const periodos = periodosDisponibles(todos, hoy, periodo);
+  const etiquetaPeriodo = periodos.find((p) => p.value === periodo)?.label ?? periodo;
+  const delPeriodo = filtrarGastos(todos, { periodo, texto: search });
+  // Lo pendiente: gastos vigentes sin factura ni recibo. El contador filtra al tocarlo
+  // y se apaga solo cuando ya no queda ninguno.
+  const sinComprobante = delPeriodo.filter(faltaComprobante).length;
+  const soloPendientes = soloSinComprobante && sinComprobante > 0;
+  const filas = ordenarGastos(
+    soloPendientes ? delPeriodo.filter(faltaComprobante) : delPeriodo,
+    orden,
   );
 
-  // Suma de lo que el operador tiene en pantalla (respeta los filtros de arriba),
-  // pero solo de los gastos vigentes. Es un dato de lectura: no toca el listado.
+  // Suma de lo que se ve, pero solo de los vigentes: los anulados y corregidos no son costo.
   const suma = sumarGastosVigentes(filas);
-  const plural = (n: number) => (n === 1 ? "" : "s");
-  const hintSuma =
-    `Solo cuenta gastos vigentes: ${suma.vigentes} gasto${plural(suma.vigentes)} con los filtros aplicados.` +
-    (suma.fuera
-      ? ` No suma ${suma.fuera} anulado${plural(suma.fuera)} o corregido${plural(suma.fuera)}.`
-      : "");
 
   return (
     <div>
-      <PageHeader
-        kicker="Negocio · ERP"
-        title="Gastos"
-        subtitle="Registra los costos del gym para ver tu utilidad real. Un gasto nunca se borra: se anula o se corrige."
-      />
+      <PageHeader kicker="Negocio · ERP" title="Gastos" />
 
       {expenses.isError && <PageError onRetry={() => expenses.refetch()} />}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "calc(18 * var(--u))" }}>
-        {/* La cifra que manda: lo que suman los gastos que se están viendo. */}
-        <GlassCard variant="core" sheen padding={24} delay={0.6}>
-          <BigMetric
-            label="Suma de los gastos listados"
-            value={fmtQ(suma.total, { decimals: 2 })}
-            fz="clamp(30px, calc(50 * var(--u)), 60px)"
-            hint={hintSuma}
-            delay={1.0}
+      <GlassCard padding={18} delay={0.6}>
+        <Encabezado
+          titulo={etiquetaPeriodo}
+          avisos={
+            sinComprobante > 0 && (
+              <Button
+                size="compact-sm"
+                color="yellow"
+                variant={soloPendientes ? "filled" : "light"}
+                aria-pressed={soloPendientes}
+                onClick={() => setSoloSinComprobante(!soloPendientes)}
+              >
+                {sinComprobante} sin comprobante
+              </Button>
+            )
+          }
+        >
+          <Select
+            aria-label="Periodo"
+            data={periodos}
+            value={periodo}
+            onChange={(v) => setPeriodo(v ?? mesDe(new Date()))}
+            allowDeselect={false}
+            w={{ base: "100%", xs: 200 }}
           />
-        </GlassCard>
+          <Button onClick={() => setNuevoAbierto(true)}>Nuevo gasto</Button>
+        </Encabezado>
 
-        <GlassCard padding={20} delay={0.72}>
-          <form onSubmit={onSubmit}>
-            <SectionLabel as="h2" mb={12}>Registrar gasto</SectionLabel>
-            <Stack gap="md">
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
-                <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIES} />
-                <TextInput
-                  label="Monto (Q)"
-                  value={amount}
-                  onChange={(e) => setAmount(e.currentTarget.value)}
-                />
-                <TextInput
-                  label="Descripción"
-                  value={description}
-                  onChange={(e) => setDescription(e.currentTarget.value)}
-                />
-                <DateInput label="Fecha" value={date} onChange={setDate} valueFormat="YYYY-MM-DD" />
-              </SimpleGrid>
-              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-                <FileInput
-                  label="Comprobante (factura o recibo)"
-                  description="Opcional. También se puede adjuntar después."
-                  placeholder="Subir archivo"
-                  accept="image/*,application/pdf"
-                  value={proof}
-                  onChange={setProof}
-                  clearable
-                />
-                {branchData.length > 0 && (
-                  <Select
-                    label="Sede"
-                    placeholder="Todas"
-                    value={branch}
-                    onChange={setBranch}
-                    data={branchData}
-                    clearable
-                  />
-                )}
-              </SimpleGrid>
-              <Group justify="flex-end">
-                <Button type="submit" disabled={!amount} loading={createExpense.isPending}>
-                  Registrar
-                </Button>
-              </Group>
-            </Stack>
-          </form>
-        </GlassCard>
-
-        <GlassCard padding={16} delay={0.84}>
-          <Group align="flex-end" gap="md" wrap="wrap">
+        <Grid gutter="xs" mb="md">
+          <Grid.Col span={{ base: 12, sm: 6, lg: 6 }}>
             <TextInput
-              label="Buscar"
-              placeholder="Descripción o categoría…"
+              aria-label="Buscar"
+              placeholder="Buscar descripción o categoría"
+              leftSection={<Search size={16} />}
               value={search}
               onChange={(e) => setSearch(e.currentTarget.value)}
-              w={{ base: "100%", sm: 280 }}
             />
+          </Grid.Col>
+          <Grid.Col span={{ base: 4, sm: 2 }}>
             <Select
-              label="Estado"
-              value={estado}
-              onChange={setEstado}
-              w={{ base: "100%", sm: 180 }}
-              data={[
-                { value: "vigentes", label: "Vigentes" },
-                { value: "anulados", label: "Anulados" },
-                { value: "todos", label: "Todos" },
-              ]}
-            />
-            <Select
-              label="Categoría"
-              placeholder="Todas"
-              value={categoria}
+              aria-label="Categoría"
+              placeholder="Categoría"
+              value={categoria || null}
               onChange={setCategoria}
               clearable
-              w={{ base: "100%", sm: 220 }}
-              data={CATEGORIES}
+              data={CATEGORIAS_GASTO}
             />
-          </Group>
-        </GlassCard>
+          </Grid.Col>
+          <Grid.Col span={{ base: 4, sm: 2 }}>
+            <Select
+              aria-label="Estado"
+              value={estado}
+              onChange={setEstado}
+              allowDeselect={false}
+              data={ESTADOS}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 4, sm: 2 }}>
+            <Select
+              aria-label="Orden"
+              value={orden}
+              onChange={(v) => setOrden((v as OrdenGastos) ?? "recientes")}
+              allowDeselect={false}
+              data={ORDENES}
+            />
+          </Grid.Col>
+        </Grid>
 
-        <div>
-          <SectionLabel as="h2" mb={10}>Movimientos</SectionLabel>
-          <GlassCard padding={0} delay={0.96} style={{ overflow: "hidden" }}>
-            <DataTable<ErpExpense>
-              minHeight={160}
-              highlightOnHover
-              striped
-              idAccessor="id"
-              records={filas}
-              fetching={expenses.isLoading}
-              noRecordsText="Registra los costos del gym para ver tu utilidad real."
-              sortStatus={sortStatus}
-              onSortStatusChange={setSortStatus}
-              rowStyle={(e) => (e.is_void ? { opacity: 0.55 } : undefined)}
-              columns={[
-                { accessor: "incurred_on", title: "Fecha", sortable: true },
-                {
-                  accessor: "category",
-                  title: "Categoría",
-                  sortable: true,
-                  render: (e) => CATEGORY_LABEL[e.category] ?? e.category,
-                },
-                {
-                  accessor: "description",
-                  title: "Descripción",
-                  sortable: true,
-                  render: (e) => (
-                    <div>
-                      <Text size="sm">{e.description || "—"}</Text>
-                      {e.replaces && (
-                        <Text c="dimmed" size="xs">
-                          Corrige a un gasto anterior
+        <Group justify="space-between" align="baseline" mb="sm" wrap="wrap" gap="xs">
+          <Text size="sm" c="dimmed">
+            {plural(suma.vigentes, "gasto", "gastos")}
+            {suma.fuera
+              ? ` · ${plural(suma.fuera, "anulado o corregido", "anulados o corregidos")} no suman`
+              : ""}
+          </Text>
+          <Text fz={24} fw={700} className="a-tabular" aria-label={`Total ${fmtQ(suma.total, { decimals: 2 })}`}>
+            {fmtQ(suma.total, { decimals: 2 })}
+          </Text>
+        </Group>
+
+        {expenses.isLoading ? (
+          <Text c="dimmed" size="sm">
+            Cargando…
+          </Text>
+        ) : filas.length === 0 ? (
+          <Text c="dimmed" size="sm" py="md">
+            {periodo === TODO ? "Sin gastos con estos filtros." : `Sin gastos en ${etiquetaPeriodo.toLowerCase()}.`}
+          </Text>
+        ) : (
+          <Stack gap={6}>
+            {filas.map((e) => {
+              const cat = categoriaGasto(e.category);
+              return (
+                <Tarjeta
+                  key={e.id}
+                  etiqueta={`${e.description || cat}, ${fmtQ(e.amount, { decimals: 2 })}, ${e.incurred_on}`}
+                  onClick={() => setFicha(e)}
+                  apagada={e.is_void}
+                >
+                  <Group gap="sm" wrap="nowrap">
+                    <Text size="sm" c="dimmed" w={62} className="a-tabular" style={{ flex: "0 0 auto" }}>
+                      {fechaCorta(e.incurred_on, hoy)}
+                    </Text>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Text size="sm" fw={600} truncate>
+                        {e.description || cat}
+                      </Text>
+                      {(e.description || e.replaces) && (
+                        <Text size="xs" c="dimmed" truncate>
+                          {[e.description ? cat : null, e.replaces ? "Corrige a un gasto anterior" : null]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </Text>
                       )}
                     </div>
-                  ),
-                },
-                {
-                  accessor: "amount",
-                  title: "Monto",
-                  sortable: true,
-                  textAlign: "right",
-                  render: (e) => <Money value={e.amount} decimals={2} block />,
-                },
-                {
-                  accessor: "proof_file",
-                  title: "Comprobante",
-                  render: (e) =>
-                    e.proof_file || e.proof_url ? (
-                      <Anchor href={e.proof_file || e.proof_url} target="_blank" size="sm">
-                        Ver
-                      </Anchor>
-                    ) : (
-                      <Text c="dimmed" size="sm">
-                        —
-                      </Text>
-                    ),
-                },
-                {
-                  accessor: "is_void",
-                  title: "Estado",
-                  sortable: true,
-                  render: (e) =>
-                    e.is_void ? (
-                      <Badge color="gray" variant="light">
+                    {e.is_void && (
+                      <Badge size="xs" color="gray" variant="light">
                         {e.replaced_by ? "Corregido" : "Anulado"}
                       </Badge>
-                    ) : (
-                      <Badge color="teal" variant="light">
-                        Vigente
-                      </Badge>
-                    ),
-                },
-                {
-                  accessor: "actions",
-                  title: "Acciones",
-                  render: (e) => (
-                    <RowActions
-                      actions={[
-                        { label: "Ver", variant: "subtle", onClick: () => setFicha(e) },
-                        !e.is_void && {
-                          label: "Corregir",
-                          onClick: () => abrirCorreccion(e),
-                        },
-                        !e.is_void && {
-                          label: "Comprobante",
-                          variant: "subtle" as const,
-                          onClick: () => {
-                            setAdjuntando(e);
-                            setAdjunto(null);
-                          },
-                        },
-                        !e.is_void && {
-                          label: "Anular",
-                          color: "red",
-                          variant: "subtle" as const,
-                          onClick: () => {
-                            setAnulando(e);
-                            setMotivo("");
-                          },
-                        },
-                      ]}
-                    />
-                  ),
-                },
-              ]}
-            />
-          </GlassCard>
-        </div>
-      </div>
+                    )}
+                    {tieneComprobante(e) && (
+                      <Paperclip size={14} aria-label="Con comprobante" style={{ flex: "0 0 auto", opacity: 0.6 }} />
+                    )}
+                    <Text size="sm" fw={600} ta="right" className="a-tabular" style={{ flex: "0 0 auto" }}>
+                      <Money value={e.amount} decimals={2} />
+                    </Text>
+                  </Group>
+                </Tarjeta>
+              );
+            })}
+          </Stack>
+        )}
+      </GlassCard>
 
-      {/* Ficha del gasto: lo único que explica un monto raro en el P&L. */}
-      <DetailSheet opened={!!ficha} onClose={() => setFicha(null)} title="Gasto">
+      {/* Nuevo gasto. */}
+      <Modal opened={nuevoAbierto} onClose={() => setNuevoAbierto(false)} title="Nuevo gasto" centered>
+        <form onSubmit={onSubmit}>
+          <Stack gap="md">
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+              <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIAS_GASTO} allowDeselect={false} />
+              <TextInput
+                label="Monto"
+                leftSection="Q"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.currentTarget.value)}
+                data-autofocus
+              />
+            </SimpleGrid>
+            <TextInput
+              label="Descripción"
+              value={description}
+              onChange={(e) => setDescription(e.currentTarget.value)}
+            />
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+              <DateInput
+                label="Fecha"
+                value={date}
+                onChange={setDate}
+                valueFormat="YYYY-MM-DD"
+                popoverProps={{ withinPortal: true }}
+              />
+              {branchData.length > 0 && (
+                <Select
+                  label="Sede"
+                  placeholder="Todas"
+                  value={branch}
+                  onChange={setBranch}
+                  data={branchData}
+                  clearable
+                />
+              )}
+            </SimpleGrid>
+            <FileInput
+              label="Comprobante"
+              placeholder="Foto o PDF"
+              accept="image/*,application/pdf"
+              value={proof}
+              onChange={setProof}
+              clearable
+            />
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setNuevoAbierto(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={!amount} loading={createExpense.isPending}>
+                Registrar
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Modal>
+
+      {/* El gasto que se tocó: su detalle y lo que se le puede hacer. */}
+      <Modal
+        opened={!!ficha}
+        onClose={() => setFicha(null)}
+        title={ficha ? categoriaGasto(ficha.category) : "Gasto"}
+        centered
+      >
         {ficha && (
           <Stack gap="sm">
-            <Group justify="space-between">
+            <Group justify="space-between" align="baseline">
               <Text c="dimmed" size="sm">
-                {CATEGORY_LABEL[ficha.category] ?? ficha.category} · {ficha.incurred_on}
+                {new Date(`${ficha.incurred_on}T00:00:00`).toLocaleDateString("es-GT", { dateStyle: "long" })}
+                {nombreSede(ficha.branch) ? ` · ${nombreSede(ficha.branch)}` : ""}
               </Text>
-              <Money value={ficha.amount} decimals={2} />
+              <Text fz={24} fw={700} className="a-tabular">
+                <Money value={ficha.amount} decimals={2} />
+              </Text>
             </Group>
             <Text>{ficha.description || "Sin descripción."}</Text>
-            {(ficha.proof_file || ficha.proof_url) && (
+            {tieneComprobante(ficha) && (
               <Anchor href={ficha.proof_file || ficha.proof_url} target="_blank" size="sm">
                 Ver comprobante
               </Anchor>
             )}
             {ficha.is_void && (
-              <Alert color="gray" variant="light" title="Gasto anulado">
+              <Alert color="gray" variant="light" title={ficha.replaced_by ? "Corregido" : "Anulado"}>
                 <Text size="sm">{ficha.void_reason || "Sin motivo registrado."}</Text>
                 {ficha.voided_at && (
                   <Text c="dimmed" size="xs" mt={4}>
@@ -479,28 +495,37 @@ export function ExpensesPage() {
                 )}
               </Alert>
             )}
-            <SectionLabel as="h2" mt="sm">Rastro</SectionLabel>
             <Text c="dimmed" size="xs">
               Registrado el {new Date(ficha.created_at).toLocaleString("es-GT")}.
-              {ficha.replaces ? " Nació de la corrección de otro gasto." : ""}
-              {ficha.replaced_by ? " Fue corregido por un gasto posterior." : ""}
+              {ficha.replaces ? " Corrige a un gasto anterior." : ""}
+              {ficha.replaced_by ? " Lo reemplazó un gasto posterior." : ""}
             </Text>
+            {!ficha.is_void && (
+              <Group justify="flex-end" gap="xs" mt="xs">
+                <Button variant="subtle" color="red" onClick={() => abrirAnulacion(ficha)}>
+                  Anular
+                </Button>
+                <Button variant="default" onClick={() => abrirAdjunto(ficha)}>
+                  {tieneComprobante(ficha) ? "Cambiar comprobante" : "Adjuntar comprobante"}
+                </Button>
+                <Button variant="light" onClick={() => abrirCorreccion(ficha)}>
+                  Corregir
+                </Button>
+              </Group>
+            )}
           </Stack>
         )}
-      </DetailSheet>
+      </Modal>
 
       {/* Anular: el gasto sale del P&L pero permanece en el histórico. */}
       <Modal opened={!!anulando} onClose={() => setAnulando(null)} title="Anular gasto" centered>
         <Stack gap="md">
-          <Text size="sm" c="dimmed">
-            El gasto deja de contar en la utilidad, pero no se borra: queda con su motivo y su
-            fecha de anulación.
-          </Text>
           <TextInput
             label="Motivo"
             placeholder="Ej. se capturó dos veces"
             value={motivo}
             onChange={(e) => setMotivo(e.currentTarget.value)}
+            data-autofocus
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setAnulando(null)}>
@@ -526,10 +551,6 @@ export function ExpensesPage() {
         centered
       >
         <Stack gap="md">
-          <Text size="sm" c="dimmed">
-            No se edita el gasto original: se anula y se registra uno nuevo con los datos
-            corregidos. Ambos quedan enlazados en el histórico.
-          </Text>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
             {/*
               En cada onChange el valor se lee ANTES de llamar al setter, nunca dentro del
@@ -544,24 +565,28 @@ export function ExpensesPage() {
               label="Categoría"
               value={correccion.category}
               onChange={(v) => setCorreccion((c) => ({ ...c, category: v }))}
-              data={CATEGORIES}
+              data={CATEGORIAS_GASTO}
             />
             <TextInput
-              label="Monto (Q)"
+              label="Monto"
+              leftSection="Q"
+              inputMode="decimal"
               value={correccion.amount}
               onChange={(e) => {
                 const valor = e.currentTarget.value;
                 setCorreccion((c) => ({ ...c, amount: valor }));
               }}
             />
-            <TextInput
-              label="Descripción"
-              value={correccion.description}
-              onChange={(e) => {
-                const valor = e.currentTarget.value;
-                setCorreccion((c) => ({ ...c, description: valor }));
-              }}
-            />
+          </SimpleGrid>
+          <TextInput
+            label="Descripción"
+            value={correccion.description}
+            onChange={(e) => {
+              const valor = e.currentTarget.value;
+              setCorreccion((c) => ({ ...c, description: valor }));
+            }}
+          />
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
             <DateInput
               label="Fecha"
               value={correccion.incurred_on}
@@ -569,21 +594,20 @@ export function ExpensesPage() {
               valueFormat="YYYY-MM-DD"
               popoverProps={{ withinPortal: true }}
             />
+            {branchData.length > 0 && (
+              <Select
+                label="Sede"
+                placeholder="Todas"
+                value={correccion.branch}
+                onChange={(v) => setCorreccion((c) => ({ ...c, branch: v }))}
+                data={branchData}
+                clearable
+              />
+            )}
           </SimpleGrid>
-          {branchData.length > 0 && (
-            <Select
-              label="Sede"
-              placeholder="Todas"
-              value={correccion.branch}
-              onChange={(v) => setCorreccion((c) => ({ ...c, branch: v }))}
-              data={branchData}
-              clearable
-            />
-          )}
           <FileInput
             label="Comprobante"
-            description="Si no subes uno, se conserva el del gasto original."
-            placeholder="Subir archivo"
+            placeholder={corrigiendo && tieneComprobante(corrigiendo) ? "Se conserva el actual" : "Foto o PDF"}
             accept="image/*,application/pdf"
             value={correccionProof}
             onChange={setCorreccionProof}
@@ -608,13 +632,13 @@ export function ExpensesPage() {
       <Modal
         opened={!!adjuntando}
         onClose={() => setAdjuntando(null)}
-        title="Adjuntar comprobante"
+        title="Comprobante"
         centered
       >
         <Stack gap="md">
           <FileInput
             label="Factura o recibo"
-            placeholder="Subir archivo"
+            placeholder="Foto o PDF"
             accept="image/*,application/pdf"
             value={adjunto}
             onChange={setAdjunto}

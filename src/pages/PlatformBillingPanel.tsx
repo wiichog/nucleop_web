@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
-  Alert,
   Badge,
   Button,
-  Divider,
   Group,
   Modal,
+  SimpleGrid,
   Stack,
   Text,
   TextInput,
@@ -14,7 +13,6 @@ import {
 } from "@mantine/core";
 import { MonthPickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { DataTable } from "mantine-datatable";
 import {
   useGeneratePlatformPayout,
   usePayPlatformPayout,
@@ -22,13 +20,12 @@ import {
   usePlatformStatements,
 } from "../api/hooks";
 import type { GymStatement, Payout } from "../api/types";
-import { EmptyState } from "../components/EmptyState";
-import { PageError, PageLoading } from "../components/PageStatus";
-import { RowActions } from "../components/RowActions";
-import { Money, SectionLabel } from "../components/ui";
-import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora";
+import { PageError } from "../components/PageStatus";
+import { Encabezado, Tarjeta } from "../components/Tarjeta";
+import { Money } from "../components/ui";
+import { GlassCard } from "../components/aurora";
 import { errMsg } from "../lib/errors";
-import { fmtQ } from "../lib/money";
+import { fmtQ, toNumber } from "../lib/money";
 
 /** "YYYY-MM" a partir de una fecha local (el backend valida ese formato exacto). */
 function periodoDe(d: Date | null): string | undefined {
@@ -37,14 +34,57 @@ function periodoDe(d: Date | null): string | undefined {
 }
 
 /**
+ * Estado del depósito de un gym en el periodo. «Sin generar» sólo es pendiente si
+ * hay algo que depositarle: un gym con puro reembolso no espera depósito.
+ */
+export function estadoDeposito(g: Pick<GymStatement, "payout" | "net_to_deposit">): {
+  texto: string;
+  color: string;
+  pendiente: boolean;
+} {
+  if (g.payout?.status === "executed") return { texto: "Depositado", color: "teal", pendiente: false };
+  if (g.payout) return { texto: "Pendiente", color: "yellow", pendiente: true };
+  const hayQueDepositar = toNumber(g.net_to_deposit) > 0;
+  return { texto: "Sin generar", color: hayQueDepositar ? "yellow" : "gray", pendiente: hayQueDepositar };
+}
+
+/** Una cifra del resumen: rótulo chico y el monto. */
+function Cifra({ etiqueta, valor, color }: { etiqueta: string; valor: string; color?: string }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <Text size="xs" c="dimmed" truncate>
+        {etiqueta}
+      </Text>
+      <Text fw={700} fz={18} c={color} className="a-tabular">
+        {valor}
+      </Text>
+    </div>
+  );
+}
+
+/** Renglón de la ficha del depósito: rótulo a la izquierda, monto a la derecha. */
+function Linea({ etiqueta, children }: { etiqueta: string; children: ReactNode }) {
+  return (
+    <Group justify="space-between" wrap="nowrap" gap="sm">
+      <Text size="sm" c="dimmed">
+        {etiqueta}
+      </Text>
+      <div style={{ textAlign: "right" }}>{children}</div>
+    </Group>
+  );
+}
+
+/**
  * Estado de cuenta de la red (solo superadmin): cuánto entró por la pasarela, qué
  * le toca a cada gym y CUÁNTO GANÓ NUCLEO por recargo. Solo cuenta el dinero que
  * pasó por Pagalo: los pagos manuales ya los cobró el gym y no generan recargo.
  *
  * El margen que se pinta es el REAL: `platform_earned` ya viene neto de los
- * reembolsos y de la comisión que se queda el proveedor de la pasarela. Antes esta
- * pantalla presentaba el recargo íntegro como ganancia, así que el margen se veía
- * más gordo de lo que era.
+ * reembolsos y de la comisión que se queda el proveedor de la pasarela.
+ *
+ * Lo que se viene a hacer aquí es cerrar el mes: generar el depósito de cada gym
+ * y marcarlo hecho. Por eso los gyms van en filas que se tocan para abrir su
+ * ficha (desglose + acciones) y los pendientes salen en amarillo.
  */
 export function PlatformBillingPanel() {
   const [mes, setMes] = useState<Date | null>(new Date());
@@ -54,11 +94,17 @@ export function PlatformBillingPanel() {
   const generar = useGeneratePlatformPayout();
   const marcarPagado = usePayPlatformPayout();
 
+  const [fichaId, setFichaId] = useState<string | null>(null);
   const [pagando, setPagando] = useState<Payout | null>(null);
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
 
   const data = statements.data;
+  const gyms = data?.gyms ?? [];
+  const ficha = gyms.find((g) => g.gym_id === fichaId) ?? null;
+  const depositos = payouts.data ?? [];
+  const sinGenerar = gyms.filter((g) => !g.payout && estadoDeposito(g).pendiente).length;
+  const porDepositar = depositos.filter((p) => p.status === "pending").length;
 
   const onGenerar = async (gymId: string) => {
     if (!period) return;
@@ -69,11 +115,15 @@ export function PlatformBillingPanel() {
         message: "Depósito generado. El desglose queda congelado con este corte.",
       });
     } catch (error) {
-      notifications.show({
-        color: "red",
-        message: errMsg(error, "No se pudo generar el depósito."),
-      });
+      notifications.show({ color: "red", message: errMsg(error, "No se pudo generar el depósito.") });
     }
+  };
+
+  const abrirPago = (p: Payout) => {
+    setFichaId(null);
+    setPagando(p);
+    setReference("");
+    setNotes("");
   };
 
   const onPagar = async () => {
@@ -85,358 +135,269 @@ export function PlatformBillingPanel() {
       setReference("");
       setNotes("");
     } catch (error) {
-      notifications.show({
-        color: "red",
-        message: errMsg(error, "No se pudo marcar el depósito."),
-      });
+      notifications.show({ color: "red", message: errMsg(error, "No se pudo marcar el depósito.") });
     }
   };
 
   return (
-    <div>
-      <GlassCard padding={16} delay={0.6} style={{ marginBottom: "calc(20 * var(--u))" }}>
-        <Group justify="space-between" align="flex-end" wrap="wrap" gap="md">
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <Title order={3} mb={4}>
-              Estado de cuenta de la red
-            </Title>
-            <Text c="dimmed" size="sm">
-              Solo el dinero cobrado por la pasarela. El recargo de Nucleo va SUMADO encima del
-              precio del gym: el gym recibe su base y la plataforma se queda el recargo.{" "}
-              <strong>Ese recargo no es la ganancia</strong>: la pasarela cobra su comisión sobre
-              cada cobro y ese costo sale del recargo, nunca del dinero del gym.
-            </Text>
-          </div>
-          <MonthPickerInput
-            label="Periodo"
-            value={mes}
-            onChange={setMes}
-            valueFormat="YYYY-MM"
-            w={{ base: "100%", sm: 200 }}
-          />
-        </Group>
-      </GlassCard>
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado
+        titulo="Estado de cuenta"
+        avisos={
+          <>
+            {sinGenerar > 0 && (
+              <Badge color="yellow" variant="light">
+                {sinGenerar} sin generar
+              </Badge>
+            )}
+            {porDepositar > 0 && (
+              <Badge color="yellow" variant="light">
+                {porDepositar} por depositar
+              </Badge>
+            )}
+          </>
+        }
+      >
+        <MonthPickerInput
+          aria-label="Periodo"
+          placeholder="Periodo"
+          value={mes}
+          onChange={setMes}
+          valueFormat="YYYY-MM"
+          w={{ base: "100%", sm: 160 }}
+        />
+      </Encabezado>
 
       {statements.isError ? (
         <PageError onRetry={() => statements.refetch()} />
       ) : statements.isLoading ? (
-        <PageLoading label="Calculando la liquidación…" />
+        <Text c="dimmed" size="sm">
+          Calculando la liquidación…
+        </Text>
       ) : !data ? (
-        <EmptyState title="Sin datos" description="No hay liquidación para este periodo." />
+        <Text c="dimmed" size="sm">
+          No hay liquidación para este periodo.
+        </Text>
       ) : (
         <>
-          {/* La cifra que manda en esta pantalla: lo que Nucleo se quedó de recargo. */}
-          <GlassCard
-            variant="core"
-            sheen
-            padding={26}
-            delay={0.72}
-            style={{ marginBottom: "calc(20 * var(--u))" }}
-          >
-            <BigMetric
-              label="Ganancia de Nucleo"
-              value={fmtQ(data.totals.platform_earned)}
-              fz="clamp(34px, calc(58 * var(--u)), 68px)"
-              hint="Lo que de verdad le queda a Nucleo: el recargo cobrado, ya menos los reembolsos y menos la comisión que se queda la pasarela."
-              delay={1.04}
-            />
-            <Group
-              gap="lg"
-              mt="lg"
-              wrap="wrap"
-              className="a-rise"
-              style={{ animationDelay: "1.16s" }}
-            >
-              <div>
-                <SectionLabel mb={4}>Periodo</SectionLabel>
-                <Text fw={600} className="a-tabular">
-                  {data.period_start} → {data.period_end}
-                </Text>
-              </div>
-              <Divider orientation="vertical" />
-              <div>
-                <SectionLabel mb={4}>Gyms con movimiento</SectionLabel>
-                <Text fw={600} className="a-tabular">
-                  {data.totals.gyms_count}
-                </Text>
-              </div>
-              {/* El desglose del margen: cuánto pagaron de recargo los atletas y
-                  cuánto se llevó el proveedor. Solo aparece cuando el backend
-                  manda las dos cifras (ver `PlatformBillingTotals`). */}
-              {data.totals.platform_surcharge != null && (
-                <>
-                  <Divider orientation="vertical" />
-                  <div>
-                    <SectionLabel mb={4}>Recargo que pagaron los atletas</SectionLabel>
-                    <Text fw={600} className="a-tabular">
-                      {fmtQ(data.totals.platform_surcharge)}
-                    </Text>
-                  </div>
-                </>
-              )}
-              {data.totals.provider_fee_net != null && (
-                <>
-                  <Divider orientation="vertical" />
-                  <div>
-                    <SectionLabel mb={4}>Se quedó la pasarela</SectionLabel>
-                    <Text fw={600} className="a-tabular" c="var(--nucleo-danger)">
-                      −{fmtQ(data.totals.provider_fee_net)}
-                    </Text>
-                  </div>
-                </>
-              )}
-            </Group>
-          </GlassCard>
-
-          <SectionLabel as="h2">Movimiento del periodo</SectionLabel>
-          <Stagger
-            from={0.96}
-            style={{
-              display: "grid",
-              gap: "var(--mantine-spacing-md)",
-              gridTemplateColumns: "repeat(auto-fit, minmax(calc(170 * var(--u)), 1fr))",
-              marginBottom: "calc(20 * var(--u))",
-            }}
-          >
-            <MetricTile label="Cobrado por pasarela" value={fmtQ(data.totals.gross_charged)} />
-            <MetricTile label="Ingreso de los gyms" value={fmtQ(data.totals.gym_revenue)} />
-            <MetricTile
-              label="Reembolsos"
-              value={fmtQ(data.totals.refunds_total)}
-              tone="var(--nucleo-danger)"
-            />
-            <MetricTile
-              label="Por depositar"
-              value={fmtQ(data.totals.net_to_deposit)}
-              hint="Custodia puente"
-            />
-          </Stagger>
-
-          <SectionLabel as="h2">Por gimnasio</SectionLabel>
-          <GlassCard
-            padding={10}
-            delay={1.08}
-            style={{ marginBottom: "calc(20 * var(--u))" }}
-          >
-            <DataTable<GymStatement>
-              minHeight={160}
-              highlightOnHover
-              striped
-              idAccessor="gym_id"
-              records={data.gyms}
-              noRecordsText="Ningún gimnasio movió dinero por la pasarela en este periodo."
-              columns={[
-                { accessor: "gym_name", title: "Gimnasio" },
-                {
-                  accessor: "payments_count",
-                  title: "Cobros",
-                  textAlign: "right",
-                  render: (g) => (
-                    <Text size="sm" style={{ fontVariantNumeric: "tabular-nums" }}>
-                      {g.payments_count}
-                      {g.refunds_count ? ` · ${g.refunds_count} dev.` : ""}
-                    </Text>
-                  ),
-                },
-                {
-                  accessor: "gross_charged",
-                  title: "Cobrado",
-                  textAlign: "right",
-                  render: (g) => <Money value={g.gross_charged} decimals={2} block />,
-                },
-                {
-                  accessor: "gym_revenue",
-                  title: "Del gym",
-                  textAlign: "right",
-                  render: (g) => <Money value={g.gym_revenue} decimals={2} block />,
-                },
-                {
-                  accessor: "platform_earned",
-                  title: "Ganó Nucleo",
-                  textAlign: "right",
-                  // El recargo debajo, en pequeño: es lo que pagó el atleta y no lo
-                  // que quedó. Va aquí y no en otra columna para que la diferencia
-                  // se lea de un vistazo sin ensanchar la tabla.
-                  render: (g) => (
-                    <div>
-                      <Money value={g.platform_earned} decimals={2} c="flame" block />
-                      <Text size="xs" c="dimmed" ta="right">
-                        de {fmtQ(g.platform_surcharge, { decimals: 2 })} de recargo
-                      </Text>
-                    </div>
-                  ),
-                },
-                {
-                  accessor: "net_to_deposit",
-                  title: "A depositar",
-                  textAlign: "right",
-                  render: (g) => <Money value={g.net_to_deposit} decimals={2} block />,
-                },
-                {
-                  accessor: "payout",
-                  title: "Depósito",
-                  render: (g) =>
-                    !g.payout ? (
-                      <Text c="dimmed" size="sm">
-                        Sin generar
-                      </Text>
-                    ) : (
-                      <Badge color={g.payout.status === "executed" ? "teal" : "yellow"} variant="light">
-                        {g.payout.status === "executed" ? "Depositado" : "Pendiente"}
-                      </Badge>
-                    ),
-                },
-                {
-                  accessor: "actions",
-                  title: "",
-                  render: (g) => (
-                    <RowActions
-                      actions={[
-                        {
-                          label: g.payout ? "Recalcular" : "Generar depósito",
-                          variant: "default" as const,
-                          loading: generar.isPending && generar.variables?.gym_id === g.gym_id,
-                          disabled: g.payout?.status === "executed",
-                          onClick: () => onGenerar(g.gym_id),
-                        },
-                        !!g.payout &&
-                          g.payout.status === "pending" && {
-                            label: "Marcar depositado",
-                            variant: "light" as const,
-                            onClick: () => {
-                              setPagando(g.payout as Payout);
-                              setReference("");
-                              setNotes("");
-                            },
-                          },
-                      ]}
-                    />
-                  ),
-                },
-              ]}
-            />
-          </GlassCard>
-
-          <SectionLabel as="h2">Depósitos del periodo</SectionLabel>
-          <GlassCard padding={10} delay={1.2}>
-            {payouts.isError ? (
-              <PageError onRetry={() => payouts.refetch()} />
-            ) : (
-              <DataTable<Payout>
-                minHeight={140}
-                highlightOnHover
-                striped
-                idAccessor="id"
-                records={payouts.data ?? []}
-                fetching={payouts.isLoading}
-                noRecordsText="Aún no se genera ningún depósito para este periodo."
-                columns={[
-                  { accessor: "gym_name", title: "Gimnasio" },
-                  {
-                    accessor: "amount",
-                    title: "Neto depositado",
-                    textAlign: "right",
-                    render: (p) => <Money value={p.amount} decimals={2} block />,
-                  },
-                  {
-                    // Es el recargo COBRADO al atleta, congelado al generar el
-                    // depósito — no lo que ganó Nucleo (de ahí sale la comisión de
-                    // la pasarela). El título lo dice para no volver a confundirlos.
-                    accessor: "platform_surcharge",
-                    title: "Recargo cobrado",
-                    textAlign: "right",
-                    render: (p) => <Money value={p.platform_surcharge} decimals={2} block />,
-                  },
-                  {
-                    accessor: "status",
-                    title: "Estado",
-                    render: (p) => (
-                      <Badge color={p.status === "executed" ? "teal" : "yellow"} variant="light">
-                        {p.status === "executed" ? "Depositado" : "Pendiente"}
-                      </Badge>
-                    ),
-                  },
-                  {
-                    accessor: "reference",
-                    title: "Referencia",
-                    render: (p) => p.reference || "—",
-                  },
-                  {
-                    accessor: "executed_at",
-                    title: "Ejecutado",
-                    render: (p) =>
-                      p.executed_at ? new Date(p.executed_at).toLocaleString("es-GT") : "—",
-                  },
-                  {
-                    accessor: "actions",
-                    title: "",
-                    render: (p) =>
-                      p.status === "pending" ? (
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => {
-                            setPagando(p);
-                            setReference("");
-                            setNotes("");
-                          }}
-                        >
-                          Marcar depositado
-                        </Button>
-                      ) : null,
-                  },
-                ]}
+          <SimpleGrid cols={{ base: 2, sm: 3, lg: 4 }} spacing="md" mb="xs">
+            <Cifra etiqueta="Ganancia de Nucleo" valor={fmtQ(data.totals.platform_earned, { decimals: 2 })} color="flame" />
+            {/* El desglose del margen sólo llega si el backend manda las dos cifras
+                (ver `PlatformBillingTotals`); si no, se omite en vez de pintar NaN. */}
+            {data.totals.platform_surcharge != null && (
+              <Cifra
+                etiqueta="Recargo que pagaron los atletas"
+                valor={fmtQ(data.totals.platform_surcharge, { decimals: 2 })}
               />
             )}
-          </GlassCard>
+            {data.totals.provider_fee_net != null && (
+              <Cifra
+                etiqueta="Se quedó la pasarela"
+                valor={`−${fmtQ(data.totals.provider_fee_net, { decimals: 2 })}`}
+                color="var(--nucleo-danger)"
+              />
+            )}
+            <Cifra etiqueta="Cobrado por pasarela" valor={fmtQ(data.totals.gross_charged, { decimals: 2 })} />
+            <Cifra etiqueta="Ingreso de los gyms" valor={fmtQ(data.totals.gym_revenue, { decimals: 2 })} />
+            <Cifra
+              etiqueta="Reembolsos"
+              valor={fmtQ(data.totals.refunds_total, { decimals: 2 })}
+              color="var(--nucleo-danger)"
+            />
+            <Cifra etiqueta="Por depositar" valor={fmtQ(data.totals.net_to_deposit, { decimals: 2 })} />
+          </SimpleGrid>
+          <Text size="xs" c="dimmed" mb="lg" className="a-tabular">
+            {data.period_start} → {data.period_end} · {data.totals.gyms_count}{" "}
+            {data.totals.gyms_count === 1 ? "gimnasio" : "gimnasios"} con movimiento
+          </Text>
+
+          <Title order={4} mb="sm">
+            Por gimnasio
+          </Title>
+          {gyms.length === 0 ? (
+            <Text c="dimmed" size="sm">
+              Ningún gimnasio movió dinero por la pasarela en este periodo.
+            </Text>
+          ) : (
+            <Stack gap={6}>
+              {gyms.map((g) => {
+                const estado = estadoDeposito(g);
+                return (
+                  <Tarjeta
+                    key={g.gym_id}
+                    etiqueta={`Abrir el depósito de ${g.gym_name}`}
+                    onClick={() => setFichaId(g.gym_id)}
+                    aviso={estado.pendiente}
+                  >
+                    <Group justify="space-between" wrap="wrap" gap="sm">
+                      <div style={{ minWidth: 160, flex: 1 }}>
+                        <Text fw={600} truncate>
+                          {g.gym_name}
+                        </Text>
+                        <Text size="xs" c="dimmed" className="a-tabular">
+                          {g.payments_count} {g.payments_count === 1 ? "cobro" : "cobros"}
+                          {g.refunds_count ? ` · ${g.refunds_count} dev.` : ""} · cobrado{" "}
+                          {fmtQ(g.gross_charged, { decimals: 2 })} · ganó Nucleo{" "}
+                          {fmtQ(g.platform_earned, { decimals: 2 })}
+                        </Text>
+                      </div>
+                      <Group gap="sm" wrap="nowrap">
+                        <Money value={g.net_to_deposit} decimals={2} />
+                        <Badge color={estado.color} variant="light">
+                          {estado.texto}
+                        </Badge>
+                      </Group>
+                    </Group>
+                  </Tarjeta>
+                );
+              })}
+            </Stack>
+          )}
+
+          <Title order={4} mt="xl" mb="sm">
+            Depósitos
+          </Title>
+          {payouts.isError ? (
+            <PageError onRetry={() => payouts.refetch()} />
+          ) : payouts.isLoading ? (
+            <Text c="dimmed" size="sm">
+              Cargando…
+            </Text>
+          ) : depositos.length === 0 ? (
+            <Text c="dimmed" size="sm">
+              Aún no se genera ningún depósito para este periodo.
+            </Text>
+          ) : (
+            <Stack gap={6}>
+              {depositos.map((p) => {
+                const pendiente = p.status === "pending";
+                return (
+                  <Tarjeta
+                    key={p.id}
+                    etiqueta={pendiente ? `Marcar depositado ${p.gym_name}` : `Depósito de ${p.gym_name}`}
+                    onClick={pendiente ? () => abrirPago(p) : undefined}
+                    aviso={pendiente}
+                  >
+                    <Group justify="space-between" wrap="wrap" gap="sm">
+                      <div style={{ minWidth: 160, flex: 1 }}>
+                        <Text size="sm" fw={600} truncate>
+                          {p.gym_name}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {/* Es el recargo COBRADO al atleta, congelado al generar el
+                              depósito — no lo que ganó Nucleo. */}
+                          Recargo cobrado {fmtQ(p.platform_surcharge, { decimals: 2 })}
+                          {p.reference ? ` · ref. ${p.reference}` : ""}
+                          {p.executed_at ? ` · ${new Date(p.executed_at).toLocaleString("es-GT")}` : ""}
+                        </Text>
+                      </div>
+                      <Group gap="sm" wrap="nowrap">
+                        <Money value={p.amount} decimals={2} />
+                        <Badge color={pendiente ? "yellow" : "teal"} variant="light">
+                          {pendiente ? "Pendiente" : "Depositado"}
+                        </Badge>
+                      </Group>
+                    </Group>
+                  </Tarjeta>
+                );
+              })}
+            </Stack>
+          )}
         </>
       )}
 
+      {/* Ficha del gym en el periodo: el desglose y lo que se hace con su depósito. */}
       <Modal
-        opened={!!pagando}
-        onClose={() => setPagando(null)}
-        title="Marcar depósito como ejecutado"
+        opened={!!ficha}
+        onClose={() => setFichaId(null)}
+        title={ficha ? `${ficha.gym_name} · ${ficha.period}` : ""}
         centered
       >
+        {ficha && (
+          <Stack gap={8}>
+            <Linea etiqueta="Cobros">
+              <Text size="sm" className="a-tabular">
+                {ficha.payments_count}
+                {ficha.refunds_count ? ` · ${ficha.refunds_count} dev.` : ""}
+              </Text>
+            </Linea>
+            <Linea etiqueta="Cobrado">
+              <Money value={ficha.gross_charged} decimals={2} />
+            </Linea>
+            <Linea etiqueta="Del gym">
+              <Money value={ficha.gym_revenue} decimals={2} />
+            </Linea>
+            <Linea etiqueta="Ganó Nucleo">
+              <Money value={ficha.platform_earned} decimals={2} c="flame" />
+              <Text size="xs" c="dimmed">
+                de {fmtQ(ficha.platform_surcharge, { decimals: 2 })} de recargo
+              </Text>
+            </Linea>
+            <Linea etiqueta="Reembolsos">
+              <Money value={ficha.refunds_total} decimals={2} c="var(--nucleo-danger)" />
+              {ficha.chargebacks_count > 0 && (
+                <Text size="xs" c="dimmed">
+                  {fmtQ(ficha.chargebacks_total, { decimals: 2 })} de contracargos
+                </Text>
+              )}
+            </Linea>
+            <Linea etiqueta="A depositar">
+              <Money value={ficha.net_to_deposit} decimals={2} fw={700} />
+            </Linea>
+            <Linea etiqueta="Depósito">
+              <Badge color={estadoDeposito(ficha).color} variant="light">
+                {estadoDeposito(ficha).texto}
+              </Badge>
+              {ficha.payout?.reference ? (
+                <Text size="xs" c="dimmed">
+                  ref. {ficha.payout.reference}
+                </Text>
+              ) : null}
+            </Linea>
+            <Group justify="flex-end" gap="xs" mt="sm">
+              <Button
+                variant="default"
+                loading={generar.isPending && generar.variables?.gym_id === ficha.gym_id}
+                disabled={ficha.payout?.status === "executed"}
+                onClick={() => onGenerar(ficha.gym_id)}
+              >
+                {ficha.payout ? "Recalcular" : "Generar depósito"}
+              </Button>
+              {ficha.payout?.status === "pending" && (
+                <Button onClick={() => abrirPago(ficha.payout as Payout)}>Marcar depositado</Button>
+              )}
+            </Group>
+          </Stack>
+        )}
+      </Modal>
+
+      <Modal opened={!!pagando} onClose={() => setPagando(null)} title="Marcar depositado" centered>
         <Stack gap="md">
           {pagando && (
-            <Alert color="gray" variant="light">
-              <Text size="sm">
-                {pagando.gym_name} · {pagando.period} ·{" "}
-                <strong>{fmtQ(pagando.amount, { decimals: 2 })}</strong>
-              </Text>
-            </Alert>
+            <Text size="sm">
+              {pagando.gym_name} · {pagando.period} ·{" "}
+              <strong>{fmtQ(pagando.amount, { decimals: 2 })}</strong>
+            </Text>
           )}
-          <Text size="sm" c="dimmed">
-            La referencia bancaria es obligatoria: sin ella no queda rastro de que el dinero salió.
-          </Text>
           <TextInput
             label="Referencia bancaria"
             placeholder="No. de transferencia o boleta"
+            required
+            data-autofocus
             value={reference}
             onChange={(e) => setReference(e.currentTarget.value)}
           />
-          <Textarea
-            label="Notas"
-            value={notes}
-            onChange={(e) => setNotes(e.currentTarget.value)}
-            autosize
-            minRows={2}
-          />
+          <Textarea label="Notas" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} autosize minRows={2} />
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setPagando(null)}>
               Cancelar
             </Button>
-            <Button
-              onClick={onPagar}
-              disabled={!reference.trim()}
-              loading={marcarPagado.isPending}
-            >
+            <Button onClick={onPagar} disabled={!reference.trim()} loading={marcarPagado.isPending}>
               Confirmar depósito
             </Button>
           </Group>
         </Stack>
       </Modal>
-    </div>
+    </GlassCard>
   );
 }

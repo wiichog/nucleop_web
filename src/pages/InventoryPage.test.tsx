@@ -5,14 +5,12 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Interruptor «Activo» del catálogo. El Punto de venta solo lista productos
- * activos; antes no había forma de apagar ni de volver a encender uno desde
- * Inventario. Se prueba que mande solo `is_active` (sin tocar la receta ni el
- * resto del producto) y que avise tanto el éxito como el error.
+ * Productos: el catálogo en tarjetas; tocar una abre su ficha (activo, ajuste de
+ * stock, editar, movimientos). Se prueba lo que cuesta dinero o confunde:
+ * el interruptor «Activo» manda solo `is_active`, la entrada rechaza cantidades
+ * inválidas, editar dice el motivo del servidor, y lo que se acaba sale contado.
  */
 
-// mantine-datatable solo pinta las celdas cuyas columnas "son visibles" según
-// matchMedia: con `matches: false` las filas salen vacías en jsdom.
 window.matchMedia = ((query: string) => ({
   matches: true,
   media: query,
@@ -31,8 +29,12 @@ if (!window.ResizeObserver) {
   } as unknown as typeof ResizeObserver;
 }
 
+// El Combobox de Mantine desplaza la opción activa; jsdom no lo implementa.
+Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => {});
+
 const espias = vi.hoisted(() => ({
   actualizar: vi.fn(),
+  crear: vi.fn(),
   movimiento: vi.fn(),
   aviso: vi.fn(),
   subirGaleria: vi.fn(),
@@ -78,15 +80,28 @@ vi.mock("../api/hooks", () => {
         producto({ id: "p-1", name: "Proteína", is_active: true }),
         producto({ id: "p-2", name: "Creatina", is_active: false }),
         producto({ id: "p-3", name: "Camiseta", category: "merch", is_active: true }),
+        // Se está acabando: cuenta para «por reabastecer».
+        producto({ id: "p-4", name: "Barra", is_active: true, stock_qty: 1, reorder_level: 3, needs_reorder: true }),
+        // Un licuado nunca cuenta, aunque el backend lo marque: no tiene stock propio.
+        producto({
+          id: "p-5",
+          name: "Licuado",
+          is_active: true,
+          stock_qty: 0,
+          needs_reorder: true,
+          is_composite: true,
+          components: [{ component: "p-1", component_name: "Proteína", qty: 1 }],
+        }),
       ],
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
     }),
-    useCreateErpProduct: () => mutacion(),
+    useCreateErpProduct: () => mutacion(espias.crear),
     useUpdateErpProduct: () => mutacion(espias.actualizar),
     useDeleteErpProduct: () => mutacion(),
     useCreateErpMovement: () => mutacion(espias.movimiento),
+    useInventoryCount: () => mutacion(),
     useUploadProductPhoto: () => mutacion(),
     useUploadProductImages: () => mutacion(espias.subirGaleria),
     useDeleteProductImage: () => mutacion(),
@@ -98,12 +113,18 @@ import { InventoryPage } from "./InventoryPage";
 
 function pintar() {
   render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <MemoryRouter>
         <InventoryPage />
       </MemoryRouter>
     </MantineProvider>,
   );
+}
+
+/** Toca la tarjeta del producto y espera su ficha (el modal entra con transición). */
+async function abrir(nombre: string) {
+  fireEvent.click(screen.getByRole("button", { name: `Abrir ${nombre}` }));
+  await screen.findByRole("button", { name: "Editar" });
 }
 
 describe("InventoryPage · interruptor «Activo»", () => {
@@ -114,6 +135,7 @@ describe("InventoryPage · interruptor «Activo»", () => {
 
   it("apaga un producto activo mandando solo is_active y avisa", async () => {
     pintar();
+    await abrir("Proteína");
     fireEvent.click(screen.getByRole("switch", { name: "Desactivar Proteína" }));
 
     await waitFor(() => expect(espias.actualizar).toHaveBeenCalledTimes(1));
@@ -127,6 +149,7 @@ describe("InventoryPage · interruptor «Activo»", () => {
 
   it("enciende un producto inactivo", async () => {
     pintar();
+    await abrir("Creatina");
     fireEvent.click(screen.getByRole("switch", { name: "Activar Creatina" }));
 
     await waitFor(() =>
@@ -137,6 +160,7 @@ describe("InventoryPage · interruptor «Activo»", () => {
   it("si el servidor lo rechaza, avisa en rojo", async () => {
     espias.actualizar.mockRejectedValue(new Error("red"));
     pintar();
+    await abrir("Proteína");
     fireEvent.click(screen.getByRole("switch", { name: "Desactivar Proteína" }));
 
     await waitFor(() =>
@@ -145,17 +169,18 @@ describe("InventoryPage · interruptor «Activo»", () => {
   });
 });
 
-describe("InventoryPage · «Entrada» rápida", () => {
+describe("InventoryPage · «Registrar entrada» desde la ficha", () => {
   beforeEach(() => {
     espias.movimiento.mockReset().mockResolvedValue({});
     espias.aviso.mockReset();
   });
 
-  const fila = () => screen.getAllByPlaceholderText("Qty")[0];
-  const entrada = () => screen.getAllByRole("button", { name: "Entrada" })[0];
+  const fila = () => screen.getByLabelText("Unidades que llegaron");
+  const entrada = () => screen.getByRole("button", { name: "Registrar entrada" });
 
   it.each(["", "abc", "0", "3.5", "-2"])("con cantidad %j avisa y no registra nada", async (valor) => {
     pintar();
+    await abrir("Proteína");
     fireEvent.change(fila(), { target: { value: valor } });
     fireEvent.click(entrada());
 
@@ -165,13 +190,16 @@ describe("InventoryPage · «Entrada» rápida", () => {
     expect(espias.movimiento).not.toHaveBeenCalled();
   });
 
-  it("con un entero válido registra la entrada", async () => {
+  it("con un entero válido registra la entrada del producto abierto", async () => {
     pintar();
+    await abrir("Proteína");
     fireEvent.change(fila(), { target: { value: "4" } });
     fireEvent.click(entrada());
 
     await waitFor(() =>
-      expect(espias.movimiento).toHaveBeenCalledWith(expect.objectContaining({ type: "purchase", qty: 4 })),
+      expect(espias.movimiento).toHaveBeenCalledWith(
+        expect.objectContaining({ product_id: "p-1", type: "purchase", qty: 4 }),
+      ),
     );
   });
 });
@@ -184,7 +212,10 @@ describe("InventoryPage · «Subir» de la galería", () => {
 
   async function elegirFotoYSubir() {
     pintar();
-    fireEvent.click(screen.getAllByRole("button", { name: "Editar" })[0]);
+    await abrir("Proteína");
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    // La galería es de la tienda del app: aparece al venderlo ahí.
+    fireEvent.click(await screen.findByRole("switch", { name: "Vender en la tienda del app" }));
     const input = await waitFor(() => {
       const el = document.querySelector<HTMLInputElement>('input[type="file"][multiple]');
       if (!el) throw new Error("sin input de galería");
@@ -225,7 +256,8 @@ describe("InventoryPage · «Guardar» al editar un producto", () => {
 
   async function editarYGuardar() {
     pintar();
-    fireEvent.click(screen.getAllByRole("button", { name: "Editar" })[0]);
+    await abrir("Proteína");
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
     fireEvent.click(await screen.findByRole("button", { name: "Guardar" }));
   }
 
@@ -266,7 +298,46 @@ describe("InventoryPage · «Guardar» al editar un producto", () => {
   });
 });
 
-describe("InventoryPage · columna «Categoría»", () => {
+describe("InventoryPage · lo que se acaba al frente", () => {
+  it("cuenta solo lo activo que se acaba, sin el preparado", () => {
+    pintar();
+    expect(screen.getByRole("button", { name: "1 por reabastecer" })).toBeTruthy();
+  });
+
+  it("el contador filtra a lo que hay que reabastecer", () => {
+    pintar();
+    fireEvent.click(screen.getByRole("button", { name: "1 por reabastecer" }));
+    expect(screen.getByRole("button", { name: "Abrir Barra" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Abrir Proteína" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Abrir Licuado" })).toBeNull();
+  });
+});
+
+describe("InventoryPage · «Nuevo producto»", () => {
+  beforeEach(() => {
+    espias.crear.mockReset().mockResolvedValue({ id: "p-9" });
+    espias.aviso.mockReset();
+  });
+
+  it("crea en la misma ventana de la edición y avisa", async () => {
+    pintar();
+    fireEvent.click(screen.getByRole("button", { name: "Nuevo producto" }));
+    const crear = await screen.findByRole("button", { name: "Crear producto" });
+    expect((crear as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("Nombre"), { target: { value: "Agua" } });
+    fireEvent.change(screen.getByLabelText("Precio (Q)"), { target: { value: "10" } });
+    fireEvent.click(crear);
+
+    await waitFor(() => expect(espias.crear).toHaveBeenCalledTimes(1));
+    expect(espias.crear.mock.calls[0][0]).toMatchObject({ name: "Agua", sale_price: "10", cost_price: "0", components: [] });
+    await waitFor(() =>
+      expect(espias.aviso).toHaveBeenCalledWith(expect.objectContaining({ color: "teal", message: "Producto creado." })),
+    );
+  });
+});
+
+describe("InventoryPage · categoría en español", () => {
   it("muestra la categoría en español, no la llave interna", () => {
     pintar();
     expect(screen.getAllByText("Suplemento").length).toBeGreaterThan(0);

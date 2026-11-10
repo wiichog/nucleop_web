@@ -4,7 +4,8 @@ import { MantineProvider } from "@mantine/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Kardex, mermas y ajustes. Se prueba lo único cuyo fallo cuesta dinero de verdad:
+ * Movimientos (kardex) y «Ajustar stock». Se prueba lo único cuyo fallo cuesta
+ * dinero de verdad:
  *
  *  1. Que el conteo físico mande lo **contado** y no la diferencia. Si el panel
  *     restara, una venta ocurrida entre leer el stock y aplicar el ajuste quedaría
@@ -69,11 +70,13 @@ vi.mock("../api/hooks", () => {
 import { InventoryLedgerPanel } from "./InventoryLedgerPanel";
 
 /**
- * Elige "Proteína" en uno de los dos selectores "Producto" (Mantine 7 =
- * combobox): 0 = el de la merma, 1 = el del conteo, en ese orden en el DOM.
+ * Abre «Ajustar stock», elige el modo y "Proteína" en el selector "Producto"
+ * (Mantine 7 = combobox).
  */
-function elegirProducto(formulario: 0 | 1) {
-  fireEvent.click(screen.getAllByLabelText("Producto")[formulario]);
+async function ajustar(modo: "Merma" | "Conteo") {
+  fireEvent.click(screen.getByRole("button", { name: "Ajustar stock" }));
+  fireEvent.click(await screen.findByRole("radio", { name: modo }));
+  fireEvent.click(screen.getByRole("textbox", { name: "Producto" }));
   const opcion = screen.getAllByRole("option").find((o) => o.textContent?.includes("Proteína"));
   if (!opcion) throw new Error("El producto no apareció en el selector");
   fireEvent.click(opcion);
@@ -81,7 +84,7 @@ function elegirProducto(formulario: 0 | 1) {
 
 function pintar() {
   render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <InventoryLedgerPanel gymId="gym-1" />
     </MantineProvider>,
   );
@@ -98,7 +101,7 @@ describe("InventoryLedgerPanel", () => {
   it("el conteo manda las unidades CONTADAS, nunca la diferencia", async () => {
     pintar();
 
-    elegirProducto(1);
+    await ajustar("Conteo");
     fireEvent.change(screen.getByLabelText("Unidades contadas"), { target: { value: "9" } });
     fireEvent.click(screen.getByRole("button", { name: "Aplicar conteo" }));
 
@@ -111,10 +114,10 @@ describe("InventoryLedgerPanel", () => {
     expect(enviado.counted_qty).not.toBe(-3);
   });
 
-  it("avisa la diferencia prevista sin comprometerse y sin jerga técnica", () => {
+  it("avisa la diferencia prevista sin comprometerse y sin jerga técnica", async () => {
     pintar();
 
-    elegirProducto(1);
+    await ajustar("Conteo");
     fireEvent.change(screen.getByLabelText("Unidades contadas"), { target: { value: "9" } });
 
     expect(screen.getByText(/Faltarían 3 unidades/)).toBeTruthy();
@@ -125,7 +128,7 @@ describe("InventoryLedgerPanel", () => {
   it("la merma entra al ledger como pérdida (`loss`), no como ajuste", async () => {
     pintar();
 
-    elegirProducto(0);
+    await ajustar("Merma");
     fireEvent.change(screen.getByLabelText("Cantidad perdida"), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "Registrar merma" }));
 
@@ -139,13 +142,30 @@ describe("InventoryLedgerPanel", () => {
     expect(espias.conteo).not.toHaveBeenCalled();
   });
 
-  it("dar de baja más unidades de las que hay avisa que eso quizá no es una merma", () => {
+  it("dar de baja más unidades de las que hay avisa que eso quizá no es una merma", async () => {
     pintar();
 
-    elegirProducto(0);
+    await ajustar("Merma");
     fireEvent.change(screen.getByLabelText("Cantidad perdida"), { target: { value: "20" } });
 
     expect(screen.getByText(/el stock quedará en negativo/i)).toBeTruthy();
-    expect(screen.getByText(/usa el conteo físico/i)).toBeTruthy();
+    // El aviso lleva al conteo, que es lo que corrige un error de captura.
+    fireEvent.click(screen.getByRole("button", { name: "usa el conteo" }));
+    expect(screen.getByLabelText("Unidades contadas")).toBeTruthy();
+  });
+
+  it("el producto filtrado llega puesto al ajuste", async () => {
+    render(
+      <MantineProvider env="test">
+        <InventoryLedgerPanel gymId="gym-1" producto="prod-1" onProducto={() => {}} />
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Ajustar stock" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Conteo" }));
+    fireEvent.change(screen.getByLabelText("Unidades contadas"), { target: { value: "9" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar conteo" }));
+
+    await waitFor(() => expect(espias.conteo).toHaveBeenCalledTimes(1));
+    expect(espias.conteo.mock.calls[0][0]).toMatchObject({ product_id: "prod-1", counted_qty: 9 });
   });
 });

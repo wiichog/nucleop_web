@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { METRICAS_RETO, estadoRevision, etiquetaMetrica, nombreReto } from "./ClubAdminPage";
+import { METRICAS_RETO, estadoRevision, etiquetaMetrica, nombreReto, ordenarActividades } from "./ClubAdminPage";
 
 describe("medidas de reto del club", () => {
   it("ofrece las dos medidas que el servidor sabe llevar", () => {
@@ -33,5 +33,22 @@ describe("botones de revisión por fila", () => {
 
   it("en reposo no gira ni bloquea nada", () => {
     expect(estadoRevision({ isPending: false }, "s1", "approve")).toEqual({ loading: false, disabled: false });
+  });
+});
+
+describe("orden de las actividades", () => {
+  it("las próximas primero (la más cercana arriba) y luego las pasadas (la más reciente arriba)", () => {
+    const ahora = Date.parse("2026-11-10T12:00:00Z");
+    const a = (id: string, starts_at: string) => ({ id, starts_at });
+    const orden = ordenarActividades(
+      [
+        a("pasada-vieja", "2026-10-01T12:00:00Z"),
+        a("proxima-lejos", "2026-12-01T12:00:00Z"),
+        a("pasada-reciente", "2026-11-09T12:00:00Z"),
+        a("proxima-cerca", "2026-11-11T12:00:00Z"),
+      ],
+      ahora,
+    ).map((x) => x.id);
+    expect(orden).toEqual(["proxima-cerca", "proxima-lejos", "pasada-reciente", "pasada-vieja"]);
   });
 });

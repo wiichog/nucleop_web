@@ -10,8 +10,8 @@ export const manualesSesion: ManualesPorRuta = {
       {
         titulo: "Crear una actividad del club",
         pasos: [
-          "Entra a la pestaña «Actividades».",
-          "En «Nueva actividad» escribe el «Nombre».",
+          "Entra a la pestaña «Actividades» y presiona «Nueva actividad».",
+          "Escribe el «Nombre».",
           "Elige la «Fecha y hora» y, si quieres, escribe la «Ubicación».",
           "Presiona «Crear actividad».",
         ],
@@ -19,55 +19,52 @@ export const manualesSesion: ManualesPorRuta = {
           "Si no eliges fecha y hora, la actividad queda con la fecha y hora del momento en que la creas. Por ahora las actividades del club son gratuitas para los miembros: no se les puede poner precio.",
       },
       {
-        titulo: "Ver quién confirmó una actividad y marcar su asistencia",
+        titulo: "Ver quién va a una actividad y marcar su asistencia",
         pasos: [
-          "En la pestaña «Actividades», busca la actividad en la lista «Actividades».",
-          "Presiona «Ver RSVPs» para ver quién dijo que va.",
-          "Junto a cada persona que aparece como «Va a asistir», presiona «Confirmar asistencia» cuando de verdad llegó.",
-          "Presiona «Ocultar RSVPs» para cerrar la lista.",
+          "En la pestaña «Actividades», cada tarjeta es una actividad con su fecha, lugar y cuántos van. Las próximas van primero; las que ya pasaron, al final y atenuadas.",
+          "Toca la actividad para ver quién confirmó.",
+          "Quien sigue en «Va a asistir» sale en amarillo: presiona «Confirmar asistencia» cuando de verdad llegó.",
+          "Cierra la ventana para volver.",
         ],
-        nota: "Solo puedes tener abierta la lista de una actividad a la vez.",
+      },
+      {
+        titulo: "Aprobar o rechazar los avances de tus miembros",
+        pasos: [
+          "Entra a la pestaña «Retos». El número en la pestaña y el amarillo junto a «Por revisar» dicen cuántos avances esperan tu decisión.",
+          "Cada fila dice el atleta, cuánto suma (+), a qué reto pertenece y de dónde viene.",
+          "Presiona «Aprobar» para sumárselo.",
+          "Si no procede, presiona «Rechazar», escribe el motivo en «Motivo (lo ve el atleta)» y presiona «Rechazar avance». Si cierras ese cuadro sin presionarlo, no se rechaza.",
+        ],
+        nota:
+          "El motivo del rechazo lo ve el atleta en su app: explícale qué pasó para que no deje el reto. «Por revisar» muestra los avances de todos los retos.",
       },
       {
         titulo: "Crear un reto del club",
         pasos: [
-          "Entra a la pestaña «Retos».",
+          "En la pestaña «Retos», presiona «Nuevo reto».",
           "Escribe el «Nombre del reto».",
-          "En «Medida» elige «Kilómetros» (cada atleta sube lo que corrió o rodó; los avances pequeños se suman solos y los grandes, o el que completa la meta, esperan tu revisión) o «Asistencias a actividades» (cada asistencia que confirmas en una actividad del club suma 1).",
+          "En «Medida» elige «Kilómetros» o «Asistencias a actividades».",
           "En «Meta (km)» o «Meta (asistencias)» escribe a cuánto hay que llegar (viene en 50).",
           "En «Puntos al completarlo» escribe cuántos puntos gana quien cumpla la meta (viene en 30).",
           "Si quieres, elige cuándo «Termina (opcional)».",
           "Presiona «Crear reto».",
         ],
         nota:
-          "El reto empieza en el momento en que lo creas. Si no eliges fecha de fin, dura 30 días.",
-      },
-      {
-        titulo: "Aprobar o rechazar los avances de tus miembros",
-        pasos: [
-          "Entra a la pestaña «Retos». Arriba, «Revisiones pendientes» dice cuántos avances esperan tu decisión.",
-          "Revisa cada avance: el nombre del atleta, cuánto suma (+), de dónde viene y a qué reto pertenece.",
-          "Presiona «Aprobar» para sumárselo, o «Rechazar» si no procede.",
-          "Al rechazar, escribe por qué en la ventana que aparece y acepta. Si cancelas la ventana, no se rechaza.",
-        ],
-        nota:
-          "El motivo del rechazo lo ve el atleta en su app: explícale qué pasó para que no deje el reto.",
+          "Con «Kilómetros», cada atleta sube lo que corrió o rodó: los avances pequeños se suman solos y los grandes, o el que completa la meta, esperan tu revisión. Con «Asistencias a actividades», cada asistencia que confirmas en una actividad del club suma 1. El reto empieza en el momento en que lo creas; si no eliges fecha de fin, dura 30 días.",
       },
       {
         titulo: "Ver el ranking de un reto",
         pasos: [
-          "En la pestaña «Retos», busca el reto en la lista.",
-          "Presiona «Ver ranking» para ver la posición, el nombre, el avance y el estado de cada participante.",
-          "Presiona «Ocultar ranking» para cerrarlo.",
+          "En la pestaña «Retos», debajo de «Por revisar», cada tarjeta es un reto con su meta, participantes, fecha de fin y puntos.",
+          "Toca el reto para ver la posición, el nombre, el avance y el estado de cada participante.",
         ],
-        nota:
-          "«Revisiones pendientes» siempre muestra los avances de todos los retos, aunque tengas un ranking abierto. Cada avance dice a qué reto pertenece.",
+        nota: "Los retos que ya terminaron salen atenuados.",
       },
       {
         titulo: "Publicar un anuncio para el club",
         pasos: [
-          "Entra a la pestaña «Anuncios».",
-          "En «Nuevo anuncio» escribe el «Título» (por ejemplo «Rodada del domingo») y el «Mensaje».",
+          "Entra a la pestaña «Anuncios» y presiona «Nuevo anuncio».",
+          "Escribe el «Título» (por ejemplo «Rodada del domingo») y el «Mensaje».",
           "Si quieres, sube una imagen en «Foto (opcional)».",
           "Presiona «Publicar anuncio».",
         ],
@@ -77,7 +74,7 @@ export const manualesSesion: ManualesPorRuta = {
       {
         titulo: "Borrar un anuncio",
         pasos: [
-          "En la pestaña «Anuncios», busca el anuncio en «Publicados».",
+          "En la pestaña «Anuncios», toca el anuncio para verlo completo.",
           "Presiona «Borrar» y confirma en la ventana que aparece.",
         ],
         nota: "Al borrarlo desaparece del feed de tus miembros.",
@@ -103,9 +100,8 @@ export const manualesSesion: ManualesPorRuta = {
     ],
     conceptos: [
       {
-        termino: "Actividades publicadas / RSVPs acumulados",
-        detalle:
-          "Cuántas actividades tiene el club y cuántas confirmaciones suman entre todas.",
+        termino: "Van",
+        detalle: "En la tarjeta de una actividad: cuántos miembros confirmaron que van (RSVP).",
       },
       {
         termino: "RSVP",
@@ -117,7 +113,7 @@ export const manualesSesion: ManualesPorRuta = {
           "«Va a asistir»: dijo que va. «Asistió»: ya le confirmaste la asistencia. «Canceló»: ya no va. Solo a quien está en «Va a asistir» se le puede confirmar.",
       },
       {
-        termino: "Revisiones pendientes",
+        termino: "Por revisar",
         detalle: "Avances que tus miembros subieron a un reto y que todavía no apruebas ni rechazas.",
       },
       {
@@ -128,7 +124,7 @@ export const manualesSesion: ManualesPorRuta = {
       {
         termino: "Meta",
         detalle:
-          "A cuánto hay que llegar en el reto. En la lista se ve junto a la medida («Kilómetros» o «Asistencias a actividades») y a cuántos participantes tiene.",
+          "A cuánto hay que llegar en el reto. En la tarjeta se ve junto a la medida («Kilómetros» o «Asistencias a actividades»).",
       },
       {
         termino: "En curso / En revisión / Completado (en el ranking)",
@@ -153,7 +149,7 @@ export const manualesSesion: ManualesPorRuta = {
       {
         sintoma: "«No se pudo crear la actividad», «No se pudo crear el reto» o «No se pudo publicar el anuncio».",
         solucion:
-          "Revisa que los campos obligatorios estén llenos y que la meta del reto sea un número, corrige lo que indique el mensaje y vuelve a intentarlo.",
+          "Revisa que los campos obligatorios estén llenos y que la meta del reto sea un número, corrige lo que indique el mensaje y vuelve a intentarlo. La ventana se queda abierta con lo que escribiste.",
       },
       {
         sintoma: "«No se pudo revisar el avance».",
@@ -193,7 +189,7 @@ export const manualesSesion: ManualesPorRuta = {
           "Presiona «Actualizar contraseña».",
         ],
         nota:
-          "Si el gimnasio te restableció la contraseña, no te pedimos la actual: solo escribe la nueva y presiona «Actualizar contraseña».",
+          "Si el gimnasio te restableció la contraseña, la tarjeta dice «Restablecieron tu contraseña: no te pedimos la actual.»: solo escribe la nueva y presiona «Actualizar contraseña».",
       },
       {
         titulo: "Crear una contraseña si entras con Google, Facebook o Apple",
@@ -206,7 +202,7 @@ export const manualesSesion: ManualesPorRuta = {
       },
       {
         titulo: "Cerrar sesión",
-        pasos: ["En la tarjeta «Cuenta» presiona «Cerrar sesión»."],
+        pasos: ["En la tarjeta «Cuenta», junto al título, presiona «Cerrar sesión»."],
       },
     ],
     conceptos: [

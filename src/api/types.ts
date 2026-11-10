@@ -371,8 +371,18 @@ export interface PendingSummary {
    */
   bajas?: number;
   morosos: number;
+  /**
+   * Contenido publicado dentro de un club que alguien denunció y sigue a la vista.
+   * Suma a `total`. Falta si el backend es viejo.
+   */
+  denuncias_club?: number;
   /** Atletas en riesgo de abandono (usa `Gym.risk_inactivity_days`). */
   en_riesgo?: number;
+  /**
+   * Clases futuras sin coach que un coach puede pedir. Watchlist: NO suma a
+   * `total` (puede valer cientos). Falta si el backend es viejo.
+   */
+  clases_sin_asignar?: number;
   total: number;
 }
 

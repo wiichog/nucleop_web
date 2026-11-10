@@ -1,20 +1,21 @@
 import { FormEvent, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Avatar,
   Badge,
   Button,
   Divider,
   Group,
+  Modal,
   SimpleGrid,
+  Stack,
   Switch,
-  Table,
   Text,
   TextInput,
+  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { CalendarClock, Clock, Users, Wallet } from "lucide-react";
 import { DetailSheet } from "../components/DetailSheet";
-import { DataTable, type DataTableSortStatus } from "mantine-datatable";
 import {
   useCoachRequests,
   useDeactivateCoach,
@@ -23,28 +24,37 @@ import {
   useInviteCoach,
   useUpdateCoach,
 } from "../api/hooks";
-import type { Coach } from "../api/types";
-import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
+import type { Coach, CoachRequest } from "../api/types";
+import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { PageHeader, SectionLabel } from "../components/ui";
-import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora";
+import { GlassCard } from "../components/aurora";
+import { Encabezado, Tarjeta } from "../components/Tarjeta";
 import { fmtQ } from "../lib/money";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
-import { sortRecords } from "../lib/sortRecords";
 
 const money = (v: string | number) => fmtQ(v, { decimals: 2 });
+const nombre = (c: Coach) => c.name || c.email;
 
-/** Catálogo de coaches del gimnasio: invitación, solicitudes y roster (Operación).
- *  La forma de pago y las liquidaciones viven en Negocio → Pagos a coaches. */
+/**
+ * El equipo de coaches. Arriba lo que espera tu decisión (quién pidió entrar), luego
+ * tu equipo en tarjetas; tocar a un coach abre su perfil con sus acciones. Invitar es
+ * un botón que abre una ventana. La tarifa y las liquidaciones viven en Pagos a coaches.
+ */
 export function CoachesPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
   const coaches = useGymCoaches(gymId);
   const requests = useCoachRequests(gymId);
-  const inviteCoach = useInviteCoach(gymId);
   const decideRequest = useDecideCoachRequest(gymId);
   const updateCoach = useUpdateCoach(gymId);
   const deactivateCoach = useDeactivateCoach(gymId);
+
+  const [invitando, setInvitando] = useState(false);
+  // Se guarda el id y no el objeto: así el perfil abierto refleja el cambio del
+  // interruptor en cuanto la lista se refresca.
+  const [abiertoId, setAbiertoId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   /** Da o quita el permiso de subir workouts y VERIFICA contra la respuesta. */
   const onPermisoProgramacion = async (coach: Coach, permitido: boolean) => {
@@ -63,42 +73,17 @@ export function CoachesPage() {
       notifications.show({
         color: "teal",
         message: permitido
-          ? `${coach.name || coach.email} ya puede subir el workout.`
-          : `${coach.name || coach.email} ya no puede subir el workout; solo lo ve.`,
+          ? `${nombre(coach)} ya puede subir el workout.`
+          : `${nombre(coach)} ya no puede subir el workout; solo lo ve.`,
       });
     } catch (error) {
       notifications.show({ color: "red", message: errMsg(error, "No se pudo cambiar el permiso.") });
     }
   };
 
-  const [invEmail, setInvEmail] = useState("");
-  const [invFirst, setInvFirst] = useState("");
-  const [invLast, setInvLast] = useState("");
-  const [invMsg, setInvMsg] = useState("");
-  const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
-  const [search, setSearch] = useState("");
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<Coach>>({
-    columnAccessor: "name",
-    direction: "asc",
-  });
-
-  const onInvite = async (e: FormEvent) => {
-    e.preventDefault();
-    setInvMsg("");
-    try {
-      await inviteCoach.mutateAsync({ email: invEmail.trim(), first_name: invFirst, last_name: invLast });
-      setInvEmail("");
-      setInvFirst("");
-      setInvLast("");
-      setInvMsg("Invitación enviada. El coach debe reclamar su cuenta y aceptar.");
-    } catch {
-      setInvMsg("No se pudo invitar (¿correo ya activo como coach?).");
-    }
-  };
-
   /**
    * ¿Se está resolviendo ESTA solicitud (y, si se indica, con esta acción)? Un solo
-   * isPending para toda la tabla hacía girar los botones de todas las filas.
+   * isPending para toda la lista hacía girar los botones de todas las filas.
    */
   const decidiendo = (requestId: string, action?: "approve" | "reject" | "cancel") =>
     decideRequest.isPending &&
@@ -149,7 +134,7 @@ export function CoachesPage() {
 
   /** Da de baja a un coach: sus clases futuras quedan sin coach y sale del equipo. */
   const onDarDeBaja = async (coach: Coach) => {
-    const quien = coach.name || coach.email;
+    const quien = nombre(coach);
     if (
       !window.confirm(
         `¿Dar de baja a ${quien}? Sus clases futuras se quedarán sin coach y ya no aparecerá en tu equipo. Sus clases ya dadas y lo que se le debe no se borran.`,
@@ -158,7 +143,7 @@ export function CoachesPage() {
       return;
     try {
       const { clases_liberadas: n } = await deactivateCoach.mutateAsync(coach.staff_role);
-      setSelectedCoach(null);
+      setAbiertoId(null);
       notifications.show({
         color: "teal",
         message:
@@ -174,99 +159,44 @@ export function CoachesPage() {
   if (!gymId) return <NoGymAssigned />;
   if (coaches.isError) return <PageError onRetry={() => coaches.refetch()} />;
 
-  // KPIs derivados del roster que ya está en memoria: ninguna consulta nueva.
   const roster = coaches.data ?? [];
-  const pendientes = (requests.data ?? []).length;
-  const activos = roster.filter((c) => c.is_active).length;
-  const porClase = roster.filter((c) => c.pay_type === "per_class").length;
-  const fijos = roster.filter((c) => c.pay_type === "fixed").length;
-  /** Mientras carga, un 0 mentiría (parecería "no tienes coaches"): va un guion. */
-  const kpi = (n: number) => (coaches.isLoading ? "—" : n);
+  const solicitudes = requests.data ?? [];
+  const piden = solicitudes.filter((r) => r.direction === "coach_apply");
+  const invitados = solicitudes.filter((r) => r.direction !== "coach_apply");
+  const q = search.trim().toLowerCase();
+  // Activos primero y, dentro, por nombre: el equipo que da clases va al frente.
+  const visibles = roster
+    .filter((c) => !q || nombre(c).toLowerCase().includes(q) || c.email.toLowerCase().includes(q))
+    .sort((a, b) => Number(b.is_active) - Number(a.is_active) || nombre(a).localeCompare(nombre(b), "es"));
+  const abierto = roster.find((c) => c.staff_role === abiertoId) ?? null;
 
   return (
     <div>
-      <PageHeader
-        kicker="Operación · Equipo"
-        title="Coaches"
-        subtitle="Invita coaches, resuelve quién entra al equipo y revisa el roster del gimnasio. La tarifa y las liquidaciones se operan en Negocio → Pagos a coaches."
-      />
+      <PageHeader kicker="Operación · Equipo" title="Coaches" />
 
-      {/* Cifra protagonista: cuántos coaches sostienen las clases hoy. */}
-      <GlassCard variant="core" sheen padding={26} delay={0.6}>
-        <BigMetric
-          label="Coaches activos"
-          value={kpi(activos)}
-          hint={
-            requests.isLoading
-              ? undefined
-              : pendientes > 0
-                ? `${pendientes} ${pendientes === 1 ? "solicitud pendiente" : "solicitudes pendientes"} por resolver.`
-                : "Sin solicitudes ni invitaciones pendientes."
+      <GlassCard delay={0.6} padding={18}>
+        <Encabezado
+          titulo="Tu equipo"
+          avisos={
+            piden.length > 0 && (
+              <Badge color="yellow" variant="light">
+                {piden.length} por aprobar
+              </Badge>
+            )
           }
-          delay={1.0}
-        />
-      </GlassCard>
+        >
+          {roster.length > 6 && (
+            <TextInput
+              placeholder="Buscar coach…"
+              aria-label="Buscar coach"
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              w={{ base: "100%", sm: 220 }}
+            />
+          )}
+          <Button onClick={() => setInvitando(true)}>Invitar coach</Button>
+        </Encabezado>
 
-      <Stagger
-        from={0.72}
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(calc(180 * var(--u)), 1fr))",
-          gap: "calc(14 * var(--u))",
-          margin: "calc(16 * var(--u)) 0 calc(20 * var(--u))",
-        }}
-      >
-        <MetricTile
-          label="En el equipo"
-          value={kpi(roster.length)}
-          icon={<Users size={16} strokeWidth={1.8} />}
-        />
-        <MetricTile
-          label="Pago por clase"
-          value={kpi(porClase)}
-          icon={<CalendarClock size={16} strokeWidth={1.8} />}
-        />
-        <MetricTile
-          label="Salario fijo"
-          value={kpi(fijos)}
-          icon={<Wallet size={16} strokeWidth={1.8} />}
-        />
-        <MetricTile
-          label="Solicitudes"
-          value={requests.isLoading ? "—" : pendientes}
-          icon={<Clock size={16} strokeWidth={1.8} />}
-          tone={pendientes > 0 ? "var(--nucleo-accent)" : undefined}
-        />
-      </Stagger>
-
-      <GlassCard padding={20} delay={0.84} style={{ marginBottom: "calc(20 * var(--u))" }}>
-        <SectionLabel as="h2" mb={6}>Invitar coach</SectionLabel>
-        <Text c="dimmed" size="sm" mb="md">
-          Le creamos su cuenta de Nucleo; el coach la reclama y acepta para quedar activo.
-        </Text>
-        <Group align="flex-end" component="form" onSubmit={onInvite} gap="md" grow>
-          <TextInput
-            label="Correo"
-            type="email"
-            value={invEmail}
-            onChange={(e) => setInvEmail(e.currentTarget.value)}
-            required
-          />
-          <TextInput label="Nombre" value={invFirst} onChange={(e) => setInvFirst(e.currentTarget.value)} />
-          <TextInput label="Apellido" value={invLast} onChange={(e) => setInvLast(e.currentTarget.value)} />
-          <Button type="submit" loading={inviteCoach.isPending} disabled={!invEmail.trim()} style={{ flexGrow: 0 }}>
-            Invitar
-          </Button>
-        </Group>
-        {invMsg && (
-          <Text size="sm" mt="sm" c={invMsg.startsWith("No se pudo") ? "red" : "flame"}>
-            {invMsg}
-          </Text>
-        )}
-      </GlassCard>
-
-      <SectionLabel as="h2" mb={10}>Solicitudes de coaches</SectionLabel>
-      <GlassCard padding={18} delay={0.96} style={{ marginBottom: "calc(20 * var(--u))" }}>
         {/* Un fallo aquí decía "no hay solicitudes": el coach que aplicó se
             quedaba esperando y el gym creía que nadie había pedido unirse. */}
         {requests.isError ? (
@@ -274,193 +204,216 @@ export function CoachesPage() {
             message="No se pudieron cargar las solicitudes de coaches."
             onRetry={() => requests.refetch()}
           />
-        ) : requests.isLoading ? (
-          <PageLoading />
-        ) : !(requests.data ?? []).length ? (
-          <Text c="dimmed" size="sm">
-            No hay solicitudes ni invitaciones pendientes.
+        ) : piden.length > 0 ? (
+          <Stack gap={6} mb="lg">
+            {piden.map((r) => (
+              <Tarjeta key={r.id} aviso etiqueta={`${r.user_email} pidió unirse`}>
+                <Group justify="space-between" wrap="wrap" gap="sm">
+                  <Text size="sm" style={{ flex: 1, minWidth: 200 }}>
+                    <b>{r.user_email}</b>{" "}
+                    <Text span c="dimmed">
+                      · Solicitó unirse
+                    </Text>
+                  </Text>
+                  <Group gap="xs">
+                    <Button
+                      size="xs"
+                      loading={decidiendo(r.id, "approve")}
+                      disabled={decidiendo(r.id)}
+                      onClick={() => onDecidir(r.id, r.user_email, "approve")}
+                    >
+                      Aprobar
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="light"
+                      color="red"
+                      loading={decidiendo(r.id, "reject")}
+                      disabled={decidiendo(r.id)}
+                      onClick={() => onDecidir(r.id, r.user_email, "reject")}
+                    >
+                      Rechazar
+                    </Button>
+                  </Group>
+                </Group>
+              </Tarjeta>
+            ))}
+          </Stack>
+        ) : null}
+
+        {coaches.isLoading ? (
+          <Text size="sm" c="dimmed">
+            Cargando…
+          </Text>
+        ) : visibles.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            {roster.length ? "Ningún coach coincide con la búsqueda." : "Aún no tienes coaches. Invita al primero."}
           </Text>
         ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Coach</Table.Th>
-                <Table.Th>Origen</Table.Th>
-                <Table.Th>Acción</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {(requests.data ?? []).map((r) => (
-                <Table.Tr key={r.id}>
-                  <Table.Td>{r.user_email}</Table.Td>
-                  <Table.Td>
-                    <Badge variant="light" color={r.direction === "coach_apply" ? "blue" : "grape"}>
-                      {r.direction === "coach_apply" ? "Solicitó unirse" : "Invitación enviada"}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    {r.direction === "coach_apply" ? (
-                      <Group gap="xs">
-                        <Button
-                          size="xs"
-                          loading={decidiendo(r.id, "approve")}
-                          disabled={decidiendo(r.id)}
-                          onClick={() => onDecidir(r.id, r.user_email, "approve")}
-                        >
-                          Aprobar
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="default"
-                          color="red"
-                          loading={decidiendo(r.id, "reject")}
-                          disabled={decidiendo(r.id)}
-                          onClick={() => onDecidir(r.id, r.user_email, "reject")}
-                        >
-                          Rechazar
-                        </Button>
-                      </Group>
-                    ) : (
-                      <Group gap="xs">
-                        <Text c="dimmed" size="sm">
-                          Esperando que el coach acepte
-                        </Text>
-                        <Button
-                          size="xs"
-                          variant="default"
-                          color="red"
-                          loading={decidiendo(r.id)}
-                          onClick={() => onCancelarInvitacion(r.id, r.user_email)}
-                        >
-                          Cancelar invitación
-                        </Button>
-                      </Group>
-                    )}
-                  </Table.Td>
-                </Table.Tr>
+          <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
+            {visibles.map((c) => (
+              <TarjetaCoach key={c.staff_role} coach={c} onClick={() => setAbiertoId(c.staff_role)} />
+            ))}
+          </SimpleGrid>
+        )}
+
+        {invitados.length > 0 && (
+          <>
+            <Title order={4} mt="xl" mb="sm">
+              Invitados
+            </Title>
+            <Stack gap={6}>
+              {invitados.map((r) => (
+                <Invitacion
+                  key={r.id}
+                  r={r}
+                  cancelando={decidiendo(r.id)}
+                  onCancelar={() => onCancelarInvitacion(r.id, r.user_email)}
+                />
               ))}
-            </Table.Tbody>
-          </Table>
+            </Stack>
+          </>
         )}
       </GlassCard>
 
-      <SectionLabel as="h2" mb={10}>Coaches del gimnasio</SectionLabel>
-      <GlassCard padding={0} delay={1.08}>
-        <Group justify="flex-end" p="md" pb="xs">
-          <TextInput
-            placeholder="Buscar coach…"
-            value={search}
-            onChange={(e) => setSearch(e.currentTarget.value)}
-            w={{ base: "100%", sm: 240 }}
-          />
-        </Group>
-        <DataTable<Coach>
-          minHeight={160}
-          highlightOnHover
-          striped
-          idAccessor="staff_role"
-          records={sortRecords(
-            (coaches.data ?? []).filter(
-              (c) =>
-                !search.trim() ||
-                (c.name || c.email).toLowerCase().includes(search.trim().toLowerCase()),
-            ),
-            sortStatus,
-          )}
-          fetching={coaches.isLoading}
-          noRecordsText="Sin coaches. Invita al primer coach del gimnasio."
-          sortStatus={sortStatus}
-          onSortStatusChange={setSortStatus}
-          onRowClick={({ record }) => setSelectedCoach(record)}
-          columns={[
-            {
-              accessor: "name",
-              title: "Coach",
-              sortable: true,
-              render: (c) => (
-                <Group gap="sm" wrap="nowrap">
-                  <Avatar src={c.photo} radius="xl" size={38} color="flame">
-                    {(c.name || c.email).slice(0, 1).toUpperCase()}
-                  </Avatar>
-                  <div>
-                    <Text fw={600} size="sm">
-                      {c.name || c.email}
-                    </Text>
-                    <Text c="dimmed" size="xs">
-                      {c.email}
-                    </Text>
-                  </div>
-                </Group>
-              ),
-            },
-            {
-              accessor: "pay_type",
-              title: "Forma de pago",
-              sortable: true,
-              render: (c) => (
-                <Badge variant="light" color={c.pay_type === "fixed" ? "grape" : "blue"}>
-                  {c.pay_type === "fixed" ? "Salario fijo" : "Por clase"}
-                </Badge>
-              ),
-            },
-            {
-              accessor: "rating",
-              title: "Calificación",
-              sortable: true,
-              render: (c) =>
-                c.rating != null ? (
-                  <Text size="sm" className="a-tabular">
-                    ⭐ {c.rating.toFixed(1)}{" "}
-                    <Text span c="dimmed" size="xs">
-                      ({c.rating_count})
-                    </Text>
-                  </Text>
-                ) : (
-                  <Text c="dimmed" size="sm">—</Text>
-                ),
-            },
-            {
-              accessor: "can_program_wods",
-              title: "Sube el workout",
-              sortable: true,
-              render: (c) => (
-                // El clic en el switch no debe abrir la ficha del coach.
-                <div onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={c.can_program_wods}
-                    disabled={updateCoach.isPending && updateCoach.variables?.staffId === c.staff_role}
-                    onChange={(e) => onPermisoProgramacion(c, e.currentTarget.checked)}
-                    aria-label={`Permitir que ${c.name || c.email} suba el workout`}
-                  />
-                </div>
-              ),
-            },
-            {
-              accessor: "is_active",
-              title: "Estado",
-              sortable: true,
-              render: (c) => (
-                <Badge variant="light" color={c.is_active ? "teal" : "gray"}>
-                  {c.is_active ? "Activo" : "Inactivo"}
-                </Badge>
-              ),
-            },
-          ]}
-        />
-        <Text c="dimmed" size="xs" px="md" pb="md" pt="xs">
-          Toca un coach para ver su perfil. «Sube el workout» decide si puede crear, editar y
-          publicar el workout del día; apagado, solo lo ve. La tarifa y las liquidaciones se
-          gestionan en Negocio → Pagos a coaches.
-        </Text>
-      </GlassCard>
+      <InvitarCoachModal gymId={gymId} opened={invitando} onClose={() => setInvitando(false)} />
 
       <CoachProfileSheet
-        coach={selectedCoach}
-        onClose={() => setSelectedCoach(null)}
+        coach={abierto}
+        onClose={() => setAbiertoId(null)}
         onDarDeBaja={onDarDeBaja}
         dandoDeBaja={deactivateCoach.isPending}
+        onPermiso={onPermisoProgramacion}
+        guardandoPermiso={
+          !!abierto && updateCoach.isPending && updateCoach.variables?.staffId === abierto.staff_role
+        }
       />
     </div>
+  );
+}
+
+/** Un coach del equipo. Tocarlo abre su perfil. */
+function TarjetaCoach({ coach, onClick }: { coach: Coach; onClick: () => void }) {
+  return (
+    <Tarjeta etiqueta={`Abrir perfil de ${nombre(coach)}`} onClick={onClick} apagada={!coach.is_active}>
+      <Group gap="sm" wrap="nowrap">
+        <Avatar src={coach.photo} radius="xl" size={38} color="flame">
+          {nombre(coach).slice(0, 1).toUpperCase()}
+        </Avatar>
+        <div style={{ minWidth: 0 }}>
+          <Text fw={600} size="sm" truncate>
+            {nombre(coach)}
+          </Text>
+          <Text c="dimmed" size="xs" truncate>
+            {coach.pay_type === "fixed" ? "Salario fijo" : "Por clase"}
+            {coach.rating != null ? ` · ⭐ ${coach.rating.toFixed(1)} (${coach.rating_count})` : ""}
+          </Text>
+        </div>
+      </Group>
+      <Group gap={6} mt={8}>
+        {!coach.is_active && (
+          <Badge size="xs" variant="light" color="gray">
+            Inactivo
+          </Badge>
+        )}
+        {coach.can_program_wods && (
+          <Badge size="xs" variant="light" color="flame">
+            Sube el workout
+          </Badge>
+        )}
+      </Group>
+    </Tarjeta>
+  );
+}
+
+/** Una invitación que tú mandaste: decide el coach; tú solo puedes retirarla. */
+function Invitacion({
+  r,
+  cancelando,
+  onCancelar,
+}: {
+  r: CoachRequest;
+  cancelando: boolean;
+  onCancelar: () => void;
+}) {
+  return (
+    <Tarjeta etiqueta={`Invitación a ${r.user_email}`}>
+      <Group justify="space-between" wrap="wrap" gap="sm">
+        <Text size="sm" style={{ flex: 1, minWidth: 200 }}>
+          <b>{r.user_email}</b>{" "}
+          <Text span c="dimmed">
+            · Esperando que acepte
+          </Text>
+        </Text>
+        <Button size="xs" variant="subtle" color="red" loading={cancelando} onClick={onCancelar}>
+          Cancelar invitación
+        </Button>
+      </Group>
+    </Tarjeta>
+  );
+}
+
+/** La ventana de invitar: correo obligatorio, nombre y apellido opcionales. */
+function InvitarCoachModal({ gymId, opened, onClose }: { gymId: string; opened: boolean; onClose: () => void }) {
+  const inviteCoach = useInviteCoach(gymId);
+  const [email, setEmail] = useState("");
+  const [first, setFirst] = useState("");
+  const [last, setLast] = useState("");
+  const [error, setError] = useState("");
+
+  const cerrar = () => {
+    setError("");
+    onClose();
+  };
+
+  const onInvite = async (e: FormEvent) => {
+    e.preventDefault();
+    setError("");
+    try {
+      await inviteCoach.mutateAsync({ email: email.trim(), first_name: first, last_name: last });
+      setEmail("");
+      setFirst("");
+      setLast("");
+      notifications.show({
+        color: "teal",
+        message: "Invitación enviada. El coach debe reclamar su cuenta y aceptar.",
+      });
+      onClose();
+    } catch {
+      setError("No se pudo invitar (¿correo ya activo como coach?).");
+    }
+  };
+
+  return (
+    <Modal opened={opened} onClose={cerrar} title="Invitar coach" centered>
+      <form onSubmit={onInvite}>
+        <TextInput
+          label="Correo"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.currentTarget.value)}
+          required
+          data-autofocus
+        />
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm" mt="sm">
+          <TextInput label="Nombre" value={first} onChange={(e) => setFirst(e.currentTarget.value)} />
+          <TextInput label="Apellido" value={last} onChange={(e) => setLast(e.currentTarget.value)} />
+        </SimpleGrid>
+        {error && (
+          <Text size="sm" mt="sm" c="red">
+            {error}
+          </Text>
+        )}
+        <Group justify="flex-end" mt="lg" gap="xs">
+          <Button variant="default" onClick={cerrar}>
+            Cancelar
+          </Button>
+          <Button type="submit" loading={inviteCoach.isPending} disabled={!email.trim()}>
+            Invitar
+          </Button>
+        </Group>
+      </form>
+    </Modal>
   );
 }
 
@@ -469,37 +422,58 @@ export function CoachProfileSheet({
   onClose,
   onDarDeBaja,
   dandoDeBaja = false,
+  onPermiso,
+  guardandoPermiso = false,
 }: {
   coach: Coach | null;
   onClose: () => void;
   onDarDeBaja: (coach: Coach) => void;
   dandoDeBaja?: boolean;
+  /** Prende o apaga «Sube el workout». Sin él, el interruptor no se muestra. */
+  onPermiso?: (coach: Coach, permitido: boolean) => void;
+  guardandoPermiso?: boolean;
 }) {
+  const navigate = useNavigate();
   return (
     <DetailSheet opened={!!coach} onClose={onClose} title="Perfil del coach">
       {coach && (
         <>
           <Group gap="md" mb="md">
             <Avatar src={coach.photo} radius="xl" size={64} color="flame">
-              {(coach.name || coach.email).slice(0, 1).toUpperCase()}
+              {nombre(coach).slice(0, 1).toUpperCase()}
             </Avatar>
-            <div>
-              <Text
-                fw={600}
-                fz="lg"
-                ff="var(--a-font-display)"
-                style={{ letterSpacing: "-0.015em" }}
-              >
-                {coach.name || coach.email}
+            <div style={{ minWidth: 0 }}>
+              <Text fw={600} fz="lg" ff="var(--a-font-display)" style={{ letterSpacing: "-0.015em" }}>
+                {nombre(coach)}
               </Text>
               <Text c="dimmed" size="sm">
                 {coach.email}
               </Text>
-              <Badge mt={4} variant="light" color={coach.is_active ? "teal" : "gray"}>
-                {coach.is_active ? "Activo" : "Inactivo"}
-              </Badge>
+              <Group gap={6} mt={4}>
+                <Badge variant="light" color={coach.is_active ? "teal" : "gray"}>
+                  {coach.is_active ? "Activo" : "Inactivo"}
+                </Badge>
+                {coach.rating != null && (
+                  <Text size="sm" className="a-tabular">
+                    ⭐ {coach.rating.toFixed(1)}{" "}
+                    <Text span c="dimmed" size="xs">
+                      ({coach.rating_count})
+                    </Text>
+                  </Text>
+                )}
+              </Group>
             </div>
           </Group>
+          {onPermiso && (
+            <Switch
+              mb="md"
+              label="Sube el workout"
+              checked={coach.can_program_wods}
+              disabled={guardandoPermiso}
+              onChange={(e) => onPermiso(coach, e.currentTarget.checked)}
+              aria-label={`Permitir que ${nombre(coach)} suba el workout`}
+            />
+          )}
           <Divider mb="md" />
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
             <div>
@@ -515,22 +489,14 @@ export function CoachProfileSheet({
               </Text>
             </div>
           </SimpleGrid>
-          <Text c="dimmed" size="xs" mt="md">
-            La tarifa y las liquidaciones se editan en Negocio → Pagos a coaches.
-          </Text>
-          <Divider my="md" />
-          <Button
-            variant="default"
-            color="red"
-            loading={dandoDeBaja}
-            onClick={() => onDarDeBaja(coach)}
-          >
-            Dar de baja
-          </Button>
-          <Text c="dimmed" size="xs" mt="xs">
-            Sus clases futuras se quedan sin coach y sale de tu equipo. Para que vuelva,
-            invítalo de nuevo.
-          </Text>
+          <Group justify="space-between" mt="lg" gap="xs">
+            <Button variant="subtle" color="red" loading={dandoDeBaja} onClick={() => onDarDeBaja(coach)}>
+              Dar de baja
+            </Button>
+            <Button variant="default" onClick={() => navigate("/panel/coaches-pagos")}>
+              Cambiar tarifa →
+            </Button>
+          </Group>
         </>
       )}
     </DetailSheet>

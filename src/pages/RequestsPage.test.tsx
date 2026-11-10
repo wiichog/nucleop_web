@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { describe, expect, it, vi } from "vitest";
+
+// La primera pintura de Mantine bajo jsdom tarda: el límite de 5 s no alcanza.
+vi.setConfig({ testTimeout: 30000 });
 import type { JoinRequest } from "../api/types";
 
 /**
@@ -9,9 +12,9 @@ import type { JoinRequest } from "../api/types";
  * a ciegas: distinguir un alta nueva de un REINGRESO (alguien que ya fue de la
  * casa) y ver que vuelve con sus puntos y su antigüedad, no de cero.
  *
- * La fila va suelta porque `mantine-datatable` no pinta celdas bajo jsdom; el
- * aviso que explica el reingreso sí vive fuera de la tabla y se prueba en la
- * página, que es donde se decide si aparece.
+ * La bandeja ya no es una tabla: son filas que se tocan y abren una ventana con
+ * las decisiones, así que se prueba la página entera (la fila, el contador en
+ * amarillo y que el motivo se pida al elegir rechazar).
  */
 
 if (!window.matchMedia) {
@@ -34,7 +37,10 @@ if (!window.ResizeObserver) {
   } as unknown as typeof ResizeObserver;
 }
 
-const estado = vi.hoisted(() => ({ solicitudes: [] as unknown[] }));
+const estado = vi.hoisted(() => ({
+  solicitudes: [] as unknown[],
+  decisiones: [] as unknown[],
+}));
 
 vi.mock("../api/hooks", () => {
   const consulta = (data: unknown) => ({
@@ -46,13 +52,17 @@ vi.mock("../api/hooks", () => {
   const mutacion = () => ({
     mutate: vi.fn(),
     mutateAsync: vi.fn(),
+    reset: vi.fn(),
     isPending: false,
     isError: false,
   });
   return {
     useJoinRequests: () => consulta(estado.solicitudes),
     useInviteAthlete: () => mutacion(),
-    useDecideJoinRequest: () => mutacion(),
+    useDecideJoinRequest: () => ({
+      ...mutacion(),
+      mutate: (vars: unknown) => estado.decisiones.push(vars),
+    }),
     useAssignPlan: () => mutacion(),
     usePlans: () => consulta([]),
     usePlanOffers: () => consulta([]),
@@ -119,15 +129,71 @@ describe("RequestsPage · reingreso", () => {
     expect(screen.queryByText("Reingreso")).toBeNull();
   });
 
-  it("el aviso de que la relación se conserva solo sale si hay un reingreso", () => {
+  it("en la bandeja, el reingreso se ve en la fila sin abrirla", () => {
     estado.solicitudes = [solicitud({ is_rejoin: true, community_points: 180 })];
     const { unmount } = pintarPagina();
-    expect(screen.getByText(/reabre la relación que el atleta ya tuvo/)).toBeTruthy();
+    expect(screen.getByText("Reingreso")).toBeTruthy();
     unmount();
 
     estado.solicitudes = [solicitud({ id: "jr-2" })];
     pintarPagina();
-    expect(screen.queryByText(/reabre la relación que el atleta ya tuvo/)).toBeNull();
+    expect(screen.queryByText("Reingreso")).toBeNull();
+  });
+});
+
+describe("RequestsPage · bandeja", () => {
+  it("lo pendiente sale con su contador y lo resuelto no aparece", () => {
+    estado.solicitudes = [
+      solicitud({ id: "jr-1", athlete_name: "Ana López", status: "requested" }),
+      solicitud({ id: "jr-2", athlete_name: "Luis Pérez", status: "approved_no_plan" }),
+      solicitud({ id: "jr-3", athlete_name: "Eva Ruiz", status: "active" }),
+    ];
+    pintarPagina();
+    expect(screen.getByText("1 por decidir")).toBeTruthy();
+    expect(screen.getByText("1 sin plan")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Responder a Ana López" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Responder a Luis Pérez" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Responder a Eva Ruiz" })).toBeNull();
+  });
+
+  it("el motivo se pide al elegir «Rechazar» y viaja con la decisión", async () => {
+    estado.decisiones = [];
+    estado.solicitudes = [solicitud()];
+    pintarPagina();
+    fireEvent.click(screen.getByRole("button", { name: "Responder a Ana López" }));
+    expect(screen.queryByLabelText(/Motivo del rechazo/)).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Rechazar" }));
+    fireEvent.change(await screen.findByLabelText(/Motivo del rechazo/), {
+      target: { value: "Cupo lleno" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar solicitud" }));
+    expect(estado.decisiones).toEqual([
+      { requestId: "jr-1", decision: "reject", comment: "Cupo lleno" },
+    ]);
+  });
+
+  it("a una invitación propia no se le ofrece prueba", async () => {
+    estado.solicitudes = [solicitud({ status: "invited" })];
+    pintarPagina();
+    fireEvent.click(screen.getByRole("button", { name: "Responder a Ana López" }));
+    expect(await screen.findByRole("button", { name: "Aprobar" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ofrecer prueba" })).toBeNull();
+  });
+
+  it("a una aprobada sin plan se le asigna plan, no se vuelve a decidir", async () => {
+    estado.solicitudes = [solicitud({ status: "approved_no_plan" })];
+    pintarPagina();
+    fireEvent.click(screen.getByRole("button", { name: "Responder a Ana López" }));
+    expect(await screen.findByRole("button", { name: "Asignar plan" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Aprobar" })).toBeNull();
+  });
+
+  it("«Invitar atleta» abre la ventana de invitación", async () => {
+    estado.solicitudes = [];
+    pintarPagina();
+    expect(screen.getByText("Nada pendiente.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Invitar atleta/ }));
+    expect(await screen.findByRole("button", { name: "Enviar invitación" })).toBeTruthy();
   });
 });
 

@@ -6,14 +6,15 @@ import { PENDING_ITEMS, navBadgeCount } from "./pending";
 const resumen: PendingSummary = {
   solicitudes: 1,
   coaches: 0,
-  posts: 0,
+  posts: 2,
+  comentarios: 5,
   tickets: 0,
   clases_sin_wod: 0,
   pedidos: 2,
   clubes: 0,
   bajas: 3,
   morosos: 4,
-  total: 10,
+  total: 17,
 };
 
 describe("PENDING_ITEMS", () => {
@@ -21,7 +22,7 @@ describe("PENDING_ITEMS", () => {
     // Si un pendiente suma al badge pero no está aquí, la campana marca un
     // número y el desplegable dice "todo al día".
     const listados = PENDING_ITEMS.map((i) => i.key);
-    for (const key of ["solicitudes", "coaches", "solicitudes_clase", "posts", "tickets", "clases_sin_wod", "pedidos", "clubes", "bajas", "morosos"]) {
+    for (const key of ["solicitudes", "coaches", "solicitudes_clase", "posts", "tickets", "clases_sin_wod", "pedidos", "clubes", "bajas", "morosos", "comentarios", "apelaciones", "denuncias_club"]) {
       expect(listados).toContain(key);
     }
   });
@@ -34,14 +35,19 @@ describe("PENDING_ITEMS", () => {
     // La postulación se decide viendo la franja: su pestaña, no el calendario.
     const clase = PENDING_ITEMS.find((i) => i.key === "solicitudes_clase");
     expect(clase?.to).toBe("/panel/clases?tab=requests");
+    // Los morosos se cobran en Membresías ("Por cobrar"), no en el padrón.
+    expect(PENDING_ITEMS.find((i) => i.key === "morosos")?.to).toBe("/panel/pagos");
+    expect(PENDING_ITEMS.find((i) => i.key === "clases_sin_wod")?.to).toBe("/panel/clases?tab=wod");
   });
 });
 
 describe("navBadgeCount", () => {
   it("suma los pendientes que caen en la misma pantalla", () => {
-    // Atletas recibe morosos (4) + bajas (3): con un solo contador por ruta el
-    // badge del menú mostraba únicamente uno de los dos.
-    expect(navBadgeCount("/panel/atletas", resumen)).toBe(7);
+    // Comunidad recibe posts (2) + comentarios (5): con un solo contador por ruta
+    // el badge del menú mostraba únicamente uno de los dos.
+    expect(navBadgeCount("/panel/comunidad", resumen)).toBe(7);
+    expect(navBadgeCount("/panel/atletas", resumen)).toBe(3);
+    expect(navBadgeCount("/panel/pagos", resumen)).toBe(4);
   });
 
   it("usa la ruta BASE aunque el pendiente enlace con query string", () => {

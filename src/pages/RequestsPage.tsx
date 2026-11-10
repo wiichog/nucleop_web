@@ -1,35 +1,36 @@
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import {
   Badge,
   Button,
   Group,
+  Modal,
   NumberInput,
+  Select,
   SimpleGrid,
   Stack,
   Text,
+  Textarea,
   TextInput,
-  Select,
+  Title,
 } from "@mantine/core";
-import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { DataTable, type DataTableSortStatus } from "mantine-datatable";
+import { UserPlus } from "lucide-react";
 import {
   useAssignPlan,
   useDecideJoinRequest,
-  useInviteAthlete,
   useJoinRequests,
   usePlanOffers,
   usePlans,
 } from "../api/hooks";
 import { JoinRequest, Membership } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
-import { PhoneInput } from "../components/PhoneInput";
 import { GlassCard } from "../components/aurora";
-import { CountBadge, PageHeader, SectionLabel, StatusBadge } from "../components/ui";
+import { PageHeader, StatusBadge } from "../components/ui";
+import { Encabezado, Tarjeta } from "../components/Tarjeta";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
 import { fmtQ } from "../lib/money";
-import { sortRecords } from "../lib/sortRecords";
+import { InvitarAtletaModal } from "./usuarios/InvitarAtletaModal";
 
 /**
  * Confirmación de «Asignar plan». La cuota se lee de la RESPUESTA del servidor,
@@ -47,47 +48,75 @@ export function mensajeAsignacion(saved: Pick<Membership, "custom_fee" | "status
   );
 }
 
-const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
+/** Todavía no se decide: aprobar, ofrecer prueba, pedir información o rechazar. */
+const POR_DECIDIR = ["requested", "invited", "pending_approval"];
+/** Ya se aceptó: falta asignarle plan para que quede activo. */
+const FALTA_PLAN = ["approved_no_plan", "trial"];
 
-// Extrae el mensaje real de la API (detail o error de campo) para no esconder la causa.
-function inviteErrorMessage(err: unknown): string | null {
-  const data = (err as { response?: { data?: unknown } } | undefined)?.response?.data;
-  if (!data || typeof data !== "object") return null;
-  const obj = data as Record<string, unknown>;
-  // `detail` puede ser string (errores de negocio) u objeto de errores de campo.
-  if (typeof obj.detail === "string") return obj.detail;
-  const bag = (
-    obj.detail && typeof obj.detail === "object" ? obj.detail : obj
-  ) as Record<string, unknown>;
-  for (const key of ["trial_start", "trial_end", "phone", "email"]) {
-    const v = bag[key];
-    if (Array.isArray(v) && typeof v[0] === "string") return v[0];
-    if (typeof v === "string") return v;
-  }
-  return null;
-}
+type Decision = "approve" | "reject" | "offer_trial" | "request_info";
 
-// Estados que siguen requiriendo gestión en la bandeja de Solicitudes. Al asignar un
-// plan la membresía pasa a "active" y la solicitud desaparece de aquí (ya es miembro).
-const ACTIONABLE_STATUSES = ["requested", "invited", "pending_approval", "approved_no_plan", "trial"];
+/**
+ * Cada decisión con su botón, el campo que pide al elegirla y el botón que la
+ * confirma. La nota viaja al historial de la membresía; en el rechazo y en
+ * «pedir información» es lo que importa, por eso se pide justo ahí.
+ */
+const DECISIONES: Record<
+  Decision,
+  { boton: string; campo: string; confirmar: string; color?: string; variant: string; hecho: string }
+> = {
+  approve: {
+    boton: "Aprobar",
+    campo: "Nota (opcional)",
+    confirmar: "Aprobar",
+    variant: "filled",
+    hecho: "Solicitud aprobada. Asígnale un plan para activar la membresía.",
+  },
+  offer_trial: {
+    boton: "Ofrecer prueba",
+    campo: "Nota (opcional)",
+    confirmar: "Ofrecer prueba",
+    variant: "light",
+    hecho: "Prueba ofrecida al atleta.",
+  },
+  request_info: {
+    boton: "Pedir información",
+    campo: "¿Qué información necesitas?",
+    confirmar: "Pedir información",
+    variant: "default",
+    hecho: "Se solicitó más información al atleta.",
+  },
+  reject: {
+    boton: "Rechazar",
+    campo: "Motivo del rechazo (opcional)",
+    confirmar: "Rechazar solicitud",
+    color: "red",
+    variant: "light",
+    hecho: "Solicitud rechazada.",
+  },
+};
+
+const fechaCorta = (iso: string) =>
+  new Date(iso).toLocaleDateString("es-GT", { day: "2-digit", month: "short" });
 
 /**
  * Identidad del solicitante. Cuando es un REINGRESO (el atleta ya fue miembro de
  * este gimnasio) lo dice con todas sus letras y muestra lo que la relación trae
  * consigo: sus puntos de comunidad y desde cuándo es de la casa. Aprobar a ciegas
  * y aprobar a alguien que vuelve no son la misma decisión.
- *
- * Se exporta para poder probarla suelta: `mantine-datatable` no pinta celdas bajo
- * jsdom, así que dentro de la tabla no hay nada que testear.
  */
 export function Solicitante({ request }: { request: JoinRequest }) {
-  if (!request.is_rejoin) return <>{request.athlete_name}</>;
+  if (!request.is_rejoin)
+    return (
+      <Text fw={600} size="sm" truncate>
+        {request.athlete_name}
+      </Text>
+    );
   // `member_since` es "YYYY-MM-DD": el año basta y evita el corrimiento de un día
   // que produce `new Date("2023-05-01")` al pasarlo a la zona de Guatemala.
   const desde = request.member_since?.slice(0, 4);
   return (
-    <Stack gap={4}>
-      <Text fw={500} size="sm">
+    <Stack gap={2}>
+      <Text fw={600} size="sm" truncate>
         {request.athlete_name}
       </Text>
       <Group gap={6} wrap="wrap">
@@ -103,99 +132,201 @@ export function Solicitante({ request }: { request: JoinRequest }) {
   );
 }
 
-function RequestActions({ request, gymId }: { request: JoinRequest; gymId: string }) {
+/** Una solicitud en la bandeja: tocarla abre sus acciones. */
+function Fila({ request, onOpen }: { request: JoinRequest; onOpen: () => void }) {
+  const porDecidir = POR_DECIDIR.includes(request.status ?? "");
+  return (
+    <Tarjeta etiqueta={`Responder a ${request.athlete_name}`} onClick={onOpen} aviso={porDecidir}>
+      <Group justify="space-between" wrap="nowrap" gap="sm" align="flex-start">
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <Solicitante request={request} />
+          {request.goal ? (
+            <Text size="xs" c="dimmed" truncate mt={2}>
+              {request.goal}
+            </Text>
+          ) : null}
+        </div>
+        <Stack gap={4} align="flex-end" style={{ flexShrink: 0 }}>
+          <StatusBadge kind="membership" status={request.status} size="sm" />
+          <Text size="xs" c="dimmed">
+            {fechaCorta(request.created_at)}
+          </Text>
+        </Stack>
+      </Group>
+    </Tarjeta>
+  );
+}
+
+/** Un dato de la solicitud en una línea; si no vino, no ocupa lugar. */
+function Dato({ etiqueta, valor }: { etiqueta: string; valor?: string | null }) {
+  if (!valor) return null;
+  return (
+    <Text size="sm">
+      <Text span c="dimmed">
+        {etiqueta}:
+      </Text>{" "}
+      {valor}
+    </Text>
+  );
+}
+
+/**
+ * La ventana de una solicitud: lo que pidió la persona y, según dónde está, sus
+ * cuatro decisiones (la nota se pide al elegir una) o la asignación del plan.
+ */
+function ResponderModal({
+  request,
+  gymId,
+  onClose,
+}: {
+  request: JoinRequest | null;
+  gymId: string;
+  onClose: () => void;
+}) {
   const decide = useDecideJoinRequest(gymId);
   const assign = useAssignPlan(gymId);
   const plans = usePlans(gymId);
   const offers = usePlanOffers(gymId);
-  const [planId, setPlanId] = useState<string | null>("");
+  const [eleccion, setEleccion] = useState<Decision | null>(null);
+  const [nota, setNota] = useState("");
+  const [planId, setPlanId] = useState<string | null>(null);
   // Cuota personalizada en GTQ. `""` (campo vacío) significa "sin cuota propia":
   // se manda `custom_fee: null` para QUITARLA y volver al precio del plan.
   const [customFee, setCustomFee] = useState<string | number>("");
-  const [offerId, setOfferId] = useState<string | null>("");
-  const [comment, setComment] = useState("");
-  const status = request.status ?? "";
-  const membershipId = request.membership;
-  const canDecide = ["requested", "invited", "pending_approval"].includes(status);
+  const [offerId, setOfferId] = useState<string | null>(null);
+  const [hidratadoPara, setHidratadoPara] = useState<JoinRequest | null>(null);
+
+  if (request && hidratadoPara !== request) {
+    setHidratadoPara(request);
+    setEleccion(null);
+    setNota("");
+    setPlanId(null);
+    setCustomFee("");
+    setOfferId(null);
+  }
 
   const ok = (m: string) => notifications.show({ color: "teal", message: m });
   const fail = (m: string) => notifications.show({ color: "red", message: m });
 
-  const DECISION_MSG: Record<string, string> = {
-    approve: "Solicitud aprobada. Asígnale un plan para activar la membresía.",
-    offer_trial: "Prueba ofrecida al atleta.",
-    request_info: "Se solicitó más información al atleta.",
-    reject: "Solicitud rechazada.",
-  };
+  if (!request) return <Modal opened={false} onClose={onClose} title="" />;
 
-  const onDecide = (decision: "approve" | "reject" | "offer_trial" | "request_info") =>
+  const status = request.status ?? "";
+  const membershipId = request.membership;
+  const canDecide = POR_DECIDIR.includes(status);
+  const needsPlan = !!membershipId && FALTA_PLAN.includes(status);
+  const decisiones = (Object.keys(DECISIONES) as Decision[]).filter(
+    (d) => d !== "offer_trial" || status !== "invited",
+  );
+
+  const onDecide = (decision: Decision) =>
     decide.mutate(
-      { requestId: request.id, decision, comment },
+      { requestId: request.id, decision, comment: nota.trim() },
       {
-        onSuccess: () => ok(DECISION_MSG[decision]),
+        onSuccess: () => {
+          ok(DECISIONES[decision].hecho);
+          onClose();
+        },
         onError: (error) => fail(errMsg(error, "No se pudo completar la acción. Inténtalo de nuevo.")),
       },
     );
 
   /**
    * Asigna el plan. La cuota personalizada viaja SIEMPRE (nunca se omite): con un
-   * número la fija, y **vacía manda `null` para quitarla**. Antes se mandaba
-   * `customFee || null` sin que el panel dijera nada, así que borrar el campo no
-   * quitaba nada y el atleta seguía con su cuota vieja.
+   * número la fija, y **vacía manda `null` para quitarla**.
    */
   const onAssign = () => {
+    if (!planId || !membershipId) return;
     // El separador de miles es sólo presentación: el backend espera un decimal.
     const fee =
       typeof customFee === "number" ? String(customFee) : customFee.replace(/,/g, "").trim();
-    return (
-      planId &&
-      membershipId &&
-      assign.mutate(
-        { membershipId, planId, customFee: fee === "" ? null : fee, offerId: offerId ?? undefined },
-        {
-          onSuccess: (saved) => ok(mensajeAsignacion(saved)),
-          onError: (error) =>
-            fail(errMsg(error, "No se pudo asignar el plan. Inténtalo de nuevo.")),
+    assign.mutate(
+      { membershipId, planId, customFee: fee === "" ? null : fee, offerId: offerId ?? undefined },
+      {
+        onSuccess: (saved) => {
+          ok(mensajeAsignacion(saved));
+          onClose();
         },
-      )
+        onError: (error) => fail(errMsg(error, "No se pudo asignar el plan. Inténtalo de nuevo.")),
+      },
     );
   };
 
+  const elegida = eleccion ? DECISIONES[eleccion] : null;
+  const precioPlan = (plans.data ?? []).find((p) => p.id === planId)?.price;
+
   return (
-    <Stack gap="xs">
-      {canDecide && (
-        <TextInput
-          placeholder="Comentario para el atleta (opcional)"
-          value={comment}
-          onChange={(e) => setComment(e.currentTarget.value)}
-          size="xs"
-        />
-      )}
-      {/* `flex-start`: la cuota lleva descripción debajo y con el centrado por
-          defecto los demás controles quedaban montados a media altura. */}
-      <Group gap="xs" align="flex-start">
-        {canDecide && (
-          <>
-            <Button size="xs" loading={decide.isPending} onClick={() => onDecide("approve")}>
-              Aprobar
-            </Button>
-            {status !== "invited" && (
-              <Button size="xs" variant="light" onClick={() => onDecide("offer_trial")}>
-                Ofrecer prueba
-              </Button>
-            )}
-            <Button size="xs" variant="default" onClick={() => onDecide("request_info")}>
-              Pedir información
-            </Button>
-            <Button size="xs" color="red" variant="light" onClick={() => onDecide("reject")}>
-              Rechazar
-            </Button>
-          </>
+    <Modal opened onClose={onClose} title={request.athlete_name} centered size="lg">
+      <Group justify="space-between" align="flex-start" wrap="wrap" gap="xs" mb="sm">
+        {request.is_rejoin ? (
+          <Group gap={6} wrap="wrap">
+            <Badge size="sm" color="grape" variant="light">
+              Reingreso
+            </Badge>
+            <Text size="xs" c="dimmed">
+              {request.community_points} pts de comunidad
+              {request.member_since ? ` · en el gym desde ${request.member_since.slice(0, 4)}` : ""}
+            </Text>
+          </Group>
+        ) : (
+          <span />
         )}
-        {membershipId && ["approved_no_plan", "trial"].includes(status) && (
-          <>
+        <StatusBadge kind="membership" status={request.status} />
+      </Group>
+      <Stack gap={4} mb="md">
+        <Dato etiqueta="Objetivo" valor={request.goal} />
+        <Dato etiqueta="Nivel" valor={request.level} />
+        <Dato etiqueta="Horario preferido" valor={request.preferred_schedule} />
+        <Dato etiqueta="Quiere prueba" valor={request.wants_trial ? "Sí" : null} />
+        <Dato etiqueta="Mensaje" valor={request.comment} />
+        <Dato etiqueta="Recibida" valor={new Date(request.created_at).toLocaleDateString("es-GT")} />
+      </Stack>
+
+      {canDecide && !elegida && (
+        <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs">
+          {decisiones.map((d) => (
+            <Button
+              key={d}
+              variant={DECISIONES[d].variant}
+              color={DECISIONES[d].color}
+              onClick={() => setEleccion(d)}
+            >
+              {DECISIONES[d].boton}
+            </Button>
+          ))}
+        </SimpleGrid>
+      )}
+
+      {canDecide && elegida && eleccion && (
+        <Stack gap="sm">
+          <Textarea
+            label={elegida.campo}
+            value={nota}
+            onChange={(e) => setNota(e.currentTarget.value)}
+            autosize
+            minRows={2}
+            maxLength={500}
+            data-autofocus
+          />
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={() => setEleccion(null)} disabled={decide.isPending}>
+              Volver
+            </Button>
+            <Button
+              color={elegida.color}
+              loading={decide.isPending}
+              onClick={() => onDecide(eleccion)}
+            >
+              {elegida.confirmar}
+            </Button>
+          </Group>
+        </Stack>
+      )}
+
+      {needsPlan && (
+        <>
+          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
             <Select
-              size="xs"
+              label="Plan"
               placeholder="Selecciona plan"
               value={planId}
               onChange={setPlanId}
@@ -207,24 +338,23 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
               data={(plans.data ?? [])
                 .filter((plan) => !plan.group_kind)
                 .map((plan) => ({ value: plan.id, label: plan.name }))}
+              comboboxProps={{ withinPortal: true }}
             />
-            {/* Numérico y con la moneda a la vista: antes era texto libre, y "350
-                al mes" o "Q350" viajaban al backend como cuota inválida. */}
+            {/* Numérico y con la moneda a la vista: "350 al mes" o "Q350" en texto
+                libre viajaban al backend como cuota inválida. */}
             <NumberInput
-              size="xs"
-              w={170}
+              label="Cuota personalizada"
               prefix="Q"
               min={0}
               decimalScale={2}
               allowNegative={false}
               thousandSeparator=","
-              placeholder="Cuota personalizada"
-              description="Vacío = precio del plan (quita la cuota)"
+              placeholder={precioPlan ?? "Precio del plan"}
               value={customFee}
               onChange={setCustomFee}
             />
             <Select
-              size="xs"
+              label="Oferta"
               placeholder="Sin oferta"
               value={offerId}
               onChange={setOfferId}
@@ -235,14 +365,20 @@ function RequestActions({ request, gymId }: { request: JoinRequest; gymId: strin
                   value: o.id,
                   label: `${o.name} (${o.offer_type === "percent" ? `${o.value}%` : `${o.value} meses`})`,
                 }))}
+              comboboxProps={{ withinPortal: true }}
             />
-            <Button size="xs" disabled={!planId} loading={assign.isPending} onClick={onAssign}>
+          </SimpleGrid>
+          <Group justify="flex-end" mt="md" gap="xs">
+            <Button variant="default" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button disabled={!planId} loading={assign.isPending} onClick={onAssign}>
               Asignar plan
             </Button>
-          </>
-        )}
-      </Group>
-    </Stack>
+          </Group>
+        </>
+      )}
+    </Modal>
   );
 }
 
@@ -250,157 +386,96 @@ export function RequestsPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
   const requests = useJoinRequests(gymId);
-  const invite = useInviteAthlete(gymId);
-  const [form, setForm] = useState({ email: "", first_name: "", last_name: "", phone: "" });
-  const [trialStart, setTrialStart] = useState<Date | null>(null);
-  const [trialEnd, setTrialEnd] = useState<Date | null>(null);
   const [search, setSearch] = useState("");
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<JoinRequest>>({
-    columnAccessor: "athlete_name",
-    direction: "asc",
-  });
+  const [invitando, setInvitando] = useState(false);
+  const [abierta, setAbierta] = useState<JoinRequest | null>(null);
 
   if (!gymId) return <NoGymAssigned />;
   if (requests.isError) return <PageError onRetry={() => requests.refetch()} />;
 
-  const onInvite = async (event: FormEvent) => {
-    event.preventDefault();
-    // El error lo pinta `invite.isError` debajo del formulario; el catch existe
-    // para que el rechazo no quede sin dueño (promesa colgada en consola).
-    try {
-      await invite.mutateAsync({ ...form, trial_start: iso(trialStart), trial_end: iso(trialEnd) });
-      setForm({ email: "", first_name: "", last_name: "", phone: "" });
-      setTrialStart(null);
-      setTrialEnd(null);
-    } catch {
-      /* mensaje ya visible en el formulario */
-    }
-  };
-
-  // La bandeja se calcula una sola vez: el conteo del encabezado y las filas de
-  // la tabla tienen que ser exactamente el mismo conjunto.
-  const bandeja = sortRecords(
-    (requests.data ?? []).filter(
-      (r) =>
-        // Solo solicitudes accionables: las ya resueltas (activa, rechazada,
-        // baja) salen de la bandeja y viven en "Atletas".
-        ACTIONABLE_STATUSES.includes(r.status ?? "") &&
-        (!search.trim() || (r.athlete_name ?? "").toLowerCase().includes(search.trim().toLowerCase())),
-    ),
-    sortStatus,
+  // Solo lo que todavía necesita que el gym haga algo: lo resuelto (activa,
+  // rechazada, baja) sale de la bandeja y vive en "Atletas".
+  const todas = (requests.data ?? []).filter((r) =>
+    [...POR_DECIDIR, ...FALTA_PLAN].includes(r.status ?? ""),
   );
+  const q = search.trim().toLowerCase();
+  const visibles = todas
+    .filter((r) => !q || (r.athlete_name ?? "").toLowerCase().includes(q))
+    .sort((a, b) => (a.athlete_name ?? "").localeCompare(b.athlete_name ?? "", "es"));
+  const porDecidir = visibles.filter((r) => POR_DECIDIR.includes(r.status ?? ""));
+  const faltaPlan = visibles.filter((r) => FALTA_PLAN.includes(r.status ?? ""));
+  // Los avisos cuentan la bandeja completa, no lo que deja ver la búsqueda.
+  const nPorDecidir = todas.filter((r) => POR_DECIDIR.includes(r.status ?? "")).length;
+  const nFaltaPlan = todas.length - nPorDecidir;
 
   return (
     <div>
-      <PageHeader
-        kicker="Usuarios · Bandeja"
-        title="Solicitudes e invitaciones"
-        subtitle="Aprueba, ofrece prueba o rechaza a quien pide entrar, e invita atletas nuevos al gimnasio."
-      />
+      <PageHeader kicker="Usuarios · Bandeja" title="Solicitudes" />
 
-      <GlassCard padding={20} delay={0.6} style={{ marginBottom: "calc(20 * var(--u))" }}>
-        <form onSubmit={onInvite}>
-          <SectionLabel mb={12} as="h2">Invitar atleta</SectionLabel>
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
-            <TextInput label="Correo electrónico" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.currentTarget.value })} />
-            <TextInput label="Nombre" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.currentTarget.value })} />
-            <TextInput label="Apellido" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.currentTarget.value })} />
-            <PhoneInput label="Teléfono (opcional)" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
-          </SimpleGrid>
-          <Text c="dimmed" size="sm" mt="md" mb={4}>
-            Periodo temporal (opcional): al aceptar la invitación, el atleta queda como <strong>temporal (prueba)</strong> entre estas fechas.
-          </Text>
-          <Group align="flex-end">
-            {/* No se permiten fechas en el pasado (el backend lo revalida). */}
-            <DateInput
-              label="Desde"
-              value={trialStart}
-              onChange={setTrialStart}
-              valueFormat="YYYY-MM-DD"
-              minDate={new Date()}
-              clearable
+      <GlassCard padding={18} delay={0.6}>
+        <Encabezado
+          titulo="Bandeja"
+          avisos={
+            <>
+              {nPorDecidir > 0 && (
+                <Badge color="yellow" variant="light">
+                  {nPorDecidir} por decidir
+                </Badge>
+              )}
+              {nFaltaPlan > 0 && (
+                <Badge color="yellow" variant="light">
+                  {nFaltaPlan} sin plan
+                </Badge>
+              )}
+            </>
+          }
+        >
+          {(todas.length > 5 || search) && (
+            <TextInput
+              placeholder="Buscar atleta…"
+              aria-label="Buscar atleta"
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              w={{ base: "100%", sm: 220 }}
             />
-            <DateInput
-              label="Hasta"
-              value={trialEnd}
-              onChange={setTrialEnd}
-              valueFormat="YYYY-MM-DD"
-              minDate={trialStart ?? new Date()}
-              clearable
-            />
-          </Group>
-          {invite.isError && (
-            <Text c="red" size="sm" mt="sm">
-              {inviteErrorMessage(invite.error) ?? "No se pudo enviar la invitación. Verifica los datos."}
-            </Text>
           )}
-          <Button
-            type="submit"
-            mt="md"
-            loading={invite.isPending}
-            disabled={!form.email || !form.first_name || !form.last_name}
-          >
-            Enviar invitación
+          <Button leftSection={<UserPlus size={16} />} onClick={() => setInvitando(true)}>
+            Invitar atleta
           </Button>
-        </form>
+        </Encabezado>
+
+        {requests.isLoading ? (
+          <Text size="sm" c="dimmed">
+            Cargando…
+          </Text>
+        ) : porDecidir.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            {q && nPorDecidir > 0 ? "Nadie coincide con la búsqueda." : "Nada pendiente."}
+          </Text>
+        ) : (
+          <Stack gap={6}>
+            {porDecidir.map((r) => (
+              <Fila key={r.id} request={r} onOpen={() => setAbierta(r)} />
+            ))}
+          </Stack>
+        )}
+
+        {faltaPlan.length > 0 && (
+          <>
+            <Title order={4} mt="xl" mb="sm">
+              Falta plan
+            </Title>
+            <Stack gap={6}>
+              {faltaPlan.map((r) => (
+                <Fila key={r.id} request={r} onOpen={() => setAbierta(r)} />
+              ))}
+            </Stack>
+          </>
+        )}
       </GlassCard>
 
-      <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb={10}>
-        <Group gap="xs" align="center">
-          <SectionLabel mb={0} as="h2">Bandeja de solicitudes</SectionLabel>
-          <CountBadge count={bandeja.length} />
-        </Group>
-        <TextInput
-          placeholder="Buscar atleta…"
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          w={{ base: "100%", sm: 260 }}
-        />
-      </Group>
-
-      {/* Se dice UNA vez y solo cuando hay alguno: es la información que cambia la
-          decisión (no es un alta nueva, es alguien de la casa que vuelve). */}
-      {bandeja.some((r) => r.is_rejoin) && (
-        <Text c="dimmed" size="sm" mb={10}>
-          Un <strong>reingreso</strong> reabre la relación que el atleta ya tuvo con el gimnasio:
-          al aprobarlo conserva sus puntos de comunidad, su antigüedad y su historial. No empieza
-          de cero ni se le crea una ficha nueva.
-        </Text>
-      )}
-
-      <GlassCard padding={10} delay={0.72}>
-        <DataTable<JoinRequest>
-          minHeight={160}
-          highlightOnHover
-          verticalSpacing="md"
-          idAccessor="id"
-          records={bandeja}
-          fetching={requests.isLoading}
-          noRecordsText="Las nuevas solicitudes de unión aparecerán aquí."
-          sortStatus={sortStatus}
-          onSortStatusChange={setSortStatus}
-          columns={[
-            {
-              accessor: "athlete_name",
-              title: "Atleta",
-              sortable: true,
-              render: (r) => <Solicitante request={r} />,
-            },
-            {
-              accessor: "status",
-              title: "Estado",
-              sortable: true,
-              render: (r) => <StatusBadge kind="membership" status={r.status} />,
-            },
-            { accessor: "goal", title: "Objetivo", render: (r) => r.goal || "—" },
-            {
-              accessor: "actions",
-              title: "Acciones",
-              render: (request) => <RequestActions request={request} gymId={gymId} />,
-            },
-          ]}
-        />
-      </GlassCard>
+      <ResponderModal request={abierta} gymId={gymId} onClose={() => setAbierta(null)} />
+      <InvitarAtletaModal gymId={gymId} opened={invitando} onClose={() => setInvitando(false)} />
     </div>
   );
 }

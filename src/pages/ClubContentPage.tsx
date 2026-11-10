@@ -1,21 +1,17 @@
 import { useMemo, useState } from "react";
 import {
-  Alert,
   Badge,
-  Box,
   Button,
   Group,
   Image,
   Modal,
   SegmentedControl,
   Select,
-  SimpleGrid,
   Stack,
   Text,
   Textarea,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { Flag, Megaphone, ShieldAlert } from "lucide-react";
 import {
   useDecideClubContent,
   useDecidePlatformClubContent,
@@ -25,9 +21,10 @@ import {
 } from "../api/hooks";
 import { CLUB_CONTENT_KIND, MOTIVOS_MODERACION } from "../api/types";
 import type { ClubContentRow, MotivoModeracion } from "../api/types";
-import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { PageHeader, SectionLabel } from "../components/ui";
-import { BigMetric, GlassCard, MetricTile, Stagger } from "../components/aurora";
+import { NoGymAssigned, PageError } from "../components/PageStatus";
+import { PageHeader } from "../components/ui";
+import { GlassCard } from "../components/aurora";
+import { Encabezado, Tarjeta } from "../components/Tarjeta";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
 
@@ -39,16 +36,18 @@ import { errMsg } from "../lib/errors";
  * admin. Esta pantalla es la mitad de lectura de ese módulo.
  *
  * Sigue el patrón de la bandeja del feed (`CommunityPage`) a propósito: mismas
- * pastillas, mismo modal de motivo obligatorio, mismos textos de estado vacío.
- * Lo que cambia es el modelo de moderación:
+ * pastillas, mismo modal de motivo obligatorio. Lo que cambia es el modelo de
+ * moderación:
  *
  *  - El feed del gym revisa los posts ANTES de publicarlos; aquí la moderación es
  *    **reactiva** (lo publicado ya se ve). Un club puede no tener gimnasio y sus
  *    avisos son perecederos: retenerlos hasta que un humano entre sería apagar la
  *    función.
- *  - Por eso lo **denunciado por los miembros** va arriba y en su propia pestaña:
- *    ninguna IA lee texto, así que un `report_count > 0` es la única alarma que
- *    existe sobre lo que se ESCRIBE.
+ *  - Por eso lo **denunciado por los miembros** va primero, en amarillo y en su
+ *    propia pestaña: ninguna IA lee texto, así que un `report_count > 0` es la
+ *    única alarma que existe sobre lo que se ESCRIBE.
+ *
+ * Cómo funciona la cola se explica en el manual de la pantalla, no aquí.
  */
 
 /** Color de la pastilla por tipo de contenido. */
@@ -68,17 +67,17 @@ type Bandeja = "denunciado" | "todo" | "retirado";
 
 const RETIRADO = "rejected";
 
-/** Qué se le dice al admin en cada pestaña cuando no hay nada. */
+/** Qué se dice en cada pestaña cuando no hay nada. */
 const VACIO: Record<Bandeja, string> = {
-  denunciado:
-    "Nadie ha denunciado contenido en tus clubes. Cuando un miembro denuncie algo, aparece aquí de primero y te llega un aviso.",
+  denunciado: "Nadie ha denunciado contenido en tus clubes.",
   todo: "Tus clubes todavía no han publicado nada.",
-  retirado: "No has retirado nada. Lo que retires queda aquí con su motivo, no se borra.",
+  retirado: "No has retirado nada.",
 };
 
 /**
- * Una fila de la cola. Se extrae en componente porque la usan las dos colas: la
- * del gimnasio y la de la plataforma (clubes legados sin gym).
+ * Una publicación de la cola. La usan las dos colas: la del gimnasio y la de la
+ * plataforma (clubes legados sin gym). Lo denunciado y aún publicado sale en
+ * amarillo: es lo que espera una decisión.
  */
 function FilaDeContenido({
   fila,
@@ -93,9 +92,9 @@ function FilaDeContenido({
 }) {
   const retirado = fila.moderation_status === RETIRADO;
   return (
-    <Box
-      p="sm"
-      style={{ border: "1px solid var(--a-line)", borderRadius: "calc(16 * var(--u))" }}
+    <Tarjeta
+      etiqueta={`${CLUB_CONTENT_KIND[fila.kind] ?? fila.kind} en ${fila.club_name}`}
+      aviso={fila.report_count > 0 && !retirado}
     >
       <Group gap={6} mb={6}>
         <Badge size="xs" variant="light" color={KIND_COLOR[fila.kind] ?? "gray"}>
@@ -115,22 +114,12 @@ function FilaDeContenido({
           </Badge>
         )}
         {retirado && (
-          <Badge
-            size="xs"
-            variant="light"
-            color="orange"
-            title="Ya no lo ven los miembros del club. El texto se conserva."
-          >
+          <Badge size="xs" variant="light" color="orange" title="Ya no lo ven los miembros del club. El texto se conserva.">
             Retirado
           </Badge>
         )}
         {fila.moderation_label && (
-          <Badge
-            size="xs"
-            variant="light"
-            color="orange"
-            title="Imagen marcada por la moderación automática (IA)"
-          >
+          <Badge size="xs" variant="light" color="orange" title="Imagen marcada por la moderación automática (IA)">
             IA: {fila.moderation_label}
           </Badge>
         )}
@@ -142,22 +131,16 @@ function FilaDeContenido({
           {fila.body}
         </Text>
       ) : fila.photo_url ? null : (
-        // "(sin texto)" sólo cuando de verdad no hay NADA. Antes se pintaba
-        // también sobre una publicación que era una foto, así que la única señal
-        // que recibía el moderador sobre una imagen era la palabra "(sin texto)".
+        // "(sin texto)" sólo cuando de verdad no hay NADA: sobre una foto, esa
+        // palabra era la única señal que recibía el moderador de una imagen.
         <Text size="sm" c="dimmed">
           (sin texto)
         </Text>
       )}
 
-      {/* LA FOTO. Es lo que faltaba para que esta cola sirva a su propósito: el
-          gimnasio no tiene otra vía de ver una imagen publicada en un club —el
-          feed del club le responde 403 a propósito—, así que sin esto el peor
-          caso que el dueño describió en el ticket 99d9ab2e no lo miraba nadie.
-
-          Con tope de ancho y no a sangre: en un escritorio ancho una foto de
-          1200 px empujaría el resto de la fila fuera de la vista, y la cola se
-          recorre comparando filas. */}
+      {/* LA FOTO: el gimnasio no tiene otra vía de ver una imagen publicada en un
+          club —el feed del club le responde 403 a propósito—. Con tope de ancho:
+          la cola se recorre comparando filas. */}
       {fila.photo_url && (
         <Image
           src={fila.photo_url}
@@ -166,14 +149,13 @@ function FilaDeContenido({
           fit="cover"
           h={200}
           w="auto"
-          maw={360}
+          maw={{ base: "100%", sm: 360 }}
           mt={8}
         />
       )}
 
       <Text size="xs" c="dimmed" mt={6}>
-        {fila.author_email || "Autor sin registrar"} ·{" "}
-        {new Date(fila.created_at).toLocaleString("es-GT")}
+        {fila.author_email || "Autor sin registrar"} · {new Date(fila.created_at).toLocaleString("es-GT")}
       </Text>
 
       {retirado && fila.decision_reason && (
@@ -189,12 +171,12 @@ function FilaDeContenido({
             Restaurar
           </Button>
         ) : (
-          <Button size="xs" variant="default" color="red" onClick={() => onRetirar(fila)}>
+          <Button size="xs" variant="light" color="red" onClick={() => onRetirar(fila)}>
             Retirar…
           </Button>
         )}
       </Group>
-    </Box>
+    </Tarjeta>
   );
 }
 
@@ -228,12 +210,14 @@ export function ClubContentPage() {
   const [nota, setNota] = useState("");
 
   const filas = todo.data ?? [];
-  const nDenunciado = (denuncias.data ?? []).length;
   const retirados = useMemo(
     () => filas.filter((f) => f.moderation_status === RETIRADO),
     [filas],
   );
-  const visibles = filas.length - retirados.length;
+  // Lo que espera decisión: denunciado y todavía publicado. Lo ya retirado sigue
+  // en la pestaña «Denunciado» (para poder devolverlo), pero no cuenta como pendiente.
+  const porRevisar = (denuncias.data ?? []).filter((f) => f.moderation_status !== RETIRADO).length;
+  const nDenunciado = (denuncias.data ?? []).length;
 
   const listaActiva: ClubContentRow[] =
     bandeja === "denunciado" ? denuncias.data ?? [] : bandeja === "retirado" ? retirados : filas;
@@ -300,102 +284,58 @@ export function ClubContentPage() {
   if (!gymId) return <NoGymAssigned />;
 
   const decidiendo = decide.isPending || decidePlataforma.isPending;
+  const n = (x: number) => (cargando ? "—" : x);
 
   return (
     <div>
-      <PageHeader
-        kicker="Comunidad · Clubes"
-        title="Contenido de los clubes"
-        subtitle="Lee lo que se publica dentro de los clubes de tu gimnasio y retira lo que no debería estar. Lo que denuncian tus miembros va de primero."
-      />
+      <PageHeader kicker="Comunidad · Clubes" title="Contenido de los clubes" />
 
-      <Stagger from={0.6} style={{ marginBottom: "calc(20 * var(--u))" }}>
-        <SimpleGrid cols={{ base: 2, md: 3 }} spacing="md">
-          <MetricTile
-            label="Denunciado por miembros"
-            value={cargando ? "—" : nDenunciado}
-            icon={<Flag size={16} strokeWidth={1.8} />}
-            tone={nDenunciado > 0 ? "var(--nucleo-danger)" : undefined}
-            hint="Alguien dice que esto no debería estar publicado."
-          />
-          <MetricTile
-            label="Publicado ahora"
-            value={cargando ? "—" : visibles}
-            icon={<Megaphone size={16} strokeWidth={1.8} />}
-            hint="Lo que hoy ven los miembros de tus clubes."
-          />
-          <MetricTile
-            label="Retirado"
-            value={cargando ? "—" : retirados.length}
-            icon={<ShieldAlert size={16} strokeWidth={1.8} />}
-            hint="Fuera del club, pero conservado con su motivo."
-          />
-        </SimpleGrid>
-      </Stagger>
-
-      <Alert color="gray" variant="light" mb="md" title="Cómo funciona esta cola">
-        <Text size="sm">
-          Dentro de un club se publica <b>al instante</b>: sus avisos son perecederos y un club
-          puede no tener gimnasio que los apruebe. Las <b>imágenes</b> pasan por la misma
-          moderación automática que el feed, pero <b>ningún sistema lee el texto</b>: por eso la
-          denuncia de un miembro es la única alarma que existe sobre lo que se escribe, y por eso
-          esta pantalla es la mitad importante del control.{" "}
-          <b>Denunciar no retira nada</b> — sube el contador y te avisa; retirar sigue siendo una
-          decisión tuya. Y retirar tampoco borra: el texto se conserva para que quede constancia
-          de lo que se publicó.
-        </Text>
-      </Alert>
-
-      {/* La tarjeta que manda: es lo único de la pantalla que exige una decisión. */}
-      <GlassCard variant="core" sheen padding={24} delay={0.84}>
-        <BigMetric
-          label="Denuncias por revisar"
-          value={cargando ? "—" : nDenunciado}
-          size="sm"
-          hint="Contenido que un miembro del club marcó como indebido."
-          delay={1.04}
-        />
-        <div style={{ height: "calc(16 * var(--u))" }} />
-
-        <SegmentedControl
-          value={bandeja}
-          onChange={(v) => setBandeja(v as Bandeja)}
-          data={[
-            { value: "denunciado", label: `Denunciado (${cargando ? "—" : nDenunciado})` },
-            { value: "todo", label: `Todo (${cargando ? "—" : filas.length})` },
-            { value: "retirado", label: `Retirado (${cargando ? "—" : retirados.length})` },
-          ]}
-        />
-
-        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm" mt="md">
+      <GlassCard delay={0.6} padding={18}>
+        <Encabezado
+          titulo="Publicaciones"
+          avisos={
+            porRevisar > 0 ? (
+              <Badge color="yellow" variant="light">
+                {porRevisar} por revisar
+              </Badge>
+            ) : null
+          }
+        >
           <Select
-            label="Club"
+            aria-label="Club"
             value={clubId}
             onChange={setClubId}
             searchable
+            allowDeselect={false}
+            w={{ base: "100%", sm: 200 }}
             data={[
               { value: "", label: "Todos los clubes" },
               ...(clubes.data ?? []).map((c) => ({ value: c.id, label: c.name })),
             ]}
           />
           <Select
-            label="Tipo de contenido"
+            aria-label="Tipo de contenido"
             value={kind}
             onChange={setKind}
+            allowDeselect={false}
+            w={{ base: "100%", sm: 180 }}
             data={[
               { value: "", label: "Todos los tipos" },
               ...Object.entries(CLUB_CONTENT_KIND).map(([value, label]) => ({ value, label })),
             ]}
           />
-        </SimpleGrid>
+        </Encabezado>
 
-        <Text c="dimmed" size="sm" mt="md" mb="md">
-          {bandeja === "denunciado"
-            ? "Lo que tus propios miembros marcaron. Sigue publicado hasta que decidas."
-            : bandeja === "retirado"
-              ? "Lo que ya retiraste, con el motivo que recibió el autor. Puedes devolverlo."
-              : "Todo lo que se ha escrito dentro de tus clubes, de lo más reciente a lo más viejo."}
-        </Text>
+        <SegmentedControl
+          value={bandeja}
+          onChange={(v) => setBandeja(v as Bandeja)}
+          mb="md"
+          data={[
+            { value: "denunciado", label: `Denunciado (${n(nDenunciado)})` },
+            { value: "todo", label: `Todo (${n(filas.length)})` },
+            { value: "retirado", label: `Retirado (${n(retirados.length)})` },
+          ]}
+        />
 
         {/* Un fallo silencioso aquí diría "no hay nada que moderar", que es el peor
             error posible en una cola de moderación. */}
@@ -405,13 +345,15 @@ export function ClubContentPage() {
             onRetry={() => consulta.refetch()}
           />
         ) : cargando ? (
-          <PageLoading />
+          <Text c="dimmed" size="sm">
+            Cargando…
+          </Text>
         ) : !listaActiva.length ? (
           <Text c="dimmed" size="sm">
             {VACIO[bandeja]}
           </Text>
         ) : (
-          <Stack gap="sm">
+          <Stack gap={6}>
             {listaActiva.map((fila) => (
               <FilaDeContenido
                 key={`${fila.kind}-${fila.id}`}
@@ -427,27 +369,32 @@ export function ClubContentPage() {
 
       {/* Clubes legados sin gimnasio: no son de ningún box, la autoridad es Nucleo. */}
       {isSuperuser && (
-        <GlassCard padding={24} delay={0.96} style={{ marginTop: "calc(20 * var(--u))" }}>
-          <SectionLabel as="h2" mb={8}>
-            Denuncias en clubes sin gimnasio (Nucleo)
-          </SectionLabel>
-          <Text c="dimmed" size="sm" mb="md">
-            Clubes legados que no pertenecen a ningún gimnasio: ningún box los ve ni los puede
-            moderar, así que los resuelve soporte de Nucleo.
-          </Text>
+        <GlassCard delay={0.7} padding={18} style={{ marginTop: "calc(20 * var(--u))" }}>
+          <Encabezado
+            titulo="Clubes sin gimnasio (Nucleo)"
+            avisos={
+              (huerfanos.data ?? []).length > 0 ? (
+                <Badge color="yellow" variant="light">
+                  {(huerfanos.data ?? []).length} denunciado
+                </Badge>
+              ) : null
+            }
+          />
           {huerfanos.isError ? (
             <PageError
               message="No se pudo cargar la cola de clubes sin gimnasio."
               onRetry={() => huerfanos.refetch()}
             />
           ) : huerfanos.isLoading ? (
-            <PageLoading />
+            <Text c="dimmed" size="sm">
+              Cargando…
+            </Text>
           ) : !(huerfanos.data ?? []).length ? (
             <Text c="dimmed" size="sm">
               No hay denuncias en clubes sin gimnasio.
             </Text>
           ) : (
-            <Stack gap="sm">
+            <Stack gap={6}>
               {(huerfanos.data ?? []).map((fila) => (
                 <FilaDeContenido
                   key={`plat-${fila.kind}-${fila.id}`}
@@ -465,25 +412,19 @@ export function ClubContentPage() {
       <Modal
         opened={!!retiro}
         onClose={() => setRetiro(null)}
-        title="Retirar del club"
+        title={retiro ? `Retirar de ${retiro.fila.club_name}` : "Retirar del club"}
         centered
       >
         <Stack gap="md">
-          <Text size="sm" c="dimmed">
-            Los miembros de {retiro?.fila.club_name} dejan de verlo. El texto <b>no se borra</b>:
-            queda registrado con este motivo, que es también lo que se le avisa al autor.
-          </Text>
           <Select
             label="Motivo"
-            description="Obligatorio: es lo que verá el autor."
-            placeholder="Elige un motivo"
+            placeholder="Elige un motivo (lo ve el autor)"
             value={motivo}
             onChange={(v) => setMotivo(v as MotivoModeracion | null)}
             data={MOTIVOS_MODERACION}
           />
           <Textarea
             label="Nota para el autor (opcional)"
-            placeholder="Aclaración breve: qué regla se pasó por alto…"
             value={nota}
             onChange={(e) => setNota(e.currentTarget.value)}
             autosize
