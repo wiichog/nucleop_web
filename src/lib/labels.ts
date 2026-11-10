@@ -85,6 +85,10 @@ export const CHECKIN_METHOD: Record<string, string> = {
   class_qr: "QR de la clase",
   manual: "Validación del coach",
   reception: "Recepción",
+  // El atleta con reserva confirmada se marcó con el botón del app, sin QR
+  // (nov-2026). Ninguna otra prueba de que estuvo en el box: el coach puede
+  // deshacerlo desde "Pasar lista".
+  athlete_self: "Se marcó desde el app (sin QR)",
 };
 
 export const CLUB_STATUS: Record<string, string> = {
