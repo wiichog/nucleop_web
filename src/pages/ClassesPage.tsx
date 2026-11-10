@@ -11,6 +11,7 @@ import {
   Group,
   Modal,
   NumberInput,
+  Progress,
   SegmentedControl,
   Select,
   SimpleGrid,
@@ -25,8 +26,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { DateInput, TimeInput } from "@mantine/dates";
-import { useSearchParams } from "react-router-dom";
-import { DataTable, type DataTableSortStatus } from "mantine-datatable";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import QRCode from "react-qr-code";
 import { AxiosError } from "axios";
 import {
@@ -40,7 +40,6 @@ import {
   useCreateSchedule,
   useCreateServiceType,
   useCreateWod,
-  useDeactivateDropinProduct,
   useDeleteClass,
   useDeleteSchedule,
   useDeleteServiceType,
@@ -79,16 +78,26 @@ import type {
 } from "../api/types";
 import { notifications } from "@mantine/notifications";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { RowActions } from "../components/RowActions";
 import { CountBadge, Money, PageHeader, SectionLabel } from "../components/ui";
 import { ClassRequestsTab } from "./classes/ClassRequestsTab";
 import { ArmarBloquesDesdeTexto } from "./classes/ArmarBloquesDesdeTexto";
 import { WodPartsEditor } from "./classes/WodPartsEditor";
 import { SemanaWods } from "./classes/SemanaWods";
 import { HorarioSemanal } from "./classes/HorarioSemanal";
+import { Encabezado, nombreCorto, PuntoColor, Tarjeta } from "./classes/Tarjeta";
 import { horaDe, resumenHorario } from "../lib/horarioSemanal";
 import { coincideServicio, FiltroServicio, opcionesDeServicio } from "./classes/FiltroServicio";
-import { deIso, fechaLarga, isoLocal, lunesDe, rangoDeSemana, sumarDias, wodDelDia } from "../lib/semanaWod";
+import {
+  deIso,
+  diasDeSemana,
+  etiquetaColumna,
+  fechaLarga,
+  isoLocal,
+  lunesDe,
+  rangoDeSemana,
+  sumarDias,
+  wodDelDia,
+} from "../lib/semanaWod";
 import {
   bloquesConScore,
   enteroDe,
@@ -99,11 +108,10 @@ import {
   tienePartes,
   type ParteBorrador,
 } from "../lib/wodPartes";
-import { BigMetric, GlassCard, MetricTile, Stagger, delayVar } from "../components/aurora";
+import { GlassCard, delayVar } from "../components/aurora";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
-import { CHECKIN_METHOD, CLASS_STATUS, label } from "../lib/labels";
-import { sortRecords } from "../lib/sortRecords";
+import { CHECKIN_METHOD, label } from "../lib/labels";
 
 // Avisos de la página. Varias acciones de esta pantalla (crear servicio, crear el
 // horario, regenerar el calendario, asignar coach) se disparaban con `mutateAsync`
@@ -189,7 +197,6 @@ export function ClassesPage() {
       <PageHeader
         kicker="Operación · Programación"
         title="Clases y workouts"
-        subtitle="Define servicios, arma el horario semanal, registra asistencia y publica el workout del día."
       />
       <Tabs
         value={tab}
@@ -252,160 +259,153 @@ function DropinsTab({ gymId }: { gymId: string }) {
   const products = useGymDropinProducts(gymId);
   const create = useCreateDropinProduct(gymId);
   const update = useUpdateDropinProduct(gymId);
-  const deactivate = useDeactivateDropinProduct(gymId);
+  // null = cerrado · "nuevo" = alta · un pase = edición.
+  const [abierto, setAbierto] = useState<DropinProduct | "nuevo" | null>(null);
 
-  const [type, setType] = useState<DropinType>("one_class");
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState<number | "">("");
-  const [error, setError] = useState("");
+  if (products.isError) return <PageError onRetry={() => products.refetch()} />;
 
-  const todos = (products.data ?? []) as DropinProduct[];
-  // Los pases no tienen servicio: se distinguen por tipo, así que ese es su filtro.
-  const [tipo, setTipo] = useState<string | null>(null);
-  const rows = todos.filter((p) => !tipo || p.type === tipo);
-  const tiposPresentes = DROPIN_TYPES.filter((t) => todos.some((p) => p.type === t.value));
+  const todos = ((products.data ?? []) as DropinProduct[])
+    .slice()
+    .sort((a, b) => Number(b.is_active) - Number(a.is_active) || Number(a.price) - Number(b.price));
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setError("");
-    if (price === "" || Number(price) < 0) {
-      setError("Ingresa un precio válido.");
-      return;
-    }
+  const guardar = async (body: Partial<DropinProduct>) => {
     try {
-      await create.mutateAsync({ type, name: name.trim(), price: String(price) });
-      setName("");
-      setPrice("");
-    } catch {
-      setError("No se pudo crear el pase.");
+      if (abierto === "nuevo") {
+        await create.mutateAsync(body);
+        ok("Pase creado.");
+      } else if (abierto) {
+        await update.mutateAsync({ id: abierto.id, body });
+        ok("Pase actualizado.");
+      }
+      setAbierto(null);
+    } catch (error) {
+      fail(error, abierto === "nuevo" ? "No se pudo crear el pase." : "No se pudo actualizar el pase.");
     }
   };
 
-  if (products.isLoading) return <PageLoading />;
-  if (products.isError) return <PageError onRetry={() => products.refetch()} />;
+  return (
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado titulo="Pases">
+        <Button onClick={() => setAbierto("nuevo")}>Nuevo pase</Button>
+      </Encabezado>
+      {products.isLoading ? (
+        <Text c="dimmed" size="sm">
+          Cargando…
+        </Text>
+      ) : todos.length === 0 ? (
+        <Text c="dimmed" size="sm">
+          Crea tu primer pase: una clase, un día, una semana…
+        </Text>
+      ) : (
+        <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} spacing="sm">
+          {todos.map((p) => (
+            <Tarjeta
+              key={p.id}
+              etiqueta={`Editar ${p.name || p.type_label || dropinTypeLabel(p.type)}`}
+              onClick={() => setAbierto(p)}
+              apagada={!p.is_active}
+            >
+              <Text fw={700} truncate>
+                {p.name || p.type_label || dropinTypeLabel(p.type)}
+              </Text>
+              {p.name && (
+                <Text size="xs" c="dimmed" truncate>
+                  {p.type_label ?? dropinTypeLabel(p.type)}
+                </Text>
+              )}
+              <Text fz={22} fw={700} mt={6} className="a-tabular">
+                <Money value={p.price} decimals={Number(p.price) % 1 ? 2 : 0} />
+              </Text>
+              <Badge size="xs" mt={6} color={p.is_active ? "teal" : "gray"} variant="light">
+                {p.is_active ? "Activo" : "Inactivo"}
+              </Badge>
+            </Tarjeta>
+          ))}
+        </SimpleGrid>
+      )}
+      <PaseModal
+        pase={abierto}
+        saving={create.isPending || update.isPending}
+        onClose={() => setAbierto(null)}
+        onSave={guardar}
+      />
+    </GlassCard>
+  );
+}
+
+function PaseModal({
+  pase,
+  saving,
+  onClose,
+  onSave,
+}: {
+  pase: DropinProduct | "nuevo" | null;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (body: Partial<DropinProduct>) => Promise<void>;
+}) {
+  const [type, setType] = useState<DropinType>("one_class");
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState<number | "">("");
+  const [activo, setActivo] = useState(true);
+  const [hydratedFor, setHydratedFor] = useState<DropinProduct | "nuevo" | null>(null);
+  const existente = pase && pase !== "nuevo" ? pase : null;
+
+  if (pase && hydratedFor !== pase) {
+    setHydratedFor(pase);
+    setType((existente?.type as DropinType) ?? "one_class");
+    setName(existente?.name ?? "");
+    setPrice(existente ? Number(existente.price) : "");
+    setActivo(existente?.is_active ?? true);
+  }
+
+  const precioValido = price !== "" && Number(price) >= 0;
 
   return (
-    <div>
-      <GlassCard delay={0.6} padding={22} style={{ marginBottom: "calc(18 * var(--u))" }}>
-        <SectionLabel mb={6}>Accesos temporales</SectionLabel>
-        <Title order={4} mb={4}>
-          Nuevo pase
-        </Title>
-        <Text size="sm" c="dimmed" mb="md">
-          Define los pases que ofreces. El acceso es de una entrada dentro de su ventana
-          (una clase ≈ 24 h, un día, una semana). Nucleo suma su recargo al precio en el cobro.
-        </Text>
-        <form onSubmit={submit}>
-          <SimpleGrid cols={{ base: 1, sm: 4 }}>
-            <Select
-              label="Tipo"
-              data={DROPIN_TYPES}
-              value={type}
-              onChange={(v) => setType((v ?? "one_class") as DropinType)}
-              allowDeselect={false}
-            />
-            <TextInput
-              label="Nombre (opcional)"
-              placeholder="Pase de día"
-              value={name}
-              onChange={(e) => setName(e.currentTarget.value)}
-            />
-            <NumberInput
-              label="Precio (Q)"
-              min={0}
-              value={price}
-              onChange={(v) => setPrice(typeof v === "number" ? v : "")}
-            />
-            <Button type="submit" mt={{ base: 0, sm: 25 }} loading={create.isPending}>
-              Agregar
-            </Button>
-          </SimpleGrid>
-          {error ? (
-            <Alert color="red" mt="sm">
-              {error}
-            </Alert>
-          ) : null}
-        </form>
-      </GlassCard>
-
-      <GlassCard delay={0.72} padding={18}>
-        <Group justify="space-between" mb={10} wrap="wrap" gap="sm">
-          <SectionLabel as="h2">Pases publicados</SectionLabel>
-          {todos.length > 0 && (
-            <Select
-              aria-label="Filtrar por tipo de pase"
-              placeholder="Todos los tipos"
-              data={tiposPresentes}
-              value={tipo}
-              onChange={setTipo}
-              clearable
-              w={{ base: "100%", sm: 200 }}
-            />
-          )}
-        </Group>
-        {rows.length === 0 ? (
-          <Text c="dimmed" size="sm">
-            {todos.length ? "Ningún pase coincide con el filtro." : "Aún no ofreces pases drop-in. Crea uno arriba."}
-          </Text>
-        ) : (
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Tipo</Table.Th>
-                <Table.Th>Nombre</Table.Th>
-                <Table.Th ta="right">Precio</Table.Th>
-                <Table.Th>Activo</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.map((p) => (
-                <Table.Tr key={p.id}>
-                  <Table.Td>{p.type_label ?? dropinTypeLabel(p.type)}</Table.Td>
-                  <Table.Td>{p.name || "—"}</Table.Td>
-                  <Table.Td ta="right"><Money value={p.price} decimals={2} /></Table.Td>
-                  <Table.Td>
-                    <Switch
-                      checked={p.is_active}
-                      onChange={(e) => {
-                        // El valor se captura ANTES del callback: `currentTarget` ya
-                        // no es confiable cuando la mutación resuelve.
-                        const activo = e.currentTarget.checked;
-                        update.mutate(
-                          { id: p.id, body: { is_active: activo } },
-                          {
-                            onSuccess: () => ok(activo ? "Pase activado." : "Pase desactivado."),
-                            onError: (error) => fail(error, "No se pudo cambiar el estado del pase."),
-                          },
-                        );
-                      }}
-                    />
-                  </Table.Td>
-                  <Table.Td>
-                    {p.is_active ? (
-                      <Button
-                        variant="subtle"
-                        color="red"
-                        size="xs"
-                        onClick={() =>
-                          deactivate.mutate(p.id, {
-                            onSuccess: () => ok("Pase desactivado."),
-                            onError: (error) => fail(error, "No se pudo desactivar el pase."),
-                          })
-                        }
-                        loading={deactivate.isPending}
-                      >
-                        Desactivar
-                      </Button>
-                    ) : null}
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        )}
-      </GlassCard>
-    </div>
+    <Modal opened={!!pase} onClose={onClose} title={existente ? "Editar pase" : "Nuevo pase"} centered>
+      <Select
+        label="Tipo"
+        data={DROPIN_TYPES}
+        value={type}
+        onChange={(v) => setType((v ?? "one_class") as DropinType)}
+        allowDeselect={false}
+        mb="sm"
+      />
+      <TextInput
+        label="Nombre (opcional)"
+        placeholder="Pase de día"
+        value={name}
+        onChange={(e) => setName(e.currentTarget.value)}
+        mb="sm"
+      />
+      <NumberInput
+        label="Precio (Q)"
+        min={0}
+        value={price}
+        onChange={(v) => setPrice(typeof v === "number" ? v : "")}
+        mb="md"
+      />
+      {existente && <Switch label="Activo" checked={activo} onChange={(e) => setActivo(e.currentTarget.checked)} mb="md" />}
+      <Group justify="flex-end">
+        <Button variant="default" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button
+          loading={saving}
+          disabled={!precioValido}
+          onClick={() =>
+            onSave({
+              type,
+              name: name.trim(),
+              price: String(price),
+              ...(existente ? { is_active: activo } : {}),
+            })
+          }
+        >
+          {existente ? "Guardar" : "Crear pase"}
+        </Button>
+      </Group>
+    </Modal>
   );
 }
 
@@ -418,301 +418,167 @@ function ServicesTab({ gymId, servicio, setServicio }: FiltroProps) {
   const update = useUpdateServiceType(gymId);
   const remove = useDeleteServiceType(gymId);
   const uploadPhoto = useUploadServiceTypePhoto(gymId);
-  const [editing, setEditing] = useState<ServiceType | null>(null);
+  const navigate = useNavigate();
+  // null = cerrado · "nuevo" = alta · un servicio = edición.
+  const [abierto, setAbierto] = useState<ServiceType | "nuevo" | null>(null);
 
-  const onDelete = (id: string, sname: string) => {
-    if (!window.confirm(`¿Eliminar el servicio "${sname}"? Sus horarios quedarán sin servicio.`)) return;
-    remove.mutate(id, {
-      onSuccess: () => ok(`Servicio "${sname}" eliminado.`),
+  if (services.isError) return <PageError onRetry={() => services.refetch()} />;
+
+  const todos = (services.data ?? []) as ServiceType[];
+  const rows = todos
+    .filter((s) => coincideServicio(s.name, servicio))
+    .sort((a, b) => Number(b.is_active) - Number(a.is_active) || a.name.localeCompare(b.name, "es"));
+  const pendientes = todos.filter((s) => s.is_active && s.status !== "active").length;
+
+  const guardar = async (body: Partial<ServiceType>, photo: File | null) => {
+    try {
+      if (abierto === "nuevo") {
+        const created = await create.mutateAsync({ ...body, default_score_type: "none" });
+        if (photo) await uploadPhoto.mutateAsync({ id: created.id, file: photo });
+        ok(`Servicio "${created.name}" creado.`);
+      } else if (abierto) {
+        await update.mutateAsync({ id: abierto.id, body });
+        if (photo) await uploadPhoto.mutateAsync({ id: abierto.id, file: photo });
+        ok("Servicio actualizado.");
+      }
+      setAbierto(null);
+    } catch (error) {
+      fail(error, abierto === "nuevo" ? "No se pudo crear el servicio." : "No se pudo actualizar el servicio.");
+    }
+  };
+
+  const eliminar = (s: ServiceType) => {
+    if (!window.confirm(`¿Eliminar el servicio "${s.name}"? Sus horarios quedarán sin servicio.`)) return;
+    remove.mutate(s.id, {
+      onSuccess: () => {
+        ok(`Servicio "${s.name}" eliminado.`);
+        setAbierto(null);
+      },
       onError: (error) => fail(error, "No se pudo eliminar el servicio."),
     });
   };
 
-  const [name, setName] = useState("");
-  const [color, setColor] = useState("#1B7FA6");
-  const [requiresWod, setRequiresWod] = useState(false);
-  const [duration, setDuration] = useState<number | string>(60);
-  const [capacity, setCapacity] = useState<number | string>(20);
-  const [points, setPoints] = useState<number | string>(5);
-  const [description, setDescription] = useState("");
-  const [howItWorks, setHowItWorks] = useState("");
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ServiceType>>({
-    columnAccessor: "name",
-    direction: "asc",
-  });
-
-  if (services.isError) return <PageError onRetry={() => services.refetch()} />;
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    try {
-      const created = await create.mutateAsync({
-        name: name.trim(),
-        color,
-        requires_wod: requiresWod,
-        description: description.trim(),
-        how_it_works: howItWorks.trim(),
-        // El tipo de score se elige al publicar cada rutina, no por servicio.
-        default_score_type: "none",
-        default_duration_min: Number(duration),
-        default_capacity: Number(capacity),
-        completion_points: Number(points),
-      });
-      if (photoFile) await uploadPhoto.mutateAsync({ id: created.id, file: photoFile });
-      ok(`Servicio "${created.name}" creado.`);
-      setName("");
-      setDescription("");
-      setHowItWorks("");
-      setPhotoFile(null);
-    } catch (error) {
-      fail(error, "No se pudo crear el servicio.");
-    }
-  };
-
-  const todos = (services.data ?? []) as ServiceType[];
-  const rows = todos.filter((s) => coincideServicio(s.name, servicio));
-
   return (
-    <>
-      {/* El alta conserva `component="form"`: el vidrio se lo pone el tema. */}
-      <Card mb="lg" component="form" onSubmit={submit} className="a-slide-r" style={delayVar(0.6)}>
-        <SectionLabel mb={6}>Catálogo de disciplinas</SectionLabel>
-        <Title order={3} mb={4}>
-          Nuevo servicio
-        </Title>
-        <Text c="dimmed" size="sm" mb="md">
-          Ej.: CrossFit, Functional, Hybrid, Open Gym. Define una vez y reutilízalo en el horario.
-          El servicio queda <b>pendiente</b> hasta que le pongas precio/inclusión y lo asignes a un
-          plan en <b>Planes y cuotas</b>; recién ahí podrás agendarlo y se mostrará a tus atletas.
-        </Text>
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} spacing="md">
-          <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
-          <ColorInput label="Color" value={color} onChange={setColor} format="hex" />
-          <NumberInput label="Min. por defecto" value={duration} onChange={setDuration} min={15} max={300} />
-          <NumberInput label="Cupo por defecto" value={capacity} onChange={setCapacity} min={1} max={200} />
-          <NumberInput
-            label="Puntos al completar"
-            description="Gamificación"
-            value={points}
-            onChange={setPoints}
-            min={0}
-            max={1000}
-          />
-        </SimpleGrid>
-        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="md">
-          <Textarea
-            label="Descripción"
-            description="Qué es el servicio; se muestra a los atletas en la app."
-            placeholder="Entrenamiento funcional de alta intensidad en grupo…"
-            value={description}
-            onChange={(e) => setDescription(e.currentTarget.value)}
-            autosize
-            minRows={2}
-          />
-          <Textarea
-            label="Cómo funciona"
-            description="Onboarding del servicio en la app (si lo dejas vacío, se usa el texto estándar)."
-            placeholder="Reserva tu cupo, asiste y escanea el QR al finalizar para ganar puntos…"
-            value={howItWorks}
-            onChange={(e) => setHowItWorks(e.currentTarget.value)}
-            autosize
-            minRows={2}
-          />
-        </SimpleGrid>
-        <Group align="flex-end" gap="md" mt="md">
-          <FileInput
-            label="Foto del servicio"
-            placeholder="Subir imagen"
-            accept="image/*"
-            value={photoFile}
-            onChange={setPhotoFile}
-            clearable
-            w={{ base: "100%", sm: 260 }}
-          />
-          <Switch
-            label="Requiere workout"
-            description="Las clases de este servicio llevan workout del día y tablero."
-            checked={requiresWod}
-            onChange={(e) => setRequiresWod(e.currentTarget.checked)}
-          />
-          <Button type="submit" loading={create.isPending || uploadPhoto.isPending} ml="auto">
-            Crear servicio
-          </Button>
-        </Group>
-      </Card>
-
-      <GlassCard delay={0.72} padding={18}>
-        <Group justify="space-between" mb={10} wrap="wrap" gap="sm">
-          <SectionLabel as="h2">Servicios del gimnasio</SectionLabel>
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado
+        titulo="Servicios"
+        avisos={
+          pendientes > 0 && (
+            <Badge color="yellow" variant="light">
+              {pendientes} sin plan
+            </Badge>
+          )
+        }
+      >
+        {todos.length > 6 && (
           <FiltroServicio
             opciones={opcionesDeServicio(todos.map((s) => s.name), servicio)}
             value={servicio}
             onChange={setServicio}
           />
-        </Group>
-        <DataTable<ServiceType>
-          minHeight={140}
-          highlightOnHover
-          striped
-          idAccessor="id"
-          records={sortRecords(rows, sortStatus)}
-          fetching={services.isLoading}
-          noRecordsText={todos.length ? "Ningún servicio coincide con el filtro." : "Crea el primer servicio del gym."}
-          sortStatus={sortStatus}
-          onSortStatusChange={setSortStatus}
-          columns={[
-            {
-              accessor: "name",
-              title: "Servicio",
-              sortable: true,
-              render: (s) => (
-                <Group gap="sm" wrap="nowrap">
-                  {s.photo ? (
-                    <img
-                      src={s.photo}
-                      alt={s.name}
-                      style={{
-                        width: 46,
-                        height: 34,
-                        objectFit: "cover",
-                        borderRadius: "calc(8 * var(--u))",
-                        border: "1px solid var(--a-line)",
-                      }}
-                    />
-                  ) : (
-                    <span
-                      style={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: "calc(4 * var(--u))",
-                        background: s.color || "#888",
-                      }}
-                    />
-                  )}
-                  <div>
-                    <Text fw={600}>{s.name}</Text>
-                    {s.description && (
-                      <Text c="dimmed" size="xs" lineClamp={1} maw={280}>
-                        {s.description}
-                      </Text>
-                    )}
-                  </div>
-                </Group>
-              ),
-            },
-            {
-              accessor: "requires_wod",
-              title: "Workout",
-              sortable: true,
-              render: (s) =>
-                s.requires_wod ? <Badge color="flame">Workout</Badge> : <Text c="dimmed" size="sm">—</Text>,
-            },
-            { accessor: "default_capacity", title: "Cupo", sortable: true },
-            {
-              accessor: "completion_points",
-              title: "Puntos",
-              sortable: true,
-              render: (s) => `${s.completion_points ?? 5} pts`,
-            },
-            {
-              accessor: "rating",
-              title: "Calificación",
-              sortable: true,
-              render: (s) =>
-                s.rating != null ? (
-                  <Text size="sm">
-                    ⭐ <span className="a-tabular">{s.rating.toFixed(1)}</span>{" "}
-                    <Text span c="dimmed" size="xs">
-                      ({s.rating_count})
-                    </Text>
-                  </Text>
-                ) : (
-                  <Text c="dimmed" size="sm">—</Text>
-                ),
-            },
-            {
-              accessor: "status",
-              title: "Publicación",
-              sortable: true,
-              render: (s) =>
-                s.status === "active" ? (
-                  <Badge color="teal" variant="light">Activo</Badge>
-                ) : (
-                  <Badge color="yellow" variant="light" title="Ponle precio y asígnalo a un plan en Planes y cuotas">
-                    Pendiente · configúralo en Planes y cuotas
-                  </Badge>
-                ),
-            },
-            {
-              accessor: "is_active",
-              title: "Estado",
-              sortable: true,
-              render: (s) => (
-                <Switch
-                  checked={s.is_active}
-                  onChange={(e) => {
-                    const activo = e.currentTarget.checked;
-                    update.mutate(
-                      { id: s.id, body: { is_active: activo } },
-                      {
-                        onSuccess: () =>
-                          ok(activo ? `"${s.name}" activado.` : `"${s.name}" desactivado.`),
-                        onError: (error) => fail(error, "No se pudo cambiar el estado del servicio."),
-                      },
-                    );
-                  }}
-                  size="sm"
-                />
-              ),
-            },
-            {
-              accessor: "actions",
-              title: "Acciones",
-              render: (s) => (
-                <RowActions
-                  actions={[
-                    { label: "Editar", onClick: () => setEditing(s) },
-                    { label: "Eliminar", color: "red", variant: "light", onClick: () => onDelete(s.id, s.name) },
-                  ]}
-                />
-              ),
-            },
-          ]}
-        />
-      </GlassCard>
+        )}
+        <Button onClick={() => setAbierto("nuevo")}>Nuevo servicio</Button>
+      </Encabezado>
 
-      <EditServiceTypeModal
-        service={editing}
-        saving={update.isPending || uploadPhoto.isPending}
-        onClose={() => setEditing(null)}
-        onSave={async (body, photo) => {
-          if (!editing) return;
-          try {
-            await update.mutateAsync({ id: editing.id, body });
-            if (photo) await uploadPhoto.mutateAsync({ id: editing.id, file: photo });
-            ok("Servicio actualizado.");
-            setEditing(null);
-          } catch (error) {
-            fail(error, "No se pudo actualizar el servicio.");
-          }
-        }}
+      {services.isLoading ? (
+        <Text c="dimmed" size="sm">
+          Cargando…
+        </Text>
+      ) : rows.length === 0 ? (
+        <Text c="dimmed" size="sm">
+          {todos.length ? "Ningún servicio coincide con el filtro." : "Crea tu primer servicio: CrossFit, Pilates, Open Gym…"}
+        </Text>
+      ) : (
+        <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
+          {rows.map((s) => {
+            const sinPlan = s.is_active && s.status !== "active";
+            return (
+              <Tarjeta
+                key={s.id}
+                etiqueta={`Editar ${s.name}`}
+                onClick={() => setAbierto(s)}
+                aviso={sinPlan}
+                apagada={!s.is_active}
+                color={s.color}
+              >
+                {s.photo && (
+                  <img
+                    src={s.photo}
+                    alt=""
+                    style={{ width: "100%", height: 84, objectFit: "cover", borderRadius: 8, marginBottom: 8, display: "block" }}
+                  />
+                )}
+                <Group gap={8} wrap="nowrap" justify="space-between">
+                  <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
+                    <PuntoColor color={s.color} />
+                    <Text fw={700} truncate>
+                      {s.name}
+                    </Text>
+                  </Group>
+                  {!s.is_active ? (
+                    <Badge size="xs" color="gray" variant="light">Inactivo</Badge>
+                  ) : sinPlan ? (
+                    <Badge size="xs" color="yellow" variant="light">Pendiente</Badge>
+                  ) : (
+                    <Badge size="xs" color="teal" variant="light">Activo</Badge>
+                  )}
+                </Group>
+                <Text size="xs" c="dimmed" mt={6}>
+                  {s.default_duration_min} min · cupo {s.default_capacity} · {s.completion_points ?? 5} pts
+                  {s.rating != null ? ` · ★ ${s.rating.toFixed(1)}` : ""}
+                </Text>
+                {s.requires_wod && (
+                  <Badge size="xs" color="flame" variant="light" mt={6}>
+                    Con workout
+                  </Badge>
+                )}
+                {sinPlan && (
+                  <Text
+                    size="xs"
+                    mt={6}
+                    c="var(--mantine-color-yellow-light-color)"
+                    style={{ cursor: "pointer", textDecoration: "underline" }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate("/panel/planes");
+                    }}
+                  >
+                    Asígnalo a un plan →
+                  </Text>
+                )}
+              </Tarjeta>
+            );
+          })}
+        </SimpleGrid>
+      )}
+
+      <ServiceTypeModal
+        service={abierto}
+        saving={create.isPending || update.isPending || uploadPhoto.isPending}
+        removing={remove.isPending}
+        onClose={() => setAbierto(null)}
+        onSave={guardar}
+        onDelete={eliminar}
       />
-    </>
+    </GlassCard>
   );
 }
 
-function EditServiceTypeModal({
+/** Crear o editar un servicio. En edición trae también «Activo» y «Eliminar». */
+function ServiceTypeModal({
   service,
   saving,
+  removing,
   onClose,
   onSave,
+  onDelete,
 }: {
-  service: ServiceType | null;
+  service: ServiceType | "nuevo" | null;
   saving: boolean;
+  removing: boolean;
   onClose: () => void;
   onSave: (body: Partial<ServiceType>, photo: File | null) => Promise<void>;
+  onDelete: (s: ServiceType) => void;
 }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("#1B7FA6");
@@ -722,114 +588,111 @@ function EditServiceTypeModal({
   const [points, setPoints] = useState<number | string>(5);
   const [description, setDescription] = useState("");
   const [howItWorks, setHowItWorks] = useState("");
+  const [activo, setActivo] = useState(true);
   const [photo, setPhoto] = useState<File | null>(null);
-  const [hydratedFor, setHydratedFor] = useState<string | null>(null);
+  const [hydratedFor, setHydratedFor] = useState<ServiceType | "nuevo" | null>(null);
 
-  if (service && hydratedFor !== service.id) {
-    setHydratedFor(service.id);
-    setName(service.name);
-    setColor(service.color || "#1B7FA6");
-    setRequiresWod(service.requires_wod);
-    setDuration(service.default_duration_min ?? 60);
-    setCapacity(service.default_capacity ?? 20);
-    setPoints(service.completion_points ?? 5);
-    setDescription(service.description ?? "");
-    setHowItWorks(service.how_it_works ?? "");
+  const existente = service && service !== "nuevo" ? service : null;
+  if (service && hydratedFor !== service) {
+    setHydratedFor(service);
+    setName(existente?.name ?? "");
+    setColor(existente?.color || "#1B7FA6");
+    setRequiresWod(existente?.requires_wod ?? false);
+    setDuration(existente?.default_duration_min ?? 60);
+    setCapacity(existente?.default_capacity ?? 20);
+    setPoints(existente?.completion_points ?? 5);
+    setDescription(existente?.description ?? "");
+    setHowItWorks(existente?.how_it_works ?? "");
+    setActivo(existente?.is_active ?? true);
     setPhoto(null);
   }
 
   return (
-    <Modal opened={!!service} onClose={onClose} title="Editar servicio" centered size="lg">
-      <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} mb="sm" />
-      <ColorInput label="Color" value={color} onChange={setColor} format="hex" mb="sm" />
-      <Group grow mb="sm">
-        <NumberInput label="Min. por defecto" value={duration} onChange={setDuration} min={15} max={300} />
-        <NumberInput label="Cupo por defecto" value={capacity} onChange={setCapacity} min={1} max={200} />
-      </Group>
-      <NumberInput
-        label="Puntos al completar (gamificación)"
-        value={points}
-        onChange={setPoints}
-        min={0}
-        max={1000}
-        mb="sm"
-      />
+    <Modal opened={!!service} onClose={onClose} title={existente ? existente.name : "Nuevo servicio"} centered size="lg">
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+        <TextInput label="Nombre" placeholder="CrossFit" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
+        <ColorInput label="Color" value={color} onChange={setColor} format="hex" />
+      </SimpleGrid>
+      <SimpleGrid cols={3} spacing="sm" mt="sm">
+        <NumberInput label="Minutos" value={duration} onChange={setDuration} min={15} max={300} />
+        <NumberInput label="Cupo" value={capacity} onChange={setCapacity} min={1} max={200} />
+        <NumberInput label="Puntos" value={points} onChange={setPoints} min={0} max={1000} />
+      </SimpleGrid>
       <Textarea
-        label="Descripción"
-        description="Qué es el servicio; los atletas la ven en la app."
+        label="Descripción (la ven los atletas)"
+        placeholder="Entrenamiento funcional de alta intensidad en grupo"
         value={description}
         onChange={(e) => setDescription(e.currentTarget.value)}
         autosize
         minRows={2}
-        mb="sm"
+        mt="sm"
       />
       <Textarea
         label="Cómo funciona"
-        description="Onboarding que ve el atleta. Vacío = texto estándar (reserva → QR al cierre → puntos)."
+        placeholder="Reserva tu cupo, asiste y escanea el QR al terminar"
         value={howItWorks}
         onChange={(e) => setHowItWorks(e.currentTarget.value)}
         autosize
         minRows={2}
-        mb="sm"
+        mt="sm"
       />
-      {service?.photo && !photo && (
-        <Group gap="sm" mb="xs">
+      <Group align="flex-end" gap="sm" mt="sm" wrap="nowrap">
+        {existente?.photo && !photo && (
           <img
-            src={service.photo}
-            alt={service.name}
-            style={{
-              width: 86,
-              height: 56,
-              objectFit: "cover",
-              borderRadius: "calc(12 * var(--u))",
-              border: "1px solid var(--a-line)",
-            }}
+            src={existente.photo}
+            alt=""
+            style={{ width: 64, height: 42, objectFit: "cover", borderRadius: 8, border: "1px solid var(--a-line)" }}
           />
-          <Text c="dimmed" size="xs">
-            Foto actual — sube otra para reemplazarla.
-          </Text>
+        )}
+        <FileInput
+          label="Foto"
+          placeholder={existente?.photo ? "Cambiar foto" : "Subir imagen"}
+          accept="image/*"
+          value={photo}
+          onChange={setPhoto}
+          clearable
+          style={{ flex: 1 }}
+        />
+      </Group>
+      <Group mt="md" gap="lg">
+        <Switch label="Lleva workout" checked={requiresWod} onChange={(e) => setRequiresWod(e.currentTarget.checked)} />
+        {existente && <Switch label="Activo" checked={activo} onChange={(e) => setActivo(e.currentTarget.checked)} />}
+      </Group>
+      <Group justify="space-between" mt="lg">
+        {existente ? (
+          <Button variant="subtle" color="red" loading={removing} onClick={() => onDelete(existente)}>
+            Eliminar
+          </Button>
+        ) : (
+          <span />
+        )}
+        <Group gap="xs">
+          <Button variant="default" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            disabled={!name.trim()}
+            loading={saving}
+            onClick={() =>
+              onSave(
+                {
+                  name: name.trim(),
+                  color,
+                  requires_wod: requiresWod,
+                  default_duration_min: Number(duration),
+                  default_capacity: Number(capacity),
+                  completion_points: Number(points),
+                  description: description.trim(),
+                  how_it_works: howItWorks.trim(),
+                  ...(existente ? { is_active: activo } : {}),
+                },
+                photo,
+              )
+            }
+          >
+            {existente ? "Guardar" : "Crear servicio"}
+          </Button>
         </Group>
-      )}
-      <FileInput
-        label="Foto del servicio"
-        placeholder="Subir imagen"
-        accept="image/*"
-        value={photo}
-        onChange={setPhoto}
-        clearable
-        mb="sm"
-      />
-      <Switch
-        label="Requiere workout"
-        checked={requiresWod}
-        onChange={(e) => setRequiresWod(e.currentTarget.checked)}
-        mb="md"
-      />
-      <Group justify="flex-end">
-        <Button variant="default" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button
-          disabled={!name}
-          loading={saving}
-          onClick={() =>
-            onSave(
-              {
-                name,
-                color,
-                requires_wod: requiresWod,
-                default_duration_min: Number(duration),
-                default_capacity: Number(capacity),
-                completion_points: Number(points),
-                description,
-                how_it_works: howItWorks,
-              },
-              photo,
-            )
-          }
-        >
-          Guardar
-        </Button>
       </Group>
     </Modal>
   );
@@ -879,8 +742,7 @@ function ScheduleTab({ gymId, servicio, setServicio }: FiltroProps) {
   const coachDe = (s: ClassSchedule) => {
     if (!s.default_coach) return null;
     const c = (coaches.data ?? []).find((x) => x.staff_role === s.default_coach);
-    const nombre = c?.name || c?.email || "Coach";
-    return nombre.includes("@") ? nombre.split("@")[0] : nombre;
+    return nombreCorto(c?.name || c?.email) ?? "Coach";
   };
 
   /** El alta arranca con los valores del servicio filtrado, si hay uno. */
@@ -1200,18 +1062,14 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
   const cancelClass = useCancelClass(gymId);
   const deleteClass = useDeleteClass(gymId);
   const config = useGymConfig(gymId);
-  const wodsToday = useWods(gymId, new Date().toLocaleDateString("en-CA"));
-
-  const onDeleteClass = (gymClass: ClassRow) => {
-    if (!window.confirm(`¿Eliminar la clase "${gymClass.class_type}" del ${new Date(gymClass.starts_at).toLocaleString("es-GT")}?`))
-      return;
-    deleteClass.mutate(gymClass.id, {
-      onSuccess: () => ok("Clase eliminada."),
-      onError: (error) => fail(error, "No se pudo eliminar la clase."),
-    });
-  };
   const updateConfig = useUpdateGymConfig(gymId);
+  const hoy = isoLocal(new Date());
+  const wodsToday = useWods(gymId, hoy);
   const allowFuture = config.data?.allow_future_reservations ?? true;
+
+  // El día que se mira y la semana de la tira. Arranca en hoy.
+  const [dia, setDia] = useState(hoy);
+  const [lunes, setLunes] = useState(() => lunesDe(new Date()));
   const [selectedClassId, setSelectedClassId] = useState("");
   const [editing, setEditing] = useState<ClassRow | null>(null);
   const checkins = useClassCheckins(gymId, selectedClassId);
@@ -1220,28 +1078,22 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
     () => (checkins.data ?? []).filter((c) => !c.membership).length,
     [checkins.data],
   );
+  const coachName = (staffId: string | null) => {
+    const c = (coaches.data ?? []).find((x) => x.staff_role === staffId);
+    return c ? nombreCorto(c.name || c.email) : null;
+  };
 
-  const coachOptions = useMemo(
-    () => (coaches.data ?? []).map((c) => ({ value: c.staff_role, label: c.name || c.email })),
-    [coaches.data],
-  );
-  const coachName = (staffId: string | null) =>
-    coachOptions.find((o) => o.value === staffId)?.label ?? null;
+  // Pasado y futuro juntos, sin repetir: la tira cuenta todos los días de la semana.
+  const todas = useMemoClases(classes.data as ClassRow[] | undefined, pastClasses.data as ClassRow[] | undefined);
 
-  const [search, setSearch] = useState("");
-  // Igual que la app móvil: las clases se separan en Pasado / Hoy / Próximas.
-  const [timeTab, setTimeTab] = useState<"pasado" | "hoy" | "proximas">("hoy");
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<ClassRow>>({
-    columnAccessor: "starts_at",
-    direction: "asc",
-  });
-
-  const source = timeTab === "pasado" ? pastClasses : classes;
+  const source = dia < hoy ? pastClasses : classes;
   if (source.isError) return <PageError onRetry={() => source.refetch()} />;
 
-  const todayStr = new Date().toLocaleDateString("en-CA");
-  const dayOf = (c: ClassRow) => new Date(c.starts_at).toLocaleDateString("en-CA");
-  const upcoming = (classes.data ?? []) as ClassRow[];
+  const diaDe = (c: ClassRow) => isoLocal(new Date(c.starts_at));
+  const delServicio = todas.filter((c) => coincideServicio(c.class_type, servicio));
+  const delDia = delServicio
+    .filter((c) => diaDe(c) === dia)
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
 
   // Ventana de asistencia (espejo del backend): 30 min antes del inicio hasta
   // una hora después del fin. Fuera de ella solo se CONSULTA lo registrado.
@@ -1251,314 +1103,182 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
   const yaInicio = (c: ClassRow) => now >= startMs(c);
   const enVentanaAsistencia = (c: ClassRow) =>
     now >= startMs(c) - 30 * 60 * 1000 && now <= endMs(c) + 60 * 60 * 1000;
-  const all =
-    timeTab === "pasado"
-      ? ((pastClasses.data ?? []) as ClassRow[])
-      : upcoming.filter((c) => (timeTab === "hoy" ? dayOf(c) === todayStr : dayOf(c) > todayStr));
-  const q = search.trim().toLowerCase();
-  const delServicio = all.filter((c) => coincideServicio(c.class_type, servicio));
-  const filtered = q
-    ? delServicio.filter(
-        (c) =>
-          c.class_type.toLowerCase().includes(q) ||
-          (c.coach_name ?? coachName(c.coach ?? null) ?? "").toLowerCase().includes(q) ||
-          label(CLASS_STATUS, c.status).toLowerCase().includes(q),
-      )
-    : delServicio;
-  const rows = sortRecords(filtered, sortStatus);
 
-  const countHoy = upcoming.filter((c) => dayOf(c) === todayStr).length;
-  const countProximas = upcoming.filter((c) => dayOf(c) > todayStr).length;
-  const countPasado = (pastClasses.data ?? []).length;
-  // Los contadores del selector Pasado/Hoy/Próximas cuentan lo que la tabla va a
-  // mostrar: con un servicio elegido, «Hoy (5)» sobre una tabla de 2 filas se
-  // lee como que faltan clases. Las cifras de arriba siguen siendo del box entero.
-  const delFiltro = (lista: ClassRow[]) => lista.filter((c) => coincideServicio(c.class_type, servicio)).length;
-  const segHoy = delFiltro(upcoming.filter((c) => dayOf(c) === todayStr));
-  const segProximas = delFiltro(upcoming.filter((c) => dayOf(c) > todayStr));
-  const segPasado = delFiltro((pastClasses.data ?? []) as ClassRow[]);
+  // Lo que pide atención en el día que se mira: sin coach (solo lo que aún no
+  // empieza) y, hoy, clases con workout cuyo workout no está publicado.
+  const activasDelDia = delDia.filter((c) => c.status !== "cancelled");
+  const sinCoach = activasDelDia.filter((c) => !c.coach && !yaInicio(c));
+  const faltaWorkout = (c: ClassRow) =>
+    diaDe(c) === hoy &&
+    c.needs_wod &&
+    !(wodsToday.data ?? []).some((w) => w.published && (!w.service_type || w.service_type === c.service_type));
+  const sinWorkout = activasDelDia.filter(faltaWorkout);
 
-  // Pendientes de HOY que necesitan atención: clases sin coach y clases con
-  // rutina requerida cuyo WOD del día aún no está publicado.
-  const hoyActivas = upcoming.filter((c) => dayOf(c) === todayStr && c.status !== "cancelled");
-  const hoySinCoach = hoyActivas.filter((c) => !c.coach);
-  const hoySinRutina = hoyActivas.filter(
-    (c) =>
-      c.needs_wod &&
-      !(wodsToday.data ?? []).some(
-        (w) => w.published && (!w.service_type || w.service_type === c.service_type),
-      ),
-  );
   const hora = (c: ClassRow) =>
-    new Date(c.starts_at).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" });
+    new Date(c.starts_at).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
-  // La clase del modal de asistencia (puede venir de hoy/próximas o del pasado).
-  const selectedClass =
-    [...upcoming, ...((pastClasses.data ?? []) as ClassRow[])].find((c) => c.id === selectedClassId) ??
-    null;
+  const selectedClass = todas.find((c) => c.id === selectedClassId) ?? null;
   const asistenciaAbierta = !!selectedClass && enVentanaAsistencia(selectedClass);
+  const iniciada = !!selectedClass && yaInicio(selectedClass);
+
+  const irA = (d: Date) => {
+    setDia(isoLocal(d));
+    setLunes(lunesDe(d));
+  };
+
+  const onDeleteClass = (gymClass: ClassRow) => {
+    if (!window.confirm(`¿Eliminar la clase ${gymClass.class_type} del ${new Date(gymClass.starts_at).toLocaleString("es-GT")}?`))
+      return;
+    deleteClass.mutate(gymClass.id, {
+      onSuccess: () => {
+        ok("Clase eliminada.");
+        setSelectedClassId("");
+      },
+      onError: (error) => fail(error, "No se pudo eliminar la clase."),
+    });
+  };
 
   return (
-    <>
-      {/* La cifra que manda en esta pantalla: lo que se opera hoy en el box. */}
-      <GlassCard
-        variant="core"
-        sheen
-        padding={24}
-        delay={0.6}
-        style={{ marginBottom: "calc(18 * var(--u))" }}
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado
+        titulo="Clases"
+        avisos={
+          <>
+            {sinCoach.length > 0 && (
+              <Badge color="yellow" variant="light">
+                {sinCoach.length} sin coach
+              </Badge>
+            )}
+            {sinWorkout.length > 0 && (
+              <Badge color="yellow" variant="light">
+                {sinWorkout.length} sin workout
+              </Badge>
+            )}
+          </>
+        }
       >
-        <BigMetric
-          label="Clases de hoy"
-          value={countHoy}
-          hint="La asistencia se registra desde 30 minutos antes del inicio hasta una hora después del cierre."
-          delay={1.0}
+        <FiltroServicio
+          opciones={opcionesDeServicio(todas.map((c) => c.class_type), servicio)}
+          value={servicio}
+          onChange={setServicio}
         />
-      </GlassCard>
-
-      <Stagger from={0.7} style={{ marginBottom: "calc(18 * var(--u))" }}>
-        <SimpleGrid cols={{ base: 2, md: 4 }} spacing="md">
-          <MetricTile label="Próximas" value={countProximas} />
-          <MetricTile label="Pasado · 60 días" value={countPasado} />
-          <MetricTile
-            label="Hoy sin coach"
-            value={hoySinCoach.length}
-            tone={hoySinCoach.length ? "var(--nucleo-warning)" : undefined}
-          />
-          <MetricTile
-            label="Hoy sin workout"
-            value={hoySinRutina.length}
-            tone={hoySinRutina.length ? "var(--nucleo-warning)" : undefined}
-          />
-        </SimpleGrid>
-      </Stagger>
-
-      {(hoySinCoach.length > 0 || hoySinRutina.length > 0) && (
-        <Alert
-          color="yellow"
-          variant="light"
-          mb="lg"
-          title="Atención para hoy"
-          className="a-rise"
-          style={delayVar(0.78)}
-        >
-          {hoySinCoach.length > 0 && (
-            <Text size="sm">
-              🧑‍🏫 {hoySinCoach.length === 1 ? "1 clase sin coach asignado" : `${hoySinCoach.length} clases sin coach asignado`}:{" "}
-              {hoySinCoach.map((c) => `${c.class_type} ${hora(c)}`).join(", ")}
-            </Text>
-          )}
-          {hoySinRutina.length > 0 && (
-            <Text size="sm" mt={hoySinCoach.length ? 4 : 0}>
-              📋 {hoySinRutina.length === 1 ? "1 clase requiere workout y aún no está publicado" : `${hoySinRutina.length} clases requieren workout y aún no está publicado`}:{" "}
-              {hoySinRutina.map((c) => `${c.class_type} ${hora(c)}`).join(", ")} — publícalo en la pestaña Workout.
-            </Text>
-          )}
-        </Alert>
-      )}
-
-      <GlassCard delay={0.84} padding={22} style={{ marginBottom: "calc(18 * var(--u))" }}>
-        <SectionLabel mb={6}>Configuración</SectionLabel>
-        <Title order={3} mb={4}>
-          Reservas de clases
-        </Title>
-        <Text c="dimmed" size="sm" mb="md">
-          Controla si los atletas pueden reservar con anticipación o solo las clases de hoy.
-        </Text>
-        <Switch
-          label="Permitir que los atletas reserven clases futuras"
-          checked={allowFuture}
-          disabled={config.isLoading || updateConfig.isPending}
-          onChange={(e) => {
-            const permitir = e.currentTarget.checked;
-            updateConfig.mutate(
-              { allow_future_reservations: permitir },
-              {
-                onSuccess: () =>
-                  ok(
-                    permitir
-                      ? "Los atletas ya pueden reservar clases futuras."
-                      : "Los atletas solo podrán reservar las clases de hoy.",
-                  ),
-                onError: (error) => fail(error, "No se pudo guardar la configuración de reservas."),
-              },
-            );
-          }}
-        />
-        {config.isError && (
-          <Text c="red" size="xs" mt="xs">
-            No se pudo leer la configuración del gimnasio: se muestra el valor por defecto.
-          </Text>
-        )}
-        {!allowFuture && (
-          <Text c="dimmed" size="xs" mt="xs">
-            Los atletas solo verán habilitada la reserva de las clases del día.
-          </Text>
-        )}
-      </GlassCard>
-
-      <GlassCard delay={0.9} padding={18}>
-        <SectionLabel as="h2" mb={10}>Calendario de clases</SectionLabel>
-        <Group justify="space-between" mb="md" wrap="wrap" gap="sm">
-          <SegmentedControl
-            value={timeTab}
-            onChange={(v) => {
-              const tab = v as "pasado" | "hoy" | "proximas";
-              setTimeTab(tab);
-              // Pasado: lo más reciente primero; Hoy/Próximas: lo más cercano primero.
-              setSortStatus({
-                columnAccessor: "starts_at",
-                direction: tab === "pasado" ? "desc" : "asc",
-              });
-            }}
-            data={[
-              { value: "pasado", label: `Pasado (${segPasado})` },
-              { value: "hoy", label: `Hoy (${segHoy})` },
-              { value: "proximas", label: `Próximas (${segProximas})` },
-            ]}
-          />
-          <Group gap="sm" wrap="wrap">
-            {/* Opciones de las tres vistas juntas: cambiar de Hoy a Próximas no
-                debe hacer desaparecer el servicio que ya estaba elegido. */}
-            <FiltroServicio
-              opciones={opcionesDeServicio(
-                [...upcoming, ...((pastClasses.data ?? []) as ClassRow[])].map((c) => c.class_type),
-                servicio,
-              )}
-              value={servicio}
-              onChange={setServicio}
-            />
-            <TextInput
-              placeholder="Buscar por clase, coach o estado…"
-              value={search}
-              onChange={(e) => setSearch(e.currentTarget.value)}
-              w={{ base: "100%", sm: 280 }}
-            />
-          </Group>
-        </Group>
-        <DataTable<ClassRow>
-          minHeight={160}
-          highlightOnHover
-          striped
-          records={rows}
-          fetching={source.isLoading}
-          noRecordsText={
-            all.length && (servicio || q)
-              ? "Ninguna clase coincide con el filtro."
-              : timeTab === "pasado"
-              ? "Sin clases pasadas en los últimos 60 días."
-              : timeTab === "hoy"
-                ? "Sin clases hoy. Arma el horario y genera las clases del calendario."
-                : "Sin clases próximas. Arma el horario y genera las clases del calendario."
-          }
-          sortStatus={sortStatus}
-          onSortStatusChange={setSortStatus}
-          idAccessor="id"
-          columns={[
-            {
-              accessor: "class_type",
-              title: "Clase",
-              sortable: true,
-              render: (gymClass) => (
-                <Group gap="xs">
-                  {gymClass.color && (
-                    <span
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: "calc(4 * var(--u))",
-                        background: gymClass.color,
-                      }}
-                    />
-                  )}
-                  {gymClass.class_type}
-                  {gymClass.needs_wod && <Badge size="xs" color="flame">Workout</Badge>}
-                </Group>
-              ),
-            },
-            {
-              accessor: "starts_at",
-              title: "Fecha",
-              sortable: true,
-              render: (gymClass) => new Date(gymClass.starts_at).toLocaleString("es-GT"),
-            },
-            {
-              accessor: "coach",
-              title: "Coach",
-              render: (gymClass) =>
-                gymClass.coach ? (
-                  <Text size="sm">{gymClass.coach_name ?? coachName(gymClass.coach)}</Text>
-                ) : (
-                  <Badge color={gymClass.is_past_assignment_deadline ? "red" : "yellow"} variant="light">
-                    {gymClass.is_past_assignment_deadline ? "Sin coach · urge" : "Sin asignar"}
-                  </Badge>
-                ),
-            },
-            {
-              accessor: "capacity",
-              title: "Cupo",
-              sortable: true,
-              render: (gymClass) => `${gymClass.reserved_count}/${gymClass.capacity}`,
-            },
-            {
-              accessor: "rating",
-              title: "Calificación",
-              render: (gymClass) =>
-                gymClass.rating != null ? (
-                  <Text size="sm">
-                    ⭐ <span className="a-tabular">{gymClass.rating.toFixed(1)}</span>{" "}
-                    <Text span c="dimmed" size="xs">
-                      ({gymClass.rating_count})
-                    </Text>
-                  </Text>
-                ) : (
-                  <Text c="dimmed" size="sm">—</Text>
-                ),
-            },
-            {
-              accessor: "status",
-              title: "Estado",
-              sortable: true,
-              render: (gymClass) => label(CLASS_STATUS, gymClass.status),
-            },
-            {
-              accessor: "actions",
-              title: "Acciones",
-              render: (gymClass) => {
-                // Una clase que ya inició (o está en Pasado) es de solo asistencia:
-                // no se le cambia el coach, no se cancela ni se elimina.
-                const iniciada = timeTab === "pasado" || yaInicio(gymClass);
-                return (
-                  <RowActions
-                    actions={[
-                      !iniciada && { label: "Coach", variant: "light", onClick: () => setEditing(gymClass) },
-                      { label: "Asistencia", onClick: () => setSelectedClassId(gymClass.id) },
-                      gymClass.status !== "cancelled" && !iniciada && {
-                        label: "Cancelar",
-                        variant: "subtle",
-                        color: "orange",
-                        loading: cancelClass.isPending && cancelClass.variables === gymClass.id,
-                        onClick: () =>
-                          cancelClass.mutate(gymClass.id, {
-                            onSuccess: () => ok("Clase cancelada. Se avisó a los atletas reservados."),
-                            onError: (error) => fail(error, "No se pudo cancelar la clase."),
-                          }),
-                      },
-                      !iniciada && {
-                        label: "Eliminar",
-                        variant: "subtle",
-                        color: "red",
-                        loading: deleteClass.isPending && deleteClass.variables === gymClass.id,
-                        onClick: () => onDeleteClass(gymClass),
-                      },
-                    ]}
-                  />
+        <Tooltip label="Si está apagado, los atletas solo pueden reservar las clases de hoy">
+          <div>
+            <Switch
+              label="Reservar días futuros"
+              checked={allowFuture}
+              disabled={config.isLoading || updateConfig.isPending}
+              onChange={(e) => {
+                const permitir = e.currentTarget.checked;
+                updateConfig.mutate(
+                  { allow_future_reservations: permitir },
+                  {
+                    onSuccess: () =>
+                      ok(permitir ? "Los atletas ya pueden reservar días futuros." : "Los atletas solo reservan las clases de hoy."),
+                    onError: (error) => fail(error, "No se pudo guardar la configuración de reservas."),
+                  },
                 );
-              },
-            },
-          ]}
-        />
-      </GlassCard>
+              }}
+            />
+          </div>
+        </Tooltip>
+      </Encabezado>
+
+      {/* La tira de días: una semana, con cuántas clases tiene cada día. */}
+      <Group gap={6} mb="md" wrap="nowrap" style={{ overflowX: "auto" }}>
+        <Button variant="default" size="xs" px={8} onClick={() => setLunes(sumarDias(lunes, -7))} aria-label="Semana anterior">
+          ‹
+        </Button>
+        {diasDeSemana(lunes).map((d) => {
+          const f = isoLocal(d);
+          const n = delServicio.filter((c) => diaDe(c) === f && c.status !== "cancelled").length;
+          const activo = f === dia;
+          return (
+            <Button
+              key={f}
+              size="xs"
+              variant={activo ? "filled" : "default"}
+              color="flame"
+              onClick={() => setDia(f)}
+              style={{ flex: "1 0 auto", minWidth: 64 }}
+            >
+              {f === hoy ? "Hoy" : etiquetaColumna(d)}
+              {n > 0 && (
+                <Text span size="xs" ml={6} c={activo ? undefined : "dimmed"}>
+                  {n}
+                </Text>
+              )}
+            </Button>
+          );
+        })}
+        <Button variant="default" size="xs" px={8} onClick={() => setLunes(sumarDias(lunes, 7))} aria-label="Semana siguiente">
+          ›
+        </Button>
+        {dia !== hoy && (
+          <Button variant="subtle" size="xs" onClick={() => irA(new Date())}>
+            Ir a hoy
+          </Button>
+        )}
+      </Group>
+
+      <Text fw={700} size="sm" mb="xs">
+        {mayuscula(fechaLarga(deIso(dia)))}
+      </Text>
+
+      {source.isLoading ? (
+        <Text c="dimmed" size="sm">
+          Cargando…
+        </Text>
+      ) : delDia.length === 0 ? (
+        <Text c="dimmed" size="sm" py="md">
+          {servicio ? `Sin clases de ${servicio} este día.` : "Sin clases este día."}
+        </Text>
+      ) : (
+        <Stack gap={6}>
+          {delDia.map((c) => {
+            const cancelada = c.status === "cancelled";
+            const falta = !cancelada && !c.coach && !yaInicio(c);
+            const coach = c.coach ? (nombreCorto(c.coach_name) ?? coachName(c.coach)) : null;
+            const pct = c.capacity ? Math.min(100, Math.round((c.reserved_count / c.capacity) * 100)) : 0;
+            return (
+              <Tarjeta
+                key={c.id}
+                etiqueta={`${c.class_type} ${hora(c)}, ${coach ?? "sin coach"}`}
+                onClick={() => setSelectedClassId(c.id)}
+                aviso={falta}
+                apagada={cancelada}
+              >
+                <Group gap="sm" wrap="nowrap">
+                  <Text fw={700} w={52} className="a-tabular">
+                    {hora(c)}
+                  </Text>
+                  <PuntoColor color={c.color} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Text size="sm" fw={600} truncate>
+                      {c.class_type}
+                      <Text span c={falta ? "var(--mantine-color-yellow-light-color)" : "dimmed"} fw={falta ? 700 : 400}>
+                        {" · "}
+                        {coach ?? (falta && c.is_past_assignment_deadline ? "Sin coach · urge" : "Sin coach")}
+                      </Text>
+                    </Text>
+                  </div>
+                  {cancelada && <Badge size="xs" color="gray" variant="light">Cancelada</Badge>}
+                  {faltaWorkout(c) && !cancelada && <Badge size="xs" color="yellow" variant="light">Sin workout</Badge>}
+                  {c.rating != null && (
+                    <Text size="xs" c="dimmed" visibleFrom="sm">
+                      ★ {c.rating.toFixed(1)}
+                    </Text>
+                  )}
+                  <Progress value={pct} color="flame" size="sm" w={80} visibleFrom="xs" />
+                  <Text size="sm" c="dimmed" w={48} ta="right" className="a-tabular">
+                    {c.reserved_count}/{c.capacity}
+                  </Text>
+                </Group>
+              </Tarjeta>
+            );
+          })}
+        </Stack>
+      )}
 
       <AssignCoachModal
         gymClass={editing}
@@ -1579,47 +1299,78 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
       />
 
       <Modal
-        opened={!!selectedClassId}
+        opened={!!selectedClassId && !editing}
         onClose={() => setSelectedClassId("")}
-        title="Asistencia de la clase"
+        title={selectedClass ? `${selectedClass.class_type} · ${hora(selectedClass)}` : "Clase"}
         size="lg"
         centered
       >
-        {/* Qué clase es y cómo va la sala. La diferencia entre reservados y
-            presentes es la pregunta que trae al operador aquí: cuántos de los
-            que dijeron que venían todavía no aparecen. */}
         {selectedClass && (
-          <Text size="sm" c="dimmed" mb="sm">
-            {selectedClass.class_type} ·{" "}
-            {new Date(selectedClass.starts_at).toLocaleString("es-GT")} ·{" "}
-            <strong>
-              {selectedClass.reserved_count} de {selectedClass.capacity} reservados
-            </strong>
-            {" · "}
-            {(checkins.data ?? []).length} presentes
-          </Text>
+          <>
+            <Text size="sm" c="dimmed" mb="sm">
+              {mayuscula(fechaLarga(new Date(selectedClass.starts_at)))} ·{" "}
+              {selectedClass.coach ? (nombreCorto(selectedClass.coach_name) ?? coachName(selectedClass.coach)) : "sin coach"} ·{" "}
+              <strong>
+                {selectedClass.reserved_count}/{selectedClass.capacity} reservados
+              </strong>
+              {" · "}
+              {(checkins.data ?? []).length} presentes
+            </Text>
+            {/* Una clase que ya inició es de solo asistencia: no se le cambia el
+                coach, no se cancela ni se elimina. */}
+            {!iniciada && selectedClass.status !== "cancelled" && (
+              <Group gap="xs" mb="md">
+                <Button size="xs" variant="light" onClick={() => setEditing(selectedClass)}>
+                  {selectedClass.coach ? "Cambiar coach" : "Asignar coach"}
+                </Button>
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  color="orange"
+                  loading={cancelClass.isPending}
+                  onClick={() =>
+                    cancelClass.mutate(selectedClass.id, {
+                      onSuccess: () => ok("Clase cancelada. Se avisó a los atletas reservados."),
+                      onError: (error) => fail(error, "No se pudo cancelar la clase."),
+                    })
+                  }
+                >
+                  Cancelar clase
+                </Button>
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  color="red"
+                  loading={deleteClass.isPending}
+                  onClick={() => onDeleteClass(selectedClass)}
+                >
+                  Eliminar
+                </Button>
+              </Group>
+            )}
+          </>
         )}
         {/* Registrar asistencia SOLO dentro de la ventana (ni pasadas ni futuras). */}
         {asistenciaAbierta ? (
           <>
             {selectedClassId && <ClassQrBlock gymId={gymId} classId={selectedClassId} />}
-            <Title order={4} mt="md" mb="xs">
-              Check-in desde recepción
+            <Title order={5} mt="md" mb="xs">
+              Marcar presente
             </Title>
             {selectedClassId && <RecepcionBuscador gymId={gymId} classId={selectedClassId} />}
           </>
         ) : (
-          <Alert color="gray" variant="light">
+          <Text size="sm" c="dimmed">
             {selectedClass && now < startMs(selectedClass) - 30 * 60 * 1000
-              ? "El registro de asistencia abre 30 minutos antes de la clase."
-              : "La ventana de asistencia de esta clase ya cerró; solo se muestra lo registrado."}
-          </Alert>
+              ? "La asistencia abre 30 min antes de la clase."
+              : "La asistencia de esta clase ya cerró."}
+          </Text>
         )}
         <Group mt="md" mb="xs" gap="xs" align="baseline" wrap="wrap">
-          <Title order={5}>Asistencia registrada ({(checkins.data ?? []).length})</Title>
+          <Title order={5}>Presentes ({(checkins.data ?? []).length})</Title>
           {visitantes > 0 && (
             <Badge color="cyan" variant="light">
-              {visitantes} {visitantes === 1 ? "visitante" : "visitantes"} con drop-in
+              {visitantes} con drop-in
             </Badge>
           )}
         </Group>
@@ -1632,7 +1383,7 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
           />
         ) : (checkins.data ?? []).length === 0 ? (
           <Text c="dimmed" size="sm">
-            Sin check-ins registrados.
+            Nadie todavía.
           </Text>
         ) : (
           <Table>
@@ -1649,11 +1400,7 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
                 <Table.Tr key={checkin.id}>
                   <Table.Td>{checkin.athlete_name}</Table.Td>
                   <Table.Td>
-                    {/* Sin membresía en el check-in = entró con un pase drop-in.
-                        El backend elige la credencial (`validar_acceso`): si hay
-                        membresía activa la deja escrita, si no, el acceso lo
-                        autorizó el pase. El gym necesita distinguir al visitante
-                        del socio en la propia lista de asistencia. */}
+                    {/* Sin membresía en el check-in = entró con un pase drop-in. */}
                     {checkin.membership ? (
                       <Badge color="gray" variant="light">
                         Socio
@@ -1664,7 +1411,9 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
                       </Badge>
                     )}
                   </Table.Td>
-                  <Table.Td>{new Date(checkin.checked_in_at).toLocaleString("es-GT")}</Table.Td>
+                  <Table.Td>
+                    {new Date(checkin.checked_in_at).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}
+                  </Table.Td>
                   <Table.Td>{label(CHECKIN_METHOD, checkin.method)}</Table.Td>
                 </Table.Tr>
               ))}
@@ -1672,8 +1421,19 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
           </Table>
         )}
       </Modal>
-    </>
+    </GlassCard>
   );
+}
+
+const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/** Próximas + pasadas en una sola lista, sin repetir una clase que venga en las dos. */
+function useMemoClases(proximas: ClassRow[] | undefined, pasadas: ClassRow[] | undefined): ClassRow[] {
+  return useMemo(() => {
+    const porId = new Map<string, ClassRow>();
+    for (const c of [...(pasadas ?? []), ...(proximas ?? [])]) porId.set(c.id, c);
+    return [...porId.values()];
+  }, [proximas, pasadas]);
 }
 
 /**
@@ -1731,8 +1491,7 @@ export function RecepcionBuscador({ gymId, classId }: { gymId: string; classId: 
     <>
       <TextInput
         label="Buscar a quien llegó"
-        description="Nombre o últimos dígitos del teléfono. Encuentra socios de cualquier estado y visitantes con pase de este gimnasio."
-        placeholder="Ana, Pérez, 4512…"
+        placeholder="Nombre o últimos dígitos del teléfono"
         value={texto}
         onChange={(e) => setTexto(e.currentTarget.value)}
       />
@@ -1965,23 +1724,18 @@ function EditScheduleModal({
 
 function WodTab({ gymId }: { gymId: string }) {
   const hoy = iso(new Date());
-  const [date, setDate] = useState<Date | null>(new Date());
-  const dateStr = iso(date);
   const services = useServiceTypes(gymId);
-  const create = useCreateWod(gymId);
   const update = useUpdateWod(gymId);
   const remove = useDeleteWod(gymId);
   const [openBoard, setOpenBoard] = useState<Wod | null>(null);
   const [editing, setEditing] = useState<Wod | null>(null);
+  // La fecha que se está programando (abre el editor); null = cerrado.
+  const [programando, setProgramando] = useState<string | null>(null);
 
-  // La semana que se mira abajo. Sigue a la fecha del formulario, pero las
-  // flechas la mueven sola: revisar semanas pasadas no le cambia la fecha.
   const [lunes, setLunes] = useState<Date>(() => lunesDe(new Date()));
   const desde = isoLocal(lunes);
   const hasta = isoLocal(sumarDias(lunes, 6));
   const semana = useWodsRango(gymId, desde, hasta);
-  // El del día del formulario, para no ofrecer crear uno que ya existe.
-  const delDia = useWods(gymId, dateStr);
 
   const wodServices = useMemo(
     () => ((services.data ?? []) as ServiceType[]).filter((s) => s.requires_wod),
@@ -1990,21 +1744,160 @@ function WodTab({ gymId }: { gymId: string }) {
   // Programa elegido; "" = General. Mientras no se elija, el primero con workout.
   const [elegido, setElegido] = useState<string | null>(null);
   const programa = elegido ?? wodServices[0]?.id ?? "";
-  const nombrePrograma =
-    programa === "" ? "General" : (wodServices.find((s) => s.id === programa)?.name ?? "este programa");
-
-  const [texto, setTexto] = useState("");
-  const [partes, setPartes] = useState<ParteBorrador[]>([]);
-  const [published, setPublished] = useState(true);
 
   if (semana.isError) return <PageError onRetry={() => semana.refetch()} />;
 
-  const existente = date ? wodDelDia((delDia.data ?? []) as Wod[], dateStr, programa) : undefined;
+  const onPublicar = (w: Wod) =>
+    update.mutate(
+      { id: w.id, body: { published: !w.published } },
+      {
+        // Publicar es lo que la hace visible en el app: si fallaba en silencio,
+        // el gym creía haberla publicado.
+        onSuccess: () => ok(w.published ? "Workout despublicado." : "Workout publicado."),
+        onError: (error) => fail(error, "No se pudo cambiar la publicación."),
+      },
+    );
 
-  const cambiarFecha = (d: Date | null) => {
-    setDate(d);
-    if (d) setLunes(lunesDe(d));
+  const onEliminar = (w: Wod) => {
+    const cuando = fechaLarga(deIso(w.date));
+    if (!window.confirm(`¿Eliminar el workout del ${cuando}?`)) return;
+    remove.mutate(w.id, {
+      onSuccess: () => ok(`Workout del ${cuando} eliminado.`),
+      onError: (error) => fail(error, "No se pudo eliminar el workout."),
+    });
   };
+
+  const opcionesPrograma = [
+    ...wodServices.map((s) => ({ value: s.id, label: s.name })),
+    { value: "", label: "General (todo el gimnasio)" },
+  ];
+  const semanaRows = (semana.data ?? []) as Wod[];
+  // De hoy en adelante, lunes a sábado: los días que todavía se pueden programar.
+  const porProgramar = diasDeSemana(lunes)
+    .slice(0, 6)
+    .map(isoLocal)
+    .filter((f) => f >= hoy && !wodDelDia(semanaRows, f, programa));
+  const esEstaSemana = desde === isoLocal(lunesDe(new Date()));
+
+  return (
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado
+        titulo="Workout"
+        avisos={
+          !semana.isLoading &&
+          porProgramar.length > 0 && (
+            <Badge color="yellow" variant="light">
+              {porProgramar.length} {porProgramar.length === 1 ? "día sin workout" : "días sin workout"}
+            </Badge>
+          )
+        }
+      >
+        <Select
+          aria-label="Programa"
+          data={opcionesPrograma}
+          value={programa}
+          onChange={(v) => setElegido(v ?? "")}
+          allowDeselect={false}
+          w={{ base: "100%", sm: 200 }}
+        />
+        <Group gap={4} wrap="nowrap">
+          <Button variant="default" size="xs" px={8} onClick={() => setLunes(sumarDias(lunes, -7))} aria-label="Semana anterior">
+            ‹
+          </Button>
+          <Button variant="default" size="xs" onClick={() => setLunes(lunesDe(new Date()))} disabled={esEstaSemana}>
+            {esEstaSemana ? rangoDeSemana(lunes) : "Esta semana"}
+          </Button>
+          <Button variant="default" size="xs" px={8} onClick={() => setLunes(sumarDias(lunes, 7))} aria-label="Semana siguiente">
+            ›
+          </Button>
+        </Group>
+        <Button onClick={() => setProgramando(porProgramar[0] ?? hoy)}>Programar</Button>
+      </Encabezado>
+      {!esEstaSemana && (
+        <Text size="sm" c="dimmed" mb="sm">
+          Semana del {rangoDeSemana(lunes)}
+        </Text>
+      )}
+
+      <SemanaWods
+        wods={semanaRows}
+        lunes={lunes}
+        programa={programa}
+        hoy={hoy}
+        cargando={semana.isLoading}
+        ocupado={update.isPending || remove.isPending}
+        etiquetaScore={scoreCorto}
+        onProgramar={setProgramando}
+        onEditar={setEditing}
+        onBoard={setOpenBoard}
+        onPublicar={onPublicar}
+        onEliminar={onEliminar}
+      />
+
+      <NuevoWodModal
+        gymId={gymId}
+        fecha={programando}
+        programa={programa}
+        opcionesPrograma={opcionesPrograma}
+        onClose={() => setProgramando(null)}
+        onCreado={(fecha) => setLunes(lunesDe(deIso(fecha)))}
+        onEditar={(w) => {
+          setProgramando(null);
+          setEditing(w);
+        }}
+      />
+      <BoardModal gymId={gymId} wod={openBoard} onClose={() => setOpenBoard(null)} />
+      {/* De la lista viva, no de la foto que se tomó al tocar «Editar»: así el
+          conteo de scores de cada bloque (que bloquea quitarlo) está al día. */}
+      <EditWodModal
+        gymId={gymId}
+        wod={editing ? (semanaRows.find((r) => r.id === editing.id) ?? editing) : null}
+        onClose={() => setEditing(null)}
+      />
+    </GlassCard>
+  );
+}
+
+/** Programar el workout de un día: se arma por bloques, a mano o pegando el texto. */
+function NuevoWodModal({
+  gymId,
+  fecha,
+  programa: programaInicial,
+  opcionesPrograma,
+  onClose,
+  onCreado,
+  onEditar,
+}: {
+  gymId: string;
+  fecha: string | null;
+  programa: string;
+  opcionesPrograma: { value: string; label: string }[];
+  onClose: () => void;
+  onCreado: (fecha: string) => void;
+  onEditar: (w: Wod) => void;
+}) {
+  const create = useCreateWod(gymId);
+  const [date, setDate] = useState<Date | null>(null);
+  const [programa, setPrograma] = useState("");
+  const [texto, setTexto] = useState("");
+  const [partes, setPartes] = useState<ParteBorrador[]>([]);
+  const [published, setPublished] = useState(true);
+  const [hydratedFor, setHydratedFor] = useState<string | null>(null);
+  const dateStr = iso(date);
+  // El del día elegido, para no ofrecer crear uno que ya existe.
+  const delDia = useWods(gymId, dateStr);
+
+  if (fecha && hydratedFor !== fecha) {
+    setHydratedFor(fecha);
+    setDate(deIso(fecha));
+    setPrograma(programaInicial);
+    setTexto("");
+    setPartes([]);
+    setPublished(true);
+  }
+  if (!fecha && hydratedFor) setHydratedFor(null);
+
+  const existente = date && dateStr ? wodDelDia((delDia.data ?? []) as Wod[], dateStr, programa) : undefined;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -2024,67 +1917,21 @@ function WodTab({ gymId }: { gymId: string }) {
         parts: partesParaGuardar(partes, false),
       });
       ok(published ? "Workout publicado." : "Workout guardado como borrador.");
-      setTexto("");
-      setPartes([]);
-      setPublished(true);
-      setLunes(lunesDe(date));
+      onCreado(dateStr);
+      onClose();
     } catch (error) {
       fail(error, "No se pudo crear el workout.");
     }
   };
 
-  const onPublicar = (w: Wod) =>
-    update.mutate(
-      { id: w.id, body: { published: !w.published } },
-      {
-        // Publicar es lo que la hace visible en el app: si fallaba en silencio,
-        // el gym creía haberla publicado.
-        onSuccess: () =>
-          ok(
-            w.published
-              ? "Workout despublicado: ya no lo ven los atletas."
-              : "Workout publicado: ya lo ven los atletas en el app.",
-          ),
-        onError: (error) => fail(error, "No se pudo cambiar la publicación."),
-      },
-    );
-
-  const onEliminar = (w: Wod) => {
-    const cuando = fechaLarga(deIso(w.date));
-    if (!window.confirm(`¿Eliminar el workout del ${cuando}?`)) return;
-    remove.mutate(w.id, {
-      onSuccess: () => ok(`Workout del ${cuando} eliminado.`),
-      onError: (error) => fail(error, "No se pudo eliminar el workout."),
-    });
-  };
-
-  const programar = (fecha: string) => {
-    cambiarFecha(deIso(fecha));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const opcionesPrograma = [
-    ...wodServices.map((s) => ({ value: s.id, label: s.name })),
-    { value: "", label: "General (todo el gimnasio)" },
-  ];
-  const semanaRows = (semana.data ?? []) as Wod[];
-
   return (
-    <>
-      <Card mb="lg" component="form" onSubmit={submit} className="a-slide-r" style={delayVar(0.6)}>
-        <SectionLabel mb={6}>Entrenamiento</SectionLabel>
-        <Title order={3} mb={4}>
-          Workout del día
-        </Title>
-        <Text c="dimmed" size="sm" mb="md">
-          Un workout por programa y fecha; lo comparten todas las clases de ese día. Se arma por bloques
-          (Warmup, Weightlifting, Metcon…) y cada bloque lleva su propio score.
-        </Text>
+    <Modal opened={!!fecha} onClose={onClose} title={date ? `Workout · ${fechaLarga(date)}` : "Workout"} size="xl" centered>
+      <form onSubmit={submit}>
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
           <DateInput
             label="Fecha"
             value={date}
-            onChange={cambiarFecha}
+            onChange={setDate}
             valueFormat="YYYY-MM-DD"
             popoverProps={{ withinPortal: true }}
           />
@@ -2092,19 +1939,16 @@ function WodTab({ gymId }: { gymId: string }) {
             label="Programa"
             data={opcionesPrograma}
             value={programa}
-            onChange={(v) => setElegido(v ?? "")}
+            onChange={(v) => setPrograma(v ?? "")}
             allowDeselect={false}
           />
         </SimpleGrid>
 
         {existente ? (
-          <Alert color="blue" variant="light" mt="md" title="Este día ya tiene workout">
+          <Alert color="blue" variant="light" mt="md">
             <Group justify="space-between" wrap="wrap" gap="sm">
-              <Text size="sm">
-                {nombrePrograma} ya tiene workout el {date ? fechaLarga(date) : dateStr}. Cámbialo desde
-                «Editar».
-              </Text>
-              <Button size="xs" onClick={() => setEditing(existente)}>
+              <Text size="sm">Este día ya tiene workout.</Text>
+              <Button size="xs" onClick={() => onEditar(existente)}>
                 Editar
               </Button>
             </Group>
@@ -2112,15 +1956,14 @@ function WodTab({ gymId }: { gymId: string }) {
         ) : (
           <>
             <Textarea
-              label="Pega el workout"
-              description="Opcional. Pega la rutina tal como la escribes (Warmup, Weightlifting, Custom Metcon…) y presiona «Armar bloques desde el texto». Lo que se guarda son los bloques."
+              label="Pega el workout (opcional)"
               placeholder={"Warmup\n3 Sets\n200M Jog\n\nCustom Metcon (Tiempo)\nFor Time\n100 Ring Rows"}
               value={texto}
               onChange={(e) => setTexto(e.currentTarget.value)}
               mt="md"
               autosize
               minRows={3}
-              maxRows={14}
+              maxRows={12}
             />
             <ArmarBloquesDesdeTexto
               gymId={gymId}
@@ -2131,76 +1974,23 @@ function WodTab({ gymId }: { gymId: string }) {
                 setPartes(p);
               }}
             />
-            <Divider my="md" label="Bloques del día" labelPosition="left" />
+            <Divider my="md" label="Bloques" labelPosition="left" />
             <WodPartsEditor partes={partes} onChange={setPartes} scoreTypes={SCORE_TYPES} />
             <Group justify="space-between" mt="md" wrap="wrap" gap="sm">
-              <Switch
-                label="Publicar al crear"
-                checked={published}
-                onChange={(e) => setPublished(e.currentTarget.checked)}
-              />
+              <Switch label="Publicar ya" checked={published} onChange={(e) => setPublished(e.currentTarget.checked)} />
               <Group gap="sm">
-                {partes.length === 0 && (
-                  <Text size="xs" c="dimmed">
-                    Agrega al menos un bloque.
-                  </Text>
-                )}
+                <Button variant="default" onClick={onClose}>
+                  Cancelar
+                </Button>
                 <Button type="submit" loading={create.isPending} disabled={!date || partes.length === 0}>
-                  Crear workout
+                  {published ? "Publicar workout" : "Guardar borrador"}
                 </Button>
               </Group>
             </Group>
           </>
         )}
-      </Card>
-
-      <GlassCard delay={0.72} padding={18}>
-        <Group justify="space-between" mb="sm" wrap="wrap" gap="sm">
-          <div>
-            <SectionLabel mb={4}>Programación · {nombrePrograma}</SectionLabel>
-            <Title order={3}>Semana del {rangoDeSemana(lunes)}</Title>
-          </div>
-          <Group gap={6}>
-            <Button variant="default" size="xs" onClick={() => setLunes(sumarDias(lunes, -7))} aria-label="Semana anterior">
-              ‹ Anterior
-            </Button>
-            <Button variant="default" size="xs" onClick={() => setLunes(lunesDe(new Date()))} disabled={desde === isoLocal(lunesDe(new Date()))}>
-              Esta semana
-            </Button>
-            <Button variant="default" size="xs" onClick={() => setLunes(sumarDias(lunes, 7))} aria-label="Semana siguiente">
-              Siguiente ›
-            </Button>
-          </Group>
-        </Group>
-        <SemanaWods
-          wods={semanaRows}
-          lunes={lunes}
-          programa={programa}
-          hoy={hoy}
-          cargando={semana.isLoading}
-          ocupado={update.isPending || remove.isPending}
-          etiquetaScore={scoreCorto}
-          onProgramar={programar}
-          onEditar={setEditing}
-          onBoard={setOpenBoard}
-          onPublicar={onPublicar}
-          onEliminar={onEliminar}
-        />
-      </GlassCard>
-
-      <BoardModal gymId={gymId} wod={openBoard} onClose={() => setOpenBoard(null)} />
-      {/* De la lista viva, no de la foto que se tomó al tocar «Editar»: así el
-          conteo de scores de cada bloque (que bloquea quitarlo) está al día. */}
-      <EditWodModal
-        gymId={gymId}
-        wod={
-          editing
-            ? ([...semanaRows, ...((delDia.data ?? []) as Wod[])].find((r) => r.id === editing.id) ?? editing)
-            : null
-        }
-        onClose={() => setEditing(null)}
-      />
-    </>
+      </form>
+    </Modal>
   );
 }
 

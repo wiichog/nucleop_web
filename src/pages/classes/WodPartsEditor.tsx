@@ -159,7 +159,6 @@ export function WodPartsEditor({
                 />
                 <Select
                   label="Levantamiento"
-                  description="Con él, lo que anota cada atleta cuenta para su RM estimado."
                   placeholder="Ninguno"
                   data={MOVIMIENTOS}
                   value={p.movement ?? null}

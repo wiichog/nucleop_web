@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Badge, Button, Group, Stack, Text, TextInput } from "@mantine/core";
+import { Badge, Button, Group, Popover, Stack, Text, TextInput, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useClassRequests, useDecideClassRequest } from "../../api/hooks";
 import type { ClassAssignmentRequest } from "../../api/types";
 import { GlassCard } from "../../components/aurora";
 import { PageError } from "../../components/PageStatus";
-import { CountBadge, SectionLabel } from "../../components/ui";
+import { CountBadge } from "../../components/ui";
+import { Encabezado, nombreCorto, Tarjeta } from "./Tarjeta";
 import { errMsg } from "../../lib/errors";
 import { coincideServicio, FiltroServicio, opcionesDeServicio } from "./FiltroServicio";
 
@@ -16,12 +17,14 @@ const cuando = (iso: string) =>
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    hourCycle: "h23",
   });
 
-/** Una postulación con sus dos decisiones. El rechazo pide motivo. */
+/** Una postulación con sus dos decisiones. El rechazo pide motivo al presionarlo. */
 function Solicitud({ s, gymId }: { s: ClassAssignmentRequest; gymId: string }) {
   const decidir = useDecideClassRequest(gymId);
   const [nota, setNota] = useState("");
+  const [rechazando, setRechazando] = useState(false);
 
   const ok = (m: string) => notifications.show({ color: "teal", message: m });
   const fail = (m: string) => notifications.show({ color: "red", message: m });
@@ -41,54 +44,51 @@ function Solicitud({ s, gymId }: { s: ClassAssignmentRequest; gymId: string }) {
     );
 
   return (
-    <GlassCard>
-      <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
-        <Stack gap={4} style={{ minWidth: 240, flex: 1 }}>
-          <Text fw={600}>{s.coach_name}</Text>
-          <Text size="sm" c="dimmed">
-            Pide dar <b>{s.class_type}</b> · {cuando(s.starts_at)}
+    <Tarjeta etiqueta={`${s.coach_name} pide ${s.class_type}`}>
+      <Group justify="space-between" wrap="wrap" gap="sm">
+        <div style={{ minWidth: 220, flex: 1 }}>
+          <Text size="sm">
+            <b>{nombreCorto(s.coach_name)}</b>{" "}
+            <Text span c="dimmed">
+              pide {s.class_type} · {cuando(s.starts_at)} · {s.reserved_count}/{s.capacity}
+            </Text>
           </Text>
-          <Group gap={6}>
-            <Badge size="xs" variant="light">
-              {s.reserved_count}/{s.capacity} inscritos
-            </Badge>
-            <Badge size="xs" variant="light" color="gray">
-              {s.duration_min} min
-            </Badge>
-          </Group>
           {s.message ? (
-            <Text size="sm" fs="italic">
+            <Text size="xs" fs="italic" c="dimmed" mt={2}>
               «{s.message}»
             </Text>
           ) : null}
-        </Stack>
-        <Stack gap="xs" style={{ minWidth: 260 }}>
-          {/* El motivo viaja al aviso del coach: sin él, "no te la asignaron" se
-              lee como un portazo. Es opcional a propósito —obligarlo haría que se
-              escribiera "no" con tal de cerrar la fila—. */}
-          <TextInput
-            size="xs"
-            placeholder="Motivo del rechazo (lo verá el coach)"
-            value={nota}
-            onChange={(e) => setNota(e.currentTarget.value)}
-          />
-          <Group gap="xs">
-            <Button size="xs" loading={decidir.isPending} onClick={() => decidir_("approve")}>
-              Asignar la clase
-            </Button>
-            <Button
-              size="xs"
-              color="red"
-              variant="light"
-              disabled={decidir.isPending}
-              onClick={() => decidir_("reject")}
-            >
-              Rechazar
-            </Button>
-          </Group>
-        </Stack>
+        </div>
+        <Group gap="xs">
+          <Button size="xs" loading={decidir.isPending && !rechazando} onClick={() => decidir_("approve")}>
+            Asignar
+          </Button>
+          {/* El motivo viaja al aviso del coach. Es opcional a propósito: obligarlo
+              haría que se escribiera "no" con tal de cerrar la fila. */}
+          <Popover opened={rechazando} onChange={setRechazando} position="bottom-end" withArrow trapFocus>
+            <Popover.Target>
+              <Button size="xs" color="red" variant="light" disabled={decidir.isPending} onClick={() => setRechazando((v) => !v)}>
+                Rechazar
+              </Button>
+            </Popover.Target>
+            <Popover.Dropdown>
+              <Stack gap="xs" w={240}>
+                <TextInput
+                  size="xs"
+                  placeholder="Motivo (opcional, lo ve el coach)"
+                  value={nota}
+                  onChange={(e) => setNota(e.currentTarget.value)}
+                  data-autofocus
+                />
+                <Button size="xs" color="red" loading={decidir.isPending} onClick={() => decidir_("reject")}>
+                  Rechazar solicitud
+                </Button>
+              </Stack>
+            </Popover.Dropdown>
+          </Popover>
+        </Group>
       </Group>
-    </GlassCard>
+    </Tarjeta>
   );
 }
 
@@ -96,24 +96,19 @@ function Solicitud({ s, gymId }: { s: ClassAssignmentRequest; gymId: string }) {
  *  decide él, y el único movimiento posible es asignársela a otro. */
 function Ofrecida({ s }: { s: ClassAssignmentRequest }) {
   return (
-    <GlassCard>
-      <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
-        <Stack gap={4} style={{ minWidth: 240, flex: 1 }}>
-          <Text fw={600}>{s.coach_name}</Text>
-          <Text size="sm" c="dimmed">
-            Le ofreciste <b>{s.class_type}</b> · {cuando(s.starts_at)}
+    <Tarjeta etiqueta={`Ofreciste ${s.class_type} a ${s.coach_name}`}>
+      <Group justify="space-between" wrap="wrap" gap="sm">
+        <Text size="sm" style={{ flex: 1, minWidth: 220 }}>
+          <b>{nombreCorto(s.coach_name)}</b>{" "}
+          <Text span c="dimmed">
+            · {s.class_type} · {cuando(s.starts_at)}
           </Text>
-          {s.message ? (
-            <Text size="sm" fs="italic">
-              «{s.message}»
-            </Text>
-          ) : null}
-        </Stack>
+        </Text>
         <Badge variant="light" color="gray">
-          Esperando su respuesta
+          Esperando respuesta
         </Badge>
       </Group>
-    </GlassCard>
+    </Tarjeta>
   );
 }
 
@@ -156,12 +151,11 @@ export function ClassRequestsTab({
   }
 
   return (
-    <Stack gap="md">
-      <Group justify="space-between" wrap="wrap" gap="sm">
-        <Group gap="sm">
-          <SectionLabel>Solicitudes de clase</SectionLabel>
-          {pedidas.length > 0 ? <CountBadge count={pedidas.length} /> : null}
-        </Group>
+    <GlassCard delay={0.6} padding={18}>
+      <Encabezado
+        titulo="Te piden"
+        avisos={pedidas.length > 0 ? <CountBadge count={pedidas.length} /> : null}
+      >
         {setServicio && (todas.length > 0 || servicio) ? (
           <FiltroServicio
             opciones={opcionesDeServicio(
@@ -172,48 +166,37 @@ export function ClassRequestsTab({
             onChange={setServicio}
           />
         ) : null}
-      </Group>
-      <Text size="sm" c="dimmed">
-        Cuando un coach tuyo pide una clase futura que aún no tiene coach, aparece aquí. Al
-        asignarla, las demás solicitudes de esa misma clase se rechazan solas y el coach recibe el
-        aviso.
-      </Text>
+      </Encabezado>
       {solicitudes.isLoading ? (
         <Text size="sm" c="dimmed">
-          Cargando solicitudes…
+          Cargando…
         </Text>
-      ) : pedidas.length === 0 && servicio && todas.some((f) => f.kind !== "invite") ? (
-        <GlassCard>
-          <Text size="sm" c="dimmed">
-            Ninguna solicitud de {servicio}. Quita el filtro para ver las de los demás servicios.
-          </Text>
-        </GlassCard>
       ) : pedidas.length === 0 ? (
-        <GlassCard>
-          <Text size="sm" c="dimmed">
-            Nada pendiente. Tus coaches pueden pedir cualquier clase futura sin asignar desde la
-            app.
-          </Text>
-        </GlassCard>
+        <Text size="sm" c="dimmed">
+          {servicio && todas.some((f) => f.kind !== "invite")
+            ? `Ninguna solicitud de ${servicio}.`
+            : "Nada pendiente."}
+        </Text>
       ) : (
-        pedidas.map((s) => <Solicitud key={s.id} s={s} gymId={gymId} />)
+        <Stack gap={6}>
+          {pedidas.map((s) => (
+            <Solicitud key={s.id} s={s} gymId={gymId} />
+          ))}
+        </Stack>
       )}
 
       {ofrecidas.length > 0 && (
         <>
-          <Group gap="sm" mt="md">
-            <SectionLabel>Clases que ofreciste</SectionLabel>
-            <CountBadge count={ofrecidas.length} />
-          </Group>
-          <Text size="sm" c="dimmed">
-            Se las propusiste desde el calendario y decide el coach. Mientras no acepte, la clase
-            sigue sin asignar; te avisamos en cuanto conteste.
-          </Text>
-          {ofrecidas.map((s) => (
-            <Ofrecida key={s.id} s={s} />
-          ))}
+          <Title order={4} mt="xl" mb="sm">
+            Ofreciste
+          </Title>
+          <Stack gap={6}>
+            {ofrecidas.map((s) => (
+              <Ofrecida key={s.id} s={s} />
+            ))}
+          </Stack>
         </>
       )}
-    </Stack>
+    </GlassCard>
   );
 }

@@ -44,6 +44,8 @@ export function SemanaWods({
           const fecha = isoLocal(d);
           const wod = wodDelDia(wods, fecha, programa);
           const esHoy = fecha === hoy;
+          // Un día por venir (lunes a sábado) sin workout: lo que falta programar.
+          const pendiente = !cargando && !wod && fecha >= hoy && d.getDay() !== 0;
           return (
             <Paper
               key={fecha}
@@ -53,8 +55,14 @@ export function SemanaWods({
               w={250}
               style={{
                 flex: "0 0 auto",
-                borderColor: esHoy ? "var(--mantine-color-flame-6)" : undefined,
+                borderColor: esHoy
+                  ? "var(--mantine-color-flame-6)"
+                  : pendiente
+                    ? "var(--mantine-color-yellow-filled)"
+                    : undefined,
                 borderWidth: esHoy ? 2 : undefined,
+                borderStyle: pendiente && !esHoy ? "dashed" : undefined,
+                background: pendiente ? "var(--mantine-color-yellow-light)" : undefined,
               }}
               data-dia={fecha}
             >
