@@ -177,8 +177,8 @@ export function WodPartsEditor({
                 {p.movement ? (
                   <NumberInput
                     label="Reps por serie del peso que se anota"
-                    description="«5 x 3 subiendo hasta pesado» = 3. Un 1RM = 1."
-                    placeholder="1"
+                    description="«5 x 3 subiendo hasta pesado» = 3. Un 1RM = 1. Vacío si se trabaja al porcentaje: ese peso no cuenta como PR."
+                    placeholder="Vacío si es al porcentaje"
                     min={1}
                     max={30}
                     allowDecimal={false}

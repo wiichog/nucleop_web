@@ -69,7 +69,7 @@ describe("partesParaGuardar", () => {
       title: "Fuerza A",
       load_unit: "lb",
       movement: "back_squat",
-      movement_reps: 1,
+      movement_reps: null,
     });
     expect(carga).not.toHaveProperty("results_count");
     expect(metcon).toMatchObject({ load_unit: "", movement: null, movement_reps: null });
@@ -145,7 +145,7 @@ describe("bloques armados desde el texto", () => {
     ]);
     expect(borradores.every((b) => !("id" in b))).toBe(true);
     const body = partesParaGuardar(borradores, false)!;
-    expect(body[0]).toMatchObject({ movement: "power_clean", load_unit: "lb", movement_reps: 1 });
+    expect(body[0]).toMatchObject({ movement: "power_clean", load_unit: "lb", movement_reps: null });
     expect(body[1]).toMatchObject({ score_type: "for_time", load_unit: "", movement: null });
   });
 

@@ -112,7 +112,7 @@ export const manualesOperacion: ManualesPorRuta = {
         pasos: [
           "En la ventana del workout, en «Bloques», presiona «Agregar bloque» por cada parte. Necesitas al menos un bloque para crear el workout.",
           "En cada bloque escribe el «Título» y el «Texto», y elige el «Tipo de bloque» y su «Score». Cada bloque con score tiene su propio board, así tus atletas anotan la Fuerza A y la Fuerza B por separado.",
-          "Si el bloque es de carga, elige la «Unidad» y el «Levantamiento base» (por ejemplo «Back squat»; es obligatorio: con él los atletas ven sus porcentajes y su PR se actualiza solo), y en «Reps por serie del peso que se anota» pon a cuántas repeticiones corresponde el peso: «5 x 3 subiendo hasta pesado» es 3; un 1RM es 1.",
+          "Si el bloque es de carga, elige la «Unidad» y el «Levantamiento base» (por ejemplo «Back squat»; es obligatorio: con él los atletas ven sus porcentajes y su PR se actualiza solo), y en «Reps por serie del peso que se anota» pon a cuántas repeticiones corresponde el peso: «5 x 3 subiendo hasta pesado» es 3; un 1RM es 1. Si se trabaja al porcentaje («5 x 5 al 70 %»), déjalo vacío: ese peso no cuenta como PR.",
           "Activa «Board principal del día» en el bloque que más importa: es el que se muestra primero. Ordena los bloques con las flechas ↑ y ↓.",
           "Si un bloque es un workout de referencia (Fran, Murph…), márcalo como «Benchmark»: cuando un atleta mejora su marca se publica un PR en el feed.",
           "Presiona «Publicar workout» (o «Guardar borrador»).",

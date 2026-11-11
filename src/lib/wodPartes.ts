@@ -153,7 +153,9 @@ export function partesParaGuardar(
       // La unidad, el levantamiento y sus reps sólo tienen sentido en carga.
       load_unit: carga ? p.load_unit || "lb" : "",
       movement: carga ? p.movement || null : null,
-      movement_reps: carga && p.movement ? p.movement_reps || 1 : null,
+      // Sin reps explícitas viaja null: es trabajo al porcentaje («5x5 @ 70 %») y
+      // no genera PR automático (antes viajaba 1 y cada 5x5 era un «1RM»).
+      movement_reps: carga && p.movement ? p.movement_reps || null : null,
       is_benchmark: (p.score_type ?? "none") !== "none" && !!p.is_benchmark,
     } as WodPartInput;
   });
