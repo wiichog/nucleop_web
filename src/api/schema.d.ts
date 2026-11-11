@@ -308,7 +308,16 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Check-in con validación del backend (A10 / §6.3). */
+        /**
+         * @description Auto-registro del atleta SIN QR (`athlete_self`): YA NO SE ACEPTA.
+         *
+         *     Desde la 2.ª ronda de Vertikal (nov-2026) el atleta solo reserva y la
+         *     asistencia la marca el staff o el coach (`asistencia_staff.py`). La ruta se
+         *     queda porque los apps 2.3.0 la siguen llamando: responde 400 con
+         *     `reason = attendance_by_staff` y un mensaje amable. El método lo fija el
+         *     backend (nunca el cuerpo), así que tampoco sirve pedir `manual`/`reception`.
+         *     Quien llega sin reservar entra por el QR de la clase (`ClassCheckinByQrView`).
+         */
         post: operations["classes_checkin_create"];
         delete?: never;
         options?: never;
@@ -1734,6 +1743,38 @@ export interface paths {
         /** @description El coach deja una clase suya: se queda sin coach y el gimnasio se entera. */
         post: operations["gym_classes_release_create"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/classes/{id}/reservations/{rid}/no-show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description No Show de UNA reserva, desde el coach de la clase o el admin del gimnasio.
+         *
+         *     `POST` la cierra como No Show (sin penalización y sin gastar cupo del plan) y
+         *     libera su lugar a la lista de espera. `DELETE` lo deshace mientras la ventana
+         *     de asistencia siga abierta. La reserva se busca dentro de la clase y del
+         *     gimnasio de la URL: una reserva de otro gimnasio es un 404.
+         */
+        post: operations["gym_classes_reservations_no_show_create"];
+        /**
+         * @description No Show de UNA reserva, desde el coach de la clase o el admin del gimnasio.
+         *
+         *     `POST` la cierra como No Show (sin penalización y sin gastar cupo del plan) y
+         *     libera su lugar a la lista de espera. `DELETE` lo deshace mientras la ventana
+         *     de asistencia siga abierta. La reserva se busca dentro de la clase y del
+         *     gimnasio de la URL: una reserva de otro gimnasio es un 404.
+         */
+        delete: operations["gym_classes_reservations_no_show_destroy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5280,6 +5321,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/points/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Cómo se ganan los puntos, con los números reales (`puntos_reglas.py`).
+         *
+         *     Feedback de Vertikal: los puntos salieron del feed y viven en el perfil, y ahí
+         *     el atleta tiene que ver cómo se ganan. Va del backend para que el app no copie
+         *     las reglas.
+         */
+        get: operations["me_points_rules_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/posts": {
         parameters: {
             query?: never;
@@ -5610,6 +5674,81 @@ export interface paths {
         /** @description El atleta mueve su sesión a otro horario disponible del coach. */
         post: operations["me_training_sessions_reschedule_create"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/wod-results/{result_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET de una marca del leaderboard, con sus reacciones (`social`). */
+        get: operations["me_wod_results_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/wod-results/{result_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Comentarios de un resultado del board (paginados por cursor, viejo→nuevo).
+         *
+         *     Editar, borrar y reportar el comentario van por los de siempre:
+         *     `PATCH|DELETE /me/feed/comments/{id}` y `POST /me/feed/comments/{id}/report`.
+         */
+        get: operations["me_wod_results_comments_list"];
+        put?: never;
+        /**
+         * @description Comentarios de un resultado del board (paginados por cursor, viejo→nuevo).
+         *
+         *     Editar, borrar y reportar el comentario van por los de siempre:
+         *     `PATCH|DELETE /me/feed/comments/{id}` y `POST /me/feed/comments/{id}/report`.
+         */
+        post: operations["me_wod_results_comments_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/wod-results/{result_id}/reaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description POST pone/cambia la reacción (`fire`|`clap`; repetir la misma la quita).
+         *     DELETE la quita. Ambos devuelven el estado de la fila.
+         *
+         *     404 si el resultado no existe o es de un gym cuyo board no puedes ver.
+         *     400 `blocked` si hay bloqueo con el autor; `invalid_reaction` fuera del catálogo.
+         */
+        post: operations["me_wod_results_reaction_create"];
+        /**
+         * @description POST pone/cambia la reacción (`fire`|`clap`; repetir la misma la quita).
+         *     DELETE la quita. Ambos devuelven el estado de la fila.
+         *
+         *     404 si el resultado no existe o es de un gym cuyo board no puedes ver.
+         *     400 `blocked` si hay bloqueo con el autor; `invalid_reaction` fuera del catálogo.
+         */
+        delete: operations["me_wod_results_reaction_destroy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -7029,26 +7168,18 @@ export interface components {
             readonly checked_in_at: string;
         };
         CheckinAction: {
-            method?: components["schemas"]["CheckinActionMethodEnum"];
             /** Format: uuid */
             on_behalf_of?: string;
         };
-        /**
-         * @description * `athlete_qr` - athlete_qr
-         *     * `class_qr` - class_qr
-         *     * `manual` - manual
-         *     * `reception` - reception
-         * @enum {string}
-         */
-        CheckinActionMethodEnum: "athlete_qr" | "class_qr" | "manual" | "reception";
         /**
          * @description * `athlete_qr` - QR del atleta
          *     * `class_qr` - QR de la clase
          *     * `manual` - Validación manual del coach
          *     * `reception` - Recepción
+         *     * `athlete_self` - Auto-registro del atleta (sin QR)
          * @enum {string}
          */
-        CheckinMethod: "athlete_qr" | "class_qr" | "manual" | "reception";
+        CheckinMethod: "athlete_qr" | "class_qr" | "manual" | "reception" | "athlete_self";
         /**
          * @description Datos del reclamo de cuenta invitada. La DECISIÓN vive en
          *     `accounts/services.py:reclamar_cuenta` (regla del repo: el negocio no va en el
@@ -7180,6 +7311,10 @@ export interface components {
             waitlist: boolean;
             checked_in: boolean;
             checkin: string | null;
+            reservation?: string | null;
+            /** @default false */
+            no_show: boolean;
+            dropin?: string | null;
         };
         /** @description Plantilla del horario semanal (una celda de la cuadrícula). */
         ClassSchedule: {
@@ -8174,6 +8309,7 @@ export interface components {
             /** @default false */
             mine: boolean;
             actor_athlete_id?: string | null;
+            milestone?: number | null;
         };
         FeedReactionToggle: {
             feed_item_id: string;
@@ -9358,6 +9494,17 @@ export interface components {
             };
             referrals: components["schemas"]["ReferralItem"][];
         };
+        /** @description La reserva tras marcar (o deshacer) el No Show. */
+        NoShow: {
+            readonly reservation: string;
+            /** Format: uuid */
+            readonly gym_class: string;
+            /** Format: uuid */
+            readonly athlete: string;
+            readonly status: components["schemas"]["StatusEc6Enum"];
+            /** Format: date-time */
+            readonly updated_at: string;
+        };
         /** @description Item de la bandeja del atleta. `read` evita que el cliente interprete fechas. */
         Notification: {
             /** Format: uuid */
@@ -9636,6 +9783,19 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["Expense"][];
+        };
+        PaginatedFeedCommentList: {
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cD00ODY%3D"
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+             */
+            previous?: string | null;
+            results: components["schemas"]["FeedComment"][];
         };
         PaginatedGymAdminList: {
             /**
@@ -11043,10 +11203,25 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
+        /** @description Una forma de ganar puntos (`GET /me/points/rules`). Ver `puntos_reglas.py`. */
+        PointRule: {
+            action: string;
+            label: string;
+            scope: components["schemas"]["PointRuleScopeEnum"];
+            points: number | null;
+            points_max: number | null;
+            detail: string;
+        };
+        /**
+         * @description * `global` - global
+         *     * `community` - community
+         * @enum {string}
+         */
+        PointRuleScopeEnum: "global" | "community";
         PointTransaction: {
             /** Format: uuid */
             readonly id: string;
-            readonly scope: components["schemas"]["ScopeEnum"];
+            readonly scope: components["schemas"]["PointTransactionScopeEnum"];
             readonly action: string;
             readonly points: number;
             readonly gym_name: string | null;
@@ -11054,6 +11229,12 @@ export interface components {
             /** Format: date-time */
             readonly created_at: string;
         };
+        /**
+         * @description * `global` - Global
+         *     * `community` - Comunidad
+         * @enum {string}
+         */
+        PointTransactionScopeEnum: "global" | "community";
         PostMedia: {
             readonly url: string;
             kind?: components["schemas"]["PostMediaKindEnum"];
@@ -11740,7 +11921,7 @@ export interface components {
             gym_class: string;
             /** Format: uuid */
             readonly athlete: string;
-            readonly status: components["schemas"]["ReservationStatusEnum"];
+            readonly status: components["schemas"]["StatusEc6Enum"];
             /** @description Idempotencia de acciones offline (T6). */
             client_id?: string;
             /** Format: date-time */
@@ -11753,14 +11934,6 @@ export interface components {
             /** Format: uuid */
             on_behalf_of?: string;
         };
-        /**
-         * @description * `reserved` - Reservada
-         *     * `waitlist` - Lista de espera
-         *     * `cancelled` - Cancelada
-         *     * `no_show` - No-show
-         * @enum {string}
-         */
-        ReservationStatusEnum: "reserved" | "waitlist" | "cancelled" | "no_show";
         /**
          * @description * `won` - won
          *     * `lost` - lost
@@ -11917,11 +12090,13 @@ export interface components {
             last4: string;
         };
         /**
-         * @description * `global` - Global
-         *     * `community` - Comunidad
+         * @description * `rx_plus` - RX+
+         *     * `rx` - RX
+         *     * `scaled` - Scaled
+         *     * `foundations` - Foundations
          * @enum {string}
          */
-        ScopeEnum: "global" | "community";
+        Scaling: "rx_plus" | "rx" | "scaled" | "foundations";
         /**
          * @description * `none` - Sin score (clase normal)
          *     * `for_time` - Por tiempo (menor gana)
@@ -12044,6 +12219,14 @@ export interface components {
             /** @default false */
             can_program_wods: boolean;
         };
+        /**
+         * @description * `reserved` - Reservada
+         *     * `waitlist` - Lista de espera
+         *     * `cancelled` - Cancelada
+         *     * `no_show` - No-show
+         * @enum {string}
+         */
+        StatusEc6Enum: "reserved" | "waitlist" | "cancelled" | "no_show";
         /**
          * @description * `pending_payment` - Pago pendiente
          *     * `reserved` - Apartado
@@ -12453,9 +12636,12 @@ export interface components {
              * @description Ocurrencia donde se registró (para board por clase).
              */
             gym_class?: string | null;
+            /** Format: date-time */
+            readonly class_starts_at: string | null;
             /** Format: uuid */
             athlete: string;
             readonly athlete_name: string;
+            readonly athlete_photo: string | null;
             /** @description Score mostrado, ej. '3:21' o '120'. */
             raw_score: string;
             /**
@@ -12463,7 +12649,7 @@ export interface components {
              * @description Numérico normalizado para rankear.
              */
             readonly score_value: string;
-            scaling?: components["schemas"]["WodResultScalingEnum"];
+            scaling?: components["schemas"]["Scaling"];
             notes?: string;
             /** Format: int64 */
             sets?: number | null;
@@ -12471,8 +12657,59 @@ export interface components {
             reps?: number | null;
             did_not_complete?: boolean;
             readonly rank: number;
+            readonly social: components["schemas"]["WodResultSocial"];
             /** Format: date-time */
             readonly created_at: string;
+        };
+        WodResultCommentCreate: {
+            body: string;
+        };
+        /** @description Una marca con su contexto: de qué workout y bloque es, y de qué día. */
+        WodResultDetail: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            wod: string;
+            /** Format: uuid */
+            part: string | null;
+            readonly part_title: string;
+            /**
+             * Format: uuid
+             * @description Ocurrencia donde se registró (para board por clase).
+             */
+            gym_class?: string | null;
+            /** Format: date-time */
+            readonly class_starts_at: string | null;
+            /** Format: uuid */
+            athlete: string;
+            readonly athlete_name: string;
+            readonly athlete_photo: string | null;
+            /** @description Score mostrado, ej. '3:21' o '120'. */
+            raw_score: string;
+            /**
+             * Format: decimal
+             * @description Numérico normalizado para rankear.
+             */
+            readonly score_value: string;
+            scaling?: components["schemas"]["Scaling"];
+            notes?: string;
+            /** Format: int64 */
+            sets?: number | null;
+            /** Format: int64 */
+            reps?: number | null;
+            did_not_complete?: boolean;
+            readonly rank: number;
+            readonly social: components["schemas"]["WodResultSocial"];
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly wod_title: string;
+            /** Format: date */
+            readonly wod_date: string;
+            readonly gym_name: string;
+            readonly score_type: string;
+            /** @default  */
+            readonly load_unit: string;
+            readonly movement: string | null;
         };
         /** @description Captura de resultado por el coach/recepción o por el atleta. */
         WodResultInput: {
@@ -12484,25 +12721,34 @@ export interface components {
             gym_class_id?: string | null;
             raw_score: string;
             /** @default rx */
-            scaling: components["schemas"]["WodResultInputScalingEnum"];
+            scaling: components["schemas"]["Scaling"];
             notes?: string;
             sets?: number | null;
             reps?: number | null;
         };
-        /**
-         * @description * `rx` - rx
-         *     * `scaled` - scaled
-         *     * `foundations` - foundations
-         * @enum {string}
-         */
-        WodResultInputScalingEnum: "rx" | "scaled" | "foundations";
-        /**
-         * @description * `rx` - RX
-         *     * `scaled` - Scaled
-         *     * `foundations` - Foundations
-         * @enum {string}
-         */
-        WodResultScalingEnum: "rx" | "scaled" | "foundations";
+        WodResultReactionInput: {
+            reaction?: string | null;
+        };
+        /** @description Reacciones y comentarios de una fila del board del WOD (`wod_social`). */
+        WodResultSocial: {
+            reaction_count: number;
+            reactions: {
+                [key: string]: number;
+            };
+            my_reaction: string | null;
+            comment_count: number;
+        };
+        /** @description Respuesta de reaccionar: el estado de la fila tras el toque. */
+        WodResultSocialState: {
+            reaction_count: number;
+            reactions: {
+                [key: string]: number;
+            };
+            my_reaction: string | null;
+            comment_count: number;
+            /** Format: uuid */
+            result_id: string;
+        };
         /**
          * @description * `ok` - ok
          *     * `draft` - draft
@@ -15141,6 +15387,51 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["GymClass"];
                 };
+            };
+        };
+    };
+    gym_classes_reservations_no_show_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoShow"];
+                };
+            };
+        };
+    };
+    gym_classes_reservations_no_show_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                id: string;
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -20893,6 +21184,25 @@ export interface operations {
             };
         };
     };
+    me_points_rules_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointRule"][];
+                };
+            };
+        };
+    };
     me_posts_list: {
         parameters: {
             query?: {
@@ -21466,6 +21776,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrainingSession"];
+                };
+            };
+        };
+    };
+    me_wod_results_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                result_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WodResultDetail"];
+                };
+            };
+        };
+    };
+    me_wod_results_comments_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                result_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedFeedCommentList"];
+                };
+            };
+        };
+    };
+    me_wod_results_comments_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                result_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WodResultCommentCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["WodResultCommentCreate"];
+                "multipart/form-data": components["schemas"]["WodResultCommentCreate"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedComment"];
+                };
+            };
+        };
+    };
+    me_wod_results_reaction_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                result_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["WodResultReactionInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["WodResultReactionInput"];
+                "multipart/form-data": components["schemas"]["WodResultReactionInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WodResultSocialState"];
+                };
+            };
+        };
+    };
+    me_wod_results_reaction_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                result_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WodResultSocialState"];
                 };
             };
         };
