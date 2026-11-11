@@ -157,14 +157,22 @@ export function WodPartsEditor({
                   onChange={(v) => cambiar(i, { load_unit: (v as "kg" | "lb") ?? "lb" })}
                   allowDeselect={false}
                 />
+                {/* Obligatorio (Vertikal, 10-nov-2026): sin él el atleta no ve sus
+                    porcentajes ni su PR se actualiza solo. Antes «Ninguno» quedaba
+                    puesto sin querer. Uno fuera del catálogo se conserva. */}
                 <Select
-                  label="Levantamiento"
-                  placeholder="Ninguno"
-                  data={MOVIMIENTOS}
+                  label="Levantamiento base"
+                  placeholder="Elige el levantamiento"
+                  data={
+                    p.movement && !MOVIMIENTOS.some((m) => m.value === p.movement)
+                      ? [{ value: p.movement, label: p.movement }, ...MOVIMIENTOS]
+                      : MOVIMIENTOS
+                  }
                   value={p.movement ?? null}
                   onChange={(v) => cambiar(i, { movement: v || null })}
                   searchable
-                  clearable
+                  required
+                  error={p.movement ? undefined : "Obligatorio en un bloque de carga"}
                 />
                 {p.movement ? (
                   <NumberInput

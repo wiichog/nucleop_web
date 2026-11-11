@@ -192,9 +192,20 @@ function DiaConWod({
             Board
           </Button>
         )}
-        <Button size="compact-xs" variant="light" loading={ocupado} onClick={() => onPublicar(wod)}>
-          {wod.published ? "Despublicar" : "Publicar"}
-        </Button>
+        {/* «Despublicar» iba igual que «Editar» y a su lado: un mal clic escondía
+            el workout a todo el box (lo que reportó Vertikal). Ahora va junto a
+            «Eliminar», en rojo suave, y pide confirmación (ClassesPage). */}
+        {wod.published ? null : (
+          <Button size="compact-xs" variant="light" loading={ocupado} onClick={() => onPublicar(wod)}>
+            Publicar
+          </Button>
+        )}
+        <span style={{ flex: 1 }} />
+        {wod.published ? (
+          <Button size="compact-xs" variant="subtle" color="red" loading={ocupado} onClick={() => onPublicar(wod)}>
+            Despublicar
+          </Button>
+        ) : null}
         <Button size="compact-xs" variant="subtle" color="red" loading={ocupado} onClick={() => onEliminar(wod)}>
           Eliminar
         </Button>

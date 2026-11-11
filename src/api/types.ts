@@ -1067,7 +1067,7 @@ export interface WodResult {
   athlete_name: string;
   raw_score: string;
   score_value: string;
-  scaling: "rx" | "scaled" | "foundations";
+  scaling: "rx_plus" | "rx" | "scaled" | "foundations";
   notes: string;
   /** Rondas y reps con las que se movió el peso (sólo bloques de carga). No rankean. */
   sets?: number | null;

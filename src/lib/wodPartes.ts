@@ -124,6 +124,13 @@ export function moverParte<T>(partes: T[], i: number, delta: -1 | 1): T[] {
 export function errorDePartes(partes: ParteBorrador[]): string | null {
   const sinTitulo = partes.findIndex((p) => !p.title.trim());
   if (sinTitulo >= 0) return `El bloque ${sinTitulo + 1} necesita un título.`;
+  // Un bloque de carga necesita su levantamiento base (Vertikal, 10-nov-2026): con
+  // él el atleta ve sus porcentajes desde la rutina y su PR se actualiza solo. El
+  // backend lo exige igual (`guardar_partes_wod`). Espejo del app.
+  const sinLevantamiento = partes.find((p) => p.score_type === "load" && !(p.movement ?? "").trim());
+  if (sinLevantamiento) {
+    return `«${sinLevantamiento.title.trim()}» es de carga: elige su levantamiento base.`;
+  }
   return null;
 }
 

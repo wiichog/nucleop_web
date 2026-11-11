@@ -112,7 +112,7 @@ export const manualesOperacion: ManualesPorRuta = {
         pasos: [
           "En la ventana del workout, en «Bloques», presiona «Agregar bloque» por cada parte. Necesitas al menos un bloque para crear el workout.",
           "En cada bloque escribe el «Título» y el «Texto», y elige el «Tipo de bloque» y su «Score». Cada bloque con score tiene su propio board, así tus atletas anotan la Fuerza A y la Fuerza B por separado.",
-          "Si el bloque es de carga, elige la «Unidad» y el «Levantamiento» (por ejemplo «Back squat»), y en «Reps por serie del peso que se anota» pon a cuántas repeticiones corresponde el peso: «5 x 3 subiendo hasta pesado» es 3; un 1RM es 1.",
+          "Si el bloque es de carga, elige la «Unidad» y el «Levantamiento base» (por ejemplo «Back squat»; es obligatorio: con él los atletas ven sus porcentajes y su PR se actualiza solo), y en «Reps por serie del peso que se anota» pon a cuántas repeticiones corresponde el peso: «5 x 3 subiendo hasta pesado» es 3; un 1RM es 1.",
           "Activa «Board principal del día» en el bloque que más importa: es el que se muestra primero. Ordena los bloques con las flechas ↑ y ↓.",
           "Si un bloque es un workout de referencia (Fran, Murph…), márcalo como «Benchmark»: cuando un atleta mejora su marca se publica un PR en el feed.",
           "Presiona «Publicar workout» (o «Guardar borrador»).",
@@ -124,8 +124,8 @@ export const manualesOperacion: ManualesPorRuta = {
         titulo: "Pegar la rutina completa y armar los bloques solos",
         pasos: [
           "Copia la rutina del día tal como la tienes escrita (con «Warmup», «Weightlifting (Power Clean)», «Fuerza:», «Custom Metcon (Tiempo)», «Workout:»…) y pégala en «Pega el workout (opcional)».",
-          "Presiona «Armar bloques desde el texto». Sale un bloque por cada encabezado, con su texto y su «Score»: la fuerza por carga con su «Levantamiento», el metcon por tiempo, y el calentamiento sin score.",
-          "Revisa cada bloque: el título, el «Score», la «Unidad» y el «Levantamiento». Corrige lo que haga falta.",
+          "Presiona «Armar bloques desde el texto». Sale un bloque por cada encabezado, con su texto y su «Score»: la fuerza por carga con su «Levantamiento base», el metcon por tiempo, y el calentamiento sin score.",
+          "Revisa cada bloque: el título, el «Score», la «Unidad» y el «Levantamiento base» (obligatorio en los de carga). Corrige lo que haga falta.",
           "Presiona «Publicar workout» (o «Guardar» si lo estás editando).",
         ],
         nota:
@@ -155,14 +155,14 @@ export const manualesOperacion: ManualesPorRuta = {
         titulo: "Publicar, despublicar o borrar un workout",
         pasos: [
           "En la pestaña «Workout», busca el día del workout en la semana.",
-          "Usa «Publicar» o «Despublicar» para mostrarlo u ocultarlo en el app, o «Eliminar» para borrarlo.",
+          "Usa «Publicar» para mostrarlo en el app. «Despublicar» (a la derecha, junto a «Eliminar») lo oculta y te pide confirmar; «Editar» nunca lo oculta.",
         ],
       },
       {
         titulo: "Ver el tablero de scores o cargar uno a mano",
         pasos: [
           "En la pestaña «Workout», presiona «Board» en el día del workout (sale cuando algún bloque tiene score).",
-          "Para cargar un score, elige al atleta, escribe su score (por ejemplo 3:21 o 120) y la modalidad (RX, Scaled o Foundations), y presiona «Registrar».",
+          "Para cargar un score, elige al atleta, escribe su score (por ejemplo 3:21 o 120) y la modalidad (Rx+, Rx o Scaled), y presiona «Registrar».",
           "Si el bloque es de carga, puedes anotar también «Rondas» y «Reps»: con cuántas rondas y repeticiones movió ese peso. En el board se ve junto al score («105 5×2»); el ranking sigue siendo por peso.",
           "Con «Board por clase» puedes ver solo los resultados de una hora del día.",
           "Si el workout tiene bloques, elige arriba el bloque cuyo board quieres ver; el score que registres va a ese bloque.",
@@ -244,9 +244,9 @@ export const manualesOperacion: ManualesPorRuta = {
           "Cómo se mide un bloque: por tiempo (gana el menor), AMRAP, rounds + reps, carga, EMOM o puntos (gana el mayor). Un bloque sin score (el calentamiento) no tiene board.",
       },
       {
-        termino: "RX / Scaled / Foundations",
+        termino: "Rx+ / Rx / Scaled",
         detalle:
-          "La modalidad en que el atleta hizo el workout. El tablero ordena primero RX, luego Scaled y luego Foundations.",
+          "La modalidad en que el atleta hizo el workout (Rx+ es más pesado o más difícil que lo programado). A igual score, el tablero ordena Rx+, luego Rx, Scaled y al final Foundations (la de los resultados viejos).",
       },
       {
         termino: "Benchmark",

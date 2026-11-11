@@ -152,11 +152,13 @@ const SCORE_CORTO: Record<string, string> = {
 };
 const scoreCorto = (s: string) => SCORE_CORTO[s] ?? scoreLabel(s);
 
+/** Rx+ (Vertikal, 10-nov-2026), Rx y Scaled. Foundations se sigue leyendo en el board. */
 const SCALINGS = [
-  { value: "rx", label: "RX" },
+  { value: "rx_plus", label: "Rx+" },
+  { value: "rx", label: "Rx" },
   { value: "scaled", label: "Scaled" },
-  { value: "foundations", label: "Foundations" },
 ];
+const NOMBRE_SCALING: Record<string, string> = { rx_plus: "Rx+", rx: "Rx", scaled: "Scaled", foundations: "Foundations" };
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : "");
 
@@ -1752,7 +1754,16 @@ function WodTab({ gymId }: { gymId: string }) {
 
   if (semana.isError) return <PageError onRetry={() => semana.refetch()} />;
 
-  const onPublicar = (w: Wod) =>
+  const onPublicar = (w: Wod) => {
+    // Despublicar esconde el workout a todo el box: se confirma (Vertikal lo
+    // «pausó» sin querer al ir a editarlo).
+    if (
+      w.published &&
+      !window.confirm(
+        "¿Despublicar este workout? Los atletas dejan de verlo y no pueden subir su score hasta que lo vuelvas a publicar.",
+      )
+    )
+      return;
     update.mutate(
       { id: w.id, body: { published: !w.published } },
       {
@@ -1762,6 +1773,7 @@ function WodTab({ gymId }: { gymId: string }) {
         onError: (error) => fail(error, "No se pudo cambiar la publicación."),
       },
     );
+  };
 
   const onEliminar = (w: Wod) => {
     const cuando = fechaLarga(deIso(w.date));
@@ -2256,8 +2268,8 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
                   </Group>
                 </Table.Td>
                 <Table.Td>
-                  <Badge variant="light" color={r.scaling === "rx" ? "flame" : "gray"}>
-                    {r.scaling.toUpperCase()}
+                  <Badge variant="light" color={r.scaling === "rx" || r.scaling === "rx_plus" ? "flame" : "gray"}>
+                    {NOMBRE_SCALING[r.scaling] ?? r.scaling}
                   </Badge>
                 </Table.Td>
               </Table.Tr>

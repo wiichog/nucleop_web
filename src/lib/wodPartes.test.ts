@@ -94,6 +94,11 @@ describe("edición", () => {
   it("pide título a cada bloque", () => {
     expect(errorDePartes([{ title: "A" }, { title: " " }])).toBe("El bloque 2 necesita un título.");
     expect(errorDePartes([{ title: "A" }])).toBeNull();
+    // Un bloque de carga sin levantamiento base no se guarda; con él, sí.
+    expect(errorDePartes([{ title: "Fuerza", score_type: "load" }])).toBe(
+      "«Fuerza» es de carga: elige su levantamiento base.",
+    );
+    expect(errorDePartes([{ title: "Fuerza", score_type: "load", movement: "power_clean" }])).toBeNull();
   });
 
   it("mover fuera de rango no cambia nada", () => {
