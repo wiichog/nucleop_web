@@ -24,6 +24,8 @@ function reactionSummary(reactions?: Record<string, number>): string {
 
 const KIND_LABEL: Record<string, string> = {
   pr: "PR",
+  // Hito de clases («Clase 50»): lo arma el backend desde los check-ins.
+  class_milestone: "Hito de clases",
   badge: "Badge",
   points: "Puntos",
   athlete_of_month: "Atleta del mes",
