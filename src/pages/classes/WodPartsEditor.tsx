@@ -156,6 +156,9 @@ export function WodPartsEditor({
                   value={p.load_unit === "kg" ? "kg" : "lb"}
                   onChange={(v) => cambiar(i, { load_unit: (v as "kg" | "lb") ?? "lb" })}
                   allowDeselect={false}
+                  // Se puede cambiar ya publicado: el servidor convierte las marcas
+                  // al guardar (100 kg → 220.5 lb), nunca quedan rotuladas con otra unidad.
+                  description={conScores ? "Si la cambias, sus scores se convierten al guardar." : undefined}
                 />
                 {/* Obligatorio (Vertikal, 10-nov-2026): sin él el atleta no ve sus
                     porcentajes ni su PR se actualiza solo. Antes «Ninguno» quedaba
