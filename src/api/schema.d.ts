@@ -4279,6 +4279,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/classes/box": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Clases del box (de mis gimnasios) en un rango de días, para consultar.
+         *
+         *     `GET /me/classes/box?from=2026-11-10[&to=…][&gym=…]`. Sin paginar: el rango
+         *     tiene tope (`MAX_DIAS`). Excluye las canceladas, como `/me/classes`.
+         *
+         *     El número de consultas NO crece con las clases (prueba que lo fija): los
+         *     reservados y la calificación van anotados, y coach→usuario→atleta (nombre y
+         *     foto) va en el mismo JOIN.
+         */
+        get: operations["me_classes_box_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/classes/history": {
         parameters: {
             query?: never;
@@ -5706,6 +5732,10 @@ export interface paths {
         /**
          * @description Comentarios de un resultado del board (paginados por cursor, viejo→nuevo).
          *
+         *     POST: `body` y/o `image` (multipart si lleva imagen). 400 `empty_comment` sin
+         *     ninguno de los dos; `image_too_large` si la imagen pasa de 5 MB; `image_rejected`
+         *     si la IA de moderación la bloquea.
+         *
          *     Editar, borrar y reportar el comentario van por los de siempre:
          *     `PATCH|DELETE /me/feed/comments/{id}` y `POST /me/feed/comments/{id}/report`.
          */
@@ -5713,6 +5743,10 @@ export interface paths {
         put?: never;
         /**
          * @description Comentarios de un resultado del board (paginados por cursor, viejo→nuevo).
+         *
+         *     POST: `body` y/o `image` (multipart si lleva imagen). 400 `empty_comment` sin
+         *     ninguno de los dos; `image_too_large` si la imagen pasa de 5 MB; `image_rejected`
+         *     si la IA de moderación la bloquea.
          *
          *     Editar, borrar y reportar el comentario van por los de siempre:
          *     `PATCH|DELETE /me/feed/comments/{id}` y `POST /me/feed/comments/{id}/report`.
@@ -7192,6 +7226,83 @@ export interface components {
             uid?: string;
             token?: string;
         };
+        /**
+         * @description La tarjeta de siempre, con los conteos ya ANOTADOS en la consulta.
+         *
+         *     `GymClass.reserved_count` es una propiedad que cuenta en la base cada vez
+         *     (y `has_capacity` la vuelve a llamar): con cientos de clases eran dos
+         *     consultas por clase. Aquí leen `_reservados`, que pone la vista.
+         */
+        ClaseDelBox: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly gym: string;
+            readonly gym_name: string;
+            /** Format: uuid */
+            branch?: string | null;
+            /** Format: uuid */
+            service_type?: string | null;
+            readonly service_type_name: string;
+            /** @default  */
+            readonly color: string;
+            /** Format: uuid */
+            schedule?: string | null;
+            readonly needs_wod: boolean;
+            class_type: string;
+            /** Format: uuid */
+            coach?: string | null;
+            readonly coach_name: string;
+            /** @description Avatar del coach (desde su perfil de atleta). Para mostrarlo en la clase. */
+            readonly coach_photo: string;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: int64 */
+            duration_min?: number;
+            /** Format: int64 */
+            capacity?: number;
+            readonly reserved_count: number;
+            readonly has_capacity: boolean;
+            level?: string;
+            /** Format: decimal */
+            cost?: string;
+            included_in_plan?: boolean;
+            cancellation_policy?: unknown;
+            status?: string;
+            /** Format: int64 */
+            assignment_lead_min?: number;
+            /** Format: date-time */
+            readonly assignment_deadline_at: string;
+            readonly is_past_assignment_deadline: boolean;
+            readonly needs_coach: boolean;
+            readonly allow_future_reservations: boolean;
+            readonly is_reservable: boolean;
+            /** @default 5 */
+            readonly completion_points: number;
+            readonly reserved_by_me: boolean;
+            /**
+             * @description `reserved` | `waitlist` | `no_show`, o `null` si no tengo reserva viva.
+             *
+             *     Es el estado REAL: `reserved_by_me` (que se conserva para las pantallas que
+             *     ya lo usan) colapsa cupo y lista de espera en un booleano, así que el atleta
+             *     en espera veía "Reservada" y se presentaba a una clase sin lugar. Las
+             *     canceladas no aparecen; `no_show` sí, para el historial.
+             */
+            readonly my_reservation_status: string;
+            readonly my_waitlist_position: number;
+            readonly is_past: boolean;
+            readonly rated_by_me: boolean;
+            readonly my_rating: number;
+            /** Format: double */
+            readonly rating: number;
+            readonly rating_count: number;
+            readonly attended: boolean;
+            pay_extra?: boolean;
+            /** Format: decimal */
+            extra_amount?: string;
+            /** Format: date-time */
+            readonly updated_at: string;
+        };
         /** @description Motivo opcional de la decisión del gym (viaja al aviso del coach). */
         ClassAssignmentDecision: {
             note?: string;
@@ -7984,6 +8095,8 @@ export interface components {
             gyms: components["schemas"]["CoachGym"][];
             classes_this_week: number;
             classes_this_month: number;
+            classes_scheduled_month: number;
+            classes_cancelled_month: number;
             athletes_expected: number;
             unique_athletes: number;
             /** Format: double */
@@ -8727,6 +8840,7 @@ export interface components {
             prs_nuevos: number;
             servicios_activos: number;
             clases_mas_demandadas: components["schemas"]["ClassDemand"][];
+            clases?: components["schemas"]["ResumenClases"];
         };
         /** @description Alta de invitado deduplicada por correo (A4 escenario B/C). */
         GymInvitation: {
@@ -9557,6 +9671,12 @@ export interface components {
          * @enum {string}
          */
         OnConflictEnum: "skip" | "replace";
+        /**
+         * @description * `official` - 1RM oficial
+         *     * `estimated` - Estimado
+         * @enum {string}
+         */
+        OneRmSourceEnum: "official" | "estimated";
         PagaloWebhook: {
             reference: string;
             status: string;
@@ -11638,28 +11758,39 @@ export interface components {
          * @enum {string}
          */
         PurchaseOrderStatusEnum: "draft" | "ordered" | "partial" | "received" | "cancelled";
-        /** @description RM estimado de un movimiento (`athletes.movimientos.calcular_rms`). */
+        /**
+         * @description 1RM de un movimiento (`athletes.movimientos.calcular_rms`).
+         *
+         *     `estimated_1rm` es el número del que salen los porcentajes: el mayor single si
+         *     lo hay (`one_rm_source = official`) o el estimado con Brzycki si no
+         *     (`estimated`). Conserva el nombre por los apps que ya lo leen.
+         */
         RM: {
             movement: string;
             unit: string;
             /** Format: decimal */
             estimated_1rm: string;
+            one_rm_source: components["schemas"]["OneRmSourceEnum"];
             /** Format: decimal */
             best_single: string | null;
             based_on: components["schemas"]["RMBase"];
             marks_count: number;
+            marks: components["schemas"]["RMBase"][];
             /** Format: date-time */
             last_at: string;
         };
-        /** @description La marca de la que sale el RM estimado. */
+        /** @description Una marca de carga del movimiento (la del 1RM, o una del historial). */
         RMBase: {
             source: components["schemas"]["RMBaseSourceEnum"];
             /** Format: decimal */
             weight: string;
             unit: string;
             reps: number;
+            sets?: number | null;
             /** Format: date-time */
             achieved_at: string;
+            /** Format: uuid */
+            pr_id?: string | null;
         };
         /**
          * @description * `pr` - pr
@@ -11940,6 +12071,13 @@ export interface components {
          * @enum {string}
          */
         ResultEnum: "won" | "lost";
+        /** @description Clases del gimnasio en la semana y el mes en curso (`conteo_clases`). */
+        ResumenClases: {
+            dadas_semana: number;
+            dadas_mes: number;
+            programadas_mes: number;
+            canceladas_mes: number;
+        };
         RetentionByService: {
             en_riesgo: components["schemas"]["ServiceBreakdownRow"][];
             morosos: components["schemas"]["ServiceBreakdownRow"][];
@@ -12661,8 +12799,15 @@ export interface components {
             /** Format: date-time */
             readonly created_at: string;
         };
+        /**
+         * @description Texto, imagen o las dos. Con imagen viaja multipart; sin ella, JSON como siempre
+         *     (los apps viejos mandan solo `body`).
+         */
         WodResultCommentCreate: {
+            /** @default  */
             body: string;
+            /** Format: uri */
+            image?: string | null;
         };
         /** @description Una marca con su contexto: de qué workout y bloque es, y de qué día. */
         WodResultDetail: {
@@ -12725,6 +12870,7 @@ export interface components {
             notes?: string;
             sets?: number | null;
             reps?: number | null;
+            load_unit?: components["schemas"]["LoadUnitEnum"] | components["schemas"]["BlankEnum"];
         };
         WodResultReactionInput: {
             reaction?: string | null;
@@ -19736,6 +19882,38 @@ export interface operations {
             };
         };
     };
+    me_classes_box_list: {
+        parameters: {
+            query: {
+                /** @description Primer día (AAAA-MM-DD, hora de Guatemala). */
+                from: string;
+                /** @description Solo este gimnasio (hay que ser socio). */
+                gym?: string;
+                /** @description Id del dependiente por el que actúa el tutor (plan familiar). */
+                on_behalf_of?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A search term. */
+                search?: string;
+                /** @description Último día, incluido. Por defecto, el mismo `from`. */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaseDelBox"][];
+                };
+            };
+        };
+    };
     me_classes_history_list: {
         parameters: {
             query?: {
@@ -21838,7 +22016,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": components["schemas"]["WodResultCommentCreate"];
                 "application/x-www-form-urlencoded": components["schemas"]["WodResultCommentCreate"];
