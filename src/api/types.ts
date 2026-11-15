@@ -213,11 +213,24 @@ export interface FeedItem {
   status?: string;
   photo_url?: string | null;
   media?: FeedMedia[];
+  /** Atletas etiquetados con @ en `body` (docs/FEED_SOCIAL_CONTRATO.md). Ausente en un API viejo. */
+  mentions?: FeedMention[];
 }
 
 export interface FeedMedia {
   url: string;
   kind: "image" | "video";
+}
+
+/**
+ * Atleta etiquetado con @ en un post o comentario. El `body` sigue siendo texto
+ * plano con `@Nombre`; esto dice qué nombres resaltar. `name` es el nombre al
+ * momento de etiquetar (se guarda en la fila), así que sigue cuadrando con el
+ * texto aunque el atleta cambie su nombre después.
+ */
+export interface FeedMention {
+  athlete_id: string;
+  name: string;
 }
 
 export interface ClubActivityAdmin {
@@ -1194,6 +1207,8 @@ export interface AthletePost {
   decision_reason_display?: string;
   /** Aclaración libre que escribió el admin al decidir. */
   decision_note?: string;
+  /** Atletas etiquetados (si el backend ya los manda para posts pendientes). */
+  mentions?: FeedMention[];
   created_at: string;
 }
 
@@ -1219,6 +1234,17 @@ export interface ReportedComment {
   decision_reason?: MotivoModeracion | "";
   /** Aclaración libre del admin al decidir. */
   decision_note?: string;
+  // Feed social (docs/FEED_SOCIAL_CONTRATO.md). Todos opcionales: un API viejo no los manda.
+  /** Comentario al que responde (un solo nivel); `null`/ausente = comentario raíz. */
+  parent_id?: string | null;
+  /** Atletas etiquetados con @ en `body`. */
+  mentions?: FeedMention[];
+  /** GIF de GIPHY. Excluyente con `image`; el comentario puede ser solo el GIF. */
+  gif_url?: string | null;
+  reaction_count?: number;
+  /** Conteo por emoji: `{"❤️": 2, "😂": 1}`. */
+  reactions?: Record<string, number>;
+  my_reaction?: string | null;
   created_at: string;
 }
 

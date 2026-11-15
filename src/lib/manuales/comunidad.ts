@@ -40,6 +40,18 @@ export const manualesComunidad: ManualesPorRuta = {
           "Eliminar un comentario lo borra para siempre: no se puede recuperar y el autor ya no puede apelar (si tenía una apelación pendiente, se descarta). Mientras sigue en esta lista está oculto, y el autor sí puede pedirte que lo revises. Si dudas, presiona «Cancelar» en la ventana y déjalo oculto.",
       },
       {
+        titulo: "Revisar etiquetas, respuestas y GIFs",
+        pasos: [
+          "Tus atletas ahora pueden etiquetar a otros atletas de tu gimnasio escribiendo @ y su nombre, responder a un comentario y mandar un GIF en sus comentarios.",
+          "En «Moderar» y en «Feed», el nombre de cada persona etiquetada sale resaltado dentro del texto (por ejemplo, «@Ana López»).",
+          "Si un comentario reportado es respuesta a otro, lleva la etiqueta «Respuesta a un comentario».",
+          "Si el comentario trae un GIF, lo ves debajo del texto, igual que una foto. Junto a la fecha ves también las reacciones que tenía.",
+          "Se modera igual que cualquier comentario: «Restaurar» para que vuelva a verse o «Eliminar…» para borrarlo, con su motivo.",
+        ],
+        nota:
+          "Solo se puede etiquetar a atletas con membresía activa en tu gimnasio, y nunca a alguien que bloqueó al autor o que el autor bloqueó. Quien sale etiquetado en una publicación que espera tu aprobación no se entera hasta que la apruebas; si la rechazas, no le llega ningún aviso. En un comentario, el aviso le llega en cuanto se escribe. Eliminar un comentario que tenía respuestas borra también sus respuestas.",
+      },
+      {
         titulo: "Responder una apelación",
         pasos: [
           "En «Moderar», busca el grupo «Apelaciones».",
@@ -122,7 +134,8 @@ export const manualesComunidad: ManualesPorRuta = {
         titulo: "Ver lo que hay en el feed",
         pasos: [
           "Entra a la pestaña «Feed».",
-          "Cada publicación muestra su tipo, quién la hizo, la fecha, las reacciones y cuántos comentarios tiene.",
+          "Cada publicación muestra su tipo, quién la hizo, la fecha, las reacciones y cuántos comentarios tiene (respuestas incluidas).",
+          "Las personas etiquetadas con @ salen resaltadas en el texto.",
         ],
       },
     ],
@@ -163,6 +176,21 @@ export const manualesComunidad: ManualesPorRuta = {
       {
         termino: "Oculto del feed",
         detalle: "El comentario reportado está fuera del feed mientras lo revisas.",
+      },
+      {
+        termino: "@Nombre resaltado",
+        detalle:
+          "Un atleta de tu gimnasio que el autor etiquetó. A esa persona le llega un aviso en su teléfono. Un @ escrito a mano que no corresponde a nadie de tu gimnasio no se resalta y no avisa a nadie.",
+      },
+      {
+        termino: "Respuesta a un comentario",
+        detalle:
+          "El comentario contesta a otro de la misma publicación. En el app se ve debajo del comentario al que responde.",
+      },
+      {
+        termino: "GIF",
+        detalle:
+          "Una imagen animada que el atleta eligió del buscador del app. Solo se puede poner en comentarios, no en publicaciones.",
       },
       {
         termino: "Motivo",
@@ -217,6 +245,11 @@ export const manualesComunidad: ManualesPorRuta = {
         sintoma: "La lista para elegir al atleta del mes sale vacía o con error.",
         solucion:
           "Si dice «No se pudo cargar el padrón o los destacados publicados.», presiona «Reintentar». Si carga pero falta alguien, revisa que su membresía esté activa o en prueba.",
+      },
+      {
+        sintoma: "Veo un «@nombre» en un comentario o publicación pero no sale resaltado.",
+        solucion:
+          "Esa persona no quedó etiquetada: el autor lo escribió a mano, o no tiene membresía activa en tu gimnasio, o hay un bloqueo entre los dos. No le llegó ningún aviso.",
       },
       {
         sintoma: "Un grupo de «Moderar» dice que no se pudo cargar.",

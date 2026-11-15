@@ -4873,6 +4873,28 @@ export interface paths {
         patch: operations["me_feed_comments_partial_update"];
         trace?: never;
     };
+    "/api/v1/me/feed/comments/{id}/reaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Reacción del atleta a un COMENTARIO (feed social, fase 2).
+         *
+         *     `{"reaction": "❤️"}` la pone o la cambia; `null` o la misma que ya tiene la
+         *     quita. 404 si el comentario no existe o quien reacciona no puede verlo.
+         */
+        post: operations["me_feed_comments_reaction_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/feed/comments/{id}/report": {
         parameters: {
             query?: never;
@@ -4906,6 +4928,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/gifs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Búsqueda de GIFs (GIPHY) para comentar (feed social, fase 3).
+         *
+         *     `?q=` vacío = tendencias; `?limit=` 1..50 (24 por defecto). Sin llave
+         *     configurada: 503 `gifs_unavailable` (el app esconde el botón). Exige membresía
+         *     viva en algún gym.
+         */
+        get: operations["me_gifs_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/global-standing": {
         parameters: {
             query?: never;
@@ -4920,6 +4965,29 @@ export interface paths {
          *     tablero entero.
          */
         get: operations["me_global_standing_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/gyms/{gym_id}/mentionables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Buscador de a quién mencionar con @ en un gym (feed social, fase 1).
+         *
+         *     Hasta 20, por nombre (`?q=`), insensible a mayúsculas y acentos. Solo atletas
+         *     con membresía viva en ese gym, sin el propio usuario ni bloqueados (en los dos
+         *     sentidos). 403 `not_member` si quien pregunta no pertenece al gym.
+         */
+        get: operations["me_gyms_mentionables_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6786,6 +6854,7 @@ export interface components {
             /** Format: uri */
             readonly photo: string;
             readonly media: components["schemas"]["PostMedia"][];
+            readonly mentions: components["schemas"]["Mention"][];
             readonly status: components["schemas"]["ModerationStatus"];
             readonly status_display: string;
             /** Format: int64 */
@@ -6801,6 +6870,7 @@ export interface components {
             body?: string;
             /** Format: uri */
             photo?: string;
+            mention_ids?: string[];
         };
         /**
          * @description * `athlete` - Atleta
@@ -8011,6 +8081,7 @@ export interface components {
             gym: string;
             /** @default  */
             body: string;
+            mention_ids?: string[];
         };
         /** @description Estado de la oferta de PT del coach en un gym (respuesta del PATCH). */
         CoachPtConfig: {
@@ -8379,6 +8450,16 @@ export interface components {
             readonly body: string;
             /** Format: uri */
             readonly image: string;
+            /** Format: uri */
+            readonly gif_url: string;
+            /** Format: uuid */
+            readonly parent_id: string | null;
+            readonly mentions: components["schemas"]["Mention"][];
+            readonly reaction_count: number;
+            readonly reactions: {
+                [key: string]: number;
+            };
+            readonly my_reaction: string | null;
             readonly mine: boolean;
             readonly hidden: boolean;
             readonly report_count: number;
@@ -8393,6 +8474,23 @@ export interface components {
             body: string;
             /** Format: uri */
             image?: string | null;
+            /** @default  */
+            gif_url: string;
+            /** Format: uuid */
+            parent_id?: string | null;
+            mention_ids?: string[];
+        };
+        FeedCommentReactionInput: {
+            reaction?: string | null;
+        };
+        FeedCommentReactionState: {
+            /** Format: uuid */
+            comment_id: string;
+            reaction_count: number;
+            reactions: {
+                [key: string]: number;
+            };
+            my_reaction: string | null;
         };
         FeedItem: {
             id: string;
@@ -8423,6 +8521,7 @@ export interface components {
             mine: boolean;
             actor_athlete_id?: string | null;
             milestone?: number | null;
+            mentions?: components["schemas"]["Mention"][];
         };
         FeedReactionToggle: {
             feed_item_id: string;
@@ -8477,6 +8576,18 @@ export interface components {
             period_end: string;
             /** Format: uuid */
             coach_id?: string | null;
+        };
+        Gif: {
+            id: string;
+            url: string;
+            preview_url: string;
+            width: number | null;
+            height: number | null;
+        };
+        /** @description Respuesta de `GET /me/gifs`. El app DEBE mostrar `attribution` (GIPHY). */
+        GifSearch: {
+            results: components["schemas"]["Gif"][];
+            attribution: string;
         };
         GlobalRanking: {
             period: string;
@@ -9408,6 +9519,19 @@ export interface components {
             comment?: string;
             /** Format: date-time */
             readonly changed_at: string;
+        };
+        /** @description Mención (@) estructurada: `name` es el nombre AL MOMENTO de mencionar. */
+        Mention: {
+            /** Format: uuid */
+            athlete_id: string;
+            name: string;
+        };
+        /** @description Fila del buscador `GET /me/gyms/{gym_id}/mentionables`. */
+        Mentionable: {
+            /** Format: uuid */
+            athlete_id: string;
+            readonly name: string;
+            readonly avatar: string | null;
         };
         /** @description Apelación tal como la ven el atleta, el gimnasio y la plataforma. */
         ModerationAppeal: {
@@ -10417,6 +10541,7 @@ export interface components {
             body?: string;
             /** Format: uri */
             photo?: string;
+            mention_ids?: string[];
         };
         PatchedBillingGroupUpdate: {
             name?: string;
@@ -10548,14 +10673,10 @@ export interface components {
             readonly effective_max_uses?: number | null;
             is_active?: boolean;
         };
-        PatchedFeedCommentCreate: {
-            feed_item_id?: string;
-            /** Format: uuid */
-            gym_id?: string;
-            /** @default  */
-            body: string;
-            /** Format: uri */
-            image?: string | null;
+        /** @description Body de `PATCH /me/feed/comments/{id}`: lo que no se manda no se toca. */
+        PatchedFeedCommentUpdate: {
+            body?: string | null;
+            mention_ids?: string[];
         };
         /** @description Edición por admin gym / superadmin (incluye config sensible). */
         PatchedGymAdmin: {
@@ -12027,6 +12148,16 @@ export interface components {
             readonly body: string;
             /** Format: uri */
             readonly image: string;
+            /** Format: uri */
+            readonly gif_url: string;
+            /** Format: uuid */
+            readonly parent_id: string | null;
+            readonly mentions: components["schemas"]["Mention"][];
+            readonly reaction_count: number;
+            readonly reactions: {
+                [key: string]: number;
+            };
+            readonly my_reaction: string | null;
             readonly mine: boolean;
             readonly hidden: boolean;
             readonly report_count: number;
@@ -20705,9 +20836,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["PatchedFeedCommentCreate"];
-                "application/x-www-form-urlencoded": components["schemas"]["PatchedFeedCommentCreate"];
-                "multipart/form-data": components["schemas"]["PatchedFeedCommentCreate"];
+                "application/json": components["schemas"]["PatchedFeedCommentUpdate"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedFeedCommentUpdate"];
+                "multipart/form-data": components["schemas"]["PatchedFeedCommentUpdate"];
             };
         };
         responses: {
@@ -20717,6 +20848,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeedComment"];
+                };
+            };
+        };
+    };
+    me_feed_comments_reaction_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["FeedCommentReactionInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["FeedCommentReactionInput"];
+                "multipart/form-data": components["schemas"]["FeedCommentReactionInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedCommentReactionState"];
                 };
             };
         };
@@ -20773,6 +20931,25 @@ export interface operations {
             };
         };
     };
+    me_gifs_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GifSearch"];
+                };
+            };
+        };
+    };
     me_global_standing_retrieve: {
         parameters: {
             query?: never;
@@ -20788,6 +20965,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GlobalStanding"];
+                };
+            };
+        };
+    };
+    me_gyms_mentionables_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mentionable"][];
                 };
             };
         };

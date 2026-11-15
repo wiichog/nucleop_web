@@ -28,7 +28,8 @@ import { PageError } from "../../components/PageStatus";
 import { SectionLabel } from "../../components/ui";
 import { Encabezado, Tarjeta } from "../../components/Tarjeta";
 import { errMsg } from "../../lib/errors";
-import { fecha, fechaHora, Medios, MEDIA_FRAME, thumb } from "./media";
+import { fecha, fechaHora, Medios, MEDIA_FRAME, resumenReacciones, thumb } from "./media";
+import { TextoConMenciones } from "./menciones";
 
 /** Color de la pastilla de estado de una apelación. */
 const APPEAL_COLOR: Record<string, string> = {
@@ -224,11 +225,7 @@ export function ModeracionTab({ gymId }: { gymId: string }) {
                         <b>{p.author_name ?? p.athlete_name}</b> · {fechaHora(p.created_at)}
                       </Text>
                     </Group>
-                    {p.body && (
-                      <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
-                        {p.body}
-                      </Text>
-                    )}
+                    {p.body && <TextoConMenciones body={p.body} mentions={p.mentions} />}
                     <Medios
                       media={
                         p.media && p.media.length
@@ -279,20 +276,42 @@ export function ModeracionTab({ gymId }: { gymId: string }) {
                           Oculto del feed
                         </Badge>
                       )}
+                      {/* El listado es plano: solo se sabe que cuelga de otro comentario
+                          de la misma publicación, no cuál. */}
+                      {c.parent_id && (
+                        <Badge size="xs" variant="light" color="gray" title="Responde a otro comentario de la misma publicación">
+                          Respuesta a un comentario
+                        </Badge>
+                      )}
                       <Text size="xs" c="dimmed">
                         <b>{c.athlete_name}</b> · {fechaHora(c.created_at)}
+                        {(c.reaction_count ?? 0) > 0
+                          ? ` · ${resumenReacciones(c.reactions) || `♥ ${c.reaction_count}`}`
+                          : ""}
                       </Text>
                     </Group>
-                    {c.body && (
-                      <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
-                        {c.body}
-                      </Text>
-                    )}
+                    {c.body && <TextoConMenciones body={c.body} mentions={c.mentions} />}
                     {c.image && (
                       <img
                         src={c.image}
                         alt=""
                         style={{ ...MEDIA_FRAME, width: 280, maxWidth: "100%", marginTop: 8 }}
+                      />
+                    )}
+                    {/* GIF de GIPHY: tamaño acotado, que un GIF alto no estire la tarjeta. */}
+                    {c.gif_url && (
+                      <img
+                        src={c.gif_url}
+                        alt="GIF del comentario"
+                        loading="lazy"
+                        style={{
+                          ...MEDIA_FRAME,
+                          width: "auto",
+                          maxWidth: "min(220px, 100%)",
+                          maxHeight: 180,
+                          objectFit: "contain",
+                          marginTop: 8,
+                        }}
                       />
                     )}
                     <Group gap="xs" mt="sm">
@@ -340,7 +359,7 @@ export function ModeracionTab({ gymId }: { gymId: string }) {
 
                     <SectionLabel mb={2}>Contenido sancionado</SectionLabel>
                     <Text size="sm" c="dimmed">
-                      {a.content_excerpt || "(sin texto: era una foto o un video)"}
+                      {a.content_excerpt || "(sin texto: era una foto, un video o un GIF)"}
                     </Text>
                     <Text size="xs" c="dimmed" mt={2}>
                       Motivo: {a.content_reason_display || "sin motivo registrado"}

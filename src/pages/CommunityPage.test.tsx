@@ -37,6 +37,7 @@ const estado = vi.hoisted(() => ({
   apelaciones: [] as unknown[],
   comentariosFallan: false,
   anuncios: [] as unknown[],
+  feed: [] as unknown[],
 }));
 
 vi.mock("../api/hooks", () => {
@@ -64,7 +65,7 @@ vi.mock("../api/hooks", () => {
     usePostAnnouncement: mutacion,
     useUpdateAnnouncement: mutacion,
     useDeleteAnnouncement: mutacion,
-    useGymFeed: () => consulta([]),
+    useGymFeed: () => consulta(estado.feed),
   };
 });
 
@@ -114,6 +115,7 @@ beforeEach(() => {
   estado.apelaciones = [];
   estado.comentariosFallan = false;
   estado.anuncios = [];
+  estado.feed = [];
 });
 
 describe("CommunityPage", () => {
@@ -180,5 +182,72 @@ describe("CommunityPage", () => {
     pintar();
     // «Todo el gym» + CrossFit, ninguna con atleta.
     expect(screen.getByText("2 sin elegir")).toBeTruthy();
+  });
+
+  it("un comentario reportado nuevo: GIF, respuesta, menciones resaltadas y reacciones", () => {
+    estado.comentarios = [
+      {
+        ...comentario,
+        body: "jaja @Ana López mirá esto",
+        parent_id: "c0",
+        mentions: [{ athlete_id: "a1", name: "Ana López" }],
+        gif_url: "https://media.giphy.com/media/x/giphy.gif",
+        reaction_count: 3,
+        reactions: { "❤️": 2, "😂": 1 },
+      },
+    ];
+    pintar();
+
+    const gif = screen.getByAltText("GIF del comentario") as HTMLImageElement;
+    expect(gif.getAttribute("src")).toBe("https://media.giphy.com/media/x/giphy.gif");
+    expect(gif.style.maxHeight).toBe("180px");
+    expect(screen.getByText("Respuesta a un comentario")).toBeTruthy();
+    const mencion = screen.getByText("@Ana López");
+    expect(mencion.hasAttribute("data-mencion")).toBe(true);
+    expect(screen.getByText(/❤️ 2 😂 1/)).toBeTruthy();
+  });
+
+  it("un comentario de solo GIF (sin texto) se ve igual", () => {
+    estado.comentarios = [
+      { ...comentario, body: "", gif_url: "https://i.giphy.com/abc.gif" },
+    ];
+    pintar();
+    expect(screen.getByAltText("GIF del comentario")).toBeTruthy();
+  });
+
+  it("con el API viejo (sin campos nuevos) el comentario se ve como antes", () => {
+    estado.comentarios = [comentario];
+    pintar();
+    expect(screen.queryByAltText("GIF del comentario")).toBeNull();
+    expect(screen.queryByText("Respuesta a un comentario")).toBeNull();
+    expect(document.querySelector("[data-mencion]")).toBeNull();
+    expect(screen.getByText("comentario feo")).toBeTruthy();
+  });
+
+  it("la publicación pendiente resalta a los etiquetados", () => {
+    estado.posts = [
+      { ...post, body: "PR con @Luis Pérez", mentions: [{ athlete_id: "a2", name: "Luis Pérez" }] },
+    ];
+    pintar();
+    expect(screen.getByText("@Luis Pérez").hasAttribute("data-mencion")).toBe(true);
+  });
+
+  it("el feed resalta las menciones del cuerpo del post", () => {
+    estado.feed = [
+      {
+        id: "post:1",
+        kind: "athlete_post",
+        title: "Ana",
+        body: "Gracias @Luis Pérez por la ayuda",
+        actor_name: "Ana",
+        created_at: "2026-11-09T12:00:00Z",
+        reaction_count: 0,
+        reacted_by_me: false,
+        mentions: [{ athlete_id: "a2", name: "Luis Pérez" }],
+      },
+    ];
+    pintar();
+    fireEvent.click(screen.getByRole("tab", { name: "Feed" }));
+    expect(screen.getByText("@Luis Pérez").hasAttribute("data-mencion")).toBe(true);
   });
 });

@@ -3,24 +3,8 @@ import { useGymFeed } from "../../api/hooks";
 import { GlassCard } from "../../components/aurora";
 import { PageError } from "../../components/PageStatus";
 import { Encabezado } from "../../components/Tarjeta";
-import { fechaHora, Medios } from "./media";
-
-const REACTION_EMOJI: Record<string, string> = {
-  like: "👍",
-  love: "❤️",
-  haha: "😂",
-  wow: "😮",
-  sad: "😢",
-  angry: "😡",
-};
-
-function reactionSummary(reactions?: Record<string, number>): string {
-  if (!reactions) return "";
-  return Object.entries(reactions)
-    .sort((a, b) => b[1] - a[1])
-    .map(([type, n]) => `${REACTION_EMOJI[type] ?? type} ${n}`)
-    .join("  ");
-}
+import { fechaHora, Medios, resumenReacciones } from "./media";
+import { TextoConMenciones } from "./menciones";
 
 const KIND_LABEL: Record<string, string> = {
   pr: "PR",
@@ -64,14 +48,12 @@ export function FeedTab({ gymId }: { gymId: string }) {
                 </Badge>
                 <Text fw={600}>{item.title}</Text>
               </Group>
-              <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
-                {item.body}
-              </Text>
+              <TextoConMenciones body={item.body} mentions={item.mentions} />
               <Medios media={item.media ?? []} ancho={240} />
               <Text c="dimmed" size="xs" mt={6}>
                 {item.actor_name} · {fechaHora(item.created_at)}
                 {item.reaction_count > 0
-                  ? ` · ${reactionSummary(item.reactions) || `♥ ${item.reaction_count}`}`
+                  ? ` · ${resumenReacciones(item.reactions) || `♥ ${item.reaction_count}`}`
                   : ""}
                 {item.comment_count ? ` · 💬 ${item.comment_count}` : ""}
               </Text>

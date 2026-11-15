@@ -55,3 +55,23 @@ export const fechaHora = (iso: string) =>
   });
 
 export const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-GT");
+
+/** Las reacciones clásicas viajan con nombre; las nuevas, como el emoji mismo. */
+const REACTION_EMOJI: Record<string, string> = {
+  like: "👍",
+  love: "❤️",
+  haha: "😂",
+  wow: "😮",
+  sad: "😢",
+  angry: "😡",
+};
+
+/** «❤️ 2  😂 1», de la más usada a la menos. Vacío si no hay conteo. */
+export function resumenReacciones(reactions?: Record<string, number> | null): string {
+  if (!reactions) return "";
+  return Object.entries(reactions)
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, n]) => `${REACTION_EMOJI[type] ?? type} ${n}`)
+    .join("  ");
+}
