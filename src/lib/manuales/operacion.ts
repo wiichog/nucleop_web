@@ -36,12 +36,12 @@ export const manualesOperacion: ManualesPorRuta = {
       {
         titulo: "Ver solo un servicio (filtrar las tablas)",
         pasos: [
-          "En «Horario semanal», «Clases» o «Solicitudes», abre la lista «Todos los servicios» que está arriba a la derecha.",
+          "En «Horario semanal» o «Clases», abre la lista «Todos los servicios» que está arriba a la derecha.",
           "Elige el servicio (por ejemplo CrossFit). Solo ves lo de ese servicio.",
           "Para volver a ver todo, presiona la ✕ de la lista.",
         ],
         nota:
-          "El servicio que eliges se queda al cambiar de pestaña: si filtras CrossFit en el horario, en «Clases» y «Solicitudes» también ves solo CrossFit. En «Servicios» la lista sale solo cuando tienes más de seis.",
+          "El servicio que eliges se queda al cambiar de pestaña: si filtras CrossFit en el horario, en «Clases» también ves solo CrossFit. En «Servicios» la lista sale solo cuando tienes más de seis.",
       },
       {
         titulo: "Cambiar, copiar o quitar una clase del horario",
@@ -62,17 +62,7 @@ export const manualesOperacion: ManualesPorRuta = {
           "Elige al coach en «Coach asignado» y presiona «Guardar».",
         ],
         nota:
-          "Si prefieres preguntarle antes, elige al coach y presiona «Ofrecerle la clase (decide él)». Puedes dejarle un recado. La clase sigue sin coach hasta que acepte, y la ves en la pestaña «Solicitudes» bajo «Ofreciste».",
-      },
-      {
-        titulo: "Responder cuando un coach pide una clase",
-        pasos: [
-          "Entra a la pestaña «Solicitudes». El número junto al nombre indica cuántas hay pendientes.",
-          "En «Te piden» ves quién la pide, qué clase es y cuántos inscritos tiene.",
-          "Presiona «Asignar» para dársela. Para no dársela presiona «Rechazar», escribe el motivo si quieres y presiona «Rechazar solicitud».",
-        ],
-        nota:
-          "Al asignarla, las demás solicitudes de esa misma clase se rechazan solas y cada coach recibe el aviso. El motivo del rechazo es opcional, pero el coach lo ve.",
+          "El coach de cada clase lo pones tú: tus coaches ya no piden, ceden ni dejan clases desde su app. Si uno no puede dar la suya, cámbiala aquí. Una clase sin coach dice «Sin coach asignado».",
       },
       {
         titulo: "Registrar quién llegó a una clase",
@@ -99,33 +89,35 @@ export const manualesOperacion: ManualesPorRuta = {
         pasos: [
           "Entra a la pestaña «Workout». Arriba eliges el programa (CrossFit, Pilates…) y ves su semana. Los días que faltan por programar salen en amarillo.",
           "Presiona «Programar» en el día, o el botón «Programar» de arriba (abre el primer día que falta).",
-          "Revisa la «Fecha» y el «Programa». «General (todo el gimnasio)» aplica a todas las clases de ese día.",
-          "Arma los bloques: pega la rutina en «Pega el workout (opcional)» y presiona «Armar bloques desde el texto», o agrégalos uno por uno con «Agregar bloque».",
+          "Revisa la «Fecha» y el «Programa». Cada workout es de un programa y solo lo ven las clases de ese programa ese día: una clase de Functional o Hybrid sin workout propio no muestra el de CrossFit. «General (todo el gimnasio)» solo aparece si tu gimnasio no tiene programas con workout.",
+          "Revisa el «Título»: se llena solo con el programa y la fecha («CrossFit - Lun, 16 Nov») y cambia si cambias la «Fecha» o el «Programa». Si quieres otro nombre (por ejemplo «Murph»), escríbelo: desde ahí ya no cambia solo. Para regresar al nombre automático presiona «Volver al automático».",
+          "Arma los bloques: pega la rutina en «Pega el workout (opcional)» y presiona «Armar bloques desde el texto», o agrégalos uno por uno con «Agregar bloque». Necesitas al menos un bloque.",
           "Deja activado «Publicar ya» para que tus atletas lo vean de una vez, o desactívalo para guardarlo como borrador.",
           "Presiona «Publicar workout» (o «Guardar borrador»). Aparece en su día de la semana.",
         ],
         nota:
-          "No hay título, tipo de score ni descripción del workout: cada bloque lleva su título, su texto y su score, y el workout se nombra solo con su día. Hay un solo workout por programa y fecha, y lo comparten todas las clases de ese día: si ese día ya tiene uno, la ventana te lo dice y te ofrece «Editar». Tus coaches también pueden subirlo desde el app, salvo a quien le apagues «Sube el workout» en Coaches.",
+          "La rutina se guarda solo en bloques: cada bloque lleva su título, su texto y su score. Lo que pegas en «Pega el workout (opcional)» es solo una ayuda para armarlos y no se guarda; si presionas «Publicar workout» sin ningún bloque, te avisa «Arma la rutina con al menos un bloque.». Hay un solo workout por programa y fecha, y lo comparten todas las clases de ese día: si ese día ya tiene uno, la ventana te lo dice y te ofrece «Editar». Tus coaches también pueden subirlo desde el app, salvo a quien le apagues «Sube el workout» en Coaches.",
       },
       {
         titulo: "Armar el workout por bloques (Fuerza A, Fuerza B, Metcon)",
         pasos: [
           "En la ventana del workout, en «Bloques», presiona «Agregar bloque» por cada parte. Necesitas al menos un bloque para crear el workout.",
           "En cada bloque escribe el «Título» y el «Texto», y elige el «Tipo de bloque» y su «Score». Cada bloque con score tiene su propio board, así tus atletas anotan la Fuerza A y la Fuerza B por separado.",
-          "Si el bloque es de carga, revisa la «Unidad» (viene en «lb»; cámbiala a «kg» si programas en kilos; se puede cambiar aunque el WOD ya tenga scores: al guardar se convierten, 100 kg pasan a 220.5 lb) y elige el «Levantamiento base» (por ejemplo «Back squat»; es obligatorio: con él los atletas ven sus porcentajes y su PR se actualiza solo), y en «Reps por serie del peso que se anota» pon a cuántas repeticiones corresponde el peso: «5 x 3 subiendo hasta pesado» es 3; un 1RM es 1. Si se trabaja al porcentaje («5 x 5 al 70 %»), déjalo vacío: ese peso no cuenta como PR.",
+          "Si el bloque es de carga, revisa la «Unidad» (viene en «lb»; cámbiala a «kg» si programas en kilos; se puede cambiar aunque el WOD ya tenga scores: al guardar se convierten, 100 kg pasan a 220.5 lb) y elige el «Levantamiento base» (por ejemplo «Back squat»; es obligatorio: con él los atletas ven sus porcentajes y su PR se actualiza solo).",
+          "En un bloque de carga llena también «Scoring»: los «Sets» y las «Reps» del peso que se anota. «5 x 3 subiendo hasta pesado» es 5 en «Sets» y 3 en «Reps»; un 1RM es 1 x 1. Es obligatorio: sin él te avisa «… es de carga: indica Sets x Reps (p. ej. 5 x 3).». Los Sets van de 1 a 99 y las Reps de 1 a 30. A tus atletas se les llena su score con esos Sets x Reps y pueden cambiarlos si hicieron otra cosa.",
           "Activa «Board principal del día» en el bloque que más importa: es el que se muestra primero. Ordena los bloques con las flechas ↑ y ↓.",
           "Si un bloque es un workout de referencia (Fran, Murph…), márcalo como «Benchmark»: cuando un atleta mejora su marca se publica un PR en el feed.",
           "Presiona «Publicar workout» (o «Guardar borrador»).",
         ],
         nota:
-          "Con el levantamiento elegido, lo que anota cada atleta cuenta para su RM estimado y su tabla de porcentajes en el app. Un bloque que ya tiene scores no se puede quitar ni cambiar de tipo de score.",
+          "Con el levantamiento elegido, lo que anota cada atleta cuenta para su RM estimado y su tabla de porcentajes en el app. Un bloque que ya tiene scores no se puede quitar ni cambiar de tipo de score. Un bloque de carga de antes de «Scoring» que nunca tuvo Sets x Reps se sigue guardando sin ellos; una vez que los pones, ya no se pueden dejar vacíos.",
       },
       {
         titulo: "Pegar la rutina completa y armar los bloques solos",
         pasos: [
           "Copia la rutina del día tal como la tienes escrita (con «Warmup», «Weightlifting (Power Clean)», «Fuerza:», «Custom Metcon (Tiempo)», «Workout:»…) y pégala en «Pega el workout (opcional)».",
           "Presiona «Armar bloques desde el texto». Sale un bloque por cada encabezado, con su texto y su «Score»: la fuerza por carga con su «Levantamiento base», el metcon por tiempo, y el calentamiento sin score.",
-          "Revisa cada bloque: el título, el «Score», la «Unidad» y el «Levantamiento base» (obligatorio en los de carga). Corrige lo que haga falta.",
+          "Revisa cada bloque: el título, el «Score», la «Unidad», el «Levantamiento base» y los «Sets» x «Reps» de «Scoring» (obligatorios en los de carga; si la rutina dice «5x3» ya vienen llenos). Corrige lo que haga falta.",
           "Presiona «Publicar workout» (o «Guardar» si lo estás editando).",
         ],
         nota:
@@ -135,11 +127,11 @@ export const manualesOperacion: ManualesPorRuta = {
         titulo: "Cambiar un workout ya creado o partirlo en bloques",
         pasos: [
           "En la semana, presiona «Editar» en el día del workout.",
-          "Cambia los bloques y presiona «Guardar».",
+          "Cambia el «Título» o los bloques y presiona «Guardar». Si borras el título, vuelve al automático.",
           "Si es un workout de antes de los bloques, su texto aparece en «Texto del workout»: presiona «Armar bloques desde el texto» para pasarlo a bloques.",
         ],
         nota:
-          "Si un workout de un solo score ya tiene scores y lo partes en bloques, esos scores quedan en el bloque principal.",
+          "Si un workout de un solo score ya tiene scores y lo partes en bloques, esos scores quedan en el bloque principal. Al guardar un workout viejo ya con bloques, su texto de antes deja de mostrarse (ya vive en los bloques). Un workout que tiene bloques no se puede quedar sin ninguno.",
       },
       {
         titulo: "Ver la programación de la semana y semanas anteriores",
@@ -163,7 +155,8 @@ export const manualesOperacion: ManualesPorRuta = {
         pasos: [
           "En la pestaña «Workout», presiona «Board» en el día del workout (sale cuando algún bloque tiene score).",
           "Para cargar un score, elige al atleta, escribe su score (por ejemplo 3:21 o 120) y la modalidad (Rx+, Rx o Scaled), y presiona «Registrar».",
-          "Si el bloque es de carga, puedes anotar también «Rondas» y «Reps»: con cuántas rondas y repeticiones movió ese peso. En el board se ve junto al score («105 5×2»); el ranking sigue siendo por peso.",
+          "Si el bloque es de carga, puedes anotar también «Sets» y «Reps»: con cuántas series y repeticiones movió ese peso. Si los dejas vacíos se guardan los que programaste en el bloque. En el board se ve junto al score («105 5×2»); el ranking sigue siendo por peso.",
+          "Si el atleta le adjuntó una foto o un video a su score desde el app, sale junto a su score: presiona la miniatura o «▶ Video» para abrirlo.",
           "Con «Board por clase» puedes ver solo los resultados de una hora del día.",
           "Si el workout tiene bloques, elige arriba el bloque cuyo board quieres ver; el score que registres va a ese bloque.",
         ],
@@ -175,6 +168,16 @@ export const manualesOperacion: ManualesPorRuta = {
           "Arriba a la derecha, activa o desactiva «Reservar días futuros».",
         ],
         nota: "Si lo desactivas, tus atletas solo podrán reservar las clases del día.",
+      },
+      {
+        titulo: "Abrir cada clase para reservar unas horas antes",
+        pasos: [
+          "Entra a la pestaña «Clases».",
+          "Arriba a la derecha, en «Abre … h antes», escribe las horas (por ejemplo 12) y presiona Enter o haz clic fuera del campo.",
+          "Para quitarlo, borra el número y haz clic fuera del campo.",
+        ],
+        nota:
+          "Con 12, la clase de las 5:00 a. m. se puede reservar desde las 5:00 p. m. del día anterior, y la de las 11:00 a. m. desde las 11:00 p. m. Mientras tenga horas, manda esta regla y «Reservar días futuros» queda apagado; vacío, todo funciona como antes.",
       },
       {
         titulo: "Crear un pase para visitantes (drop-in)",
@@ -214,19 +217,9 @@ export const manualesOperacion: ManualesPorRuta = {
           "La semana arriba de la lista de clases, con cuántas clases tiene cada día. Las flechas cambian de semana; hacia atrás llega a los últimos 60 días.",
       },
       {
-        termino: "Sin coach / Sin workout",
+        termino: "Sin coach asignado / Sin workout",
         detalle:
-          "Clases del día elegido a las que les falta coach (salen en amarillo), o de hoy que llevan workout y aún no tienen uno publicado. El número aparece junto al título «Clases».",
-      },
-      {
-        termino: "Solicitud de clase",
-        detalle:
-          "Un coach tuyo pidió dar una clase futura que no tiene coach. No queda asignada hasta que tú la apruebes.",
-      },
-      {
-        termino: "Clase ofrecida",
-        detalle:
-          "Se la propusiste a un coach desde el calendario. Sigue sin asignar hasta que el coach acepte; te avisamos cuando conteste.",
+          "Clases del día elegido a las que les falta coach (salen en amarillo; el coach lo asignas tú), o de hoy que llevan workout y aún no tienen uno publicado. El número aparece junto al título «Clases».",
       },
       {
         termino: "Workout del día",
@@ -236,7 +229,7 @@ export const manualesOperacion: ManualesPorRuta = {
       {
         termino: "Programa",
         detalle:
-          "El servicio al que pertenece un workout (CrossFit, Pilates…). «General» significa que aplica a todo el gimnasio.",
+          "El servicio al que pertenece un workout (CrossFit, Hybrid…). Solo lo ven las clases de ese programa. «General» existe únicamente en un gimnasio sin programas con workout.",
       },
       {
         termino: "Score",
@@ -256,11 +249,6 @@ export const manualesOperacion: ManualesPorRuta = {
       {
         termino: "Visitante con drop-in",
         detalle: "Alguien que entró con un pase temporal, sin ser socio del gimnasio.",
-      },
-      {
-        termino: "Tiempo límite de asignación",
-        detalle:
-          "Cuántos minutos antes del inicio debe tener coach la clase. Se ajusta al asignar el coach.",
       },
       {
         termino: "Pagar esta clase como extra",

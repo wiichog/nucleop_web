@@ -36,6 +36,9 @@ export interface BloqueScore {
   partId?: string;
   titulo: string;
   scoreType: ScoreType;
+  /** Sets x Reps que programó el coach (bloques de carga): prellenan el registro. */
+  sets?: number | null;
+  reps?: number | null;
 }
 
 export function bloquesConScore(wod: Wod): BloqueScore[] {
@@ -47,6 +50,8 @@ export function bloquesConScore(wod: Wod): BloqueScore[] {
         partId: p.id,
         titulo: p.title,
         scoreType: (p.score_type ?? "none") as ScoreType,
+        sets: p.sets ?? null,
+        reps: p.movement_reps ?? null,
       }));
   }
   const tipo = (wod.score_type ?? "none") as ScoreType;
@@ -80,6 +85,8 @@ export function partesDesdeSugerencia(sugeridas: WodPartSuggestion[]): ParteBorr
     // El backend sólo devuelve "", "kg" o "lb"; el contrato lo declara texto libre.
     load_unit: s.load_unit as ParteBorrador["load_unit"],
     movement: s.movement,
+    // «5x3» → 5 x 3: el backend ya lee los Sets x Reps del texto (puede faltar alguno).
+    sets: s.sets ?? null,
     movement_reps: s.movement_reps,
     is_benchmark: s.is_benchmark,
   }));
@@ -120,8 +127,41 @@ export function moverParte<T>(partes: T[], i: number, delta: -1 | 1): T[] {
   return out;
 }
 
-/** Lo primero que le impide guardar al formulario, o `null`. */
-export function errorDePartes(partes: ParteBorrador[]): string | null {
+/** Topes de Sets x Reps de un bloque de carga (los mismos del backend). */
+export const MAX_SETS = 99;
+export const MAX_REPS = 30;
+
+/** Mensaje del backend cuando falta Sets x Reps (`_exigir_sets_y_reps`). */
+export const mensajeSinSetsReps = (titulo: string) =>
+  `«${titulo}» es de carga: indica Sets x Reps (p. ej. 5 x 3).`;
+
+/** Mensaje del backend cuando el workout no tiene bloques. */
+export const SIN_BLOQUES = "Arma la rutina con al menos un bloque.";
+
+/**
+ * ¿Este bloque de carga tiene que llevar Sets x Reps? Igual que el backend
+ * (`guardar_partes_wod`): sí si es nuevo, si antes no era de carga, o si ya los
+ * tenía (no se vacían). Un bloque de carga viejo que nunca los tuvo se sigue
+ * guardando sin ellos, para no romper la edición de WODs pasados.
+ */
+export function exigeSetsYReps(p: ParteBorrador, original?: Pick<WodPart, "score_type" | "sets">): boolean {
+  if (p.score_type !== "load") return false;
+  if (!p.id || !original) return true;
+  return original.score_type !== "load" || original.sets != null;
+}
+
+/**
+ * Lo primero que le impide guardar al formulario, o `null`. Los mensajes son los
+ * mismos del backend, para que el gym lea lo mismo lo valide quien lo valide.
+ * - `exigirBloque`: el workout necesita al menos un bloque (crear, o editar uno
+ *   que ya tenía bloques). Un WOD viejo de solo texto se edita sin ellos.
+ * - `originales`: los bloques como estaban guardados, para la regla de Sets x Reps.
+ */
+export function errorDePartes(
+  partes: ParteBorrador[],
+  opciones: { exigirBloque?: boolean; originales?: WodPart[] } = {},
+): string | null {
+  if (opciones.exigirBloque && partes.length === 0) return SIN_BLOQUES;
   const sinTitulo = partes.findIndex((p) => !p.title.trim());
   if (sinTitulo >= 0) return `El bloque ${sinTitulo + 1} necesita un título.`;
   // Un bloque de carga necesita su levantamiento base (Vertikal, 10-nov-2026): con
@@ -130,6 +170,22 @@ export function errorDePartes(partes: ParteBorrador[]): string | null {
   const sinLevantamiento = partes.find((p) => p.score_type === "load" && !(p.movement ?? "").trim());
   if (sinLevantamiento) {
     return `«${sinLevantamiento.title.trim()}» es de carga: elige su levantamiento base.`;
+  }
+  // Sets x Reps (Vertikal, ronda 6): «5 x 3 @ peso». Con ellos se prellena el
+  // score del atleta y su PR sabe a cuántas reps corresponde el peso.
+  for (const p of partes) {
+    if (p.score_type !== "load") continue;
+    const titulo = p.title.trim();
+    const original = p.id ? opciones.originales?.find((o) => o.id === p.id) : undefined;
+    const sets = p.sets ?? null;
+    const reps = p.movement_reps ?? null;
+    if (sets != null && !(Number.isInteger(sets) && sets >= 1 && sets <= MAX_SETS)) {
+      return `«${titulo}»: Sets va de 1 a ${MAX_SETS}.`;
+    }
+    if (reps != null && !(Number.isInteger(reps) && reps >= 1 && reps <= MAX_REPS)) {
+      return `«${titulo}»: Reps va de 1 a ${MAX_REPS}.`;
+    }
+    if ((sets == null || reps == null) && exigeSetsYReps(p, original)) return mensajeSinSetsReps(titulo);
   }
   return null;
 }
@@ -153,19 +209,28 @@ export function partesParaGuardar(
       // La unidad, el levantamiento y sus reps sólo tienen sentido en carga.
       load_unit: carga ? p.load_unit || "lb" : "",
       movement: carga ? p.movement || null : null,
-      // Sin reps explícitas viaja null: es trabajo al porcentaje («5x5 @ 70 %») y
-      // no genera PR automático (antes viajaba 1 y cada 5x5 era un «1RM»).
-      movement_reps: carga && p.movement ? p.movement_reps || null : null,
+      // Sets x Reps del bloque de carga: «5 x 3» = 5 series de 3 reps del peso que
+      // se anota. Obligatorios desde la ronda 6 (los valida `errorDePartes`).
+      sets: carga ? (p.sets ?? null) : null,
+      movement_reps: carga ? p.movement_reps || null : null,
       is_benchmark: (p.score_type ?? "none") !== "none" && !!p.is_benchmark,
     } as WodPartInput;
   });
 }
 
-/** Una línea por bloque para la tabla: «Fuerza A · Carga · Back squat x3». */
+/** «5 x 3» si el bloque trae Sets x Reps, o "". */
+export function textoSetsReps(p: Pick<WodPart, "sets" | "movement_reps">): string {
+  return p.sets && p.movement_reps ? `${p.sets} x ${p.movement_reps}` : "";
+}
+
+/** Una línea por bloque: «Fuerza A · Carga · Back squat 5 x 3» (o «x3» sin sets). */
 export function resumenDeParte(p: WodPart, etiquetaScore: (s: string) => string): string {
   const score = (p.score_type ?? "none") === "none" ? "sin score" : etiquetaScore(p.score_type!);
+  const setsReps = textoSetsReps(p);
   const mov = p.movement
-    ? ` · ${nombreMovimiento(p.movement)}${(p.movement_reps ?? 1) > 1 ? ` x${p.movement_reps}` : ""}`
+    ? ` · ${nombreMovimiento(p.movement)}${
+        setsReps ? ` ${setsReps}` : (p.movement_reps ?? 1) > 1 ? ` x${p.movement_reps}` : ""
+      }`
     : "";
   return `${p.title} · ${score}${mov}`;
 }

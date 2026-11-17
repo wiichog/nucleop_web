@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import {
   Alert,
+  Anchor,
   Avatar,
   Badge,
   Button,
@@ -9,6 +10,7 @@ import {
   Divider,
   FileInput,
   Group,
+  Image,
   Modal,
   NumberInput,
   Progress,
@@ -47,12 +49,10 @@ import {
   useDeleteWod,
   useGymCoaches,
   useGymClasses,
-  useInviteCoachToClass,
   useGymConfig,
   useGymPastClasses,
   useMaterializeSchedules,
   useMemberships,
-  usePendingSummary,
   useSchedules,
   useServiceTypes,
   useUpdateClass,
@@ -75,11 +75,11 @@ import type {
   ScoreType,
   ServiceType,
   Wod,
+  WodResultMedia,
 } from "../api/types";
 import { notifications } from "@mantine/notifications";
 import { NoGymAssigned, PageError, PageLoading } from "../components/PageStatus";
-import { CountBadge, Money, PageHeader, SectionLabel } from "../components/ui";
-import { ClassRequestsTab } from "./classes/ClassRequestsTab";
+import { Money, PageHeader, SectionLabel } from "../components/ui";
 import { ArmarBloquesDesdeTexto } from "./classes/ArmarBloquesDesdeTexto";
 import { WodPartsEditor } from "./classes/WodPartsEditor";
 import { SemanaWods } from "./classes/SemanaWods";
@@ -108,9 +108,10 @@ import {
   tienePartes,
   type ParteBorrador,
 } from "../lib/wodPartes";
+import { tituloAutomaticoWod } from "../lib/tituloWod";
 import { GlassCard, delayVar } from "../components/aurora";
 import { useAuth } from "../lib/auth";
-import { errMsg } from "../lib/errors";
+import { errDeCampo, errMsg } from "../lib/errors";
 import { CHECKIN_METHOD, label } from "../lib/labels";
 
 // Avisos de la página. Varias acciones de esta pantalla (crear servicio, crear el
@@ -119,6 +120,18 @@ import { CHECKIN_METHOD, label } from "../lib/labels";
 const ok = (message: string) => notifications.show({ color: "teal", message });
 const fail = (error: unknown, porDefecto: string) =>
   notifications.show({ color: "red", message: errMsg(error, porDefecto) });
+// Guardar un workout: el backend responde `{"detail": {"parts": ["…"]}}` y el
+// `message` genérico antepone la clave («parts: …»). Se muestra el texto limpio.
+const failWod = (error: unknown, porDefecto: string) =>
+  notifications.show({
+    color: "red",
+    message:
+      errDeCampo(error, "parts") ??
+      errDeCampo(error, "service_type") ??
+      errDeCampo(error, "title") ??
+      errDeCampo(error, "date") ??
+      errMsg(error, porDefecto),
+  });
 
 const WEEKDAYS = [
   { value: "0", label: "Lun" },
@@ -171,17 +184,16 @@ type ClassRow = GymClass & ClassCoachFields;
 export function ClassesPage() {
   const { primaryGymId } = useAuth();
   const gymId = primaryGymId ?? "";
-  // El contador va en la pestaña porque la solicitud NO se resuelve sola: hasta
-  // que el gym decida, la clase se queda sin coach.
-  const pendientes = usePendingSummary(gymId).data?.solicitudes_clase ?? 0;
-  // La pestaña vive en la URL (mismo patrón que Inventario): así el pendiente
-  // «coaches que piden clase» abre directamente donde se resuelve, en vez de
-  // dejar al admin buscando la pestaña que acaba de tocar.
+  // La pestaña vive en la URL (mismo patrón que Inventario): así un pendiente
+  // abre directamente donde se resuelve. «Solicitudes» (`requests`) se fue con
+  // las coberturas (16-nov-2026): un enlace viejo cae en el calendario, que es
+  // donde ahora se asigna el coach.
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get("tab") || "schedule";
+  const tabUrl = searchParams.get("tab");
+  const tab = tabUrl === "requests" ? "classes" : tabUrl || "schedule";
   // El filtro por servicio también vive en la URL y es UNO para todas las
   // pestañas: quien elige «CrossFit» en el horario lo sigue viendo al pasar a
-  // Clases o Solicitudes, en vez de volver a filtrar en cada tabla.
+  // Clases, en vez de volver a filtrar en cada tabla.
   const servicio = searchParams.get("servicio") || null;
   const params = (t: string | null, s: string | null) => {
     const p: Record<string, string> = {};
@@ -209,14 +221,6 @@ export function ClassesPage() {
           <Tabs.Tab value="services">Servicios</Tabs.Tab>
           <Tabs.Tab value="schedule">Horario semanal</Tabs.Tab>
           <Tabs.Tab value="classes">Clases</Tabs.Tab>
-          {/* Junto al calendario y no en Coaches: lo que se decide aquí es QUIÉN
-              da una franja concreta, y para decidirlo hay que ver la franja. */}
-          <Tabs.Tab value="requests">
-            <Group gap={6}>
-              Solicitudes
-              {pendientes ? <CountBadge count={pendientes} /> : null}
-            </Group>
-          </Tabs.Tab>
           <Tabs.Tab value="wod">Workout</Tabs.Tab>
           <Tabs.Tab value="dropins">Drop-ins / Pases</Tabs.Tab>
         </Tabs.List>
@@ -229,9 +233,6 @@ export function ClassesPage() {
         </Tabs.Panel>
         <Tabs.Panel value="classes">
           <ClassesTab gymId={gymId} {...filtro} />
-        </Tabs.Panel>
-        <Tabs.Panel value="requests">
-          <ClassRequestsTab gymId={gymId} {...filtro} />
         </Tabs.Panel>
         <Tabs.Panel value="wod">
           <WodTab gymId={gymId} />
@@ -1073,6 +1074,33 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
   const hoy = isoLocal(new Date());
   const wodsToday = useWods(gymId, hoy);
   const allowFuture = config.data?.allow_future_reservations ?? true;
+  /** Ventana en horas por clase (vacía = la política del interruptor). */
+  const horasGuardadas = config.data?.reservations_open_hours_before ?? null;
+  const [horas, setHoras] = useState<number | string>("");
+  const [horasDe, setHorasDe] = useState<number | null | undefined>(undefined);
+  if (config.data && horasDe !== horasGuardadas) {
+    setHorasDe(horasGuardadas);
+    setHoras(horasGuardadas ?? "");
+  }
+  const guardarHoras = () => {
+    const valor = horas === "" ? null : Number(horas);
+    if (valor === horasGuardadas) return;
+    updateConfig.mutate(
+      { reservations_open_hours_before: valor },
+      {
+        onSuccess: () =>
+          ok(
+            valor
+              ? `Cada clase se podrá reservar desde ${valor} h antes de empezar.`
+              : "Las reservas vuelven a seguir el interruptor «Reservar días futuros».",
+          ),
+        onError: (error) => {
+          setHoras(horasGuardadas ?? "");
+          fail(error, "No se pudo guardar la configuración de reservas.");
+        },
+      },
+    );
+  };
 
   // El día que se mira y la semana de la tira. Arranca en hoy.
   const [dia, setDia] = useState(hoy);
@@ -1169,12 +1197,40 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
           value={servicio}
           onChange={setServicio}
         />
-        <Tooltip label="Si está apagado, los atletas solo pueden reservar las clases de hoy">
+        <Tooltip label="Cada clase se abre para reservar estas horas antes de empezar. Vacío: manda el interruptor «Reservar días futuros».">
+          <NumberInput
+            aria-label="Reservas abren (horas antes)"
+            placeholder="Horas antes"
+            leftSection={<Text size="xs" c="dimmed">Abre</Text>}
+            leftSectionWidth={42}
+            rightSection={<Text size="xs" c="dimmed">h antes</Text>}
+            rightSectionWidth={56}
+            w={170}
+            size="xs"
+            min={1}
+            max={720}
+            allowDecimal={false}
+            value={horas}
+            onChange={setHoras}
+            onBlur={guardarHoras}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
+            disabled={config.isLoading || updateConfig.isPending}
+          />
+        </Tooltip>
+        <Tooltip
+          label={
+            horasGuardadas
+              ? "Con horas de apertura puestas, manda esa ventana y este interruptor no se usa"
+              : "Si está apagado, los atletas solo pueden reservar las clases de hoy"
+          }
+        >
           <div>
             <Switch
               label="Reservar días futuros"
               checked={allowFuture}
-              disabled={config.isLoading || updateConfig.isPending}
+              disabled={config.isLoading || updateConfig.isPending || !!horasGuardadas}
               onChange={(e) => {
                 const permitir = e.currentTarget.checked;
                 updateConfig.mutate(
@@ -1250,7 +1306,7 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
             return (
               <Tarjeta
                 key={c.id}
-                etiqueta={`${c.class_type} ${hora(c)}, ${coach ?? "sin coach"}`}
+                etiqueta={`${c.class_type} ${hora(c)}, ${coach ?? "sin coach asignado"}`}
                 onClick={() => setSelectedClassId(c.id)}
                 aviso={falta}
                 apagada={cancelada}
@@ -1265,7 +1321,7 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
                       {c.class_type}
                       <Text span c={falta ? "var(--mantine-color-yellow-light-color)" : "dimmed"} fw={falta ? 700 : 400}>
                         {" · "}
-                        {coach ?? (falta && c.is_past_assignment_deadline ? "Sin coach · urge" : "Sin coach")}
+                        {coach ?? "Sin coach asignado"}
                       </Text>
                     </Text>
                   </div>
@@ -1289,7 +1345,6 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
 
       <AssignCoachModal
         gymClass={editing}
-        gymId={gymId}
         coaches={coaches.data ?? []}
         onClose={() => setEditing(null)}
         onSave={async (body) => {
@@ -1744,11 +1799,17 @@ function WodTab({ gymId }: { gymId: string }) {
   const hasta = isoLocal(sumarDias(lunes, 6));
   const semana = useWodsRango(gymId, desde, hasta);
 
+  // Los programas que llevan workout y están vivos: la misma lista que el backend
+  // (`programas_con_wod`) y el app (`programasConWod`).
   const wodServices = useMemo(
-    () => ((services.data ?? []) as ServiceType[]).filter((s) => s.requires_wod),
+    () =>
+      ((services.data ?? []) as ServiceType[]).filter(
+        (s) => s.requires_wod && s.is_active !== false && s.status === "active",
+      ),
     [services.data],
   );
-  // Programa elegido; "" = General. Mientras no se elija, el primero con workout.
+  // Programa elegido; "" = General (solo en un gym sin programas con workout).
+  // Mientras no se elija, el primero con workout.
   const [elegido, setElegido] = useState<string | null>(null);
   const programa = elegido ?? wodServices[0]?.id ?? "";
 
@@ -1784,10 +1845,13 @@ function WodTab({ gymId }: { gymId: string }) {
     });
   };
 
-  const opcionesPrograma = [
-    ...wodServices.map((s) => ({ value: s.id, label: s.name })),
-    { value: "", label: "General (todo el gimnasio)" },
-  ];
+  // Con programas no hay «General» (Vertikal, ronda 6): un workout General no lo
+  // ve ninguna clase, y por aquí nació el de CrossFit que salía en Functional e
+  // Hybrid. Solo un gym sin programas con workout programa «General».
+  const opcionesPrograma =
+    wodServices.length > 0
+      ? wodServices.map((s) => ({ value: s.id, label: s.name }))
+      : [{ value: "", label: "General (todo el gimnasio)" }];
   const semanaRows = (semana.data ?? []) as Wod[];
   // De hoy en adelante, lunes a sábado: los días que todavía se pueden programar.
   const porProgramar = diasDeSemana(lunes)
@@ -1828,7 +1892,11 @@ function WodTab({ gymId }: { gymId: string }) {
             ›
           </Button>
         </Group>
-        <Button onClick={() => setProgramando(porProgramar[0] ?? hoy)}>Programar</Button>
+        {/* Hasta que llega el catálogo no se sabe si hay programas: sin esperar,
+            el workout nacería «General» y el backend lo rechazaría. */}
+        <Button onClick={() => setProgramando(porProgramar[0] ?? hoy)} disabled={services.isLoading}>
+          Programar
+        </Button>
       </Encabezado>
       {!esEstaSemana && (
         <Text size="sm" c="dimmed" mb="sm">
@@ -1899,8 +1967,14 @@ function NuevoWodModal({
   const [texto, setTexto] = useState("");
   const [partes, setPartes] = useState<ParteBorrador[]>([]);
   const [published, setPublished] = useState(true);
+  // Título (ronda 6): automático («CrossFit - Lun, 16 Nov») y se recalcula con la
+  // fecha y el programa HASTA que se escribe a mano.
+  const [titulo, setTitulo] = useState("");
+  const [tituloManual, setTituloManual] = useState(false);
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
   const dateStr = iso(date);
+  const nombrePrograma = programa ? (opcionesPrograma.find((o) => o.value === programa)?.label ?? null) : null;
+  const tituloAuto = tituloAutomaticoWod(dateStr, nombrePrograma);
   // El del día elegido, para no ofrecer crear uno que ya existe.
   const delDia = useWods(gymId, dateStr);
 
@@ -1911,6 +1985,8 @@ function NuevoWodModal({
     setTexto("");
     setPartes([]);
     setPublished(true);
+    setTitulo("");
+    setTituloManual(false);
   }
   if (!fecha && hydratedFor) setHydratedFor(null);
 
@@ -1918,26 +1994,30 @@ function NuevoWodModal({
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!date || partes.length === 0) return;
-    const errorBloques = errorDePartes(partes);
+    if (!date) return;
+    // Solo bloques (ronda 6): la rutina ya no se guarda como texto suelto.
+    const errorBloques = errorDePartes(partes, { exigirBloque: true });
     if (errorBloques) {
       notifications.show({ color: "red", message: errorBloques });
       return;
     }
+    const tituloEscrito = tituloManual ? titulo.trim() : "";
     try {
-      // Sin título ni descripción: cada bloque trae los suyos y el backend le
-      // pone al workout el nombre de su día. El score lo da el bloque principal.
+      // Sin descripción: el texto pegado es solo ayuda para armar los bloques. Sin
+      // título escrito a mano no se manda: el backend pone el automático (la misma
+      // regla que se ve en el campo). El score lo da el bloque principal.
       await create.mutateAsync({
         service_type: programa || null,
         date: dateStr,
         published,
+        ...(tituloEscrito ? { title: tituloEscrito } : {}),
         parts: partesParaGuardar(partes, false),
       });
       ok(published ? "Workout publicado." : "Workout guardado como borrador.");
       onCreado(dateStr);
       onClose();
     } catch (error) {
-      fail(error, "No se pudo crear el workout.");
+      failWod(error, "No se pudo crear el workout.");
     }
   };
 
@@ -1972,8 +2052,32 @@ function NuevoWodModal({
           </Alert>
         ) : (
           <>
+            <TextInput
+              label="Título"
+              value={tituloManual ? titulo : tituloAuto}
+              placeholder={tituloAuto}
+              onChange={(e) => {
+                setTitulo(e.currentTarget.value);
+                setTituloManual(true);
+              }}
+              description={
+                tituloManual ? (
+                  <>
+                    Escrito a mano: ya no cambia con la fecha ni el programa.{" "}
+                    <Anchor component="button" type="button" size="xs" onClick={() => setTituloManual(false)}>
+                      Volver al automático
+                    </Anchor>
+                  </>
+                ) : (
+                  "Se arma solo con el programa y la fecha. Puedes cambiarlo."
+                )
+              }
+              mt="md"
+              maxLength={120}
+            />
             <Textarea
               label="Pega el workout (opcional)"
+              description="Solo es ayuda para armar los bloques: este texto no se guarda."
               placeholder={"Warmup\n3 Sets\n200M Jog\n\nCustom Metcon (Tiempo)\nFor Time\n100 Ring Rows"}
               value={texto}
               onChange={(e) => setTexto(e.currentTarget.value)}
@@ -1999,7 +2103,7 @@ function NuevoWodModal({
                 <Button variant="default" onClick={onClose}>
                   Cancelar
                 </Button>
-                <Button type="submit" loading={create.isPending} disabled={!date || partes.length === 0}>
+                <Button type="submit" loading={create.isPending} disabled={!date}>
                   {published ? "Publicar workout" : "Guardar borrador"}
                 </Button>
               </Group>
@@ -2030,40 +2134,76 @@ function EditWodModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null;
 function EditWodForm({ gymId, wod, onClose }: { gymId: string; wod: Wod; onClose: () => void }) {
   const update = useUpdateWod(gymId);
   // Un workout de antes de los bloques trae todo en su descripción: se ofrece en
-  // la caja para armar los bloques desde ahí, y lo que quede en ella se guarda
-  // como su descripción (para que el app no repita el texto encima de los bloques).
+  // la caja SOLO para armar los bloques desde ahí. El panel ya no guarda texto
+  // suelto (ronda 6): al pasarlo a bloques la descripción vieja se vacía, para que
+  // el app no repita el texto encima de los bloques; sin bloques, no se toca.
   const teniaDescripcion = !!wod.description?.trim();
   const [texto, setTexto] = useState(wod.description ?? "");
   const [partes, setPartes] = useState<ParteBorrador[]>(() => partesParaEditar(wod));
+  // Título: aquí no cambian ni la fecha ni el programa, así que el automático es
+  // el que ya calculó el backend. «Editado a mano» = distinto de él.
+  const tituloAuto = wod.titulo_automatico ?? "";
+  const [titulo, setTitulo] = useState(wod.title);
+  // En blanco cuenta como automático: al guardar se pone el automático.
+  const manual = !!titulo.trim() && titulo.trim() !== tituloAuto;
 
   const guardar = async (e: FormEvent) => {
     e.preventDefault();
-    const errorBloques = errorDePartes(partes);
+    // Un workout con bloques no se queda sin ninguno; uno viejo de solo texto se
+    // sigue editando sin ellos (el backend acepta el PATCH sin `parts`).
+    const errorBloques = errorDePartes(partes, { exigirBloque: tienePartes(wod), originales: wod.parts });
     if (errorBloques) {
       notifications.show({ color: "red", message: errorBloques });
       return;
     }
     const parts = partesParaGuardar(partes, tienePartes(wod));
+    // En blanco = el automático (nunca se guarda un título vacío).
+    const tituloFinal = titulo.trim() || tituloAuto || wod.title;
+    const pasaABloques = teniaDescripcion && partes.length > 0;
     try {
       await update.mutateAsync({
         id: wod.id,
-        body: { ...(teniaDescripcion ? { description: texto } : {}), ...(parts ? { parts } : {}) },
+        body: {
+          ...(tituloFinal !== wod.title ? { title: tituloFinal } : {}),
+          ...(pasaABloques ? { description: "" } : {}),
+          ...(parts ? { parts } : {}),
+        },
       });
       ok("Workout actualizado.");
       onClose();
     } catch (error) {
-      fail(error, "No se pudo guardar el workout.");
+      failWod(error, "No se pudo guardar el workout.");
     }
   };
 
   return (
     <form onSubmit={guardar}>
+      <TextInput
+        label="Título"
+        value={titulo}
+        placeholder={tituloAuto}
+        onChange={(e) => setTitulo(e.currentTarget.value)}
+        description={
+          manual && tituloAuto ? (
+            <>
+              Escrito a mano.{" "}
+              <Anchor component="button" type="button" size="xs" onClick={() => setTitulo(tituloAuto)}>
+                Volver al automático
+              </Anchor>
+            </>
+          ) : tituloAuto ? (
+            "Automático: se arma con el programa y la fecha. Puedes cambiarlo."
+          ) : undefined
+        }
+        maxLength={120}
+        mb="md"
+      />
       <Textarea
         label={teniaDescripcion ? "Texto del workout" : "Pega el workout"}
         description={
           teniaDescripcion
-            ? "Este workout es de antes de los bloques. Presiona «Armar bloques desde el texto» para pasarlo a bloques."
-            : "Opcional. Pega la rutina y presiona «Armar bloques desde el texto» para reemplazar los bloques."
+            ? "Este workout es de antes de los bloques. Presiona «Armar bloques desde el texto» para pasarlo a bloques: al guardar con bloques, este texto deja de mostrarse."
+            : "Opcional, y no se guarda. Pega la rutina y presiona «Armar bloques desde el texto» para reemplazar los bloques."
         }
         value={texto}
         onChange={(e) => setTexto(e.currentTarget.value)}
@@ -2087,7 +2227,7 @@ function EditWodForm({ gymId, wod, onClose }: { gymId: string; wod: Wod; onClose
         </Alert>
       ) : null}
       <Divider my="md" label="Bloques del día" labelPosition="left" />
-      <WodPartsEditor partes={partes} onChange={setPartes} scoreTypes={SCORE_TYPES} />
+      <WodPartsEditor partes={partes} onChange={setPartes} scoreTypes={SCORE_TYPES} originales={wod.parts} />
       <Group justify="flex-end" mt="lg">
         <Button variant="default" onClick={onClose}>
           Cancelar
@@ -2119,6 +2259,9 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
   const [error, setError] = useState("");
   // En la fuerza el peso solo no decía qué se hizo: «105 · 5×2». No rankean.
   const esCarga = (bloque?.scoreType ?? wod?.score_type) === "load";
+  // Lo que programó el coach (5 x 3): si se deja vacío, el backend pone eso.
+  const setsCoach = bloque?.sets ?? null;
+  const repsCoach = bloque?.reps ?? null;
 
   const athleteOptions = (memberships.data ?? [])
     .filter((m) => !!m.status && ["active", "trial"].includes(m.status))
@@ -2190,8 +2333,8 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
         {esCarga ? (
           <>
             <NumberInput
-              label="Rondas"
-              placeholder="5"
+              label="Sets"
+              placeholder={setsCoach ? String(setsCoach) : "5"}
               value={sets}
               onChange={setSets}
               min={1}
@@ -2201,7 +2344,7 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
             />
             <NumberInput
               label="Reps"
-              placeholder="2"
+              placeholder={repsCoach ? String(repsCoach) : "3"}
               value={reps}
               onChange={setReps}
               min={1}
@@ -2265,6 +2408,7 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
                         {textoRondas(r)}
                       </Text>
                     ) : null}
+                    <AdjuntosScore media={r.media} atleta={r.athlete_name} />
                   </Group>
                 </Table.Td>
                 <Table.Td>
@@ -2281,81 +2425,83 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
   );
 }
 
+/**
+ * Las fotos o videos que el atleta le adjuntó a su score (ronda 6): miniatura o
+ * enlace que abre el archivo en otra pestaña. Sin adjuntos no pinta nada.
+ */
+function AdjuntosScore({ media, atleta }: { media?: WodResultMedia[]; atleta: string }) {
+  const visibles = (media ?? []).filter((m) => !!m.url);
+  if (!visibles.length) return null;
+  return (
+    <Group gap={4} wrap="nowrap">
+      {visibles.map((m, i) =>
+        m.kind === "video" ? (
+          <Anchor key={m.id} href={m.url!} target="_blank" rel="noopener noreferrer" size="xs">
+            ▶ Video
+          </Anchor>
+        ) : (
+          <Anchor
+            key={m.id}
+            href={m.url!}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Foto ${i + 1} del score de ${atleta}`}
+          >
+            <Image src={m.url!} alt="" w={28} h={28} radius="sm" fit="cover" />
+          </Anchor>
+        ),
+      )}
+    </Group>
+  );
+}
+
 type CoachOpt = { staff_role: string; name: string; email: string; pay_type: "per_class" | "fixed" };
 
 function AssignCoachModal({
   gymClass,
-  gymId,
   coaches,
   onClose,
   onSave,
   saving,
 }: {
   gymClass: ClassRow | null;
-  gymId: string;
   coaches: CoachOpt[];
   onClose: () => void;
   onSave: (body: {
     coach: string | null;
-    assignment_lead_min: number;
     pay_extra: boolean;
     extra_amount: string | number;
   }) => Promise<void>;
   saving: boolean;
 }) {
   const [coach, setCoach] = useState<string | null>(null);
-  const [lead, setLead] = useState<number | string>(60);
   const [payExtra, setPayExtra] = useState(false);
   const [extra, setExtra] = useState<number | string>(0);
-  const [recado, setRecado] = useState("");
   const [error, setError] = useState("");
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
-  const invitar = useInviteCoachToClass(gymId);
 
   // Prefill cuando se abre con una clase distinta.
   if (gymClass && hydratedFor !== gymClass.id) {
     setHydratedFor(gymClass.id);
     setCoach(gymClass.coach ?? null);
-    setLead(gymClass.assignment_lead_min ?? 60);
     setPayExtra(gymClass.pay_extra ?? false);
     setExtra(gymClass.extra_amount ?? 0);
-    setRecado("");
     setError("");
   }
 
   const selectedFixed = coaches.find((c) => c.staff_role === coach)?.pay_type === "fixed";
-  // Ofrecer sólo tiene sentido si la clase está libre y hay alguien elegido: con
-  // coach puesto, cambiarlo es asignar, no preguntar.
-  const puedeInvitar = !!gymClass && !gymClass.coach && !!coach;
 
   const save = async () => {
     setError("");
     try {
       await onSave({
         coach,
-        assignment_lead_min: Number(lead),
         pay_extra: selectedFixed ? payExtra : false,
         extra_amount: selectedFixed && payExtra ? extra : 0,
       });
     } catch (e) {
       const detail = (e as AxiosError<{ detail?: string }>).response?.data?.detail;
       setError(detail ?? "No se pudo guardar.");
-    }
-  };
-
-  const ofrecer = async () => {
-    if (!gymClass || !coach) return;
-    setError("");
-    try {
-      await invitar.mutateAsync({ classId: gymClass.id, coachId: coach, message: recado });
-      notifications.show({
-        color: "teal",
-        message: "Invitación enviada. La clase queda libre hasta que el coach acepte.",
-      });
-      onClose();
-    } catch (e) {
-      const detail = (e as AxiosError<{ detail?: string }>).response?.data?.detail;
-      setError(detail ?? "No se pudo enviar la invitación.");
     }
   };
 
@@ -2371,14 +2517,6 @@ function AssignCoachModal({
         data={coaches.map((c) => ({ value: c.staff_role, label: c.name || c.email }))}
         mb="sm"
       />
-      <NumberInput
-        label="Tiempo límite de asignación (min antes del inicio)"
-        value={lead}
-        onChange={setLead}
-        min={0}
-        max={1440}
-        mb="sm"
-      />
       {selectedFixed && (
         <>
           <Switch
@@ -2390,32 +2528,6 @@ function AssignCoachModal({
           {payExtra && (
             <NumberInput label="Monto extra" prefix="Q" value={extra} onChange={setExtra} min={0} decimalScale={2} mb="sm" />
           )}
-        </>
-      )}
-      {/* Preguntar en vez de imponer. Poner a alguien en el horario no es lo
-          mismo que acordarlo con él: el coach puede no poder ese día, y que se
-          entere cuando la clase ya está en su agenda es como se quedan las
-          clases sin dar. Ofrecer la deja libre hasta que él acepte, y si dice
-          que no, te llega el aviso a tiempo de repartirla. */}
-      {puedeInvitar && (
-        <>
-          <Divider my="sm" label="o pregúntale primero" labelPosition="center" />
-          <TextInput
-            label="Recado para el coach (opcional)"
-            placeholder="¿Puedes con esta?"
-            value={recado}
-            onChange={(e) => setRecado(e.currentTarget.value)}
-            mb="sm"
-          />
-          <Button
-            variant="light"
-            fullWidth
-            loading={invitar.isPending}
-            onClick={ofrecer}
-            mb="sm"
-          >
-            Ofrecerle la clase (decide él)
-          </Button>
         </>
       )}
       {error && (

@@ -6,11 +6,13 @@ import {
   bloqueoParaReemplazar,
   bloquesConScore,
   errorDePartes,
+  exigeSetsYReps,
   moverParte,
   partesDesdeSugerencia,
   partesParaEditar,
   partesParaGuardar,
   resumenDeParte,
+  textoSetsReps,
 } from "./wodPartes";
 
 const parte = (over: Partial<WodPart>): WodPart =>
@@ -98,7 +100,41 @@ describe("edición", () => {
     expect(errorDePartes([{ title: "Fuerza", score_type: "load" }])).toBe(
       "«Fuerza» es de carga: elige su levantamiento base.",
     );
-    expect(errorDePartes([{ title: "Fuerza", score_type: "load", movement: "power_clean" }])).toBeNull();
+    expect(
+      errorDePartes([{ title: "Fuerza", score_type: "load", movement: "power_clean", sets: 5, movement_reps: 3 }]),
+    ).toBeNull();
+  });
+
+  it("sin bloques no se crea el workout (mismo mensaje del backend)", () => {
+    expect(errorDePartes([], { exigirBloque: true })).toBe("Arma la rutina con al menos un bloque.");
+    // Un WOD viejo de solo texto se sigue editando sin bloques.
+    expect(errorDePartes([])).toBeNull();
+  });
+
+  it("un bloque de carga nuevo pide Sets x Reps con el mensaje del backend", () => {
+    const base = { title: " Fuerza A ", score_type: "load" as const, movement: "back_squat" };
+    expect(errorDePartes([base])).toBe("«Fuerza A» es de carga: indica Sets x Reps (p. ej. 5 x 3).");
+    expect(errorDePartes([{ ...base, sets: 5 }])).toBe("«Fuerza A» es de carga: indica Sets x Reps (p. ej. 5 x 3).");
+    expect(errorDePartes([{ ...base, movement_reps: 3 }])).toBe(
+      "«Fuerza A» es de carga: indica Sets x Reps (p. ej. 5 x 3).",
+    );
+    expect(errorDePartes([{ ...base, sets: 100, movement_reps: 3 }])).toBe("«Fuerza A»: Sets va de 1 a 99.");
+    expect(errorDePartes([{ ...base, sets: 5, movement_reps: 31 }])).toBe("«Fuerza A»: Reps va de 1 a 30.");
+    // Un bloque que no es de carga no los pide.
+    expect(errorDePartes([{ title: "Metcon", score_type: "for_time" }])).toBeNull();
+  });
+
+  it("un bloque de carga viejo que nunca tuvo Sets x Reps se sigue guardando sin ellos", () => {
+    const viejo = parte({ id: "v", title: "Fuerza", score_type: "load", movement: "back_squat", sets: null });
+    const borrador = { id: "v", title: "Fuerza", score_type: "load" as const, movement: "back_squat" };
+    expect(errorDePartes([borrador], { originales: [viejo] })).toBeNull();
+    // Pero si ya los tenía no se pueden vaciar, y si pasa a ser de carga los pide.
+    const conSets = parte({ ...viejo, sets: 5, movement_reps: 3 });
+    expect(errorDePartes([borrador], { originales: [conSets] })).toMatch(/indica Sets x Reps/);
+    const eraMetcon = parte({ id: "v", title: "Fuerza", score_type: "for_time" });
+    expect(exigeSetsYReps(borrador, eraMetcon)).toBe(true);
+    expect(exigeSetsYReps(borrador, viejo)).toBe(false);
+    expect(exigeSetsYReps({ title: "Nuevo", score_type: "load" })).toBe(true);
   });
 
   it("mover fuera de rango no cambia nada", () => {
@@ -113,6 +149,13 @@ describe("resumenDeParte", () => {
     expect(
       resumenDeParte(parte({ title: "Fuerza A", score_type: "load", movement: "back_squat", movement_reps: 3 }), label),
     ).toBe("Fuerza A · Carga · Back squat x3");
+    expect(
+      resumenDeParte(
+        parte({ title: "Fuerza A", score_type: "load", movement: "back_squat", sets: 5, movement_reps: 3 }),
+        label,
+      ),
+    ).toBe("Fuerza A · Carga · Back squat 5 x 3");
+    expect(textoSetsReps({ sets: 5, movement_reps: null })).toBe("");
     expect(resumenDeParte(parte({ title: "Calentamiento" }), label)).toBe("Calentamiento · sin score");
   });
 });
@@ -128,7 +171,8 @@ describe("bloques armados desde el texto", () => {
         time_cap_min: null,
         load_unit: "lb",
         movement: "power_clean",
-        movement_reps: null,
+        movement_reps: 3,
+        sets: 5,
         is_benchmark: false,
       },
       {
@@ -140,13 +184,16 @@ describe("bloques armados desde el texto", () => {
         load_unit: "",
         movement: null,
         movement_reps: null,
+        sets: null,
         is_benchmark: false,
       },
     ]);
     expect(borradores.every((b) => !("id" in b))).toBe(true);
     const body = partesParaGuardar(borradores, false)!;
-    expect(body[0]).toMatchObject({ movement: "power_clean", load_unit: "lb", movement_reps: null });
-    expect(body[1]).toMatchObject({ score_type: "for_time", load_unit: "", movement: null });
+    // Los Sets x Reps que leyó el backend («5x3») llegan al bloque y se guardan.
+    expect(body[0]).toMatchObject({ movement: "power_clean", load_unit: "lb", sets: 5, movement_reps: 3 });
+    expect(body[1]).toMatchObject({ score_type: "for_time", load_unit: "", movement: null, sets: null });
+    expect(errorDePartes(borradores)).toBeNull();
   });
 
   it("no deja reemplazar bloques que ya tienen scores", () => {

@@ -22,7 +22,7 @@ describe("PENDING_ITEMS", () => {
     // Si un pendiente suma al badge pero no está aquí, la campana marca un
     // número y el desplegable dice "todo al día".
     const listados = PENDING_ITEMS.map((i) => i.key);
-    for (const key of ["solicitudes", "coaches", "solicitudes_clase", "posts", "tickets", "clases_sin_wod", "pedidos", "clubes", "bajas", "morosos", "comentarios", "apelaciones", "denuncias_club"]) {
+    for (const key of ["solicitudes", "coaches", "posts", "tickets", "clases_sin_wod", "pedidos", "clubes", "bajas", "morosos", "comentarios", "apelaciones", "denuncias_club"]) {
       expect(listados).toContain(key);
     }
   });
@@ -32,9 +32,8 @@ describe("PENDING_ITEMS", () => {
     expect(pedidos?.to).toBe("/panel/inventario?tab=pedidos");
     const bajas = PENDING_ITEMS.find((i) => i.key === "bajas");
     expect(bajas?.to).toBe("/panel/atletas?filtro=bajas");
-    // La postulación se decide viendo la franja: su pestaña, no el calendario.
-    const clase = PENDING_ITEMS.find((i) => i.key === "solicitudes_clase");
-    expect(clase?.to).toBe("/panel/clases?tab=requests");
+    // Las coberturas se retiraron (16-nov-2026): ya no hay «coaches que piden clase».
+    expect(PENDING_ITEMS.find((i) => (i.key as string) === "solicitudes_clase")).toBeUndefined();
     // Los morosos se cobran en Membresías ("Por cobrar"), no en el padrón.
     expect(PENDING_ITEMS.find((i) => i.key === "morosos")?.to).toBe("/panel/pagos");
     expect(PENDING_ITEMS.find((i) => i.key === "clases_sin_wod")?.to).toBe("/panel/clases?tab=wod");

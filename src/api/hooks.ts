@@ -35,7 +35,6 @@ import {
   ErpPnl,
   ErpBranch,
   GymClub,
-  ClassAssignmentRequest,
   Coach,
   CoachPayout,
   CoachRequest,
@@ -1282,83 +1281,6 @@ export function useUpdateCoach(gymId: string) {
   });
 }
 
-/**
- * Postulaciones de coaches a clases sin asignar (bandeja del gym).
- *
- * Es la contraparte del handoff: allí el gym ya se quedó sin coach y corre un
- * reloj de 20 minutos; aquí un coach pidió una clase futura y **nadie queda
- * asignado hasta que el gimnasio apruebe**.
- */
-/**
- * Las clases en conversación con los coaches. `kind` separa las dos mitades:
- * `request` (te la piden, decides tú) e `invite` (la ofreciste, decide el coach).
- * Sin `kind` vienen las dos, que es como se lee la bandeja.
- */
-export function useClassRequests(gymId: string, status = "pending", kind?: "request" | "invite") {
-  return useQuery({
-    queryKey: ["class-requests", gymId, status, kind ?? "todas"],
-    queryFn: () =>
-      getList<ClassAssignmentRequest>(
-        `/gym/${gymId}/class-requests?status=${status}${kind ? `&kind=${kind}` : ""}`,
-      ),
-    enabled: !!gymId,
-  });
-}
-
-/**
- * El gimnasio le OFRECE una clase a un coach: queda pendiente de que él acepte.
- *
- * No es asignar (eso es el PATCH de la clase). Es la otra mitad de
- * `useClassRequests`: la misma tabla, con la decisión del otro lado.
- */
-export function useInviteCoachToClass(gymId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      classId,
-      coachId,
-      message,
-    }: {
-      classId: string;
-      coachId: string;
-      message?: string;
-    }) =>
-      (
-        await api.post(`/gym/${gymId}/classes/${classId}/invite-coach`, {
-          coach_id: coachId,
-          message: message ?? "",
-        })
-      ).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["class-requests", gymId] });
-      qc.invalidateQueries({ queryKey: ["gym-classes", gymId] });
-    },
-  });
-}
-
-export function useDecideClassRequest(gymId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      requestId,
-      action,
-      note,
-    }: {
-      requestId: string;
-      action: "approve" | "reject";
-      note?: string;
-    }) =>
-      (await api.post(`/gym/${gymId}/class-requests/${requestId}/${action}`, { note: note ?? "" }))
-        .data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["class-requests", gymId] });
-      // Aprobar ASIGNA la clase: el calendario cambia con la misma llamada.
-      qc.invalidateQueries({ queryKey: ["gym-classes", gymId] });
-      invalidarPendientes(qc, gymId);
-    },
-  });
-}
-
 export function useCoachPayouts(gymId: string) {
   return useQuery({
     queryKey: ["coach-payouts", gymId],
@@ -1695,6 +1617,12 @@ export function useUpdateGymConfig(gymId: string) {
   return useMutation({
     mutationFn: async (body: {
       allow_future_reservations?: boolean;
+      /**
+       * Horas antes del inicio en que se abre la reserva de CADA clase (1..720).
+       * Con valor manda sobre `allow_future_reservations`; `null` = la política
+       * de siempre (Vertikal, 16-nov-2026: «Siempre 12 h antes»).
+       */
+      reservations_open_hours_before?: number | null;
       /** Días sin asistir a ESTE gym para marcar "en riesgo" (1..365). */
       risk_inactivity_days?: number;
       /**

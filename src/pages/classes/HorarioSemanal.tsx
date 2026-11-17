@@ -171,7 +171,7 @@ function Clase({
       >
         <Text size="sm" fw={700} truncate c={sinCoach ? "var(--mantine-color-yellow-light-color)" : undefined}>
           {conHora ? `${horaDe(franja)} · ` : ""}
-          {coach ?? "Sin coach"}
+          {coach ?? "Sin coach asignado"}
         </Text>
         <Text size="xs" c="dimmed" truncate>
           {detalle}

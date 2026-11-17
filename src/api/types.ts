@@ -352,12 +352,6 @@ export interface Dashboard {
 export interface PendingSummary {
   solicitudes: number;
   coaches: number;
-  /**
-   * Coaches que se postularon a una clase concreta sin asignar y esperan que el
-   * gimnasio decida. Suma a `total`: pedir NO asigna nada, así que si el gym no
-   * responde la clase se queda sin coach. Falta si el backend es viejo.
-   */
-  solicitudes_clase?: number;
   posts: number;
   /**
    * Comentarios del feed ocultos por reporte (moderación reactiva), esperando
@@ -929,14 +923,6 @@ export interface CoachRequest {
   created_at: string;
 }
 
-/**
- * Postulación de un coach a una clase concreta que el gym todavía no asignó.
- *
- * No confundir con `CoachRequest`, que es el alta del coach EN el gimnasio. Aquí
- * el coach ya trabaja ahí y pide una franja: aprobarla asigna la clase.
- */
-export type ClassAssignmentRequest = components["schemas"]["ClassAssignmentRequest"];
-
 export interface CoachPayout {
   id: string;
   coach: string;
@@ -1053,6 +1039,12 @@ export interface Wod {
    */
   parts?: WodPart[];
   results_count: number;
+  /**
+   * El título que el backend le pondría hoy («CrossFit - Lun, 16 Nov», con la
+   * fecha y el programa actuales). `title === titulo_automatico` = el título no se
+   * editó a mano y se recalcula al cambiar fecha o programa. Falta si el backend es viejo.
+   */
+  readonly titulo_automatico?: string;
 }
 
 // Partes e importación: del contrato generado, no a mano.
@@ -1086,8 +1078,12 @@ export interface WodResult {
   sets?: number | null;
   reps?: number | null;
   rank?: number;
+  /** Fotos o videos que el atleta le adjuntó a su score. Falta si el backend es viejo. */
+  media?: WodResultMedia[];
   created_at: string;
 }
+/** Foto o video adjunto a un score (`WodResultMedia`). */
+export type WodResultMedia = components["schemas"]["WodResultMedia"];
 
 export interface ErpRevenueLine {
   line: string;
