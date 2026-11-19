@@ -13,6 +13,7 @@ import {
   Image,
   Modal,
   NumberInput,
+  Popover,
   Progress,
   SegmentedControl,
   Select,
@@ -1102,6 +1103,54 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
     );
   };
 
+  /**
+   * Cierre de la reserva (Vertikal, 19-nov-2026): las clases de la mañana cierran
+   * la noche anterior a una hora fija y el resto N minutos antes. Se editan juntos
+   * en un popover y se guardan con un solo PATCH.
+   */
+  const cierreMin = config.data?.reservations_close_minutes_before ?? null;
+  const cierreNoche = config.data?.reservations_close_previous_day_at?.slice(0, 5) ?? null;
+  const mananaHasta = config.data?.reservations_morning_until_hour ?? 12;
+  const [cierreAbierto, setCierreAbierto] = useState(false);
+  const [minDraft, setMinDraft] = useState<number | string>("");
+  const [nocheDraft, setNocheDraft] = useState("");
+  const [hastaDraft, setHastaDraft] = useState<number | string>(12);
+  const abrirCierre = () => {
+    setMinDraft(cierreMin ?? "");
+    setNocheDraft(cierreNoche ?? "");
+    setHastaDraft(mananaHasta);
+    setCierreAbierto(true);
+  };
+  const resumenCierre = [
+    cierreNoche ? `mañana: ${cierreNoche} día anterior` : null,
+    cierreMin ? `${cierreMin} min antes` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const guardarCierre = () => {
+    const minutos = minDraft === "" ? null : Number(minDraft);
+    const noche = nocheDraft === "" ? null : nocheDraft;
+    const hasta = hastaDraft === "" ? 12 : Number(hastaDraft);
+    updateConfig.mutate(
+      {
+        reservations_close_minutes_before: minutos,
+        reservations_close_previous_day_at: noche,
+        reservations_morning_until_hour: hasta,
+      },
+      {
+        onSuccess: () => {
+          setCierreAbierto(false);
+          ok(
+            minutos || noche
+              ? "Listo: las reservas ya cierran con la nueva regla."
+              : "Las reservas ya no cierran antes de la clase.",
+          );
+        },
+        onError: (error) => fail(error, "No se pudo guardar el cierre de reservas."),
+      },
+    );
+  };
+
   // El día que se mira y la semana de la tira. Arranca en hoy.
   const [dia, setDia] = useState(hoy);
   const [lunes, setLunes] = useState(() => lunesDe(new Date()));
@@ -1219,6 +1268,62 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
             disabled={config.isLoading || updateConfig.isPending}
           />
         </Tooltip>
+        <Popover opened={cierreAbierto} onChange={setCierreAbierto} position="bottom-end" withArrow shadow="md" width={300}>
+          <Popover.Target>
+            <Button
+              variant="default"
+              size="xs"
+              onClick={() => (cierreAbierto ? setCierreAbierto(false) : abrirCierre())}
+              disabled={config.isLoading}
+            >
+              {resumenCierre ? `Cierre: ${resumenCierre}` : "Cierre de reservas"}
+            </Button>
+          </Popover.Target>
+          <Popover.Dropdown>
+            <Stack gap="xs">
+              <Text size="sm" fw={600}>
+                ¿Hasta cuándo se puede reservar?
+              </Text>
+              <TimeInput
+                label="Clases de la mañana: cierran la noche anterior a las"
+                description="Vacío: las de la mañana cierran como las demás."
+                value={nocheDraft}
+                onChange={(e) => setNocheDraft(e.currentTarget.value)}
+                size="xs"
+              />
+              <NumberInput
+                label="Son de la mañana las que empiezan antes de las"
+                rightSection={<Text size="xs" c="dimmed">h</Text>}
+                min={1}
+                max={23}
+                allowDecimal={false}
+                value={hastaDraft}
+                onChange={setHastaDraft}
+                size="xs"
+              />
+              <NumberInput
+                label="Las demás clases cierran"
+                description="Vacío: se puede reservar hasta que empiece la clase."
+                rightSection={<Text size="xs" c="dimmed">min antes</Text>}
+                rightSectionWidth={70}
+                min={1}
+                max={1440}
+                allowDecimal={false}
+                value={minDraft}
+                onChange={setMinDraft}
+                size="xs"
+              />
+              <Group justify="flex-end" gap="xs">
+                <Button variant="default" size="xs" onClick={() => setCierreAbierto(false)}>
+                  Cancelar
+                </Button>
+                <Button size="xs" onClick={guardarCierre} loading={updateConfig.isPending}>
+                  Guardar cierre
+                </Button>
+              </Group>
+            </Stack>
+          </Popover.Dropdown>
+        </Popover>
         <Tooltip
           label={
             horasGuardadas

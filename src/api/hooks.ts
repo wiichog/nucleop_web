@@ -1623,6 +1623,15 @@ export function useUpdateGymConfig(gymId: string) {
        * de siempre (Vertikal, 16-nov-2026: «Siempre 12 h antes»).
        */
       reservations_open_hours_before?: number | null;
+      /**
+       * Cierre de la reserva (Vertikal, 19-nov-2026). `null` = no cierra antes de
+       * la clase. Las de la mañana (inicio antes de `reservations_morning_until_hour`)
+       * cierran la noche anterior a `reservations_close_previous_day_at` ("22:00");
+       * el resto `reservations_close_minutes_before` minutos antes (1..1440).
+       */
+      reservations_close_minutes_before?: number | null;
+      reservations_close_previous_day_at?: string | null;
+      reservations_morning_until_hour?: number | null;
       /** Días sin asistir a ESTE gym para marcar "en riesgo" (1..365). */
       risk_inactivity_days?: number;
       /**

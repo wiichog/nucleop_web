@@ -180,6 +180,19 @@ export const manualesOperacion: ManualesPorRuta = {
           "Con 12, la clase de las 5:00 a. m. se puede reservar desde las 5:00 p. m. del día anterior, y la de las 11:00 a. m. desde las 11:00 p. m. Mientras tenga horas, manda esta regla y «Reservar días futuros» queda apagado; vacío, todo funciona como antes.",
       },
       {
+        titulo: "Cerrar las reservas antes de la clase",
+        pasos: [
+          "Entra a la pestaña «Clases».",
+          "Arriba a la derecha, presiona «Cierre de reservas».",
+          "En «Clases de la mañana: cierran la noche anterior a las», escribe la hora (por ejemplo 22:00, las 10 de la noche).",
+          "En «Son de la mañana las que empiezan antes de las», escribe la hora en que termina la mañana (por ejemplo 12).",
+          "En «Las demás clases cierran», escribe los minutos (por ejemplo 60 para una hora antes).",
+          "Presiona «Guardar cierre».",
+        ],
+        nota:
+          "Con 10:00 p. m., 12 y 60, la clase de las 6:00 a. m. se reserva hasta las 10:00 p. m. del día anterior, y la de las 6:00 p. m. hasta las 5:00 p. m. Pasada esa hora el atleta ve que las reservas cerraron. Si una clase de la mañana todavía no abre a las 10:00 p. m. (por las horas de «Abre … h antes»), esa clase cierra con los minutos, como las demás. Para quitar el cierre, deja los campos vacíos y guarda. El botón muestra la regla que tienes puesta.",
+      },
+      {
         titulo: "Crear un pase para visitantes (drop-in)",
         pasos: [
           "Entra a la pestaña «Drop-ins / Pases» y presiona «Nuevo pase».",

@@ -7101,6 +7101,8 @@ export interface components {
             readonly is_reservable: boolean;
             /** Format: date-time */
             readonly reservations_open_at: string | null;
+            /** Format: date-time */
+            readonly reservations_close_at: string | null;
             /** @default 5 */
             readonly completion_points: number;
             readonly reserved_by_me: boolean;
@@ -8320,6 +8322,10 @@ export interface components {
             is_public?: boolean;
             allow_future_reservations?: boolean;
             reservations_open_hours_before?: number | null;
+            reservations_close_minutes_before?: number | null;
+            /** Format: time */
+            reservations_close_previous_day_at?: string | null;
+            reservations_morning_until_hour?: number | null;
             /** @description Días sin asistir a ESTE gimnasio para considerar al atleta en riesgo de abandono (motor de retención). */
             risk_inactivity_days?: number;
             /** @description Días de mora tolerados antes del corte automático de la membresía (ACTIVE → vencida). El corte es reversible: al pagar vuelve a activa. */
@@ -8462,6 +8468,8 @@ export interface components {
             readonly is_reservable: boolean;
             /** Format: date-time */
             readonly reservations_open_at: string | null;
+            /** Format: date-time */
+            readonly reservations_close_at: string | null;
             /** @default 5 */
             readonly completion_points: number;
             readonly reserved_by_me: boolean;
@@ -8573,6 +8581,10 @@ export interface components {
             is_public?: boolean;
             allow_future_reservations?: boolean;
             reservations_open_hours_before?: number | null;
+            reservations_close_minutes_before?: number | null;
+            /** Format: time */
+            reservations_close_previous_day_at?: string | null;
+            reservations_morning_until_hour?: number | null;
             /** @description Días sin asistir a ESTE gimnasio para considerar al atleta en riesgo de abandono (motor de retención). */
             risk_inactivity_days?: number;
             /** @description Días de mora tolerados antes del corte automático de la membresía (ACTIVE → vencida). El corte es reversible: al pagar vuelve a activa. */
@@ -10347,6 +10359,10 @@ export interface components {
             is_public?: boolean;
             allow_future_reservations?: boolean;
             reservations_open_hours_before?: number | null;
+            reservations_close_minutes_before?: number | null;
+            /** Format: time */
+            reservations_close_previous_day_at?: string | null;
+            reservations_morning_until_hour?: number | null;
             /** @description Días sin asistir a ESTE gimnasio para considerar al atleta en riesgo de abandono (motor de retención). */
             risk_inactivity_days?: number;
             /** @description Días de mora tolerados antes del corte automático de la membresía (ACTIVE → vencida). El corte es reversible: al pagar vuelve a activa. */
@@ -10439,6 +10455,8 @@ export interface components {
             readonly is_reservable?: boolean;
             /** Format: date-time */
             readonly reservations_open_at?: string | null;
+            /** Format: date-time */
+            readonly reservations_close_at?: string | null;
             /** @default 5 */
             readonly completion_points: number;
             readonly reserved_by_me?: boolean;
