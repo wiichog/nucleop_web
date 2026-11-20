@@ -55,7 +55,8 @@ export function VentaModal({
     >
       {venta && (
         <Stack gap="md">
-          <Table.ScrollContainer minWidth={360}>
+          {/* El modal mide ~305 px en un teléfono de 375: con 360 se deslizaba de lado. */}
+          <Table.ScrollContainer minWidth={300}>
             <Table>
               <Table.Thead>
                 <Table.Tr>
@@ -99,7 +100,7 @@ export function VentaModal({
               <Text size="xs" c="dimmed">
                 Total
               </Text>
-              <Text fz={24} fw={700} className="a-tabular">
+              <Text fz={{ base: 22, sm: 28 }} fw={700} className="a-tabular">
                 <Money value={venta.total} decimals={2} c={devolucion ? "orange" : undefined} />
               </Text>
             </Stack>

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useInViewport, useMergedRef } from "@mantine/hooks";
 import {
   ActionIcon,
   Affix,
@@ -6,15 +7,18 @@ import {
   Box,
   Button,
   Divider,
+  Flex,
   Grid,
   Group,
   NumberInput,
+  ScrollArea,
   SegmentedControl,
   Select,
   SimpleGrid,
   Stack,
   Text,
   TextInput,
+  useMatches,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { Minus, Plus, Search, Trash2 } from "lucide-react";
@@ -123,7 +127,14 @@ export function PosPage() {
   const [error, setError] = useState("");
   const [ventaAbierta, setVentaAbierta] = useState<ErpSale | null>(null);
   const [mostrar, setMostrar] = useState(VENTAS_POR_TANDA);
+  const [confirmarVaciar, setConfirmarVaciar] = useState(false);
   const ticketRef = useRef<HTMLDivElement>(null);
+  // Con el ticket ya a la vista, la barra «Ver venta» sólo tapaba «Cobrar».
+  const { ref: ticketVisibleRef, inViewport: ticketALaVista } = useInViewport();
+  const ticketRefs = useMergedRef(ticketRef, ticketVisibleRef);
+  // A 375 px la línea en un solo renglón dejaba el nombre en ~37 px: en
+  // celular va en dos (nombre + subtotal; cantidad + papelera).
+  const lineaEnDosRenglones = useMatches({ base: true, sm: false });
 
   const { total, unidades } = totalCarrito(cart);
   const productos = productsQuery.data ?? [];
@@ -146,6 +157,7 @@ export function PosPage() {
         lines: lineasParaVenta(cart),
       });
       setCart([]);
+      setConfirmarVaciar(false);
       setAthleteId("");
       // Sin este aviso solo se vaciaba el carrito y recepción no sabía si cobró.
       notifications.show({ color: "teal", message: "Venta registrada." });
@@ -211,6 +223,9 @@ export function PosPage() {
               <>
                 <TextInput
                   aria-label="Buscar producto"
+                  // Teclado del celular con lupa en vez de «Intro».
+                  type="search"
+                  enterKeyHint="search"
                   placeholder="Buscar producto o SKU"
                   leftSection={<Search size={16} />}
                   value={buscar}
@@ -312,13 +327,33 @@ export function PosPage() {
           span={{ base: 12, md: 5, lg: 4 }}
           style={{ position: "sticky", top: "calc(var(--a-header-h) + 12px)" }}
         >
-          <GlassCard ref={ticketRef} variant="core" padding={18} delay={0.7}>
+          <GlassCard ref={ticketRefs} variant="core" padding={18} delay={0.7}>
             <Encabezado titulo="Venta">
-              {cart.length > 0 && (
-                <Button variant="subtle" color="gray" size="xs" onClick={() => setCart([])}>
-                  Vaciar
-                </Button>
-              )}
+              {/* Vaciar borraba todo el ticket de un toque (fácil de rozar cobrando de
+                  pie): ahora pide confirmación en el mismo lugar. */}
+              {cart.length > 0 &&
+                (confirmarVaciar ? (
+                  <Group gap={4} wrap="nowrap">
+                    <Button variant="subtle" color="gray" size="xs" onClick={() => setConfirmarVaciar(false)}>
+                      No
+                    </Button>
+                    <Button
+                      variant="light"
+                      color="red"
+                      size="xs"
+                      onClick={() => {
+                        setCart([]);
+                        setConfirmarVaciar(false);
+                      }}
+                    >
+                      Sí, vaciar
+                    </Button>
+                  </Group>
+                ) : (
+                  <Button variant="subtle" color="red" size="xs" onClick={() => setConfirmarVaciar(true)}>
+                    Vaciar
+                  </Button>
+                ))}
             </Encabezado>
 
             {cart.length === 0 ? (
@@ -326,66 +361,102 @@ export function PosPage() {
                 Toca un producto para agregarlo.
               </Text>
             ) : (
-              <Stack gap={8}>
-                {cart.map((l) => (
-                  <Group key={l.product_id} gap="xs" wrap="nowrap" align="center">
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <Text size="sm" fw={600} truncate>
-                        {l.name}
+              // md+: el ticket es sticky; con muchas líneas «Cobrar» quedaba fuera de la
+              // pantalla. La lista se desliza sola y total/cobro quedan fijos. En
+              // celular no hay tope: el ticket va abajo y se recorre con la página.
+              <ScrollArea.Autosize
+                // Empieza con «calc(» a propósito: Mantine pasa ese valor tal cual; un
+                // «max(…, …)» suelto lo parte por la coma al convertirlo a rem.
+                mah={{ base: "none", md: "calc(max(160px, 100dvh - var(--a-header-h) - 470px))" }}
+                type="auto"
+                offsetScrollbars
+              >
+                <Stack gap={8}>
+                  {cart.map((l) => {
+                    const nombre = (
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <Text size="sm" fw={600} truncate>
+                          {l.name}
+                        </Text>
+                        <Text size="xs" c="dimmed" className="a-tabular">
+                          {fmtQ(l.unit_price, { decimals: 2 })} c/u
+                        </Text>
+                      </div>
+                    );
+                    const cantidad = (
+                      <Group gap={4} wrap="nowrap">
+                        <ActionIcon
+                          variant="default"
+                          size="lg"
+                          aria-label={`Quitar una unidad de ${l.name}`}
+                          onClick={() => setCart((prev) => cambiarCantidad(prev, l.product_id, l.qty - 1))}
+                        >
+                          <Minus size={16} />
+                        </ActionIcon>
+                        <NumberInput
+                          aria-label={`Cantidad de ${l.name}`}
+                          value={l.qty}
+                          min={1}
+                          allowDecimal={false}
+                          hideControls
+                          w={52}
+                          styles={{ input: { textAlign: "center" } }}
+                          // Al tocarlo queda seleccionado: se escribe el número nuevo encima.
+                          onFocus={(e) => e.currentTarget.select()}
+                          onChange={(v) => {
+                            const n = typeof v === "number" ? v : Number(v);
+                            // Borrar el número para escribir otro no debe sacar la línea.
+                            if (Number.isFinite(n) && n > 0) setCart((prev) => cambiarCantidad(prev, l.product_id, n));
+                          }}
+                        />
+                        <ActionIcon
+                          variant="default"
+                          size="lg"
+                          aria-label={`Agregar una unidad de ${l.name}`}
+                          onClick={() => setCart((prev) => cambiarCantidad(prev, l.product_id, l.qty + 1))}
+                        >
+                          <Plus size={16} />
+                        </ActionIcon>
+                      </Group>
+                    );
+                    const subtotal = (
+                      <Text size="sm" fw={600} miw={78} ta="right" className="a-tabular" style={{ flex: "0 0 auto" }}>
+                        {fmtQ(Math.round(Number(l.unit_price) * 100 * l.qty) / 100, { decimals: 2 })}
                       </Text>
-                      <Text size="xs" c="dimmed" className="a-tabular">
-                        {fmtQ(l.unit_price, { decimals: 2 })} c/u
-                      </Text>
-                    </div>
-                    <Group gap={4} wrap="nowrap">
+                    );
+                    const quitar = (
                       <ActionIcon
-                        variant="default"
+                        variant="subtle"
+                        color="red"
                         size="lg"
-                        aria-label={`Quitar una unidad de ${l.name}`}
-                        onClick={() => setCart((prev) => cambiarCantidad(prev, l.product_id, l.qty - 1))}
+                        aria-label={`Quitar ${l.name}`}
+                        onClick={() => setCart((prev) => cambiarCantidad(prev, l.product_id, 0))}
                       >
-                        <Minus size={16} />
+                        <Trash2 size={16} />
                       </ActionIcon>
-                      <NumberInput
-                        aria-label={`Cantidad de ${l.name}`}
-                        value={l.qty}
-                        min={1}
-                        allowDecimal={false}
-                        hideControls
-                        w={52}
-                        styles={{ input: { textAlign: "center" } }}
-                        // Al tocarlo queda seleccionado: se escribe el número nuevo encima.
-                        onFocus={(e) => e.currentTarget.select()}
-                        onChange={(v) => {
-                          const n = typeof v === "number" ? v : Number(v);
-                          // Borrar el número para escribir otro no debe sacar la línea.
-                          if (Number.isFinite(n) && n > 0) setCart((prev) => cambiarCantidad(prev, l.product_id, n));
-                        }}
-                      />
-                      <ActionIcon
-                        variant="default"
-                        size="lg"
-                        aria-label={`Agregar una unidad de ${l.name}`}
-                        onClick={() => setCart((prev) => cambiarCantidad(prev, l.product_id, l.qty + 1))}
-                      >
-                        <Plus size={16} />
-                      </ActionIcon>
-                    </Group>
-                    <Text size="sm" fw={600} w={78} ta="right" className="a-tabular">
-                      {fmtQ(Math.round(Number(l.unit_price) * 100 * l.qty) / 100, { decimals: 2 })}
-                    </Text>
-                    <ActionIcon
-                      variant="subtle"
-                      color="red"
-                      size="lg"
-                      aria-label={`Quitar ${l.name}`}
-                      onClick={() => setCart((prev) => cambiarCantidad(prev, l.product_id, 0))}
-                    >
-                      <Trash2 size={16} />
-                    </ActionIcon>
-                  </Group>
-                ))}
-              </Stack>
+                    );
+                    return lineaEnDosRenglones ? (
+                      <Stack key={l.product_id} gap={6}>
+                        <Flex gap="xs" align="flex-start">
+                          {nombre}
+                          {subtotal}
+                        </Flex>
+                        <Group justify="space-between" wrap="nowrap">
+                          {cantidad}
+                          {quitar}
+                        </Group>
+                      </Stack>
+                    ) : (
+                      <Group key={l.product_id} gap="xs" wrap="nowrap" align="center">
+                        {nombre}
+                        {cantidad}
+                        {subtotal}
+                        {quitar}
+                      </Group>
+                    );
+                  })}
+                </Stack>
+              </ScrollArea.Autosize>
             )}
 
             <Divider my="md" />
@@ -393,7 +464,7 @@ export function PosPage() {
               <Text c="dimmed" size="sm">
                 Total{cart.length ? ` · ${unidades} ${unidades === 1 ? "unidad" : "unidades"}` : ""}
               </Text>
-              <Text fz={28} fw={700} className="a-tabular" aria-live="polite">
+              <Text fz={{ base: 22, sm: 28 }} fw={700} className="a-tabular" aria-live="polite">
                 {fmtQ(total, { decimals: 2 })}
               </Text>
             </Group>
@@ -407,8 +478,9 @@ export function PosPage() {
                 onChange={(v) => setMethod(v as Metodo)}
                 data={METODOS}
               />
+              {/* Con label visible: sólo el placeholder «Sin atleta» no decía qué se elegía. */}
               <Select
-                aria-label="Atleta"
+                label="Atleta"
                 placeholder="Sin atleta"
                 value={athleteId || null}
                 onChange={(v) => setAthleteId(v ?? "")}
@@ -419,7 +491,7 @@ export function PosPage() {
               />
               {(branches ?? []).length > 0 && (
                 <Select
-                  aria-label="Sede"
+                  label="Sede"
                   placeholder="Sin sede"
                   value={branchId}
                   onChange={setBranchId}
@@ -464,26 +536,32 @@ export function PosPage() {
                   onClick={() => setVentaAbierta(s)}
                   apagada={!dev && devueltas.has(s.id)}
                 >
-                  <Group gap="sm" wrap="nowrap">
-                    <Text size="sm" c="dimmed" w={104} className="a-tabular" style={{ flex: "0 0 auto" }}>
-                      {fechaVenta(s.created_at)}
-                    </Text>
-                    <Text size="sm" truncate style={{ flex: 1, minWidth: 0 }}>
-                      {resumenLineas(s)}
-                    </Text>
-                    {dev && (
-                      <Badge size="xs" color="orange" variant="light">
-                        Devolución
-                      </Badge>
-                    )}
-                    {!dev && devueltas.has(s.id) && (
-                      <Badge size="xs" color="gray" variant="light">
-                        Devuelta
-                      </Badge>
-                    )}
-                    <Text size="sm" fw={600} ta="right" className="a-tabular" style={{ flex: "0 0 auto" }}>
-                      <Money value={s.total} decimals={2} c={dev ? "orange" : undefined} />
-                    </Text>
+                  {/* Fecha y resumen a la izquierda (se encogen); monto y estado apilados a
+                      la derecha. En una sola fila el resumen quedaba en nada a 375 px. */}
+                  <Group gap="sm" wrap="nowrap" align="flex-start">
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Text size="sm" c="dimmed" className="a-tabular">
+                        {fechaVenta(s.created_at)}
+                      </Text>
+                      <Text size="sm" truncate>
+                        {resumenLineas(s)}
+                      </Text>
+                    </div>
+                    <Stack gap={4} align="flex-end" style={{ flex: "0 0 auto" }}>
+                      <Text size="sm" fw={600} ta="right" className="a-tabular">
+                        <Money value={s.total} decimals={2} c={dev ? "orange" : undefined} />
+                      </Text>
+                      {dev && (
+                        <Badge size="xs" color="orange" variant="light">
+                          Devolución
+                        </Badge>
+                      )}
+                      {!dev && devueltas.has(s.id) && (
+                        <Badge size="xs" color="gray" variant="light">
+                          Devuelta
+                        </Badge>
+                      )}
+                    </Stack>
                   </Group>
                 </Tarjeta>
               );
@@ -509,8 +587,14 @@ export function PosPage() {
       />
 
       {/* Celular: el ticket queda abajo de los productos; esta barra lo trae a la vista. */}
-      {cart.length > 0 && (
-        <Affix position={{ bottom: 12, left: 12, right: 12 }} zIndex={150} className="nucleo-oculto-con-teclado">
+      {/* Se esconde cuando el ticket ya está en pantalla (si no, tapaba «Cobrar»), y
+          se separa de la barra de inicio del iPhone con el safe-area. */}
+      {cart.length > 0 && !ticketALaVista && (
+        <Affix
+          position={{ bottom: "calc(12px + env(safe-area-inset-bottom))", left: 12, right: 12 }}
+          zIndex={150}
+          className="nucleo-oculto-con-teclado"
+        >
           <Box hiddenFrom="md">
             <Button
               size="lg"

@@ -149,11 +149,15 @@ export function AjusteStock({
 
       {modo === "entrada" && (
         <>
-          <TextInput
+          {/* NumberInput entero: el TextInput dejaba escribir «3.5» o letras. El estado
+              sigue siendo texto para que la validación de `entrada` no cambie. */}
+          <NumberInput
             label="Unidades que llegaron"
-            inputMode="numeric"
+            min={1}
+            allowDecimal={false}
+            allowNegative={false}
             value={llegaron}
-            onChange={(e) => setLlegaron(e.currentTarget.value)}
+            onChange={(v) => setLlegaron(String(v))}
           />
           <Button disabled={!producto} loading={registrar.isPending} onClick={entrada}>
             Registrar entrada

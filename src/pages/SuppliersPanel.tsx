@@ -47,6 +47,10 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
   const [abierto, setAbierto] = useState<ErpSupplier | "nuevo" | null>(null);
   const [form, setForm] = useState<FormProveedor>(VACIO);
   const existente = abierto && abierto !== "nuevo" ? abierto : null;
+  // Guardar, dar de baja y reactivar usan la misma mutación: con `isPending` a
+  // secas giraban los dos botones a la vez. Aquí se recuerda cuál se tocó.
+  const [accion, setAccion] = useState<"guardar" | "baja" | "reactivar" | null>(null);
+  const ocupado = crear.isPending || actualizar.isPending;
 
   const abrir = (s: ErpSupplier | "nuevo") => {
     setAbierto(s);
@@ -64,6 +68,7 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
   };
 
   const guardar = async () => {
+    setAccion("guardar");
     try {
       if (existente) {
         await actualizar.mutateAsync({ id: existente.id, body: form });
@@ -78,6 +83,8 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
         color: "red",
         message: errMsg(error, existente ? "No se pudo actualizar el proveedor." : "No se pudo agregar el proveedor."),
       });
+    } finally {
+      setAccion(null);
     }
   };
 
@@ -96,22 +103,28 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
       )
     )
       return;
+    setAccion("baja");
     try {
       await actualizar.mutateAsync({ id: s.id, body: { is_active: false } });
       notifications.show({ color: "teal", message: "Proveedor dado de baja." });
       setAbierto(null);
     } catch (error) {
       notifications.show({ color: "red", message: errMsg(error, "No se pudo dar de baja al proveedor.") });
+    } finally {
+      setAccion(null);
     }
   };
 
   const reactivar = async (s: ErpSupplier) => {
+    setAccion("reactivar");
     try {
       await actualizar.mutateAsync({ id: s.id, body: { is_active: true } });
       notifications.show({ color: "teal", message: "Proveedor reactivado." });
       setAbierto(null);
     } catch (error) {
       notifications.show({ color: "red", message: errMsg(error, "No se pudo reactivar al proveedor.") });
+    } finally {
+      setAccion(null);
     }
   };
 
@@ -210,11 +223,23 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
           <Group justify="space-between" mt="xs" wrap="wrap">
             {existente ? (
               existente.is_active ? (
-                <Button variant="subtle" color="red" loading={actualizar.isPending} onClick={() => darDeBaja(existente)}>
+                <Button
+                  variant="subtle"
+                  color="red"
+                  loading={accion === "baja"}
+                  disabled={ocupado && accion !== "baja"}
+                  onClick={() => darDeBaja(existente)}
+                >
                   Dar de baja
                 </Button>
               ) : (
-                <Button variant="light" color="teal" loading={actualizar.isPending} onClick={() => reactivar(existente)}>
+                <Button
+                  variant="light"
+                  color="teal"
+                  loading={accion === "reactivar"}
+                  disabled={ocupado && accion !== "reactivar"}
+                  onClick={() => reactivar(existente)}
+                >
                   Reactivar
                 </Button>
               )
@@ -227,8 +252,8 @@ export function SuppliersPanel({ gymId }: { gymId: string }) {
               </Button>
               <Button
                 onClick={guardar}
-                disabled={!form.name.trim()}
-                loading={crear.isPending || (actualizar.isPending && !!existente)}
+                disabled={!form.name.trim() || (ocupado && accion !== "guardar")}
+                loading={accion === "guardar"}
               >
                 {existente ? "Guardar" : "Crear proveedor"}
               </Button>

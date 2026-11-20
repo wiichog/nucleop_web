@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Badge, Button, Modal, Select, Text } from "@mantine/core";
+import { Badge, Button, Modal, Select, Text, UnstyledButton } from "@mantine/core";
 import { DataTable } from "mantine-datatable";
 import { useErpMovements, useErpProducts } from "../api/hooks";
 import type { ErpMovement, ErpProduct, MovementType } from "../api/types";
@@ -9,6 +9,30 @@ import { Encabezado } from "../components/Tarjeta";
 import { Money } from "../components/ui";
 import { MOVEMENT_TYPE, MOVEMENT_TYPE_COLOR, label } from "../lib/labels";
 import { AjusteStock } from "./inventario/AjusteStock";
+
+/** Columnas secundarias que en celular se esconden para que la tabla quepa. */
+const SOLO_DESDE_SM = (t: { breakpoints: { sm: string } }) => `(min-width: ${t.breakpoints.sm})`;
+
+/**
+ * Nota del movimiento recortada a dos renglones; tocarla la abre completa. Antes el
+ * texto completo vivía sólo en `title`, que en pantalla táctil no se puede leer.
+ */
+function NotaExpandible({ nota }: { nota: string }) {
+  const [abierta, setAbierta] = useState(false);
+  if (!nota) return <Text size="xs" c="dimmed">—</Text>;
+  return (
+    <UnstyledButton
+      onClick={() => setAbierta((v) => !v)}
+      aria-expanded={abierta}
+      aria-label={abierta ? "Recortar nota" : "Ver nota completa"}
+      title={nota}
+    >
+      <Text size="xs" c="dimmed" lineClamp={abierta ? undefined : 2} style={{ overflowWrap: "anywhere" }}>
+        {nota}
+      </Text>
+    </UnstyledButton>
+  );
+}
 
 /**
  * Movimientos (kardex): el stock de cada producto es la suma de estas filas, así
@@ -86,6 +110,7 @@ export function InventoryLedgerPanel({
             {
               accessor: "created_at",
               title: "Fecha",
+              noWrap: true,
               render: (m) =>
                 new Date(m.created_at).toLocaleString("es-GT", {
                   day: "2-digit",
@@ -95,7 +120,21 @@ export function InventoryLedgerPanel({
                   hourCycle: "h23",
                 }),
             },
-            { accessor: "product_name", title: "Producto" },
+            {
+              accessor: "product_name",
+              title: "Producto",
+              // En celular la columna «Nota» se esconde: la nota va completa aquí abajo.
+              render: (m) => (
+                <>
+                  <Text size="sm">{m.product_name}</Text>
+                  {m.note && (
+                    <Text size="xs" c="dimmed" hiddenFrom="sm" style={{ overflowWrap: "anywhere" }}>
+                      {m.note}
+                    </Text>
+                  )}
+                </>
+              ),
+            },
             {
               accessor: "type",
               title: "Movimiento",
@@ -119,16 +158,14 @@ export function InventoryLedgerPanel({
               accessor: "unit_cost",
               title: "Costo",
               textAlign: "right",
+              visibleMediaQuery: SOLO_DESDE_SM,
               render: (m) => <Money value={m.unit_cost} decimals={2} block />,
             },
             {
               accessor: "note",
               title: "Nota",
-              render: (m) => (
-                <Text size="xs" c="dimmed" lineClamp={2} title={m.note}>
-                  {m.note || "—"}
-                </Text>
-              ),
+              visibleMediaQuery: SOLO_DESDE_SM,
+              render: (m) => <NotaExpandible nota={m.note} />,
             },
           ]}
         />

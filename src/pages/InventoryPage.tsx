@@ -209,11 +209,13 @@ function ProductosTab({ gymId, onVerMovimientos }: { gymId: string; onVerMovimie
                     )}
                   </div>
                 </Group>
-                <Group justify="space-between" gap={6} mt={8} wrap="nowrap">
+                {/* En la cuadrícula de 2 columnas del celular precio + insignias no caben
+                    en una fila: las insignias bajan en vez de desbordar la tarjeta. */}
+                <Group justify="space-between" gap={6} mt={8} wrap="wrap">
                   <Text size="sm" className="a-tabular">
                     <Money value={p.sale_price} decimals={2} />
                   </Text>
-                  <Group gap={4} wrap="nowrap">
+                  <Group gap={4} wrap="wrap">
                     <TiendaBadge p={p} />
                     {!p.is_active && (
                       <Badge size="xs" color="gray" variant="light">

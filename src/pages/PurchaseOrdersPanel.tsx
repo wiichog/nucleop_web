@@ -5,9 +5,11 @@ import {
   Badge,
   Button,
   Divider,
+  Grid,
   Group,
   Modal,
   NumberInput,
+  Paper,
   Select,
   SimpleGrid,
   Stack,
@@ -101,6 +103,10 @@ export function PurchaseOrdersPanel({
   const [recibido, setRecibido] = useState<Record<string, number | string>>({});
   const [actualizarCosto, setActualizarCosto] = useState(true);
   const [notaRecepcion, setNotaRecepcion] = useState("");
+  // Cuál de los dos botones de recepción está corriendo: antes compartían
+  // `isPending` y los dos giraban a la vez. Y «todo» pide confirmación (mueve stock).
+  const [recibiendo, setRecibiendo] = useState<"indicado" | "todo" | null>(null);
+  const [confirmarTodo, setConfirmarTodo] = useState(false);
   const [anulando, setAnulando] = useState(false);
   const [motivoAnulacion, setMotivoAnulacion] = useState("");
 
@@ -170,6 +176,7 @@ export function PurchaseOrdersPanel({
     setRecibido({});
     setActualizarCosto(true);
     setNotaRecepcion("");
+    setConfirmarTodo(false);
     setAnulando(false);
     setMotivoAnulacion("");
   };
@@ -184,6 +191,7 @@ export function PurchaseOrdersPanel({
       notifications.show({ color: "red", message: "Indica cuántas unidades llegaron." });
       return;
     }
+    setRecibiendo(todo ? "todo" : "indicado");
     try {
       await recibir.mutateAsync({
         id: orden.id,
@@ -191,6 +199,7 @@ export function PurchaseOrdersPanel({
         update_cost: actualizarCosto,
         note: notaRecepcion,
       });
+      setConfirmarTodo(false);
       setRecibido({});
       setNotaRecepcion("");
       notifications.show({
@@ -202,6 +211,8 @@ export function PurchaseOrdersPanel({
         color: "red",
         message: errMsg(error, "No se pudo recibir la mercadería."),
       });
+    } finally {
+      setRecibiendo(null);
     }
   };
 
@@ -328,12 +339,16 @@ export function PurchaseOrdersPanel({
                       {o.status === "partial" ? ` · recibido ${fmtQ(o.received_total, { decimals: 2 })}` : ""}
                     </Text>
                   </div>
-                  <Badge size="sm" color={s.color} variant="light">
-                    {s.label}
-                  </Badge>
-                  <Text size="sm" fw={600} w={96} ta="right" className="a-tabular">
-                    <Money value={o.total} decimals={2} />
-                  </Text>
+                  {/* Monto y estado apilados a la derecha: en una fila con el proveedor,
+                      a 375 px el nombre quedaba reducido a «…». */}
+                  <Stack gap={4} align="flex-end" style={{ flex: "0 0 auto" }}>
+                    <Text size="sm" fw={600} ta="right" className="a-tabular">
+                      <Money value={o.total} decimals={2} />
+                    </Text>
+                    <Badge size="sm" color={s.color} variant="light">
+                      {s.label}
+                    </Badge>
+                  </Stack>
                 </Group>
               </Tarjeta>
             );
@@ -376,7 +391,36 @@ export function PurchaseOrdersPanel({
               </Alert>
             )}
 
-            <Table.ScrollContainer minWidth={puedeRecibir ? 420 : 320}>
+            {/* Celular: en el modal (~305 px) la tabla de 420 dejaba «Llegó» fuera de la
+                pantalla. Aquí cada línea es una tarjeta con su campo a la vista. */}
+            <Stack gap="xs" hiddenFrom="sm">
+              {orden.lines.map((l) => (
+                <Paper key={l.id} withBorder p="sm" radius="md">
+                  <Text size="sm" fw={600}>
+                    {l.product_name}
+                  </Text>
+                  <Text c="dimmed" size="xs" className="a-tabular">
+                    {fmtQ(l.unit_cost, { decimals: 2 })} c/u · pedido {l.qty} · recibido {l.received_qty}
+                  </Text>
+                  {puedeRecibir && (
+                    <NumberInput
+                      mt="xs"
+                      label="Llegó"
+                      min={0}
+                      max={l.pending_qty}
+                      allowDecimal={false}
+                      aria-label={`Llegó de ${l.product_name}`}
+                      placeholder={String(l.pending_qty)}
+                      description={l.pending_qty > 0 ? `Faltan ${l.pending_qty}` : "Ya llegó todo"}
+                      value={recibido[l.id] ?? ""}
+                      onChange={(v) => setRecibido((r) => ({ ...r, [l.id]: v }))}
+                      disabled={l.pending_qty <= 0}
+                    />
+                  )}
+                </Paper>
+              ))}
+            </Stack>
+            <Table.ScrollContainer minWidth={puedeRecibir ? 420 : 320} visibleFrom="sm">
               <Table verticalSpacing="xs">
                 <Table.Thead>
                   <Table.Tr>
@@ -409,6 +453,7 @@ export function PurchaseOrdersPanel({
                             w={84}
                             min={0}
                             max={l.pending_qty}
+                            allowDecimal={false}
                             aria-label={`Llegó de ${l.product_name}`}
                             placeholder={String(l.pending_qty)}
                             value={recibido[l.id] ?? ""}
@@ -436,18 +481,35 @@ export function PurchaseOrdersPanel({
                   value={notaRecepcion}
                   onChange={(e) => setNotaRecepcion(e.currentTarget.value)}
                 />
-                <Group justify="flex-end" gap="sm" wrap="wrap">
-                  <Button
-                    variant="default"
-                    onClick={() => onRecibir(orden, false)}
-                    loading={recibir.isPending}
-                  >
-                    Recibir lo indicado
-                  </Button>
-                  <Button onClick={() => onRecibir(orden, true)} loading={recibir.isPending}>
-                    Recibir todo lo pendiente
-                  </Button>
-                </Group>
+                {confirmarTodo ? (
+                  <Stack gap="xs">
+                    <Text size="sm" fw={600}>
+                      ¿Recibir todas las unidades pendientes? Entran al inventario con el costo de esta orden.
+                    </Text>
+                    <Group justify="flex-end" gap="sm" wrap="wrap">
+                      <Button variant="default" onClick={() => setConfirmarTodo(false)} disabled={recibiendo === "todo"}>
+                        Cancelar
+                      </Button>
+                      <Button onClick={() => onRecibir(orden, true)} loading={recibiendo === "todo"}>
+                        Sí, recibir todo
+                      </Button>
+                    </Group>
+                  </Stack>
+                ) : (
+                  <Group justify="flex-end" gap="sm" wrap="wrap">
+                    <Button
+                      variant="default"
+                      onClick={() => onRecibir(orden, false)}
+                      loading={recibiendo === "indicado"}
+                      disabled={recibiendo === "todo"}
+                    >
+                      Recibir lo indicado
+                    </Button>
+                    <Button onClick={() => setConfirmarTodo(true)} disabled={recibiendo === "indicado"}>
+                      Recibir todo lo pendiente
+                    </Button>
+                  </Group>
+                )}
 
                 <Divider />
                 {anulando ? (
@@ -548,57 +610,64 @@ export function PurchaseOrdersPanel({
           </Text>
           <Stack gap="xs">
             {lineas.map((l, i) => (
-              // En celular el producto ocupa su renglón y cantidad + costo bajan al siguiente.
-              <Group key={i} gap="xs" align="flex-end" wrap="wrap">
-                <Select
-                  label={i === 0 ? "Producto" : undefined}
-                  aria-label={i === 0 ? undefined : "Producto"}
-                  placeholder="Elige…"
-                  value={l.product_id}
-                  onChange={(v) =>
-                    setLineas((ls) => ls.map((x, j) => (j === i ? { ...x, product_id: v } : x)))
-                  }
-                  data={productData}
-                  searchable
-                  style={{ flex: "1 1 200px", minWidth: 0 }}
-                />
-                <NumberInput
-                  label={i === 0 ? "Cant." : undefined}
-                  aria-label={i === 0 ? undefined : "Cantidad"}
-                  w={84}
-                  min={1}
-                  value={l.qty}
-                  onChange={(v) =>
-                    setLineas((ls) => ls.map((x, j) => (j === i ? { ...x, qty: v } : x)))
-                  }
-                />
-                <TextInput
-                  label={i === 0 ? "Costo (Q)" : undefined}
-                  aria-label={i === 0 ? undefined : "Costo (Q)"}
-                  inputMode="decimal"
-                  w={110}
-                  placeholder="Del catálogo"
-                  value={l.unit_cost}
-                  onChange={(e) => {
-                    // El valor se lee ANTES del setter, nunca dentro del updater: React
-                    // anula `currentTarget` al terminar el handler y el updater puede correr
-                    // después (ver el comentario en InventoryPage). Leerlo ahí tumba la
-                    // página al escribir rápido en «Costo (Q)».
-                    const valor = e.currentTarget.value;
-                    setLineas((ls) => ls.map((x, j) => (j === i ? { ...x, unit_cost: valor } : x)));
-                  }}
-                />
-                <ActionIcon
-                  variant="subtle"
-                  color="red"
-                  aria-label="Quitar línea"
-                  mb={4}
-                  onClick={() => setLineas((ls) => ls.filter((_, j) => j !== i))}
-                  disabled={lineas.length === 1}
-                >
-                  <Trash2 size={16} />
-                </ActionIcon>
-              </Group>
+              // Cada línea en su bloque, con sus etiquetas: en celular los campos de la
+              // segunda línea en adelante quedaban sin nombre y no se sabía cuál era cuál.
+              <Paper key={i} withBorder p="xs" radius="md">
+                <Grid gutter="xs" align="flex-end">
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <Select
+                      label="Producto"
+                      placeholder="Elige…"
+                      value={l.product_id}
+                      onChange={(v) =>
+                        setLineas((ls) => ls.map((x, j) => (j === i ? { ...x, product_id: v } : x)))
+                      }
+                      data={productData}
+                      searchable
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 4, sm: 2 }}>
+                    <NumberInput
+                      label="Cant."
+                      min={1}
+                      hideControls
+                      value={l.qty}
+                      onChange={(v) =>
+                        setLineas((ls) => ls.map((x, j) => (j === i ? { ...x, qty: v } : x)))
+                      }
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 6, sm: 3 }}>
+                    {/* Prefijo Q y sólo números; a la API sigue yendo texto («Del catálogo» = vacío). */}
+                    <NumberInput
+                      label="Costo (Q)"
+                      prefix="Q"
+                      min={0}
+                      decimalScale={2}
+                      thousandSeparator=","
+                      hideControls
+                      placeholder="Del catálogo"
+                      value={l.unit_cost}
+                      onChange={(v) => {
+                        const valor = String(v);
+                        setLineas((ls) => ls.map((x, j) => (j === i ? { ...x, unit_cost: valor } : x)));
+                      }}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 2, sm: 1 }}>
+                    <ActionIcon
+                      variant="subtle"
+                      color="red"
+                      aria-label="Quitar línea"
+                      mb={4}
+                      onClick={() => setLineas((ls) => ls.filter((_, j) => j !== i))}
+                      disabled={lineas.length === 1}
+                    >
+                      <Trash2 size={16} />
+                    </ActionIcon>
+                  </Grid.Col>
+                </Grid>
+              </Paper>
             ))}
           </Stack>
           <Group justify="space-between">

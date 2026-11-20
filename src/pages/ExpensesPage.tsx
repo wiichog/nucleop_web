@@ -8,6 +8,7 @@ import {
   Grid,
   Group,
   Modal,
+  NumberInput,
   Select,
   SimpleGrid,
   Stack,
@@ -306,7 +307,9 @@ export function ExpensesPage() {
               onChange={(e) => setSearch(e.currentTarget.value)}
             />
           </Grid.Col>
-          <Grid.Col span={{ base: 4, sm: 2 }}>
+          {/* A 375 px tres selects de 4/12 quedaban en ~95 px y cortaban su texto:
+              categoría y estado a media fila, orden en la suya. */}
+          <Grid.Col span={{ base: 6, sm: 2 }}>
             <Select
               aria-label="Categoría"
               placeholder="Categoría"
@@ -316,7 +319,7 @@ export function ExpensesPage() {
               data={CATEGORIAS_GASTO}
             />
           </Grid.Col>
-          <Grid.Col span={{ base: 4, sm: 2 }}>
+          <Grid.Col span={{ base: 6, sm: 2 }}>
             <Select
               aria-label="Estado"
               value={estado}
@@ -325,7 +328,7 @@ export function ExpensesPage() {
               data={ESTADOS}
             />
           </Grid.Col>
-          <Grid.Col span={{ base: 4, sm: 2 }}>
+          <Grid.Col span={{ base: 12, sm: 2 }}>
             <Select
               aria-label="Orden"
               value={orden}
@@ -343,7 +346,7 @@ export function ExpensesPage() {
               ? ` · ${plural(suma.fuera, "anulado o corregido", "anulados o corregidos")} no suman`
               : ""}
           </Text>
-          <Text fz={24} fw={700} className="a-tabular" aria-label={`Total ${fmtQ(suma.total, { decimals: 2 })}`}>
+          <Text fz={{ base: 22, sm: 28 }} fw={700} className="a-tabular" aria-label={`Total ${fmtQ(suma.total, { decimals: 2 })}`}>
             {fmtQ(suma.total, { decimals: 2 })}
           </Text>
         </Group>
@@ -383,17 +386,25 @@ export function ExpensesPage() {
                         </Text>
                       )}
                     </div>
-                    {e.is_void && (
-                      <Badge size="xs" color="gray" variant="light">
-                        {e.replaced_by ? "Corregido" : "Anulado"}
-                      </Badge>
-                    )}
-                    {tieneComprobante(e) && (
-                      <Paperclip size={14} aria-label="Con comprobante" style={{ flex: "0 0 auto", opacity: 0.6 }} />
-                    )}
-                    <Text size="sm" fw={600} ta="right" className="a-tabular" style={{ flex: "0 0 auto" }}>
-                      <Money value={e.amount} decimals={2} />
-                    </Text>
+                    {/* Monto arriba y, debajo, insignia y clip: en la misma fila le quitaban
+                        a la descripción el poco ancho que tiene a 375 px. */}
+                    <Stack gap={4} align="flex-end" style={{ flex: "0 0 auto" }}>
+                      <Text size="sm" fw={600} ta="right" className="a-tabular">
+                        <Money value={e.amount} decimals={2} />
+                      </Text>
+                      {(e.is_void || tieneComprobante(e)) && (
+                        <Group gap={4} wrap="nowrap">
+                          {e.is_void && (
+                            <Badge size="xs" color="gray" variant="light">
+                              {e.replaced_by ? "Corregido" : "Anulado"}
+                            </Badge>
+                          )}
+                          {tieneComprobante(e) && (
+                            <Paperclip size={14} aria-label="Con comprobante" style={{ flex: "0 0 auto", opacity: 0.6 }} />
+                          )}
+                        </Group>
+                      )}
+                    </Stack>
                   </Group>
                 </Tarjeta>
               );
@@ -408,12 +419,17 @@ export function ExpensesPage() {
           <Stack gap="md">
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
               <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIAS_GASTO} allowDeselect={false} />
-              <TextInput
+              {/* NumberInput: no deja letras ni montos en cero o negativos. El estado
+                  sigue en texto: a la API le llega el mismo decimal que antes. */}
+              <NumberInput
                 label="Monto"
-                leftSection="Q"
-                inputMode="decimal"
+                prefix="Q"
+                min={0.01}
+                decimalScale={2}
+                thousandSeparator=","
+                hideControls
                 value={amount}
-                onChange={(e) => setAmount(e.currentTarget.value)}
+                onChange={(v) => setAmount(String(v))}
                 data-autofocus
               />
             </SimpleGrid>
@@ -475,7 +491,7 @@ export function ExpensesPage() {
                 {new Date(`${ficha.incurred_on}T00:00:00`).toLocaleDateString("es-GT", { dateStyle: "long" })}
                 {nombreSede(ficha.branch) ? ` · ${nombreSede(ficha.branch)}` : ""}
               </Text>
-              <Text fz={24} fw={700} className="a-tabular">
+              <Text fz={{ base: 22, sm: 28 }} fw={700} className="a-tabular">
                 <Money value={ficha.amount} decimals={2} />
               </Text>
             </Group>
@@ -567,13 +583,16 @@ export function ExpensesPage() {
               onChange={(v) => setCorreccion((c) => ({ ...c, category: v }))}
               data={CATEGORIAS_GASTO}
             />
-            <TextInput
+            <NumberInput
               label="Monto"
-              leftSection="Q"
-              inputMode="decimal"
+              prefix="Q"
+              min={0.01}
+              decimalScale={2}
+              thousandSeparator=","
+              hideControls
               value={correccion.amount}
-              onChange={(e) => {
-                const valor = e.currentTarget.value;
+              onChange={(v) => {
+                const valor = String(v);
                 setCorreccion((c) => ({ ...c, amount: valor }));
               }}
             />

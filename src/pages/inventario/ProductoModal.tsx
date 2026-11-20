@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ActionIcon,
   Button,
   FileInput,
   Group,
@@ -17,6 +18,7 @@ import {
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
+import { Trash2, X } from "lucide-react";
 import {
   useCreateErpProduct,
   useDeleteProductImage,
@@ -54,8 +56,9 @@ export function ProductoModal({
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<string | null>("supplement");
-  const [salePrice, setSalePrice] = useState("");
-  const [costPrice, setCostPrice] = useState("");
+  // NumberInput entrega número o texto; a la API se le sigue mandando texto (ver `cuerpo`).
+  const [salePrice, setSalePrice] = useState<number | string>("");
+  const [costPrice, setCostPrice] = useState<number | string>("");
   const [reorder, setReorder] = useState<number | string>(0);
   const [inMarketplace, setInMarketplace] = useState(false);
   const [description, setDescription] = useState("");
@@ -95,8 +98,9 @@ export function ProductoModal({
   const cuerpo = () => ({
     name,
     category: category ?? "other",
-    sale_price: salePrice,
-    cost_price: costPrice || "0",
+    // Mismo formato que antes del NumberInput: decimal como texto.
+    sale_price: String(salePrice),
+    cost_price: costPrice === "" ? "0" : String(costPrice),
     reorder_level: Number(reorder) || 0,
     show_in_marketplace: inMarketplace,
     description: description.trim(),
@@ -153,25 +157,45 @@ export function ProductoModal({
     onClose();
   };
 
+  const puedeGuardar = !!name.trim() && String(salePrice).trim() !== "";
+  const ocupado = crear.isPending || actualizar.isPending || subirFoto.isPending;
+
   return (
     <Modal opened={!!producto} onClose={onClose} title={existente ? "Editar producto" : "Nuevo producto"} centered size="lg">
+      {/* Formulario de verdad: «Intro» / «Ir» del teclado del celular guarda. */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!puedeGuardar || ocupado) return;
+          void guardar();
+        }}
+      >
       <Stack gap="sm">
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
           <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} data-autofocus />
           <Select label="Categoría" value={category} onChange={setCategory} data={CATEGORIES} allowDeselect={false} />
         </SimpleGrid>
         <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="sm">
-          <TextInput
+          {/* NumberInput y no texto libre: no deja escribir letras ni negativos. */}
+          <NumberInput
             label="Precio (Q)"
-            inputMode="decimal"
+            prefix="Q"
+            min={0}
+            decimalScale={2}
+            thousandSeparator=","
+            hideControls
             value={salePrice}
-            onChange={(e) => setSalePrice(e.currentTarget.value)}
+            onChange={setSalePrice}
           />
-          <TextInput
+          <NumberInput
             label="Costo (Q)"
-            inputMode="decimal"
+            prefix="Q"
+            min={0}
+            decimalScale={2}
+            thousandSeparator=","
+            hideControls
             value={costPrice}
-            onChange={(e) => setCostPrice(e.currentTarget.value)}
+            onChange={setCostPrice}
           />
           <NumberInput label="Mínimo en bodega" value={reorder} onChange={setReorder} min={0} allowDecimal={false} />
         </SimpleGrid>
@@ -218,7 +242,14 @@ export function ProductoModal({
               />
             </Group>
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-              <NumberInput label="Días de entrega" value={deliveryDays} onChange={setDeliveryDays} min={0} max={120} />
+              <NumberInput
+                label="Días de entrega"
+                value={deliveryDays}
+                onChange={setDeliveryDays}
+                min={0}
+                max={120}
+                allowDecimal={false}
+              />
               {isUpcoming && (
                 <DateInput
                   label="Fecha de lanzamiento"
@@ -254,15 +285,12 @@ export function ProductoModal({
           <Button variant="default" onClick={onClose}>
             Cancelar
           </Button>
-          <Button
-            disabled={!name.trim() || !salePrice.trim()}
-            loading={crear.isPending || actualizar.isPending || subirFoto.isPending}
-            onClick={guardar}
-          >
+          <Button type="submit" disabled={!puedeGuardar} loading={ocupado}>
             {existente ? "Guardar" : "Crear producto"}
           </Button>
         </Group>
       </Stack>
+      </form>
     </Modal>
   );
 }
@@ -272,6 +300,17 @@ function Galeria({ producto, gymId }: { producto: ErpProduct; gymId: string }) {
   const subir = useUploadProductImages(gymId);
   const quitar = useDeleteProductImage(gymId);
   const [archivos, setArchivos] = useState<File[]>([]);
+  // La «✕» borraba al primer toque (y en celular se roza fácil): ahora pregunta.
+  const [porQuitar, setPorQuitar] = useState<string | null>(null);
+
+  const confirmarQuitar = (imageId: string) =>
+    quitar.mutate(
+      { id: producto.id, imageId },
+      {
+        onSuccess: () => setPorQuitar(null),
+        onError: (error) => notifications.show({ color: "red", message: errMsg(error, "No se pudo quitar la imagen.") }),
+      },
+    );
 
   const onSubir = async () => {
     // Si falla se avisa y se conservan las fotos elegidas para reintentar.
@@ -299,28 +338,37 @@ function Galeria({ producto, gymId }: { producto: ErpProduct; gymId: string }) {
                 alt=""
                 style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, border: "1px solid var(--a-line)" }}
               />
-              <Button
-                size="xs"
+              <ActionIcon
                 color="red"
                 variant="filled"
-                px={6}
-                style={{ position: "absolute", top: -8, right: -8, height: 22, borderRadius: "var(--radius-pill)" }}
-                loading={quitar.isPending && quitar.variables?.imageId === im.id}
-                onClick={() =>
-                  quitar.mutate(
-                    { id: producto.id, imageId: im.id },
-                    {
-                      onError: (error) =>
-                        notifications.show({ color: "red", message: errMsg(error, "No se pudo quitar la imagen.") }),
-                    },
-                  )
-                }
-                aria-label="Quitar imagen"
+                radius="xl"
+                size="sm"
+                style={{ position: "absolute", top: -8, right: -8 }}
+                onClick={() => setPorQuitar(im.id)}
+                aria-label="Quitar imagen de la galería"
               >
-                ✕
-              </Button>
+                <X size={14} />
+              </ActionIcon>
             </div>
           ))}
+        </Group>
+      )}
+      {porQuitar && (
+        <Group gap="xs" mb="sm" wrap="wrap" role="alert">
+          <Text size="sm" fw={600} style={{ flex: "1 1 180px" }}>
+            ¿Quitar esta imagen de la galería?
+          </Text>
+          <Button variant="default" size="xs" onClick={() => setPorQuitar(null)}>
+            Cancelar
+          </Button>
+          <Button
+            color="red"
+            size="xs"
+            loading={quitar.isPending && quitar.variables?.imageId === porQuitar}
+            onClick={() => confirmarQuitar(porQuitar)}
+          >
+            Quitar imagen
+          </Button>
         </Group>
       )}
       <Group align="flex-end" gap="sm" wrap="nowrap">
@@ -376,19 +424,28 @@ function Receta({
           <Text size="sm" style={{ flex: 1, minWidth: 0 }} truncate>
             {nameOf(c.component)}
           </Text>
+          {/* Sin flechas: en 80 px se comían el número. */}
           <NumberInput
             w={80}
             min={1}
+            hideControls
             aria-label={`Unidades de ${nameOf(c.component)}`}
             value={c.qty}
             onChange={(v) => onChange(value.map((x, idx) => (idx === i ? { ...x, qty: Number(v) || 1 } : x)))}
           />
-          <Button variant="subtle" color="red" size="xs" onClick={() => onChange(value.filter((_, idx) => idx !== i))}>
-            Quitar
-          </Button>
+          <ActionIcon
+            variant="subtle"
+            color="red"
+            aria-label={`Quitar ${nameOf(c.component)} de la receta`}
+            onClick={() => onChange(value.filter((_, idx) => idx !== i))}
+          >
+            <Trash2 size={16} />
+          </ActionIcon>
         </Group>
       ))}
-      <Group gap="xs" align="flex-end" wrap="nowrap">
+      {/* En celular el selector baja a su propio renglón: en una sola fila quedaba
+          en ~100 px y no se leía el nombre del insumo. */}
+      <Group gap="xs" align="flex-end" wrap="wrap">
         <Select
           placeholder="Agregar insumo…"
           aria-label="Agregar insumo"
@@ -396,9 +453,9 @@ function Receta({
           value={pick}
           onChange={setPick}
           searchable
-          style={{ flex: 1, minWidth: 0 }}
+          style={{ flex: "1 1 200px", minWidth: 0 }}
         />
-        <NumberInput w={80} min={1} aria-label="Unidades del insumo" value={qty} onChange={setQty} />
+        <NumberInput w={80} min={1} hideControls aria-label="Unidades del insumo" value={qty} onChange={setQty} />
         <Button variant="default" size="sm" onClick={add} disabled={!pick}>
           Añadir
         </Button>

@@ -13,6 +13,9 @@ import { sortRecords } from "../lib/sortRecords";
 const num = (v: number | null | undefined, sufijo = "") =>
   v === null || v === undefined ? "—" : `${v}${sufijo}`;
 
+/** Columnas secundarias: sólo desde `sm`; en celular estorbaban al stock y al valor. */
+const SOLO_DESDE_SM = (t: { breakpoints: { sm: string } }) => `(min-width: ${t.breakpoints.sm})`;
+
 /**
  * Valuación del inventario: cuánto dinero está parado en la bodega, qué tan
  * viejo es y qué tan rápido rota. Es el reporte que contesta «¿por qué no tengo
@@ -95,7 +98,8 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
           </SimpleGrid>
 
           {(data.by_category ?? []).length > 0 && (
-            <Table.ScrollContainer minWidth={360} mb="md">
+            // 300 y no 360: dentro de la tarjeta a 375 px quedan ~307 px útiles.
+            <Table.ScrollContainer minWidth={300} mb="md">
               <Table verticalSpacing={4}>
                 <Table.Thead>
                   <Table.Tr>
@@ -183,6 +187,8 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
               },
               {
                 accessor: "avg_cost",
+                // Secundaria: en celular se esconde para que la tabla quepa sin deslizar.
+                visibleMediaQuery: SOLO_DESDE_SM,
                 title: "Costo prom.",
                 sortable: true,
                 textAlign: "right",
@@ -197,6 +203,8 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
               },
               {
                 accessor: "units_sold",
+                // Secundaria: en celular se esconde para que la tabla quepa sin deslizar.
+                visibleMediaQuery: SOLO_DESDE_SM,
                 title: "Vendidas",
                 sortable: true,
                 textAlign: "right",
@@ -219,6 +227,8 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
               },
               {
                 accessor: "turnover",
+                // Secundaria: en celular se esconde para que la tabla quepa sin deslizar.
+                visibleMediaQuery: SOLO_DESDE_SM,
                 title: "Rotación",
                 sortable: true,
                 textAlign: "right",
@@ -230,6 +240,8 @@ export function InventoryValuationPanel({ gymId }: { gymId: string }) {
               },
               {
                 accessor: "days_since_purchase",
+                // Secundaria: en celular se esconde para que la tabla quepa sin deslizar.
+                visibleMediaQuery: SOLO_DESDE_SM,
                 title: "Antigüedad",
                 sortable: true,
                 render: (p) => (

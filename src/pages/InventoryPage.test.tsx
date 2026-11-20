@@ -178,7 +178,9 @@ describe("InventoryPage · «Registrar entrada» desde la ficha", () => {
   const fila = () => screen.getByLabelText("Unidades que llegaron");
   const entrada = () => screen.getByRole("button", { name: "Registrar entrada" });
 
-  it.each(["", "abc", "0", "3.5", "-2"])("con cantidad %j avisa y no registra nada", async (valor) => {
+  // «3.5» y «-2» ya no llegan a la validación: el campo es un NumberInput entero y
+  // sin negativos, así que ni siquiera deja escribirlos (ver la prueba de abajo).
+  it.each(["", "abc", "0"])("con cantidad %j avisa y no registra nada", async (valor) => {
     pintar();
     await abrir("Proteína");
     fireEvent.change(fila(), { target: { value: valor } });
@@ -188,6 +190,15 @@ describe("InventoryPage · «Registrar entrada» desde la ficha", () => {
       expect(espias.aviso).toHaveBeenCalledWith(expect.objectContaining({ color: "yellow" })),
     );
     expect(espias.movimiento).not.toHaveBeenCalled();
+  });
+
+  it.each(["3.5", "-2"])("el campo no deja escribir %j (sólo enteros positivos)", async (valor) => {
+    pintar();
+    await abrir("Proteína");
+    fireEvent.change(fila(), { target: { value: valor } });
+    const escrito = (fila() as HTMLInputElement).value;
+    expect(escrito).not.toContain(".");
+    expect(escrito).not.toContain("-");
   });
 
   it("con un entero válido registra la entrada del producto abierto", async () => {

@@ -209,7 +209,9 @@ export function CoachesPage() {
             {piden.map((r) => (
               <Tarjeta key={r.id} aviso etiqueta={`${r.user_email} pidió unirse`}>
                 <Group justify="space-between" wrap="wrap" gap="sm">
-                  <Text size="sm" style={{ flex: 1, minWidth: 200 }}>
+                  {/* Un correo largo es una sola «palabra»: sin overflowWrap empujaba la
+                      tarjeta fuera de la pantalla en celular. */}
+                  <Text size="sm" style={{ flex: 1, minWidth: 200, overflowWrap: "anywhere" }}>
                     <b>{r.user_email}</b>{" "}
                     <Text span c="dimmed">
                       · Solicitó unirse
@@ -339,7 +341,7 @@ function Invitacion({
   return (
     <Tarjeta etiqueta={`Invitación a ${r.user_email}`}>
       <Group justify="space-between" wrap="wrap" gap="sm">
-        <Text size="sm" style={{ flex: 1, minWidth: 200 }}>
+        <Text size="sm" style={{ flex: 1, minWidth: 200, overflowWrap: "anywhere" }}>
           <b>{r.user_email}</b>{" "}
           <Text span c="dimmed">
             · Esperando que acepte
@@ -438,15 +440,22 @@ export function CoachProfileSheet({
     <DetailSheet opened={!!coach} onClose={onClose} title="Perfil del coach">
       {coach && (
         <>
-          <Group gap="md" mb="md">
-            <Avatar src={coach.photo} radius="xl" size={64} color="flame">
+          <Group gap="md" mb="md" wrap="nowrap" align="flex-start">
+            <Avatar src={coach.photo} radius="xl" size={64} color="flame" style={{ flex: "0 0 auto" }}>
               {nombre(coach).slice(0, 1).toUpperCase()}
             </Avatar>
-            <div style={{ minWidth: 0 }}>
-              <Text fw={600} fz="lg" ff="var(--a-font-display)" style={{ letterSpacing: "-0.015em" }}>
+            {/* flex 1 + minWidth 0: sin esto un correo largo ensanchaba el panel y se
+                salía por la derecha en celular. */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Text
+                fw={600}
+                fz="lg"
+                ff="var(--a-font-display)"
+                style={{ letterSpacing: "-0.015em", overflowWrap: "anywhere" }}
+              >
                 {nombre(coach)}
               </Text>
-              <Text c="dimmed" size="sm">
+              <Text c="dimmed" size="sm" style={{ overflowWrap: "anywhere" }}>
                 {coach.email}
               </Text>
               <Group gap={6} mt={4}>

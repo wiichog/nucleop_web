@@ -252,6 +252,9 @@
   letter-spacing: 0.02em;
   color: rgba(255, 255, 255, 0.94);
   white-space: nowrap;
+  /* En filas deslizables (`nowrap` + scroll) el chip se encogía y cortaba su
+     texto («Suplemen…»). La pastilla del header sí encoge: regla propia abajo. */
+  flex-shrink: 0;
 }
 
 /* Pastilla de filtro encendida. Una sola definición del "activo" flame para

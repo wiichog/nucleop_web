@@ -7,13 +7,13 @@ import {
   Group,
   Modal,
   NumberInput,
-  Popover,
   Select,
   SimpleGrid,
   Stack,
   Switch,
   Table,
   Text,
+  Textarea,
   TextInput,
   Title,
 } from "@mantine/core";
@@ -161,6 +161,18 @@ export function StoreOrdersPanel({ gymId }: { gymId: string }) {
 
   return (
     <Stack gap="lg">
+      {/* Antes un fallo aquí escondía la tarjeta en silencio: parecía que no había
+          devoluciones por resolver. */}
+      {devoluciones.isError && (
+        <Alert color="red" variant="light" title="No se pudieron cargar las devoluciones">
+          <Group justify="space-between" gap="xs" wrap="wrap">
+            <Text size="sm">Puede haber devoluciones de atletas esperando respuesta.</Text>
+            <Button size="xs" variant="light" color="red" onClick={() => devoluciones.refetch()}>
+              Reintentar
+            </Button>
+          </Group>
+        </Alert>
+      )}
       {pendientes.length > 0 && (
         <GlassCard delay={0.6} padding={18}>
           <Encabezado
@@ -246,17 +258,21 @@ export function StoreOrdersPanel({ gymId }: { gymId: string }) {
                         {fecha(o.created_at)}
                       </Text>
                     </div>
-                    {o.return_status === "requested" && (
-                      <Badge size="sm" color="orange" variant="light" visibleFrom="xs">
-                        Devolución
+                    {/* Monto arriba y estado(s) debajo, a la derecha: en una sola fila el
+                        nombre del atleta se quedaba sin espacio a 375 px. */}
+                    <Stack gap={4} align="flex-end" style={{ flex: "0 0 auto" }}>
+                      <Text size="sm" fw={600} ta="right" className="a-tabular">
+                        <Money value={o.total} decimals={2} />
+                      </Text>
+                      <Badge size="sm" color={s.color} variant="light">
+                        {s.label}
                       </Badge>
-                    )}
-                    <Badge size="sm" color={s.color} variant="light">
-                      {s.label}
-                    </Badge>
-                    <Text size="sm" fw={600} w={88} ta="right" className="a-tabular">
-                      <Money value={o.total} decimals={2} />
-                    </Text>
+                      {o.return_status === "requested" && (
+                        <Badge size="sm" color="orange" variant="light">
+                          Devolución
+                        </Badge>
+                      )}
+                    </Stack>
                   </Group>
                 </Tarjeta>
               );
@@ -330,13 +346,17 @@ export function StoreOrdersPanel({ gymId }: { gymId: string }) {
                       Devolver
                     </Button>
                   )}
-                  {siguientes.includes("cancelled") && (
-                    <Button size="xs" variant="subtle" color="red" onClick={() => cancelar(ficha)}>
-                      Cancelar pedido
-                    </Button>
-                  )}
                 </Group>
               )
+            )}
+            {/* «Cancelar pedido» en su propio renglón, lejos de «Entregado»: juntos en
+                la misma fila se rozaba uno queriendo tocar el otro. */}
+            {!enviando && siguientes.includes("cancelled") && (
+              <Group justify="flex-end">
+                <Button size="xs" variant="light" color="red" onClick={() => cancelar(ficha)}>
+                  Cancelar pedido
+                </Button>
+              </Group>
             )}
 
             <Divider />
@@ -484,52 +504,14 @@ function Devolucion({
     );
   };
 
-  const decision = (tipo: "aprobar" | "rechazar") => {
-    const aprobando = tipo === "aprobar";
-    return (
-      <Popover
-        opened={abierto === tipo}
-        onChange={(v) => setAbierto(v ? tipo : null)}
-        position="bottom-end"
-        withArrow
-        trapFocus
-      >
-        <Popover.Target>
-          <Button
-            size="xs"
-            color={aprobando ? undefined : "red"}
-            variant={aprobando ? "filled" : "light"}
-            disabled={aprobar.isPending || rechazar.isPending}
-            onClick={() => {
-              setNota("");
-              setAbierto((v) => (v === tipo ? null : tipo));
-            }}
-          >
-            {aprobando ? "Aprobar" : "Rechazar"}
-          </Button>
-        </Popover.Target>
-        <Popover.Dropdown>
-          <Stack gap="xs" w={250}>
-            <TextInput
-              size="xs"
-              placeholder={aprobando ? "Nota para el atleta (opcional)" : "Por qué se rechaza (lo lee el atleta)"}
-              value={nota}
-              onChange={(e) => setNota(e.currentTarget.value)}
-              data-autofocus
-            />
-            <Button
-              size="xs"
-              color={aprobando ? undefined : "red"}
-              loading={(aprobando ? aprobar : rechazar).isPending}
-              onClick={() => resolver(aprobando)}
-            >
-              {aprobando ? "Aprobar devolución" : "Rechazar devolución"}
-            </Button>
-          </Stack>
-        </Popover.Dropdown>
-      </Popover>
-    );
+  const abrirDecision = (tipo: "aprobar" | "rechazar") => {
+    setNota("");
+    setAbierto(tipo);
   };
+  const aprobando = abierto === "aprobar";
+  const ocupado = aprobar.isPending || rechazar.isPending;
+  // Rechazar sin explicar deja al atleta sin saber por qué: la nota es obligatoria.
+  const faltaMotivo = !aprobando && !nota.trim();
 
   return (
     <Tarjeta etiqueta={`Devolución de ${o.athlete_name}`} aviso>
@@ -549,10 +531,51 @@ function Devolucion({
           <Button size="xs" variant="subtle" onClick={onAbrir}>
             Ver
           </Button>
-          {decision("aprobar")}
-          {decision("rechazar")}
+          <Button size="xs" disabled={ocupado} onClick={() => abrirDecision("aprobar")}>
+            Aprobar
+          </Button>
+          <Button size="xs" color="red" variant="light" disabled={ocupado} onClick={() => abrirDecision("rechazar")}>
+            Rechazar
+          </Button>
         </Group>
       </Group>
+
+      {/* Modal y no Popover: en celular el teclado tapaba el popover con su campo. */}
+      <Modal
+        opened={abierto !== null}
+        onClose={() => setAbierto(null)}
+        title={aprobando ? "Aprobar devolución" : "Rechazar devolución"}
+        centered
+      >
+        <Stack gap="sm">
+          <Text size="sm" c="dimmed">
+            {nombreCorto(o.athlete_name)} · {resumen(o)} · {fmtQ(o.total, { decimals: 2 })}
+          </Text>
+          <Textarea
+            label={aprobando ? "Nota para el atleta (opcional)" : "Por qué se rechaza"}
+            description={aprobando ? undefined : "La lee el atleta."}
+            value={nota}
+            onChange={(e) => setNota(e.currentTarget.value)}
+            autosize
+            minRows={2}
+            required={!aprobando}
+            data-autofocus
+          />
+          <Group justify="flex-end" gap="sm">
+            <Button variant="default" onClick={() => setAbierto(null)}>
+              Volver
+            </Button>
+            <Button
+              color={aprobando ? undefined : "red"}
+              loading={(aprobando ? aprobar : rechazar).isPending}
+              disabled={faltaMotivo}
+              onClick={() => resolver(aprobando)}
+            >
+              {aprobando ? "Aprobar devolución" : "Rechazar devolución"}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Tarjeta>
   );
 }
@@ -622,19 +645,29 @@ function EnviosBoton({ gymId }: { gymId: string }) {
             onChange={(e) => setEnabled(e.currentTarget.checked)}
           />
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-            <TextInput
+            {/* Montos con NumberInput (sólo números, prefijo Q); el estado sigue en
+                texto para mandar a la API el mismo formato que antes. */}
+            <NumberInput
               label="Costo del envío (Q)"
-              inputMode="decimal"
+              prefix="Q"
+              min={0}
+              decimalScale={2}
+              thousandSeparator=","
+              hideControls
               value={cost}
-              onChange={(e) => setCost(e.currentTarget.value)}
+              onChange={(v) => setCost(String(v))}
               disabled={!enabled}
             />
-            <TextInput
+            <NumberInput
               label="Envío gratis desde (Q)"
               placeholder="Vacío = nunca"
-              inputMode="decimal"
+              prefix="Q"
+              min={0}
+              decimalScale={2}
+              thousandSeparator=","
+              hideControls
               value={freeOver}
-              onChange={(e) => setFreeOver(e.currentTarget.value)}
+              onChange={(v) => setFreeOver(String(v))}
               disabled={!enabled}
             />
             <NumberInput
@@ -643,6 +676,7 @@ function EnviosBoton({ gymId }: { gymId: string }) {
               onChange={setEtaDays}
               min={0}
               max={60}
+              allowDecimal={false}
               disabled={!enabled}
             />
           </SimpleGrid>

@@ -170,8 +170,10 @@ export function BusinessReportPage() {
 
       <GlassCard padding={18} style={{ marginBottom: "calc(20 * var(--u))" }}>
         <Encabezado titulo="Resultado">
+          {/* Etiquetas visibles: con sólo el placeholder, en cuanto había fecha no se
+              sabía cuál era «desde» y cuál «hasta». */}
           <DatePickerInput
-            aria-label="Desde"
+            label="Desde"
             placeholder="Desde"
             value={from}
             onChange={setFrom}
@@ -180,7 +182,7 @@ export function BusinessReportPage() {
             w={{ base: "100%", xs: 140 }}
           />
           <DatePickerInput
-            aria-label="Hasta"
+            label="Hasta"
             placeholder="Hasta"
             value={to}
             onChange={setTo}
@@ -190,7 +192,7 @@ export function BusinessReportPage() {
           />
           {(branches ?? []).length > 0 && (
             <Select
-              aria-label="Sede"
+              label="Sede"
               placeholder="Todas las sedes"
               value={branch}
               onChange={setBranch}
@@ -219,7 +221,8 @@ export function BusinessReportPage() {
             Sin actividad en esas fechas.
           </Text>
         ) : (
-          <Table.ScrollContainer minWidth={360}>
+          // 300: dentro de la tarjeta a 375 px quedan ~307 px; «Concepto» envuelve solo.
+          <Table.ScrollContainer minWidth={300}>
             <Table maw={640} verticalSpacing={6}>
               <Table.Tbody>
                 <Renglon

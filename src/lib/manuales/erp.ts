@@ -12,7 +12,7 @@ export const manualesErp: ManualesPorRuta = {
         pasos: [
           "En la pestaña «Productos» presiona «Nuevo producto».",
           "Escribe el «Nombre» y elige la «Categoría».",
-          "Escribe el «Precio (Q)» y, si lo sabes, el «Costo (Q)». Sin costo el producto queda en Q0 y el margen no te dirá la verdad.",
+          "Escribe el «Precio» y, si lo sabes, el «Costo» (solo números: la «Q» ya aparece). Sin costo el producto queda en Q0 y el margen no te dirá la verdad.",
           "En «Mínimo en bodega» pon cuántas unidades quieres tener como mínimo. Cuando el stock llega a ese número o baja de él, la tarjeta del producto sale en amarillo.",
           "Si la categoría es «Merch / Ropa», agrega las «Tallas» y los «Colores»: escribe cada uno y presiona Enter. El atleta los elige al comprar.",
           "Presiona «Crear producto».",
@@ -48,7 +48,7 @@ export const manualesErp: ManualesPorRuta = {
           "Primero da de alta los insumos como productos normales (proteína, leche, fruta…).",
           "Al crear el preparado, activa «Es un preparado (receta)».",
           "Elige un insumo en «Agregar insumo…», pon cuántas unidades lleva y presiona «Añadir». Repite con cada insumo.",
-          "Si te equivocaste, cambia la cantidad o presiona «Quitar» junto al insumo.",
+          "Si te equivocaste, cambia la cantidad o presiona el bote de basura junto al insumo.",
           "Presiona «Crear producto».",
         ],
         nota:
@@ -163,8 +163,8 @@ export const manualesErp: ManualesPorRuta = {
         titulo: "Recibir la mercadería de una orden",
         pasos: [
           "En «Compras», las órdenes que esperan mercadería salen en amarillo y primero; junto al título, «N por recibir» dice cuántas son. Toca la orden.",
-          "Si llegó todo, presiona «Recibir todo lo pendiente».",
-          "Si llegó solo una parte, escribe en la columna «Llegó» cuántas unidades de cada producto y presiona «Recibir lo indicado».",
+          "Si llegó todo, presiona «Recibir todo lo pendiente» y confirma con «Sí, recibir todo».",
+          "Si llegó solo una parte, escribe en «Llegó» cuántas unidades de cada producto (en el celular, cada producto es una tarjeta con su campo «Llegó») y presiona «Recibir lo indicado».",
           "Deja activado «Actualizar el costo del producto con esta compra» para que el costo del catálogo quede al día. Si quieres, escribe una «Nota de la recepción».",
         ],
         nota:
@@ -217,7 +217,7 @@ export const manualesErp: ManualesPorRuta = {
           "En «Pedidos de la tienda», arriba aparece «Devoluciones» con «N por resolver» cuando hay alguna.",
           "Lee el motivo del atleta (va entre comillas). «Ver» abre el pedido completo.",
           "Para aceptarla presiona «Aprobar», escribe una nota si quieres y presiona «Aprobar devolución».",
-          "Para no aceptarla presiona «Rechazar», escríbele por qué y presiona «Rechazar devolución».",
+          "Para no aceptarla presiona «Rechazar», escríbele por qué en «Por qué se rechaza» (es obligatorio: el atleta lo lee) y presiona «Rechazar devolución». «Volver» cierra sin decidir.",
         ],
         nota:
           "Al aprobar se registra el reembolso del precio del gym y las unidades regresan al inventario. El recargo de Nucleo no se reembolsa.",
@@ -402,14 +402,14 @@ export const manualesErp: ManualesPorRuta = {
         pasos: [
           "En «Productos», toca cada producto que lleva la persona. Cada toque suma una unidad; el producto queda marcado con cuántas llevas (por ejemplo «×2»).",
           "Si no lo ves, escríbelo en «Buscar producto o SKU» o toca su categoría arriba de los productos («Todos» las muestra todas).",
-          "Revisa la «Venta» a la derecha (en el celular, abajo de los productos). Cambia la cantidad con «−» y «+» o escribiendo el número; el bote de basura quita el producto. «Vaciar» quita todo.",
+          "Revisa la «Venta» a la derecha (en el celular, abajo de los productos). Cambia la cantidad con «−» y «+» o escribiendo el número; el bote de basura quita el producto. «Vaciar» quita todo, después de confirmar con «Sí, vaciar».",
           "Elige cómo paga: «Efectivo», «Tarjeta» o «Transferencia».",
           "Si la compra es de un atleta tuyo, elígelo donde dice «Sin atleta». Si lo dejas así, la venta queda anónima.",
           "Si tienes varias sedes, elige la sede donde dice «Sin sede».",
           "Presiona «Cobrar», que muestra el total (por ejemplo «Cobrar Q56.00»).",
         ],
         nota:
-          "Cuando la venta se registra sale el aviso «Venta registrada.», la venta se vacía y aparece de primera en «Ventas». En el celular, mientras llevas productos, abajo sale el botón «Ver venta» con las unidades y el total: te lleva directo a cobrar. Si vendes un preparado (por ejemplo un licuado), se descuentan sus insumos.",
+          "Cuando la venta se registra sale el aviso «Venta registrada.», la venta se vacía y aparece de primera en «Ventas». En el celular, mientras llevas productos, abajo sale el botón «Ver venta» con las unidades y el total: te lleva directo a cobrar (se esconde cuando la venta ya está en pantalla o mientras escribes). Si vendes un preparado (por ejemplo un licuado), se descuentan sus insumos.",
       },
       {
         titulo: "Cobrar con lector de código de barras",
@@ -504,7 +504,7 @@ export const manualesErp: ManualesPorRuta = {
         pasos: [
           "Presiona «Nuevo gasto».",
           "Elige la «Categoría».",
-          "Escribe el «Monto» en quetzales y una «Descripción».",
+          "Escribe el «Monto» (solo números: la «Q» ya aparece) y una «Descripción».",
           "Revisa la «Fecha»: viene con la de hoy.",
           "Si tienes varias sedes, elige la «Sede».",
           "Si quieres, sube el «Comprobante» (foto o PDF de la factura o recibo). También lo puedes adjuntar después.",

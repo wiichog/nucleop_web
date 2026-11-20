@@ -389,8 +389,9 @@ function LiquidacionModal({
               <Button variant="default" onClick={onClose}>
                 Cerrar
               </Button>
+              {/* El monto en el botón: es dinero que sale, que se vea cuánto antes de tocar. */}
               <Button loading={payPayout.isPending} onClick={() => onPagar(fila)}>
-                Marcar pagada
+                Marcar pagada · {money(fila.total)}
               </Button>
             </Group>
           )}
@@ -583,6 +584,8 @@ export function CoachPayrollPage() {
                 accessor: "period_start",
                 title: "Periodo",
                 sortable: true,
+                // Sin cortes: «1/10/2026 – 31/10/2026» partido en dos renglones no se leía.
+                noWrap: true,
                 render: (p) => periodo(p),
               },
               // Cuenta todo lo que suma la liquidación: clases, extras y sesiones de PT.
@@ -591,6 +594,8 @@ export function CoachPayrollPage() {
                 title: "Pagos",
                 sortable: true,
                 textAlign: "right",
+                // Secundaria: en celular se esconde para que coach, periodo y total quepan.
+                visibleMediaQuery: (t) => `(min-width: ${t.breakpoints.sm})`,
               },
               {
                 accessor: "total",

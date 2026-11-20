@@ -98,7 +98,7 @@ vi.setConfig({ testTimeout: 20_000 });
  * accesibilidad entero y, con la máquina cargada, estas pruebas pasaban de los
  * 5 s; el texto exacto basta para saber de qué botón se trata.
  */
-function boton(ventana: HTMLElement, texto: string): HTMLButtonElement {
+function boton(ventana: HTMLElement, texto: string | RegExp): HTMLButtonElement {
   // El título de la ventana puede decir lo mismo que su botón («Registrar pago»).
   const el = within(ventana)
     .getAllByText(texto)
@@ -210,7 +210,8 @@ describe("pagos a coaches", () => {
     const ventana = await screen.findByRole("dialog");
     // El periodo se lee en días de Guatemala, sin correrse por la zona horaria.
     expect(within(ventana).getByText("1/10/2026 – 31/10/2026")).toBeTruthy();
-    fireEvent.click(boton(ventana, "Marcar pagada"));
+    // El botón lleva el monto: «Marcar pagada · Q150.00».
+    fireEvent.click(boton(ventana, /^Marcar pagada · Q\s?150\.00$/));
 
     expect(estado.pagadas).toEqual(["p-1"]);
     expect(avisos.show[0]?.color).toBe("teal");
