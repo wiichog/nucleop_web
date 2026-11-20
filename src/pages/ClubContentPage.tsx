@@ -27,6 +27,7 @@ import { GlassCard } from "../components/aurora";
 import { Encabezado, Tarjeta } from "../components/Tarjeta";
 import { useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
+import { PastillaAyuda } from "../components/PastillaAyuda";
 
 /**
  * **Moderación del contenido de los clubes** (`apps/clubs/moderation.py`).
@@ -104,24 +105,24 @@ function FilaDeContenido({
           {fila.club_name}
         </Badge>
         {fila.report_count > 0 && (
-          <Badge
+          <PastillaAyuda
             size="xs"
             variant="filled"
             color="red"
-            title="Miembros del club que lo denunciaron. Denunciar no lo retira: la decisión es tuya."
+            ayuda="Miembros del club que lo denunciaron. Denunciar no lo retira: la decisión es tuya."
           >
             Denunciado ×{fila.report_count}
-          </Badge>
+          </PastillaAyuda>
         )}
         {retirado && (
-          <Badge size="xs" variant="light" color="orange" title="Ya no lo ven los miembros del club. El texto se conserva.">
+          <PastillaAyuda size="xs" variant="light" color="orange" ayuda="Ya no lo ven los miembros del club. El texto se conserva.">
             Retirado
-          </Badge>
+          </PastillaAyuda>
         )}
         {fila.moderation_label && (
-          <Badge size="xs" variant="light" color="orange" title="Imagen marcada por la moderación automática (IA)">
+          <PastillaAyuda size="xs" variant="light" color="orange" ayuda="Imagen marcada por la moderación automática (IA).">
             IA: {fila.moderation_label}
-          </Badge>
+          </PastillaAyuda>
         )}
       </Group>
 

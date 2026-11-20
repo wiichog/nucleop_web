@@ -76,7 +76,6 @@ export function ArmarBloquesDesdeTexto({
         onClick={armar}
         loading={sugerir.isPending}
         disabled={sinTexto}
-        title={sinTexto ? "Pega primero la rutina en la caja de arriba." : undefined}
       >
         Armar bloques desde el texto
       </Button>
@@ -86,6 +85,12 @@ export function ArmarBloquesDesdeTexto({
           <Anchor component="button" type="button" size="xs" onClick={deshacer}>
             Deshacer
           </Anchor>
+        </Text>
+      ) : sinTexto ? (
+        // El motivo iba en `title` de un botón apagado: ni con mouse se veía
+        // (un botón deshabilitado no recibe el puntero) ni existe en el celular.
+        <Text size="xs" c="dimmed">
+          Pega primero la rutina en la caja de arriba.
         </Text>
       ) : (
         <Text size="xs" c="dimmed">

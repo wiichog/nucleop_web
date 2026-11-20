@@ -30,6 +30,7 @@ import { Encabezado, Tarjeta } from "../../components/Tarjeta";
 import { errMsg } from "../../lib/errors";
 import { fecha, fechaHora, Medios, MEDIA_FRAME, resumenReacciones, thumb } from "./media";
 import { TextoConMenciones } from "./menciones";
+import { PastillaAyuda } from "../../components/PastillaAyuda";
 
 /** Color de la pastilla de estado de una apelación. */
 const APPEAL_COLOR: Record<string, string> = {
@@ -225,9 +226,9 @@ export function ModeracionTab({ gymId }: { gymId: string }) {
                         </Badge>
                       )}
                       {p.moderation_label && (
-                        <Badge size="xs" variant="light" color="orange" title="Marcado por moderación automática (IA)">
+                        <PastillaAyuda size="xs" variant="light" color="orange" ayuda="Marcado por la moderación automática (IA).">
                           IA: {p.moderation_label}
-                        </Badge>
+                        </PastillaAyuda>
                       )}
                       <Text size="xs" c="dimmed">
                         <b>{p.author_name ?? p.athlete_name}</b> · {fechaHora(p.created_at)}
@@ -281,16 +282,16 @@ export function ModeracionTab({ gymId }: { gymId: string }) {
                         Reportado ×{c.report_count}
                       </Badge>
                       {c.hidden && (
-                        <Badge size="xs" variant="light" color="orange" title="Está fuera del feed mientras lo revisas">
+                        <PastillaAyuda size="xs" variant="light" color="orange" ayuda="Está fuera del feed mientras lo revisas.">
                           Oculto del feed
-                        </Badge>
+                        </PastillaAyuda>
                       )}
                       {/* El listado es plano: solo se sabe que cuelga de otro comentario
                           de la misma publicación, no cuál. */}
                       {c.parent_id && (
-                        <Badge size="xs" variant="light" color="gray" title="Responde a otro comentario de la misma publicación">
+                        <PastillaAyuda size="xs" variant="light" color="gray" ayuda="Responde a otro comentario de la misma publicación.">
                           Respuesta a un comentario
-                        </Badge>
+                        </PastillaAyuda>
                       )}
                       <Text size="xs" c="dimmed">
                         <b>{c.athlete_name}</b> · {fechaHora(c.created_at)}

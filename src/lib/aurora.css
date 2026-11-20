@@ -1132,6 +1132,16 @@
   .mantine-Input-wrapper {
     --input-height-xs: 36px;
   }
+  /* Avisos amarillos que se tocan («N por confirmar», «N por reabastecer»…):
+     son Badge con component="button" y medían 20px de alto. */
+  button.mantine-Badge-root {
+    --badge-height-md: 32px;
+    --badge-padding-x-md: 12px;
+    --badge-fz-md: 12px;
+    /* Las pastillas de ayuda (`PastillaAyuda`) van en xs: 16px es imposible de tocar. */
+    --badge-height-xs: 26px;
+    --badge-padding-x-xs: 10px;
+  }
   /* La X de modales, drawers y avisos. */
   .mantine-CloseButton-root {
     --cb-size-md: 36px;

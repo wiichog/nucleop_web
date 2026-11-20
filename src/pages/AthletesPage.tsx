@@ -9,7 +9,6 @@ import {
   Stack,
   Text,
   TextInput,
-  UnstyledButton,
   useMatches,
 } from "@mantine/core";
 import { useSearchParams } from "react-router-dom";
@@ -272,11 +271,19 @@ export function AthletesPage() {
           titulo="Padrón"
           avisos={
             esAdmin && bajasPorConfirmar > 0 ? (
-              <UnstyledButton onClick={() => setFiltro("bajas")} aria-label="Ver bajas por confirmar">
-                <Badge color="yellow" variant="light" style={{ cursor: "pointer" }}>
-                  {bajasPorConfirmar} {bajasPorConfirmar === 1 ? "baja" : "bajas"} por confirmar
-                </Badge>
-              </UnstyledButton>
+              // Pastilla-botón como en Planes e Inventario: en el celular crece a
+              // un objetivo táctil de verdad (ver `button.mantine-Badge-root` en aurora.css).
+              <Badge
+                component="button"
+                type="button"
+                color="yellow"
+                variant="light"
+                style={{ cursor: "pointer", border: 0 }}
+                aria-label="Ver bajas por confirmar"
+                onClick={() => setFiltro("bajas")}
+              >
+                {bajasPorConfirmar} {bajasPorConfirmar === 1 ? "baja" : "bajas"} por confirmar
+              </Badge>
             ) : null
           }
         >

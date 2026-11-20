@@ -2721,10 +2721,19 @@ function AdjuntosScore({ media, atleta }: { media?: WodResultMedia[]; atleta: st
   const visibles = (media ?? []).filter((m) => !!m.url);
   if (!visibles.length) return null;
   return (
-    <Group gap={4} wrap="nowrap">
+    // Miniaturas de 36px y el enlace del video con relleno: a 28px no se
+    // atinaban con el dedo en el celular.
+    <Group gap={6} wrap="wrap">
       {visibles.map((m, i) =>
         m.kind === "video" ? (
-          <Anchor key={m.id} href={m.url!} target="_blank" rel="noopener noreferrer" size="xs">
+          <Anchor
+            key={m.id}
+            href={m.url!}
+            target="_blank"
+            rel="noopener noreferrer"
+            size="xs"
+            style={{ display: "inline-flex", alignItems: "center", minHeight: 36, padding: "0 6px" }}
+          >
             ▶ Video
           </Anchor>
         ) : (
@@ -2735,7 +2744,7 @@ function AdjuntosScore({ media, atleta }: { media?: WodResultMedia[]; atleta: st
             rel="noopener noreferrer"
             aria-label={`Foto ${i + 1} del score de ${atleta}`}
           >
-            <Image src={m.url!} alt="" w={28} h={28} radius="sm" fit="cover" />
+            <Image src={m.url!} alt="" w={36} h={36} radius="sm" fit="cover" />
           </Anchor>
         ),
       )}

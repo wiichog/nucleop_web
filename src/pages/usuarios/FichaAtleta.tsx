@@ -309,7 +309,11 @@ export function FichaAtleta({
                   <StatusBadge kind="membership" status={m.status} size="sm" />
                   <Text size="sm" c="dimmed">
                     {m.plan_name ?? "Sin plan"}
-                    {m.renewal_date ? ` · vence ${m.renewal_date}` : ""}
+                    {/* La fecha exacta de vencimiento vive aquí: en el padrón la
+                        pastilla solo dice los días (su `title` no existe en el celular). */}
+                    {m.renewal_date
+                      ? ` · vence ${new Date(`${m.renewal_date}T00:00:00`).toLocaleDateString("es-GT")}`
+                      : ""}
                   </Text>
                   <Vencimiento
                     days={m.days_to_due}

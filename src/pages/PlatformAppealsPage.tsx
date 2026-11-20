@@ -220,7 +220,16 @@ function ApelacionModal({ appeal, onClose }: { appeal: Appeal | null; onClose: (
                 minRows={2}
                 maxLength={255}
               />
+              {/* Mismo orden que en Moderación del gimnasio (es la misma decisión):
+                  aceptar primero, mantener después. */}
               <Group justify="flex-end" gap="xs">
+                <Button
+                  loading={decidiendo("accept")}
+                  disabled={decidir.isPending && !decidiendo("accept")}
+                  onClick={() => resolver("accept")}
+                >
+                  Aceptar y republicar
+                </Button>
                 <Button
                   color="red"
                   variant="light"
@@ -239,13 +248,6 @@ function ApelacionModal({ appeal, onClose }: { appeal: Appeal | null; onClose: (
                   }}
                 >
                   Mantener la decisión
-                </Button>
-                <Button
-                  loading={decidiendo("accept")}
-                  disabled={decidir.isPending && !decidiendo("accept")}
-                  onClick={() => resolver("accept")}
-                >
-                  Aceptar y republicar
                 </Button>
               </Group>
             </>

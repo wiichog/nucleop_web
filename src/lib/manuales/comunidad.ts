@@ -21,7 +21,7 @@ export const manualesComunidad: ManualesPorRuta = {
         titulo: "Aprobar o rechazar una publicación de un atleta o coach",
         pasos: [
           "En «Moderar», busca el grupo «Publicaciones».",
-          "Revisa el texto, las fotos o videos, y las etiquetas («Reportado ×…», «IA: …»).",
+          "Revisa el texto, las fotos o videos, y las etiquetas («Reportado ×…», «IA: …»). Toca una etiqueta naranja o gris para ver qué significa.",
           "Presiona «Aprobar» para que salga al feed, o «Rechazar…» para no publicarla.",
           "Si rechazas, en la ventana «Rechazar publicación» elige el «Motivo», escribe si quieres una «Nota para el autor (opcional)» y presiona «Rechazar».",
         ],
