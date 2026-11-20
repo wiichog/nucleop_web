@@ -89,7 +89,7 @@ function montar(programa = "cf") {
         programa={programa}
         hoy="2026-11-05"
         cargando={false}
-        ocupado={false}
+        ocupadoId={null}
         etiquetaScore={(s) => (s === "for_time" ? "Tiempo" : s)}
         {...handlers}
       />

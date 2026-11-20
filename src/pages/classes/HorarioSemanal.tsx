@@ -1,4 +1,4 @@
-import { Box, ScrollArea, Stack, Text, UnstyledButton } from "@mantine/core";
+import { Box, Button, Group, ScrollArea, Stack, Text, UnstyledButton } from "@mantine/core";
 import type { ReactNode } from "react";
 import type { ClassSchedule } from "../../api/types";
 import { armarCuadricula, horaDe } from "../../lib/horarioSemanal";
@@ -21,7 +21,8 @@ type Props = {
  * columnas. Cada clase dice su coach y su cupo; las que no tienen coach se ven
  * en amarillo. Un espacio vacío es un botón para agregar ahí.
  *
- * En celular la cuadrícula no cabe: pasa a una lista por día.
+ * En celular la cuadrícula no cabe: pasa a una lista por día, y como ahí no hay
+ * huecos «+», cada día trae su botón «+ Agregar».
  */
 export function HorarioSemanal(props: Props) {
   return (
@@ -91,7 +92,10 @@ function Fila({ children }: { children: ReactNode }) {
   );
 }
 
-function PorDia({ franjas, coachDe, conServicio, onAbrir }: Props) {
+/** Hora con la que arranca el alta desde la lista móvil; se cambia en el formulario. */
+const HORA_POR_DEFECTO = "06:00";
+
+function PorDia({ franjas, coachDe, conServicio, onAbrir, onNueva }: Props) {
   const { dias } = armarCuadricula(franjas);
   return (
     <Stack gap="md">
@@ -101,9 +105,19 @@ function PorDia({ franjas, coachDe, conServicio, onAbrir }: Props) {
           .sort((a, b) => a.start_time.localeCompare(b.start_time));
         return (
           <div key={d}>
-            <Text fw={700} size="sm" mb={6}>
-              {DIA_LARGO[d]}
-            </Text>
+            <Group justify="space-between" gap="xs" mb={6} wrap="nowrap">
+              <Text fw={700} size="sm">
+                {DIA_LARGO[d]}
+              </Text>
+              <Button
+                variant="subtle"
+                size="xs"
+                aria-label={`Agregar clase el ${DIA_LARGO[d]}`}
+                onClick={() => onNueva(d, HORA_POR_DEFECTO)}
+              >
+                + Agregar
+              </Button>
+            </Group>
             {delDia.length ? (
               <Stack gap={6}>
                 {delDia.map((f) => (

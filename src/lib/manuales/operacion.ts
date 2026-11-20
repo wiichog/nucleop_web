@@ -18,20 +18,20 @@ export const manualesOperacion: ManualesPorRuta = {
           "Presiona «Crear servicio».",
         ],
         nota:
-          "El servicio nace «Pendiente» y su tarjeta sale en amarillo. Para poder agendarlo y que lo vean tus atletas, presiona «Asígnalo a un plan →» en la tarjeta (te lleva a «Planes y cuotas»), defínele su cobro (incluido o pago extra), asígnalo a un plan y actívalo.",
+          "El servicio nace «Pendiente» y su tarjeta sale en amarillo. Para poder agendarlo y que lo vean tus atletas, presiona el enlace «Asígnalo a un plan →» debajo de la tarjeta (te lleva a «Planes y cuotas»), defínele su cobro (incluido o pago extra), asígnalo a un plan y actívalo.",
       },
       {
         titulo: "Armar el horario semanal",
         pasos: [
           "Entra a la pestaña «Horario semanal». Ves la semana como en la pared del box: las horas hacia abajo y los días hacia el lado. Cada clase dice quién la da y cuántos caben.",
-          "Presiona «Agregar clase», o toca un espacio vacío (+) de la cuadrícula: así el día y la hora ya vienen puestos.",
+          "Presiona «Agregar clase», o toca un espacio vacío (+) de la cuadrícula: así el día y la hora ya vienen puestos. En el teléfono los días van uno debajo del otro y cada uno tiene su botón «+ Agregar».",
           "Elige el servicio, el coach si ya lo sabes, la hora, los minutos y el cupo.",
           "Marca los días en que se repite (puedes marcar varios a la vez).",
-          "Elige desde qué fecha aplica. Pon una fecha «Hasta» o deja activado «Sin fecha de fin» para que se repita siempre.",
+          "Elige desde qué fecha aplica («Desde» es obligatoria). Pon una fecha «Hasta» o deja activado «Sin fecha de fin» para que se repita siempre. Las fechas se ven día/mes/año.",
           "Presiona «Agregar» (o «Agregar 5 clases» si marcaste cinco días).",
         ],
         nota:
-          "Arriba de la cuadrícula ves cuántas clases das por semana y cuántas no tienen coach. Las clases sin coach salen en amarillo. Las clases de las próximas semanas se generan solas a partir del horario. Si cambiaste varias clases y el calendario no cuadra, presiona «Regenerar calendario»: quita las clases sobrantes que no tienen reservas y vuelve a generar las próximas semanas.",
+          "Arriba de la cuadrícula ves cuántas clases das por semana y cuántas no tienen coach. Las clases sin coach salen en amarillo. Las clases de las próximas semanas se generan solas a partir del horario. Si cambiaste varias clases y el calendario no cuadra, presiona «Regenerar calendario» y confirma en la ventana: quita las clases sobrantes que no tienen reservas y vuelve a generar las próximas semanas.",
       },
       {
         titulo: "Ver solo un servicio (filtrar las tablas)",
@@ -49,7 +49,7 @@ export const manualesOperacion: ManualesPorRuta = {
           "En la pestaña «Horario semanal», toca la clase en la cuadrícula.",
           "Cambia el coach, la hora, los minutos o el cupo y presiona «Guardar».",
           "Para darla también otros días, presiona «Copiar a otros días»: se abre «Agregar al horario» con todo igual; marca los días y presiona «Agregar».",
-          "Para sacarla del horario, presiona «Quitar del horario».",
+          "Para sacarla del horario, presiona «Quitar del horario» y confirma: deja de repetirse cada semana.",
         ],
         nota:
           "Esto cambia el horario de todas las semanas. Para cambiar una sola clase (por ejemplo, el coach de este lunes), hazlo en la pestaña «Clases».",
@@ -79,7 +79,7 @@ export const manualesOperacion: ManualesPorRuta = {
         titulo: "Cancelar o eliminar una clase",
         pasos: [
           "Entra a la pestaña «Clases», elige el día y toca la clase.",
-          "Presiona «Cancelar clase» para cancelarla avisando a los atletas que habían reservado, o «Eliminar» para borrarla del calendario.",
+          "Presiona «Cancelar clase» para cancelarla avisando a los atletas que habían reservado (te pide confirmar: no se puede deshacer), o «Eliminar» para borrarla del calendario.",
         ],
         nota:
           "Una clase que ya empezó ya no se puede cancelar, eliminar ni cambiar de coach: solo se consulta su asistencia.",
@@ -137,7 +137,7 @@ export const manualesOperacion: ManualesPorRuta = {
         titulo: "Ver la programación de la semana y semanas anteriores",
         pasos: [
           "En la pestaña «Workout» ves la semana del programa elegido arriba, de lunes a domingo, con cada workout completo bloque por bloque.",
-          "Usa las flechas ‹ y › para moverte de semana, y «Esta semana» para volver a la actual.",
+          "Usa las flechas ‹ y › para moverte de semana, y «Hoy» para volver a la actual.",
           "En un día sin workout, presiona «Programar»: se abre la ventana con esa fecha.",
         ],
         nota:
@@ -165,7 +165,7 @@ export const manualesOperacion: ManualesPorRuta = {
         titulo: "Permitir o no reservar clases futuras",
         pasos: [
           "Entra a la pestaña «Clases».",
-          "Arriba a la derecha, activa o desactiva «Reservar días futuros».",
+          "Debajo del título, activa o desactiva «Reservar días futuros».",
         ],
         nota: "Si lo desactivas, tus atletas solo podrán reservar las clases del día.",
       },
@@ -173,7 +173,7 @@ export const manualesOperacion: ManualesPorRuta = {
         titulo: "Abrir cada clase para reservar unas horas antes",
         pasos: [
           "Entra a la pestaña «Clases».",
-          "Arriba a la derecha, en «Abre … h antes», escribe las horas (por ejemplo 12) y presiona Enter o haz clic fuera del campo.",
+          "Debajo del título, en «Las reservas abren», escribe las horas (por ejemplo 12) y presiona Enter o haz clic fuera del campo.",
           "Para quitarlo, borra el número y haz clic fuera del campo.",
         ],
         nota:
@@ -183,14 +183,14 @@ export const manualesOperacion: ManualesPorRuta = {
         titulo: "Cerrar las reservas antes de la clase",
         pasos: [
           "Entra a la pestaña «Clases».",
-          "Arriba a la derecha, presiona «Cierre de reservas».",
+          "Debajo del título, en «Cierre de reservas», presiona «Cambiar cierre».",
           "En «Clases de la mañana: cierran la noche anterior a las», escribe la hora (por ejemplo 22:00, las 10 de la noche).",
           "En «Son de la mañana las que empiezan antes de las», escribe la hora en que termina la mañana (por ejemplo 12).",
           "En «Las demás clases cierran», escribe los minutos (por ejemplo 60 para una hora antes).",
           "Presiona «Guardar cierre».",
         ],
         nota:
-          "Con 10:00 p. m., 12 y 60, la clase de las 6:00 a. m. se reserva hasta las 10:00 p. m. del día anterior, y la de las 6:00 p. m. hasta las 5:00 p. m. Pasada esa hora el atleta ve que las reservas cerraron. Si una clase de la mañana todavía no abre a las 10:00 p. m. (por las horas de «Abre … h antes»), esa clase cierra con los minutos, como las demás. Para quitar el cierre, deja los campos vacíos y guarda. El botón muestra la regla que tienes puesta.",
+          "Con 10:00 p. m., 12 y 60, la clase de las 6:00 a. m. se reserva hasta las 10:00 p. m. del día anterior, y la de las 6:00 p. m. hasta las 5:00 p. m. Pasada esa hora el atleta ve que las reservas cerraron. Si una clase de la mañana todavía no abre a las 10:00 p. m. (por las horas de «Las reservas abren»), esa clase cierra con los minutos, como las demás. Para quitar el cierre, deja los campos vacíos y guarda. Debajo de «Cierre de reservas» se lee la regla que tienes puesta.",
       },
       {
         titulo: "Crear un pase para visitantes (drop-in)",

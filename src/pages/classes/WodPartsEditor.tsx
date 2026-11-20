@@ -60,6 +60,17 @@ export function WodPartsEditor({
     onChange(partes.map((p, j) => (j === i ? { ...p, ...cambio } : p)));
   const marcarPrincipal = (i: number) =>
     onChange(partes.map((p, j) => ({ ...p, is_primary: j === i })));
+  /** Un bloque vacío se quita sin preguntar; uno con título o texto, confirmando. */
+  const quitar = (i: number) => {
+    const p = partes[i];
+    const conContenido = !!p.title?.trim() || !!p.description?.trim();
+    if (
+      conContenido &&
+      !window.confirm(`¿Quitar el bloque «${p.title?.trim() || `Bloque ${i + 1}`}»? Se pierde lo que escribiste en él.`)
+    )
+      return;
+    onChange(partes.filter((_, j) => j !== i));
+  };
 
   return (
     <Stack gap="sm">
@@ -108,19 +119,26 @@ export function WodPartsEditor({
                     ↓
                   </ActionIcon>
                 </Tooltip>
-                <Tooltip label={conScores ? "Ya tiene scores: no se puede quitar" : "Quitar bloque"}>
+                <Tooltip label="Quitar bloque" disabled={conScores}>
                   <ActionIcon
                     variant="subtle"
                     color="red"
                     aria-label={`Quitar bloque ${i + 1}`}
                     disabled={conScores}
-                    onClick={() => onChange(partes.filter((_, j) => j !== i))}
+                    onClick={() => quitar(i)}
                   >
                     ✕
                   </ActionIcon>
                 </Tooltip>
               </Group>
             </Group>
+            {/* El motivo, a la vista: un botón deshabilitado no dispara el hover
+                y el Tooltip que lo explicaba nunca salía. */}
+            {conScores ? (
+              <Text size="xs" c="dimmed" mb="xs">
+                Ya tiene scores: este bloque no se puede quitar.
+              </Text>
+            ) : null}
 
             <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
               <TextInput
@@ -207,7 +225,9 @@ export function WodPartsEditor({
                 <Text size="xs" c="dimmed" mb={4}>
                   Series y repeticiones del peso que se anota: «5 x 3» son 5 series de 3. Un 1RM es 1 x 1.
                 </Text>
-                <Group gap="xs" align="flex-start" wrap="nowrap">
+                {/* Dos columnas parejas: el «x» suelto con margen fijo se desalineaba
+                    en cuanto un campo mostraba su error. */}
+                <SimpleGrid cols={2} spacing="sm" maw={320}>
                   <NumberInput
                     label="Sets"
                     placeholder="5"
@@ -219,11 +239,7 @@ export function WodPartsEditor({
                     value={p.sets ?? ""}
                     onChange={(v) => cambiar(i, { sets: typeof v === "number" ? v : null })}
                     error={pideSetsReps && p.sets == null ? "Obligatorio" : undefined}
-                    w={96}
                   />
-                  <Text mt={30} fw={600} c="dimmed">
-                    x
-                  </Text>
                   <NumberInput
                     label="Reps"
                     placeholder="3"
@@ -235,9 +251,8 @@ export function WodPartsEditor({
                     value={p.movement_reps ?? ""}
                     onChange={(v) => cambiar(i, { movement_reps: typeof v === "number" ? v : null })}
                     error={pideSetsReps && p.movement_reps == null ? "Obligatorio" : undefined}
-                    w={96}
                   />
-                </Group>
+                </SimpleGrid>
               </>
             ) : null}
 

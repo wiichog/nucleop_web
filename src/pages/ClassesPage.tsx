@@ -1,5 +1,6 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActionIcon,
   Alert,
   Anchor,
   Avatar,
@@ -9,11 +10,11 @@ import {
   ColorInput,
   Divider,
   FileInput,
+  Grid,
   Group,
   Image,
   Modal,
   NumberInput,
-  Popover,
   Progress,
   SegmentedControl,
   Select,
@@ -26,7 +27,6 @@ import {
   Textarea,
   TextInput,
   Title,
-  Tooltip,
 } from "@mantine/core";
 import { DateInput, TimeInput } from "@mantine/dates";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -175,6 +175,20 @@ const SCALINGS = [
 const NOMBRE_SCALING: Record<string, string> = { rx_plus: "Rx+", rx: "Rx", scaled: "Scaled", foundations: "Foundations" };
 
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : "");
+
+/**
+ * Las fechas se MUESTRAN como en Guatemala (20/11/2026); a la API se siguen
+ * mandando en ISO con `iso()`. dayjs no entiende «DD/MM/YYYY» sin su plugin, así
+ * que lo que se escribe a mano se interpreta aquí.
+ */
+const FORMATO_FECHA = "DD/MM/YYYY";
+const leerFecha = (texto: string): Date | null => {
+  const m = texto.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  // 31/02 no existe: Date lo corre a marzo; se descarta en vez de adivinar.
+  return d.getDate() === Number(m[1]) && d.getMonth() === Number(m[2]) - 1 ? d : null;
+};
 
 /** El filtro por servicio que comparten las pestañas (vive en la URL). */
 type FiltroProps = { gymId: string; servicio: string | null; setServicio: (s: string | null) => void };
@@ -367,50 +381,55 @@ function PaseModal({
 
   const precioValido = price !== "" && Number(price) >= 0;
 
+  // Formulario de verdad: Enter en cualquier campo guarda, como espera el dueño.
+  const enviar = (e: FormEvent) => {
+    e.preventDefault();
+    if (!precioValido || saving) return;
+    onSave({
+      type,
+      name: name.trim(),
+      price: String(price),
+      ...(existente ? { is_active: activo } : {}),
+    });
+  };
+
   return (
     <Modal opened={!!pase} onClose={onClose} title={existente ? "Editar pase" : "Nuevo pase"} centered>
-      <Select
-        label="Tipo"
-        data={DROPIN_TYPES}
-        value={type}
-        onChange={(v) => setType((v ?? "one_class") as DropinType)}
-        allowDeselect={false}
-        mb="sm"
-      />
-      <TextInput
-        label="Nombre (opcional)"
-        placeholder="Pase de día"
-        value={name}
-        onChange={(e) => setName(e.currentTarget.value)}
-        mb="sm"
-      />
-      <NumberInput
-        label="Precio (Q)"
-        min={0}
-        value={price}
-        onChange={(v) => setPrice(typeof v === "number" ? v : "")}
-        mb="md"
-      />
-      {existente && <Switch label="Activo" checked={activo} onChange={(e) => setActivo(e.currentTarget.checked)} mb="md" />}
-      <Group justify="flex-end">
-        <Button variant="default" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button
-          loading={saving}
-          disabled={!precioValido}
-          onClick={() =>
-            onSave({
-              type,
-              name: name.trim(),
-              price: String(price),
-              ...(existente ? { is_active: activo } : {}),
-            })
-          }
-        >
-          {existente ? "Guardar" : "Crear pase"}
-        </Button>
-      </Group>
+      <form onSubmit={enviar}>
+        <Select
+          label="Tipo"
+          data={DROPIN_TYPES}
+          value={type}
+          onChange={(v) => setType((v ?? "one_class") as DropinType)}
+          allowDeselect={false}
+          mb="sm"
+        />
+        <TextInput
+          label="Nombre (opcional)"
+          placeholder="Pase de día"
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
+          mb="sm"
+        />
+        <NumberInput
+          label="Precio (Q)"
+          min={0}
+          // Quetzales con centavos: más de dos decimales no existe en un cobro.
+          decimalScale={2}
+          value={price}
+          onChange={(v) => setPrice(typeof v === "number" ? v : "")}
+          mb="md"
+        />
+        {existente && <Switch label="Activo" checked={activo} onChange={(e) => setActivo(e.currentTarget.checked)} mb="md" />}
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" loading={saving} disabled={!precioValido}>
+            {existente ? "Guardar" : "Crear pase"}
+          </Button>
+        </Group>
+      </form>
     </Modal>
   );
 }
@@ -498,7 +517,7 @@ function ServicesTab({ gymId, servicio, setServicio }: FiltroProps) {
         <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
           {rows.map((s) => {
             const sinPlan = s.is_active && s.status !== "active";
-            return (
+            const tarjeta = (
               <Tarjeta
                 key={s.id}
                 etiqueta={`Editar ${s.name}`}
@@ -538,21 +557,25 @@ function ServicesTab({ gymId, servicio, setServicio }: FiltroProps) {
                     Con workout
                   </Badge>
                 )}
-                {sinPlan && (
-                  <Text
-                    size="xs"
-                    mt={6}
-                    c="var(--mantine-color-yellow-light-color)"
-                    style={{ cursor: "pointer", textDecoration: "underline" }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate("/panel/planes");
-                    }}
-                  >
-                    Asígnalo a un plan →
-                  </Text>
-                )}
               </Tarjeta>
+            );
+            if (!sinPlan) return tarjeta;
+            // El enlace va FUERA de la tarjeta: un control dentro de otro botón no
+            // se puede enfocar con teclado y el lector de pantalla no lo anuncia.
+            return (
+              <div key={s.id} style={{ display: "flex", flexDirection: "column", gap: 4, height: "100%" }}>
+                <div style={{ flex: 1 }}>{tarjeta}</div>
+                <Anchor
+                  component="button"
+                  type="button"
+                  size="xs"
+                  c="var(--mantine-color-yellow-light-color)"
+                  style={{ alignSelf: "flex-start" }}
+                  onClick={() => navigate("/panel/planes")}
+                >
+                  Asígnalo a un plan →
+                </Anchor>
+              </div>
             );
           })}
         </SimpleGrid>
@@ -616,93 +639,96 @@ function ServiceTypeModal({
     setPhoto(null);
   }
 
+  const enviar = (e: FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || saving) return;
+    onSave(
+      {
+        name: name.trim(),
+        color,
+        requires_wod: requiresWod,
+        default_duration_min: Number(duration),
+        default_capacity: Number(capacity),
+        completion_points: Number(points),
+        description: description.trim(),
+        how_it_works: howItWorks.trim(),
+        ...(existente ? { is_active: activo } : {}),
+      },
+      photo,
+    );
+  };
+
   return (
     <Modal opened={!!service} onClose={onClose} title={existente ? existente.name : "Nuevo servicio"} centered size="lg">
-      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-        <TextInput label="Nombre" placeholder="CrossFit" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
-        <ColorInput label="Color" value={color} onChange={setColor} format="hex" />
-      </SimpleGrid>
-      <SimpleGrid cols={3} spacing="sm" mt="sm">
-        <NumberInput label="Minutos" value={duration} onChange={setDuration} min={15} max={300} />
-        <NumberInput label="Cupo" value={capacity} onChange={setCapacity} min={1} max={200} />
-        <NumberInput label="Puntos" value={points} onChange={setPoints} min={0} max={1000} />
-      </SimpleGrid>
-      <Textarea
-        label="Descripción (la ven los atletas)"
-        placeholder="Entrenamiento funcional de alta intensidad en grupo"
-        value={description}
-        onChange={(e) => setDescription(e.currentTarget.value)}
-        autosize
-        minRows={2}
-        mt="sm"
-      />
-      <Textarea
-        label="Cómo funciona"
-        placeholder="Reserva tu cupo, asiste y escanea el QR al terminar"
-        value={howItWorks}
-        onChange={(e) => setHowItWorks(e.currentTarget.value)}
-        autosize
-        minRows={2}
-        mt="sm"
-      />
-      <Group align="flex-end" gap="sm" mt="sm" wrap="nowrap">
-        {existente?.photo && !photo && (
-          <img
-            src={existente.photo}
-            alt=""
-            style={{ width: 64, height: 42, objectFit: "cover", borderRadius: 8, border: "1px solid var(--a-line)" }}
-          />
-        )}
-        <FileInput
-          label="Foto"
-          placeholder={existente?.photo ? "Cambiar foto" : "Subir imagen"}
-          accept="image/*"
-          value={photo}
-          onChange={setPhoto}
-          clearable
-          style={{ flex: 1 }}
+      <form onSubmit={enviar}>
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+          <TextInput label="Nombre" placeholder="CrossFit" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
+          <ColorInput label="Color" value={color} onChange={setColor} format="hex" />
+        </SimpleGrid>
+        {/* Tres números en fila no caben a 375 px: en el teléfono va uno por renglón. */}
+        <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="sm" mt="sm">
+          <NumberInput label="Minutos" value={duration} onChange={setDuration} min={15} max={300} />
+          <NumberInput label="Cupo" value={capacity} onChange={setCapacity} min={1} max={200} />
+          <NumberInput label="Puntos" value={points} onChange={setPoints} min={0} max={1000} />
+        </SimpleGrid>
+        <Textarea
+          label="Descripción (la ven los atletas)"
+          placeholder="Entrenamiento funcional de alta intensidad en grupo"
+          value={description}
+          onChange={(e) => setDescription(e.currentTarget.value)}
+          autosize
+          minRows={2}
+          mt="sm"
         />
-      </Group>
-      <Group mt="md" gap="lg">
-        <Switch label="Lleva workout" checked={requiresWod} onChange={(e) => setRequiresWod(e.currentTarget.checked)} />
-        {existente && <Switch label="Activo" checked={activo} onChange={(e) => setActivo(e.currentTarget.checked)} />}
-      </Group>
-      <Group justify="space-between" mt="lg">
-        {existente ? (
-          <Button variant="subtle" color="red" loading={removing} onClick={() => onDelete(existente)}>
-            Eliminar
-          </Button>
-        ) : (
-          <span />
-        )}
-        <Group gap="xs">
-          <Button variant="default" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            disabled={!name.trim()}
-            loading={saving}
-            onClick={() =>
-              onSave(
-                {
-                  name: name.trim(),
-                  color,
-                  requires_wod: requiresWod,
-                  default_duration_min: Number(duration),
-                  default_capacity: Number(capacity),
-                  completion_points: Number(points),
-                  description: description.trim(),
-                  how_it_works: howItWorks.trim(),
-                  ...(existente ? { is_active: activo } : {}),
-                },
-                photo,
-              )
-            }
-          >
-            {existente ? "Guardar" : "Crear servicio"}
-          </Button>
+        <Textarea
+          label="Cómo funciona"
+          placeholder="Reserva tu cupo, asiste y escanea el QR al terminar"
+          value={howItWorks}
+          onChange={(e) => setHowItWorks(e.currentTarget.value)}
+          autosize
+          minRows={2}
+          mt="sm"
+        />
+        <Group align="flex-end" gap="sm" mt="sm" wrap="nowrap">
+          {existente?.photo && !photo && (
+            <img
+              src={existente.photo}
+              alt=""
+              style={{ width: 64, height: 42, objectFit: "cover", borderRadius: 8, border: "1px solid var(--a-line)" }}
+            />
+          )}
+          <FileInput
+            label="Foto"
+            placeholder={existente?.photo ? "Cambiar foto" : "Subir imagen"}
+            accept="image/*"
+            value={photo}
+            onChange={setPhoto}
+            clearable
+            style={{ flex: 1 }}
+          />
         </Group>
-      </Group>
+        <Group mt="md" gap="lg">
+          <Switch label="Lleva workout" checked={requiresWod} onChange={(e) => setRequiresWod(e.currentTarget.checked)} />
+          {existente && <Switch label="Activo" checked={activo} onChange={(e) => setActivo(e.currentTarget.checked)} />}
+        </Group>
+        <Group justify="space-between" mt="lg">
+          {existente ? (
+            <Button variant="subtle" color="red" loading={removing} onClick={() => onDelete(existente)}>
+              Eliminar
+            </Button>
+          ) : (
+            <span />
+          )}
+          <Group gap="xs">
+            <Button variant="default" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={!name.trim()} loading={saving}>
+              {existente ? "Guardar" : "Crear servicio"}
+            </Button>
+          </Group>
+        </Group>
+      </form>
     </Modal>
   );
 }
@@ -792,22 +818,28 @@ function ScheduleTab({ gymId, servicio, setServicio }: FiltroProps) {
               value={servicio}
               onChange={setServicio}
             />
-            <Tooltip label="Reconstruye el calendario futuro desde los horarios activos (quita clases sobrantes sin reservas y regenera las próximas semanas)">
-              <Button
-                variant="default"
-                loading={materialize.isPending}
-                onClick={async () => {
-                  try {
-                    const res = await materialize.mutateAsync();
-                    setMaterialized(res.materialized);
-                  } catch (error) {
-                    fail(error, "No se pudo regenerar el calendario.");
-                  }
-                }}
-              >
-                Regenerar calendario
-              </Button>
-            </Tooltip>
+            {/* La explicación vivía en un Tooltip, que en el teléfono no existe: ahora
+                se lee en la confirmación, antes de tocar el calendario. */}
+            <Button
+              variant="default"
+              loading={materialize.isPending}
+              onClick={async () => {
+                if (
+                  !window.confirm(
+                    "¿Regenerar el calendario?\n\nSe reconstruyen las clases de las próximas semanas a partir del horario activo: se quitan las clases sobrantes que no tienen reservas y se crean las que falten.",
+                  )
+                )
+                  return;
+                try {
+                  const res = await materialize.mutateAsync();
+                  setMaterialized(res.materialized);
+                } catch (error) {
+                  fail(error, "No se pudo regenerar el calendario.");
+                }
+              }}
+            >
+              Regenerar calendario
+            </Button>
             <Button onClick={() => abrirNueva()} disabled={!serviceOptions.length}>
               Agregar clase
             </Button>
@@ -832,8 +864,12 @@ function ScheduleTab({ gymId, servicio, setServicio }: FiltroProps) {
               onAbrir={setEditing}
               onNueva={(dia, hora) => abrirNueva({ startTime: hora, weekdays: [String(dia)] })}
             />
-            <Text size="xs" c="dimmed" mt="sm">
+            {/* En el teléfono no hay cuadrícula ni «+»: se agrega con el botón de cada día. */}
+            <Text size="xs" c="dimmed" mt="sm" visibleFrom="sm">
               Toca una clase para cambiarla o quitarla. Toca un espacio vacío (+) para agregar una clase ahí.
+            </Text>
+            <Text size="xs" c="dimmed" mt="sm" hiddenFrom="sm">
+              Toca una clase para cambiarla o quitarla. Usa «+ Agregar» en un día para sumar una clase ese día.
             </Text>
           </>
         ) : (
@@ -880,6 +916,13 @@ function ScheduleTab({ gymId, servicio, setServicio }: FiltroProps) {
         }}
         onRemove={() => {
           if (!editing) return;
+          // Quitar es definitivo y deja de generar la clase cada semana: se confirma.
+          if (
+            !window.confirm(
+              `¿Quitar ${editing.service_type_name} del ${weekdayLabel(editing.weekday)} ${horaDe(editing)} del horario? Deja de repetirse cada semana.`,
+            )
+          )
+            return;
           remove.mutate(editing.id, {
             onSuccess: () => {
               ok("Clase quitada del horario.");
@@ -944,9 +987,13 @@ function NuevaFranjaModal({
     setToDate(null);
   }
 
+  // «Desde» siempre lleva fecha y, si la clase tiene fin, «Hasta» también: antes
+  // se podía mandar "" y el backend lo rechazaba con un error poco claro.
+  const fechasValidas = !!fromDate && (openEnded || !!toDate);
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!serviceId || !weekdays.length) return;
+    if (!serviceId || !weekdays.length || !fechasValidas) return;
     // Una fila por día seleccionado: cada celda de la cuadrícula es su propio horario.
     const creados: string[] = [];
     try {
@@ -1013,10 +1060,10 @@ function NuevaFranjaModal({
             data={coachOptions}
           />
           <TimeInput label="Hora" value={startTime} onChange={(e) => setStartTime(e.currentTarget.value)} />
-          <Group grow>
+          <SimpleGrid cols={2} spacing="sm">
             <NumberInput label="Minutos" value={duration} onChange={setDuration} min={15} max={300} />
             <NumberInput label="Cupo" value={capacity} onChange={setCapacity} min={1} max={200} />
-          </Group>
+          </SimpleGrid>
         </SimpleGrid>
 
         <Text size="sm" fw={500} mt="md" mb={6}>
@@ -1042,8 +1089,26 @@ function NuevaFranjaModal({
         </Group>
 
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="md">
-          <DateInput label="Desde" value={fromDate} onChange={setFromDate} valueFormat="YYYY-MM-DD" popoverProps={{ withinPortal: true }} clearable />
-          <DateInput label="Hasta" value={toDate} onChange={setToDate} valueFormat="YYYY-MM-DD" disabled={openEnded} popoverProps={{ withinPortal: true }} clearable />
+          <DateInput
+            label="Desde"
+            value={fromDate}
+            onChange={setFromDate}
+            valueFormat={FORMATO_FECHA}
+            dateParser={leerFecha}
+            popoverProps={{ withinPortal: true }}
+            required
+          />
+          <DateInput
+            label="Hasta"
+            value={toDate}
+            onChange={setToDate}
+            valueFormat={FORMATO_FECHA}
+            dateParser={leerFecha}
+            disabled={openEnded}
+            popoverProps={{ withinPortal: true }}
+            clearable
+            error={!openEnded && !toDate ? "Elige hasta cuándo, o marca «Sin fecha de fin»." : undefined}
+          />
         </SimpleGrid>
         <Switch mt="sm" label="Sin fecha de fin" checked={openEnded} onChange={(e) => setOpenEnded(e.currentTarget.checked)} />
 
@@ -1051,7 +1116,7 @@ function NuevaFranjaModal({
           <Button variant="default" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" loading={create.isPending} disabled={!serviceId || !weekdays.length}>
+          <Button type="submit" loading={create.isPending} disabled={!serviceId || !weekdays.length || !fechasValidas}>
             {weekdays.length > 1 ? `Agregar ${weekdays.length} clases` : "Agregar"}
           </Button>
         </Group>
@@ -1154,6 +1219,24 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
   // El día que se mira y la semana de la tira. Arranca en hoy.
   const [dia, setDia] = useState(hoy);
   const [lunes, setLunes] = useState(() => lunesDe(new Date()));
+  // La tira de días se desliza a lo ancho en el teléfono: el día elegido se trae
+  // al centro al montar y al cambiar de día o de semana. También cuando la tira
+  // pasa de oculta (otra pestaña, ancho 0) a visible: por eso el ResizeObserver.
+  const tiraRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const tira = tiraRef.current;
+    if (!tira) return;
+    const centrar = () => {
+      const boton = tira.querySelector<HTMLElement>(`[data-dia="${dia}"]`);
+      if (!boton || !tira.clientWidth) return;
+      tira.scrollLeft = boton.offsetLeft - (tira.clientWidth - boton.offsetWidth) / 2;
+    };
+    centrar();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(centrar);
+    ro.observe(tira);
+    return () => ro.disconnect();
+  }, [dia, lunes]);
   const [selectedClassId, setSelectedClassId] = useState("");
   const [editing, setEditing] = useState<ClassRow | null>(null);
   const checkins = useClassCheckins(gymId, selectedClassId);
@@ -1246,152 +1329,172 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
           value={servicio}
           onChange={setServicio}
         />
-        <Tooltip label="Cada clase se abre para reservar estas horas antes de empezar. Vacío: manda el interruptor «Reservar días futuros».">
-          <NumberInput
-            aria-label="Reservas abren (horas antes)"
-            placeholder="Horas antes"
-            leftSection={<Text size="xs" c="dimmed">Abre</Text>}
-            leftSectionWidth={42}
-            rightSection={<Text size="xs" c="dimmed">h antes</Text>}
-            rightSectionWidth={56}
-            w={170}
-            size="xs"
-            min={1}
-            max={720}
-            allowDecimal={false}
-            value={horas}
-            onChange={setHoras}
-            onBlur={guardarHoras}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.currentTarget.blur();
-            }}
-            disabled={config.isLoading || updateConfig.isPending}
-          />
-        </Tooltip>
-        <Popover opened={cierreAbierto} onChange={setCierreAbierto} position="bottom-end" withArrow shadow="md" width={300}>
-          <Popover.Target>
-            <Button
-              variant="default"
-              size="xs"
-              onClick={() => (cierreAbierto ? setCierreAbierto(false) : abrirCierre())}
-              disabled={config.isLoading}
-            >
-              {resumenCierre ? `Cierre: ${resumenCierre}` : "Cierre de reservas"}
-            </Button>
-          </Popover.Target>
-          <Popover.Dropdown>
-            <Stack gap="xs">
-              <Text size="sm" fw={600}>
-                ¿Hasta cuándo se puede reservar?
-              </Text>
-              <TimeInput
-                label="Clases de la mañana: cierran la noche anterior a las"
-                description="Vacío: las de la mañana cierran como las demás."
-                value={nocheDraft}
-                onChange={(e) => setNocheDraft(e.currentTarget.value)}
-                size="xs"
-              />
-              <NumberInput
-                label="Son de la mañana las que empiezan antes de las"
-                rightSection={<Text size="xs" c="dimmed">h</Text>}
-                min={1}
-                max={23}
-                allowDecimal={false}
-                value={hastaDraft}
-                onChange={setHastaDraft}
-                size="xs"
-              />
-              <NumberInput
-                label="Las demás clases cierran"
-                description="Vacío: se puede reservar hasta que empiece la clase."
-                rightSection={<Text size="xs" c="dimmed">min antes</Text>}
-                rightSectionWidth={70}
-                min={1}
-                max={1440}
-                allowDecimal={false}
-                value={minDraft}
-                onChange={setMinDraft}
-                size="xs"
-              />
-              <Group justify="flex-end" gap="xs">
-                <Button variant="default" size="xs" onClick={() => setCierreAbierto(false)}>
-                  Cancelar
-                </Button>
-                <Button size="xs" onClick={guardarCierre} loading={updateConfig.isPending}>
-                  Guardar cierre
-                </Button>
-              </Group>
-            </Stack>
-          </Popover.Dropdown>
-        </Popover>
-        <Tooltip
-          label={
-            horasGuardadas
-              ? "Con horas de apertura puestas, manda esa ventana y este interruptor no se usa"
-              : "Si está apagado, los atletas solo pueden reservar las clases de hoy"
-          }
-        >
-          <div>
-            <Switch
-              label="Reservar días futuros"
-              checked={allowFuture}
-              disabled={config.isLoading || updateConfig.isPending || !!horasGuardadas}
-              onChange={(e) => {
-                const permitir = e.currentTarget.checked;
-                updateConfig.mutate(
-                  { allow_future_reservations: permitir },
-                  {
-                    onSuccess: () =>
-                      ok(permitir ? "Los atletas ya pueden reservar días futuros." : "Los atletas solo reservan las clases de hoy."),
-                    onError: (error) => fail(error, "No se pudo guardar la configuración de reservas."),
-                  },
-                );
-              }}
-            />
-          </div>
-        </Tooltip>
       </Encabezado>
 
-      {/* La tira de días: una semana, con cuántas clases tiene cada día. */}
-      <Group gap={6} mb="md" wrap="nowrap" style={{ overflowX: "auto" }}>
-        <Button variant="default" size="xs" px={8} onClick={() => setLunes(sumarDias(lunes, -7))} aria-label="Semana anterior">
+      {/* Las reglas de reserva, cada una con su explicación a la vista: antes
+          vivía en Tooltips (en el teléfono no hay hover, y un control
+          deshabilitado ni siquiera lo dispara) y apretadas en el encabezado. */}
+      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mb="md">
+        <NumberInput
+          label="Las reservas abren"
+          description="Horas antes de cada clase. Vacío: manda «Reservar días futuros»."
+          placeholder="Sin ventana"
+          rightSection={<Text size="xs" c="dimmed">h antes</Text>}
+          rightSectionWidth={56}
+          size="xs"
+          min={1}
+          max={720}
+          allowDecimal={false}
+          value={horas}
+          onChange={setHoras}
+          onBlur={guardarHoras}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+          disabled={config.isLoading || updateConfig.isPending}
+        />
+        {/* Etiqueta corta + resumen aparte: «Cierre: mañana: 20:00 día anterior ·
+            30 min antes» no cabía en un botón y se cortaba. */}
+        <div>
+          <Text size="xs" fw={500}>
+            Cierre de reservas
+          </Text>
+          <Text size="xs" c="dimmed" mb={4}>
+            {resumenCierre ? `Cierran: ${resumenCierre}.` : "Se puede reservar hasta que empiece la clase."}
+          </Text>
+          <Button variant="default" size="xs" onClick={abrirCierre} disabled={config.isLoading}>
+            Cambiar cierre
+          </Button>
+        </div>
+        <Switch
+          label="Reservar días futuros"
+          description={
+            horasGuardadas
+              ? "Con horas de apertura puestas, manda esa ventana y este interruptor no se usa."
+              : "Si está apagado, los atletas solo pueden reservar las clases de hoy."
+          }
+          checked={allowFuture}
+          disabled={config.isLoading || updateConfig.isPending || !!horasGuardadas}
+          onChange={(e) => {
+            const permitir = e.currentTarget.checked;
+            updateConfig.mutate(
+              { allow_future_reservations: permitir },
+              {
+                onSuccess: () =>
+                  ok(permitir ? "Los atletas ya pueden reservar días futuros." : "Los atletas solo reservan las clases de hoy."),
+                onError: (error) => fail(error, "No se pudo guardar la configuración de reservas."),
+              },
+            );
+          }}
+        />
+      </SimpleGrid>
+
+      {/* Modal y no Popover: con tres campos, en el teléfono el teclado tapaba el
+          popover. Es formulario: Enter guarda. */}
+      <Modal opened={cierreAbierto} onClose={() => setCierreAbierto(false)} title="Cierre de reservas" centered>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!updateConfig.isPending) guardarCierre();
+          }}
+        >
+          <Stack gap="sm">
+            <Text size="sm" c="dimmed">
+              ¿Hasta cuándo se puede reservar?
+            </Text>
+            <TimeInput
+              label="Clases de la mañana: cierran la noche anterior a las"
+              description="Vacío: las de la mañana cierran como las demás."
+              value={nocheDraft}
+              onChange={(e) => setNocheDraft(e.currentTarget.value)}
+            />
+            <NumberInput
+              label="Son de la mañana las que empiezan antes de las"
+              rightSection={<Text size="xs" c="dimmed">h</Text>}
+              min={1}
+              max={23}
+              allowDecimal={false}
+              value={hastaDraft}
+              onChange={setHastaDraft}
+            />
+            <NumberInput
+              label="Las demás clases cierran"
+              description="Vacío: se puede reservar hasta que empiece la clase."
+              rightSection={<Text size="xs" c="dimmed">min antes</Text>}
+              rightSectionWidth={70}
+              min={1}
+              max={1440}
+              allowDecimal={false}
+              value={minDraft}
+              onChange={setMinDraft}
+            />
+            <Group justify="flex-end" gap="xs" mt="xs">
+              <Button variant="default" onClick={() => setCierreAbierto(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" loading={updateConfig.isPending}>
+                Guardar cierre
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Modal>
+
+      {/* La tira de días: una semana, con cuántas clases tiene cada día. Las
+          flechas quedan FUERA de lo que se desliza: a 375 px la tira no cabe y,
+          dentro, la de «semana siguiente» quedaba fuera de vista. */}
+      <Group gap={6} mb="md" wrap="nowrap" align="center">
+        <ActionIcon variant="default" onClick={() => setLunes(sumarDias(lunes, -7))} aria-label="Semana anterior">
           ‹
-        </Button>
-        {diasDeSemana(lunes).map((d) => {
-          const f = isoLocal(d);
-          const n = delServicio.filter((c) => diaDe(c) === f && c.status !== "cancelled").length;
-          const activo = f === dia;
-          return (
-            <Button
-              key={f}
-              size="xs"
-              variant={activo ? "filled" : "default"}
-              color="flame"
-              onClick={() => setDia(f)}
-              style={{ flex: "1 0 auto", minWidth: 64 }}
-            >
-              {f === hoy ? "Hoy" : etiquetaColumna(d)}
-              {n > 0 && (
-                <Text span size="xs" ml={6} c={activo ? undefined : "dimmed"}>
-                  {n}
-                </Text>
-              )}
-            </Button>
-          );
-        })}
-        <Button variant="default" size="xs" px={8} onClick={() => setLunes(sumarDias(lunes, 7))} aria-label="Semana siguiente">
+        </ActionIcon>
+        <div
+          ref={tiraRef}
+          style={{ flex: 1, minWidth: 0, overflowX: "auto", position: "relative", scrollbarWidth: "none" }}
+        >
+          <Group gap={6} wrap="nowrap">
+            {diasDeSemana(lunes).map((d) => {
+              const f = isoLocal(d);
+              const n = delServicio.filter((c) => diaDe(c) === f && c.status !== "cancelled").length;
+              const activo = f === dia;
+              return (
+                <Button
+                  key={f}
+                  data-dia={f}
+                  size="xs"
+                  variant={activo ? "filled" : "default"}
+                  color="flame"
+                  onClick={() => setDia(f)}
+                  aria-pressed={activo}
+                  style={{ flex: "1 0 auto", minWidth: 64 }}
+                >
+                  {f === hoy ? "Hoy" : etiquetaColumna(d)}
+                  {n > 0 && (
+                    <Text span size="xs" ml={6} c={activo ? undefined : "dimmed"}>
+                      {n}
+                    </Text>
+                  )}
+                </Button>
+              );
+            })}
+          </Group>
+        </div>
+        <ActionIcon variant="default" onClick={() => setLunes(sumarDias(lunes, 7))} aria-label="Semana siguiente">
           ›
-        </Button>
-        {dia !== hoy && (
+        </ActionIcon>
+      </Group>
+
+      {/* «Ir a hoy» va junto a la fecha, no al final de la tira donde se perdía;
+          y sale también si se cambió de semana sin cambiar de día. */}
+      <Group justify="space-between" gap="xs" mb="xs" wrap="nowrap">
+        <Text fw={700} size="sm">
+          {mayuscula(fechaLarga(deIso(dia)))}
+        </Text>
+        {(dia !== hoy || isoLocal(lunes) !== isoLocal(lunesDe(new Date()))) && (
           <Button variant="subtle" size="xs" onClick={() => irA(new Date())}>
             Ir a hoy
           </Button>
         )}
       </Group>
-
-      <Text fw={700} size="sm" mb="xs">
-        {mayuscula(fechaLarga(deIso(dia)))}
-      </Text>
 
       {source.isLoading ? (
         <Text c="dimmed" size="sm">
@@ -1417,21 +1520,31 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
                 apagada={cancelada}
               >
                 <Group gap="sm" wrap="nowrap">
-                  <Text fw={700} w={52} className="a-tabular">
+                  <Text fw={700} w={52} className="a-tabular" style={{ flex: "0 0 auto" }}>
                     {hora(c)}
                   </Text>
                   <PuntoColor color={c.color} />
+                  {/* Dos renglones: en una sola línea, a 375 px el truncado se comía
+                      al coach, que es justo lo que se viene a revisar. */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <Text size="sm" fw={600} truncate>
                       {c.class_type}
-                      <Text span c={falta ? "var(--mantine-color-yellow-light-color)" : "dimmed"} fw={falta ? 700 : 400}>
-                        {" · "}
-                        {coach ?? "Sin coach asignado"}
-                      </Text>
                     </Text>
+                    <Text
+                      size="xs"
+                      truncate
+                      c={falta ? "var(--mantine-color-yellow-light-color)" : "dimmed"}
+                      fw={falta ? 700 : 400}
+                    >
+                      {coach ?? "Sin coach asignado"}
+                    </Text>
+                    {(cancelada || faltaWorkout(c)) && (
+                      <Group gap={4} mt={4}>
+                        {cancelada && <Badge size="xs" color="gray" variant="light">Cancelada</Badge>}
+                        {faltaWorkout(c) && !cancelada && <Badge size="xs" color="yellow" variant="light">Sin workout</Badge>}
+                      </Group>
+                    )}
                   </div>
-                  {cancelada && <Badge size="xs" color="gray" variant="light">Cancelada</Badge>}
-                  {faltaWorkout(c) && !cancelada && <Badge size="xs" color="yellow" variant="light">Sin workout</Badge>}
                   {c.rating != null && (
                     <Text size="xs" c="dimmed" visibleFrom="sm">
                       ★ {c.rating.toFixed(1)}
@@ -1452,15 +1565,13 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
         gymClass={editing}
         coaches={coaches.data ?? []}
         onClose={() => setEditing(null)}
+        // Sin catch aquí: el error sube al modal, que lo muestra en línea junto al
+        // coach elegido (antes se tragaba y el aviso del modal nunca salía).
         onSave={async (body) => {
           if (!editing) return;
-          try {
-            await updateClass.mutateAsync({ classId: editing.id, body });
-            ok("Clase actualizada.");
-            setEditing(null);
-          } catch (error) {
-            fail(error, "No se pudo actualizar la clase.");
-          }
+          await updateClass.mutateAsync({ classId: editing.id, body });
+          ok("Clase actualizada.");
+          setEditing(null);
         }}
         saving={updateClass.isPending}
       />
@@ -1495,12 +1606,26 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
                   variant="subtle"
                   color="orange"
                   loading={cancelClass.isPending}
-                  onClick={() =>
+                  onClick={() => {
+                    // Cancelar avisa a cada reservado y no tiene vuelta atrás: se
+                    // confirma diciendo a cuántos les llega el aviso.
+                    const n = selectedClass.reserved_count;
+                    const aviso = n
+                      ? `Se avisará a ${n} ${n === 1 ? "atleta reservado" : "atletas reservados"}.`
+                      : "No tiene reservas.";
+                    if (
+                      !window.confirm(
+                        `¿Cancelar la clase de ${selectedClass.class_type} de las ${hora(selectedClass)} (${fechaLarga(
+                          new Date(selectedClass.starts_at),
+                        )})?\n\n${aviso} No se puede deshacer.`,
+                      )
+                    )
+                      return;
                     cancelClass.mutate(selectedClass.id, {
                       onSuccess: () => ok("Clase cancelada. Se avisó a los atletas reservados."),
                       onError: (error) => fail(error, "No se pudo cancelar la clase."),
-                    })
-                  }
+                    });
+                  }}
                 >
                   Cancelar clase
                 </Button>
@@ -1553,39 +1678,42 @@ function ClassesTab({ gymId, servicio, setServicio }: FiltroProps) {
             Nadie todavía.
           </Text>
         ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Atleta</Table.Th>
-                <Table.Th>Acceso</Table.Th>
-                <Table.Th>Hora</Table.Th>
-                <Table.Th>Método</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {(checkins.data ?? []).map((checkin) => (
-                <Table.Tr key={checkin.id}>
-                  <Table.Td>{checkin.athlete_name}</Table.Td>
-                  <Table.Td>
-                    {/* Sin membresía en el check-in = entró con un pase drop-in. */}
-                    {checkin.membership ? (
-                      <Badge color="gray" variant="light">
-                        Socio
-                      </Badge>
-                    ) : (
-                      <Badge color="cyan" variant="light">
-                        Drop-in
-                      </Badge>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    {new Date(checkin.checked_in_at).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}
-                  </Table.Td>
-                  <Table.Td>{label(CHECKIN_METHOD, checkin.method)}</Table.Td>
+          // Cuatro columnas no caben en el modal a 375 px: se desliza a lo ancho.
+          <Table.ScrollContainer minWidth={420}>
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Atleta</Table.Th>
+                  <Table.Th>Acceso</Table.Th>
+                  <Table.Th>Hora</Table.Th>
+                  <Table.Th>Método</Table.Th>
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+              </Table.Thead>
+              <Table.Tbody>
+                {(checkins.data ?? []).map((checkin) => (
+                  <Table.Tr key={checkin.id}>
+                    <Table.Td>{checkin.athlete_name}</Table.Td>
+                    <Table.Td>
+                      {/* Sin membresía en el check-in = entró con un pase drop-in. */}
+                      {checkin.membership ? (
+                        <Badge color="gray" variant="light">
+                          Socio
+                        </Badge>
+                      ) : (
+                        <Badge color="cyan" variant="light">
+                          Drop-in
+                        </Badge>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      {new Date(checkin.checked_in_at).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}
+                    </Table.Td>
+                    <Table.Td>{label(CHECKIN_METHOD, checkin.method)}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
       </Modal>
     </GlassCard>
@@ -1656,9 +1784,17 @@ export function RecepcionBuscador({ gymId, classId }: { gymId: string; classId: 
 
   return (
     <>
+      {/* Teclado de búsqueda y sin autocorrector: el corrector del teléfono
+          «arreglaba» los apellidos y la búsqueda dejaba de encontrar. */}
       <TextInput
         label="Buscar a quien llegó"
         placeholder="Nombre o últimos dígitos del teléfono"
+        type="search"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="none"
+        spellCheck={false}
+        enterKeyHint="search"
         value={texto}
         onChange={(e) => setTexto(e.currentTarget.value)}
       />
@@ -1732,15 +1868,19 @@ export function RecepcionBuscador({ gymId, classId }: { gymId: string; classId: 
                           {accion.reason_message}
                         </Text>
                       )}
+                      {/* Antes solo en un Tooltip del badge: en el teléfono no se leía. */}
+                      {vender && (
+                        <Text size="xs" c="dimmed" mt={4}>
+                          No es socio: necesita comprar un pase drop-in desde el app de Nucleo.
+                        </Text>
+                      )}
                     </div>
                   </Group>
                   <Group gap="xs">
                     {vender && (
-                      <Tooltip label="No es socio: necesita comprar un pase drop-in desde el app de Nucleo." withinPortal>
-                        <Badge variant="light" color="orange">
-                          Requiere pase
-                        </Badge>
-                      </Tooltip>
+                      <Badge variant="light" color="orange">
+                        Requiere pase
+                      </Badge>
                     )}
                     <Button
                       size="xs"
@@ -1779,13 +1919,15 @@ function ClassQrBlock({ gymId, classId }: { gymId: string; classId: string }) {
       >
         <QRCode value={qr.data.qr_token} size={140} />
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
+      {/* Base de 200 px: si no cabe junto al QR, el texto baja debajo en vez de
+          quedar en una columna de 110 px. */}
+      <div style={{ flex: "1 1 200px", minWidth: 0 }}>
         <SectionLabel mb={4}>Check-in</SectionLabel>
         <Text fw={600}>QR de asistencia</Text>
         <Text c="dimmed" size="sm">
           Los atletas lo escanean desde su app para registrar su asistencia. El código pertenece a esta clase.
         </Text>
-        <Text c="dimmed" size="xs" mt={6} style={{ wordBreak: "break-all" }}>
+        <Text c="dimmed" size="xs" mt={6} style={{ overflowWrap: "anywhere" }}>
           Token: {qr.data.qr_token}
         </Text>
       </div>
@@ -1833,58 +1975,61 @@ function EditScheduleModal({
     ? `${schedule.service_type_name} · ${weekdayLabel(schedule.weekday)} ${schedule.start_time.slice(0, 5)}`
     : "";
 
+  const enviar = (e: FormEvent) => {
+    e.preventDefault();
+    if (saving) return;
+    onSave({
+      start_time: startTime,
+      duration_min: Number(duration),
+      capacity: Number(capacity),
+      default_coach: coachId,
+    } as Partial<ClassSchedule>);
+  };
+
   return (
     <Modal opened={!!schedule} onClose={onClose} title={titulo} centered>
-      {schedule && (
-        <Text size="sm" c="dimmed" mb="md">
-          {schedule.is_open_ended ? "Se repite cada semana, sin fecha de fin." : `Se repite cada semana hasta el ${schedule.valid_until}.`}
-        </Text>
-      )}
-      <Select
-        label="Coach"
-        placeholder="Sin asignar"
-        clearable
-        searchable
-        value={coachId}
-        onChange={setCoachId}
-        data={coachOptions}
-        mb="sm"
-      />
-      <TimeInput label="Hora" value={startTime} onChange={(e) => setStartTime(e.currentTarget.value)} mb="sm" />
-      <Group grow mb="lg">
-        <NumberInput label="Minutos" value={duration} onChange={setDuration} min={15} max={300} />
-        <NumberInput label="Cupo" value={capacity} onChange={setCapacity} min={1} max={200} />
-      </Group>
-      <Group justify="space-between" wrap="wrap" gap="xs">
-        <Group gap="xs">
-          <Button variant="subtle" color="red" loading={removing} onClick={onRemove}>
-            Quitar del horario
-          </Button>
-          {schedule && (
-            <Button variant="subtle" onClick={() => onCopy(schedule)}>
-              Copiar a otros días
+      <form onSubmit={enviar}>
+        {schedule && (
+          <Text size="sm" c="dimmed" mb="md">
+            {schedule.is_open_ended ? "Se repite cada semana, sin fecha de fin." : `Se repite cada semana hasta el ${schedule.valid_until}.`}
+          </Text>
+        )}
+        <Select
+          label="Coach"
+          placeholder="Sin asignar"
+          clearable
+          searchable
+          value={coachId}
+          onChange={setCoachId}
+          data={coachOptions}
+          mb="sm"
+        />
+        <TimeInput label="Hora" value={startTime} onChange={(e) => setStartTime(e.currentTarget.value)} mb="sm" />
+        <SimpleGrid cols={2} spacing="sm" mb="lg">
+          <NumberInput label="Minutos" value={duration} onChange={setDuration} min={15} max={300} />
+          <NumberInput label="Cupo" value={capacity} onChange={setCapacity} min={1} max={200} />
+        </SimpleGrid>
+        <Group justify="space-between" wrap="wrap" gap="xs">
+          <Group gap="xs">
+            <Button variant="subtle" color="red" loading={removing} onClick={onRemove}>
+              Quitar del horario
             </Button>
-          )}
+            {schedule && (
+              <Button variant="subtle" onClick={() => onCopy(schedule)}>
+                Copiar a otros días
+              </Button>
+            )}
+          </Group>
+          <Group gap="xs">
+            <Button variant="default" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button type="submit" loading={saving}>
+              Guardar
+            </Button>
+          </Group>
         </Group>
-        <Group gap="xs">
-          <Button variant="default" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            loading={saving}
-            onClick={() =>
-              onSave({
-                start_time: startTime,
-                duration_min: Number(duration),
-                capacity: Number(capacity),
-                default_coach: coachId,
-              } as Partial<ClassSchedule>)
-            }
-          >
-            Guardar
-          </Button>
-        </Group>
-      </Group>
+      </form>
     </Modal>
   );
 }
@@ -1986,15 +2131,20 @@ function WodTab({ gymId }: { gymId: string }) {
           allowDeselect={false}
           w={{ base: "100%", sm: 200 }}
         />
-        <Group gap={4} wrap="nowrap">
-          <Button variant="default" size="xs" px={8} onClick={() => setLunes(sumarDias(lunes, -7))} aria-label="Semana anterior">
+        {/* El rango es texto (puede partirse en dos renglones), no la etiqueta de
+            un botón que no hacía wrap; «Hoy» vuelve a la semana actual. */}
+        <Group gap={6} wrap="nowrap" align="center">
+          <ActionIcon variant="default" onClick={() => setLunes(sumarDias(lunes, -7))} aria-label="Semana anterior">
             ‹
-          </Button>
-          <Button variant="default" size="xs" onClick={() => setLunes(lunesDe(new Date()))} disabled={esEstaSemana}>
-            {esEstaSemana ? rangoDeSemana(lunes) : "Esta semana"}
-          </Button>
-          <Button variant="default" size="xs" px={8} onClick={() => setLunes(sumarDias(lunes, 7))} aria-label="Semana siguiente">
+          </ActionIcon>
+          <Text size="sm" fw={600} ta="center" style={{ minWidth: 0 }}>
+            {rangoDeSemana(lunes)}
+          </Text>
+          <ActionIcon variant="default" onClick={() => setLunes(sumarDias(lunes, 7))} aria-label="Semana siguiente">
             ›
+          </ActionIcon>
+          <Button variant="default" size="xs" onClick={() => setLunes(lunesDe(new Date()))} disabled={esEstaSemana}>
+            Hoy
           </Button>
         </Group>
         {/* Hasta que llega el catálogo no se sabe si hay programas: sin esperar,
@@ -2003,11 +2153,6 @@ function WodTab({ gymId }: { gymId: string }) {
           Programar
         </Button>
       </Encabezado>
-      {!esEstaSemana && (
-        <Text size="sm" c="dimmed" mb="sm">
-          Semana del {rangoDeSemana(lunes)}
-        </Text>
-      )}
 
       <SemanaWods
         wods={semanaRows}
@@ -2015,7 +2160,9 @@ function WodTab({ gymId }: { gymId: string }) {
         programa={programa}
         hoy={hoy}
         cargando={semana.isLoading}
-        ocupado={update.isPending || remove.isPending}
+        // El que está en vuelo, no todos: antes un «Publicar» ponía a girar los
+        // botones de los siete días.
+        ocupadoId={update.isPending ? (update.variables?.id ?? null) : remove.isPending ? (remove.variables ?? null) : null}
         etiquetaScore={scoreCorto}
         onProgramar={setProgramando}
         onEditar={setEditing}
@@ -2134,7 +2281,8 @@ function NuevoWodModal({
             label="Fecha"
             value={date}
             onChange={setDate}
-            valueFormat="YYYY-MM-DD"
+            valueFormat={FORMATO_FECHA}
+            dateParser={leerFecha}
             popoverProps={{ withinPortal: true }}
           />
           <Select
@@ -2385,6 +2533,11 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
       label: new Date(c.starts_at).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" }),
     }));
 
+  // El teclado del teléfono según lo que se anota: un tiempo (3:21) o rounds +
+  // reps (5+12) necesitan «:» y «+», que el teclado decimal no trae.
+  const tipoScore = bloque?.scoreType ?? wod?.score_type;
+  const tecladoScore = tipoScore === "for_time" || tipoScore === "rounds_reps" || tipoScore === "emom" ? "text" : "decimal";
+
   const add = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
@@ -2409,7 +2562,18 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
 
   return (
     <Modal opened={!!wod} onClose={onClose} title={wod ? `Board · ${wod.title}` : ""} size="lg" centered>
-      {bloques.length > 1 ? (
+      {/* Con dos bloques caben las pestañas; con más, sus títulos («Fuerza A
+          (Back squat)») se aplastaban hasta no leerse: va una lista. */}
+      {bloques.length > 2 ? (
+        <Select
+          label="Bloque"
+          mb="md"
+          data={bloques.map((b) => ({ value: b.key, label: b.titulo }))}
+          value={bloque?.key ?? null}
+          onChange={(v) => v && setPartKey(v)}
+          allowDeselect={false}
+        />
+      ) : bloques.length > 1 ? (
         <SegmentedControl
           fullWidth
           mb="md"
@@ -2418,52 +2582,67 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
           data={bloques.map((b) => ({ value: b.key, label: b.titulo }))}
         />
       ) : null}
-      <Group align="flex-end" gap="sm" component="form" onSubmit={add} mb="md">
-        <Select
-          label="Atleta"
-          placeholder="Selecciona"
-          data={athleteOptions}
-          value={athleteId}
-          onChange={setAthleteId}
-          searchable
-          w={{ base: "100%", sm: 220 }}
-        />
-        <TextInput
-          label="Score"
-          placeholder={(bloque?.scoreType ?? wod?.score_type) === "for_time" ? "3:21" : "120"}
-          value={score}
-          onChange={(e) => setScore(e.currentTarget.value)}
-          w={{ base: "100%", sm: 120 }}
-        />
-        {esCarga ? (
-          <>
-            <NumberInput
-              label="Sets"
-              placeholder={setsCoach ? String(setsCoach) : "5"}
-              value={sets}
-              onChange={setSets}
-              min={1}
-              max={99}
-              allowDecimal={false}
-              w={{ base: "48%", sm: 80 }}
+      {/* Grid de 12 con spans por tamaño: en el teléfono Atleta y el botón van a
+          lo ancho y los campos cortos de dos en dos (antes eran anchos al 48 %). */}
+      <form onSubmit={add}>
+        <Grid gutter="sm" align="flex-end" mb="md">
+          <Grid.Col span={{ base: 12, sm: esCarga ? 4 : 5 }}>
+            <Select
+              label="Atleta"
+              placeholder="Selecciona"
+              data={athleteOptions}
+              value={athleteId}
+              onChange={setAthleteId}
+              searchable
             />
-            <NumberInput
-              label="Reps"
-              placeholder={repsCoach ? String(repsCoach) : "3"}
-              value={reps}
-              onChange={setReps}
-              min={1}
-              max={99}
-              allowDecimal={false}
-              w={{ base: "48%", sm: 80 }}
+          </Grid.Col>
+          <Grid.Col span={{ base: 6, sm: esCarga ? 2 : 3 }}>
+            <TextInput
+              label="Score"
+              placeholder={tipoScore === "for_time" ? "3:21" : tipoScore === "rounds_reps" ? "5+12" : "120"}
+              inputMode={tecladoScore}
+              enterKeyHint="done"
+              autoComplete="off"
+              value={score}
+              onChange={(e) => setScore(e.currentTarget.value)}
             />
-          </>
-        ) : null}
-        <Select label="Modalidad" data={SCALINGS} value={scaling} onChange={(v) => setScaling(v ?? "rx")} w={{ base: "100%", sm: 140 }} />
-        <Button type="submit" loading={addResult.isPending} disabled={!athleteId || !score.trim()}>
-          Registrar
-        </Button>
-      </Group>
+          </Grid.Col>
+          {esCarga ? (
+            <>
+              <Grid.Col span={{ base: 6, sm: 2 }}>
+                <NumberInput
+                  label="Sets"
+                  placeholder={setsCoach ? String(setsCoach) : "5"}
+                  value={sets}
+                  onChange={setSets}
+                  min={1}
+                  max={99}
+                  allowDecimal={false}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 6, sm: 2 }}>
+                <NumberInput
+                  label="Reps"
+                  placeholder={repsCoach ? String(repsCoach) : "3"}
+                  value={reps}
+                  onChange={setReps}
+                  min={1}
+                  max={99}
+                  allowDecimal={false}
+                />
+              </Grid.Col>
+            </>
+          ) : null}
+          <Grid.Col span={{ base: 6, sm: 2 }}>
+            <Select label="Modalidad" data={SCALINGS} value={scaling} onChange={(v) => setScaling(v ?? "rx")} allowDeselect={false} />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, sm: esCarga ? 12 : 2 }}>
+            <Button type="submit" fullWidth loading={addResult.isPending} disabled={!athleteId || !score.trim()}>
+              Registrar
+            </Button>
+          </Grid.Col>
+        </Grid>
+      </form>
       {error && (
         <Text c="red" size="sm" mb="sm">
           {error}
@@ -2488,43 +2667,47 @@ function BoardModal({ gymId, wod, onClose }: { gymId: string; wod: Wod | null; o
           Aún no hay resultados en el board.
         </Text>
       ) : (
-        <Table>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th w={50}>#</Table.Th>
-              <Table.Th>Atleta</Table.Th>
-              <Table.Th>Score</Table.Th>
-              <Table.Th>Modalidad</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {(board.data ?? []).map((r) => (
-              <Table.Tr key={r.id}>
-                <Table.Td>
-                  {/* Podio con medallas: el emoji comunica el rango de un vistazo. */}
-                  {r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : r.rank}
-                </Table.Td>
-                <Table.Td>{r.athlete_name}</Table.Td>
-                <Table.Td>
-                  <Group gap={6} wrap="nowrap">
-                    <Text fw={600}>{r.raw_score}</Text>
-                    {textoRondas(r) ? (
-                      <Text size="sm" c="dimmed">
-                        {textoRondas(r)}
-                      </Text>
-                    ) : null}
-                    <AdjuntosScore media={r.media} atleta={r.athlete_name} />
-                  </Group>
-                </Table.Td>
-                <Table.Td>
-                  <Badge variant="light" color={r.scaling === "rx" || r.scaling === "rx_plus" ? "flame" : "gray"}>
-                    {NOMBRE_SCALING[r.scaling] ?? r.scaling}
-                  </Badge>
-                </Table.Td>
+        // Las miniaturas de los adjuntos alargan la celda del score: la tabla se
+        // desliza a lo ancho en vez de desbordar el modal.
+        <Table.ScrollContainer minWidth={520}>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th w={50}>#</Table.Th>
+                <Table.Th>Atleta</Table.Th>
+                <Table.Th>Score</Table.Th>
+                <Table.Th>Modalidad</Table.Th>
               </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+            </Table.Thead>
+            <Table.Tbody>
+              {(board.data ?? []).map((r) => (
+                <Table.Tr key={r.id}>
+                  <Table.Td>
+                    {/* Podio con medallas: el emoji comunica el rango de un vistazo. */}
+                    {r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : r.rank}
+                  </Table.Td>
+                  <Table.Td>{r.athlete_name}</Table.Td>
+                  <Table.Td>
+                    <Group gap={6} wrap="wrap">
+                      <Text fw={600}>{r.raw_score}</Text>
+                      {textoRondas(r) ? (
+                        <Text size="sm" c="dimmed">
+                          {textoRondas(r)}
+                        </Text>
+                      ) : null}
+                      <AdjuntosScore media={r.media} atleta={r.athlete_name} />
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge variant="light" color={r.scaling === "rx" || r.scaling === "rx_plus" ? "flame" : "gray"}>
+                      {NOMBRE_SCALING[r.scaling] ?? r.scaling}
+                    </Badge>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
       )}
     </Modal>
   );
@@ -2605,49 +2788,55 @@ function AssignCoachModal({
         extra_amount: selectedFixed && payExtra ? extra : 0,
       });
     } catch (e) {
-      const detail = (e as AxiosError<{ detail?: string }>).response?.data?.detail;
-      setError(detail ?? "No se pudo guardar.");
+      setError(errMsg(e, "No se pudo guardar el coach de la clase."));
     }
   };
 
   return (
     <Modal opened={!!gymClass} onClose={onClose} title="Coach de la clase" centered>
-      <Select
-        label="Coach asignado"
-        placeholder="Sin asignar"
-        clearable
-        searchable
-        value={coach}
-        onChange={setCoach}
-        data={coaches.map((c) => ({ value: c.staff_role, label: c.name || c.email }))}
-        mb="sm"
-      />
-      {selectedFixed && (
-        <>
-          <Switch
-            label="Pagar esta clase como extra (coach de salario fijo)"
-            checked={payExtra}
-            onChange={(e) => setPayExtra(e.currentTarget.checked)}
-            mb="sm"
-          />
-          {payExtra && (
-            <NumberInput label="Monto extra" prefix="Q" value={extra} onChange={setExtra} min={0} decimalScale={2} mb="sm" />
-          )}
-        </>
-      )}
-      {error && (
-        <Text c="red" size="sm" mb="sm">
-          {error}
-        </Text>
-      )}
-      <Group justify="flex-end">
-        <Button variant="default" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button onClick={save} loading={saving}>
-          Guardar
-        </Button>
-      </Group>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!saving) save();
+        }}
+      >
+        <Select
+          label="Coach asignado"
+          placeholder="Sin asignar"
+          clearable
+          searchable
+          value={coach}
+          onChange={setCoach}
+          data={coaches.map((c) => ({ value: c.staff_role, label: c.name || c.email }))}
+          mb="sm"
+        />
+        {selectedFixed && (
+          <>
+            <Switch
+              label="Pagar esta clase como extra (coach de salario fijo)"
+              checked={payExtra}
+              onChange={(e) => setPayExtra(e.currentTarget.checked)}
+              mb="sm"
+            />
+            {payExtra && (
+              <NumberInput label="Monto extra" prefix="Q" value={extra} onChange={setExtra} min={0} decimalScale={2} mb="sm" />
+            )}
+          </>
+        )}
+        {error && (
+          <Text c="red" size="sm" mb="sm">
+            {error}
+          </Text>
+        )}
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" loading={saving}>
+            Guardar
+          </Button>
+        </Group>
+      </form>
     </Modal>
   );
 }

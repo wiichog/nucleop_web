@@ -1,4 +1,4 @@
-import { Badge, Button, Divider, Group, Paper, ScrollArea, Stack, Text } from "@mantine/core";
+import { Badge, Button, Divider, Flex, Group, Paper, ScrollArea, Stack, Text } from "@mantine/core";
 import type { Wod } from "../../api/types";
 import { bloquesConScore, partesOrdenadas, tienePartes } from "../../lib/wodPartes";
 import { diasDeSemana, etiquetaColumna, isoLocal, wodDelDia } from "../../lib/semanaWod";
@@ -8,6 +8,10 @@ import { diasDeSemana, etiquetaColumna, isoLocal, wodDelDia } from "../../lib/se
  * completo, bloque por bloque: así la lee el coach, igual que en su sistema de
  * programación. Antes el workout creado salía en una fila de tabla con el texto
  * cortado, y el box decía que «no se veía».
+ *
+ * En el teléfono los días van uno debajo del otro a lo ancho (como el horario
+ * semanal): un carrusel de columnas de 250 px obligaba a deslizar de lado para
+ * leer cada día. Es la misma lista de días con otra dirección, no dos copias.
  */
 export function SemanaWods({
   wods,
@@ -15,7 +19,7 @@ export function SemanaWods({
   programa,
   hoy,
   cargando,
-  ocupado,
+  ocupadoId,
   etiquetaScore,
   onProgramar,
   onEditar,
@@ -29,7 +33,8 @@ export function SemanaWods({
   programa: string;
   hoy: string;
   cargando: boolean;
-  ocupado: boolean;
+  /** Id del workout con una acción en vuelo (publicar, eliminar): solo ése gira. */
+  ocupadoId: string | null;
   etiquetaScore: (s: string) => string;
   onProgramar: (fecha: string) => void;
   onEditar: (w: Wod) => void;
@@ -39,7 +44,7 @@ export function SemanaWods({
 }) {
   return (
     <ScrollArea type="auto" offsetScrollbars>
-      <Group wrap="nowrap" align="stretch" gap="sm" pb="xs">
+      <Flex direction={{ base: "column", sm: "row" }} wrap="nowrap" align="stretch" gap="sm" pb="xs">
         {diasDeSemana(lunes).map((d) => {
           const fecha = isoLocal(d);
           const wod = wodDelDia(wods, fecha, programa);
@@ -52,7 +57,7 @@ export function SemanaWods({
               withBorder
               radius="md"
               p="sm"
-              w={250}
+              w={{ base: "100%", sm: 250 }}
               style={{
                 flex: "0 0 auto",
                 borderColor: esHoy
@@ -85,7 +90,7 @@ export function SemanaWods({
               ) : wod ? (
                 <DiaConWod
                   wod={wod}
-                  ocupado={ocupado}
+                  ocupado={ocupadoId === wod.id}
                   etiquetaScore={etiquetaScore}
                   onEditar={onEditar}
                   onBoard={onBoard}
@@ -97,7 +102,7 @@ export function SemanaWods({
                   <Text size="sm" c="dimmed">
                     Sin workout
                   </Text>
-                  <Button size="compact-xs" variant="light" onClick={() => onProgramar(fecha)}>
+                  <Button size="xs" variant="light" onClick={() => onProgramar(fecha)}>
                     Programar
                   </Button>
                 </Stack>
@@ -105,7 +110,7 @@ export function SemanaWods({
             </Paper>
           );
         })}
-      </Group>
+      </Flex>
     </ScrollArea>
   );
 }
@@ -183,32 +188,39 @@ function DiaConWod({
           {wod.results_count} {wod.results_count === 1 ? "score" : "scores"}
         </Text>
       )}
-      <Group gap={4} mt={4}>
-        <Button size="compact-xs" variant="default" onClick={() => onEditar(wod)}>
-          Editar
-        </Button>
-        {conBoard && (
-          <Button size="compact-xs" variant="light" onClick={() => onBoard(wod)}>
-            Board
+      {/* Dos grupos que pueden partirse en renglones: lo de todos los días
+          (Editar, Board, Publicar) y, aparte, lo que esconde o borra. No se usa
+          RowActions: su kebab móvil escondería también «Editar», que es lo más
+          usado, y su fila sin wrap no cabe en una columna de 250 px. */}
+      <Group gap={6} mt={4} justify="space-between" wrap="wrap">
+        <Group gap={6} wrap="wrap">
+          <Button size="xs" variant="default" onClick={() => onEditar(wod)}>
+            Editar
           </Button>
-        )}
-        {/* «Despublicar» iba igual que «Editar» y a su lado: un mal clic escondía
-            el workout a todo el box (lo que reportó Vertikal). Ahora va junto a
-            «Eliminar», en rojo suave, y pide confirmación (ClassesPage). */}
-        {wod.published ? null : (
-          <Button size="compact-xs" variant="light" loading={ocupado} onClick={() => onPublicar(wod)}>
-            Publicar
+          {conBoard && (
+            <Button size="xs" variant="light" onClick={() => onBoard(wod)}>
+              Board
+            </Button>
+          )}
+          {/* «Despublicar» iba igual que «Editar» y a su lado: un mal clic escondía
+              el workout a todo el box (lo que reportó Vertikal). Ahora va junto a
+              «Eliminar», en rojo suave, y pide confirmación (ClassesPage). */}
+          {wod.published ? null : (
+            <Button size="xs" variant="light" loading={ocupado} onClick={() => onPublicar(wod)}>
+              Publicar
+            </Button>
+          )}
+        </Group>
+        <Group gap={6} wrap="wrap">
+          {wod.published ? (
+            <Button size="xs" variant="subtle" color="red" loading={ocupado} onClick={() => onPublicar(wod)}>
+              Despublicar
+            </Button>
+          ) : null}
+          <Button size="xs" variant="subtle" color="red" loading={ocupado} onClick={() => onEliminar(wod)}>
+            Eliminar
           </Button>
-        )}
-        <span style={{ flex: 1 }} />
-        {wod.published ? (
-          <Button size="compact-xs" variant="subtle" color="red" loading={ocupado} onClick={() => onPublicar(wod)}>
-            Despublicar
-          </Button>
-        ) : null}
-        <Button size="compact-xs" variant="subtle" color="red" loading={ocupado} onClick={() => onEliminar(wod)}>
-          Eliminar
-        </Button>
+        </Group>
       </Group>
     </Stack>
   );
