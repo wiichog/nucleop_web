@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Button, Group, Modal, NumberInput, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useGymConfig, useUpdateGymConfig } from "../../api/hooks";
@@ -38,17 +38,26 @@ export function AjustesRiesgoModal({
   const [riesgo, setRiesgo] = useState<number | string>(actual.riesgo);
   const [gracia, setGracia] = useState<number | string>(actual.gracia);
   const [corte, setCorte] = useState<number | string>(actual.corte);
-  const [abiertoAntes, setAbiertoAntes] = useState(false);
-  if (opened && !abiertoAntes) {
-    setAbiertoAntes(true);
+  // Con qué versión de la config se llenó el formulario en esta apertura (null =
+  // cerrado). Antes se hidrataba UNA vez al abrir: si la config aún no había
+  // llegado se quedaba con los defaults y al guardar pisaba el umbral real. Ahora
+  // se vuelve a hidratar cuando llega la data, pero solo si se había llenado sin
+  // ella (0): un refetch posterior no borra lo que el admin ya tecleó.
+  const [hidratadoCon, setHidratadoCon] = useState<number | null>(null);
+  const hidratar = () => {
+    setHidratadoCon(gymConfig.dataUpdatedAt ?? 0);
     setRiesgo(actual.riesgo);
     setGracia(actual.gracia);
     setCorte(actual.corte);
-  } else if (!opened && abiertoAntes) {
-    setAbiertoAntes(false);
+  };
+  if (opened && (hidratadoCon === null || (hidratadoCon === 0 && (gymConfig.dataUpdatedAt ?? 0) > 0))) {
+    hidratar();
+  } else if (!opened && hidratadoCon !== null) {
+    setHidratadoCon(null);
   }
 
-  const onGuardar = async () => {
+  const onGuardar = async (event?: FormEvent) => {
+    event?.preventDefault();
     const r = Number(riesgo);
     const g = Number(gracia);
     const c = Number(corte);
@@ -88,54 +97,58 @@ export function AjustesRiesgoModal({
 
   return (
     <Modal opened={opened} onClose={onClose} title="Riesgo y mora" centered>
-      <Stack gap="sm">
-        <NumberInput
-          label="En riesgo a los … días sin venir"
-          min={1}
-          max={365}
-          clampBehavior="strict"
-          allowDecimal={false}
-          value={riesgo}
-          onChange={setRiesgo}
-          disabled={ocupado}
-          suffix=" días"
-        />
-        <NumberInput
-          label="Gracia de pago"
-          min={0}
-          max={60}
-          clampBehavior="strict"
-          allowDecimal={false}
-          value={gracia}
-          onChange={setGracia}
-          disabled={ocupado}
-          suffix=" días"
-        />
-        <NumberInput
-          label="Corte por mora a los"
-          min={1}
-          max={365}
-          clampBehavior="strict"
-          allowDecimal={false}
-          value={corte}
-          onChange={setCorte}
-          disabled={ocupado}
-          suffix=" días"
-        />
-        {gymConfig.isError && (
-          <Text size="xs" c="red">
-            No se pudo leer la configuración del gimnasio; se muestran los valores por defecto.
-          </Text>
-        )}
-      </Stack>
-      <Group justify="flex-end" mt="lg" gap="xs">
-        <Button variant="default" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button loading={updateGymConfig.isPending} onClick={onGuardar}>
-          Guardar
-        </Button>
-      </Group>
+      {/* <form> para que «Ir»/Enter del teclado guarde. */}
+      <form onSubmit={onGuardar}>
+        <Stack gap="sm">
+          <NumberInput
+            label="En riesgo a los … días sin venir"
+            min={1}
+            max={365}
+            clampBehavior="strict"
+            allowDecimal={false}
+            value={riesgo}
+            onChange={setRiesgo}
+            disabled={ocupado}
+            suffix=" días"
+          />
+          <NumberInput
+            label="Gracia de pago"
+            min={0}
+            max={60}
+            clampBehavior="strict"
+            allowDecimal={false}
+            value={gracia}
+            onChange={setGracia}
+            disabled={ocupado}
+            suffix=" días"
+          />
+          <NumberInput
+            label="Corte por mora a los"
+            min={1}
+            max={365}
+            clampBehavior="strict"
+            allowDecimal={false}
+            value={corte}
+            onChange={setCorte}
+            disabled={ocupado}
+            suffix=" días"
+          />
+          {gymConfig.isError && (
+            <Text size="xs" c="red">
+              No se pudo leer la configuración del gimnasio; se muestran los valores por defecto.
+            </Text>
+          )}
+        </Stack>
+        <Group justify="flex-end" mt="lg" gap="xs">
+          <Button variant="default" onClick={onClose}>
+            Cancelar
+          </Button>
+          {/* Sin la config real, guardar compararía contra defaults y la pisaría. */}
+          <Button type="submit" loading={updateGymConfig.isPending} disabled={gymConfig.isLoading}>
+            Guardar
+          </Button>
+        </Group>
+      </form>
     </Modal>
   );
 }

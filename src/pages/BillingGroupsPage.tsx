@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import {
   ActionIcon,
   Badge,
@@ -52,6 +52,32 @@ const KIND_LABEL: Record<string, string> = { family: "Familiar", corporate: "Emp
 const TERMINALES = new Set(["former_member", "rejected"]);
 const iso = (d: Date | null) => (d ? d.toLocaleDateString("en-CA") : null);
 const vacioANull = (v: number | string) => (v === "" || v === null ? null : v);
+/**
+ * «2026-11-30» → «30 nov 2026». Se arma con la fecha local: `new Date("2026-11-30")`
+ * es medianoche UTC y en Guatemala salía el día anterior.
+ */
+function fechaCorta(fecha: string | null | undefined): string {
+  if (!fecha) return "";
+  const [y, m, d] = fecha.split("-").map(Number);
+  if (!y || !m || !d) return fecha;
+  return new Date(y, m - 1, d).toLocaleDateString("es-GT", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/**
+ * Cómo viene el padrón del gym. Los selectores de titular y de atleta salen de él:
+ * vacíos mientras carga o si falló parecían "no hay nadie en el gimnasio".
+ */
+type EstadoAtletas = "cargando" | "error" | "listo";
+
+/** Props del Select de atletas según cómo viene el padrón. */
+function propsDeAtletas(estado: EstadoAtletas, placeholder: string) {
+  return {
+    disabled: estado !== "listo",
+    placeholder: estado === "cargando" ? "Cargando atletas…" : placeholder,
+    error: estado === "error" ? "No se pudieron cargar los atletas." : undefined,
+  };
+}
+
 const ok = (message: string) => notifications.show({ color: "teal", message });
 const fail = (error: unknown, porDefecto: string) =>
   notifications.show({ color: "red", message: errMsg(error, porDefecto) });
@@ -63,6 +89,11 @@ export function BillingGroupsPage() {
   const grupos = useBillingGroups(gymId, verCerrados);
   const plans = usePlans(gymId);
   const memberships = useMemberships(gymId);
+  const estadoAtletas: EstadoAtletas = memberships.isLoading
+    ? "cargando"
+    : memberships.isError
+      ? "error"
+      : "listo";
   const [creando, setCreando] = useState(false);
   const [abiertoId, setAbiertoId] = useState<string | null>(null);
 
@@ -145,6 +176,7 @@ export function BillingGroupsPage() {
             gymId={gymId}
             plans={planesGrupales}
             memberships={(memberships.data ?? []) as Membership[]}
+            estadoAtletas={estadoAtletas}
             onCancel={() => setCreando(false)}
             onDone={(g) => {
               setCreando(false);
@@ -162,6 +194,7 @@ export function BillingGroupsPage() {
             grupo={abierto}
             plans={planesGrupales}
             memberships={(memberships.data ?? []) as Membership[]}
+            estadoAtletas={estadoAtletas}
             onClosed={() => setAbiertoId(null)}
           />
         )}
@@ -202,7 +235,7 @@ function TarjetaGrupo({ grupo: g, onClick }: { grupo: BillingGroup; onClick: () 
             <StatusBadge kind="payment" status={g.payment_status} size="xs" />
           ) : null}
           <Text size="xs" c="dimmed">
-            {g.renewal_date ? `Hasta ${g.renewal_date}` : "Sin pagar aún"}
+            {g.renewal_date ? `Hasta ${fechaCorta(g.renewal_date)}` : "Sin pagar aún"}
           </Text>
         </Group>
       )}
@@ -223,6 +256,7 @@ function GrupoForm({
   grupo,
   plans,
   memberships,
+  estadoAtletas = "listo",
   onCancel,
   onDone,
 }: {
@@ -230,6 +264,7 @@ function GrupoForm({
   grupo?: BillingGroup;
   plans: Plan[];
   memberships: Membership[];
+  estadoAtletas?: EstadoAtletas;
   onCancel: () => void;
   /** Tras crear, el grupo nuevo; tras guardar, el mismo; tras cerrarlo, null. */
   onDone: (g: BillingGroup | null) => void;
@@ -265,7 +300,9 @@ function GrupoForm({
     billing_email: correoFactura.trim(),
   };
 
-  const enviar = async () => {
+  const enviar = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!listo) return;
     if (grupo) {
       try {
         await editar.mutateAsync({
@@ -319,131 +356,145 @@ function GrupoForm({
   };
 
   return (
-    <Stack gap="sm">
-      {!grupo && (
-        <SegmentedControl
-          fullWidth
-          aria-label="Tipo de grupo"
-          value={kind}
-          onChange={(v) => {
-            setKind(v as BillingGroupKind);
-            setPlanId(null);
-          }}
-          data={[
-            { value: "family", label: "Familiar" },
-            { value: "corporate", label: "Empresarial" },
-          ]}
-        />
-      )}
-      <SimpleGrid cols={{ base: 1, sm: grupo ? 1 : 2 }} spacing="sm">
-        <TextInput
-          label="Nombre del grupo"
-          placeholder={kind === "family" ? "Familia Pérez" : "Banco Ejemplo"}
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
-        />
+    // <form>: «Ir»/Enter del teclado guarda, igual que el botón.
+    <form onSubmit={enviar}>
+      <Stack gap="sm">
         {!grupo && (
-          <Select
-            label="Plan"
-            placeholder={planesDelTipo.length ? "Selecciona plan" : "No hay planes de este tipo"}
-            data={planesDelTipo.map((p) => ({
-              value: p.id,
-              label: `${p.name} · ${p.max_members ?? "?"} personas`,
-            }))}
-            value={planId}
-            onChange={setPlanId}
-          />
-        )}
-      </SimpleGrid>
-
-      {!grupo && (
-        <Input.Wrapper label="Titular (quien paga desde su app)">
           <SegmentedControl
             fullWidth
-            size="xs"
-            mb="xs"
-            aria-label="Cómo elegir al titular"
-            value={titularPor}
-            onChange={(v) => setTitularPor(v as "miembro" | "correo")}
+            aria-label="Tipo de grupo"
+            value={kind}
+            onChange={(v) => {
+              setKind(v as BillingGroupKind);
+              setPlanId(null);
+            }}
             data={[
-              { value: "miembro", label: "Ya es del gimnasio" },
-              { value: "correo", label: "Por su correo" },
+              { value: "family", label: "Familiar" },
+              { value: "corporate", label: "Empresarial" },
             ]}
           />
-          {titularPor === "miembro" ? (
+        )}
+        <SimpleGrid cols={{ base: 1, sm: grupo ? 1 : 2 }} spacing="sm">
+          <TextInput
+            label="Nombre del grupo"
+            placeholder={kind === "family" ? "Familia Pérez" : "Banco Ejemplo"}
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+          />
+          {!grupo && (
             <Select
-              aria-label="Titular"
-              placeholder="Busca al atleta"
-              data={opcionesTitular}
-              value={payerMembership}
-              onChange={setPayerMembership}
-              searchable
-              nothingFoundMessage="Nadie con ese nombre"
-            />
-          ) : (
-            <TextInput
-              aria-label="Correo del titular"
-              placeholder="correo@ejemplo.com"
-              value={payerEmail}
-              onChange={(e) => setPayerEmail(e.currentTarget.value)}
+              label="Plan"
+              placeholder={planesDelTipo.length ? "Selecciona plan" : "No hay planes de este tipo"}
+              data={planesDelTipo.map((p) => ({
+                value: p.id,
+                label: `${p.name} · ${p.max_members ?? "?"} personas`,
+              }))}
+              value={planId}
+              onChange={setPlanId}
             />
           )}
-        </Input.Wrapper>
-      )}
-
-      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-        <NumberInput
-          label="Precio pactado (Q)"
-          placeholder="El del plan"
-          prefix="Q"
-          value={fee}
-          onChange={setFee}
-          min={0}
-          decimalScale={2}
-        />
-        <NumberInput label="Cupos pactados" placeholder="Los del plan" value={seats} onChange={setSeats} min={2} />
-      </SimpleGrid>
-
-      {/* En el alta, la factura a nombre de alguien solo aplica a la empresa; ya
-          creado, cualquier grupo puede corregir sus datos de factura. */}
-      {(grupo || kind === "corporate") && (
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
-          <TextInput
-            label={grupo ? "NIT para la factura" : "NIT de la empresa"}
-            value={nit}
-            onChange={(e) => setNit(e.currentTarget.value)}
-          />
-          <TextInput
-            label={grupo ? "Nombre en la factura" : "Razón social"}
-            value={razon}
-            onChange={(e) => setRazon(e.currentTarget.value)}
-          />
-          <TextInput
-            label="Correo para la factura"
-            value={correoFactura}
-            onChange={(e) => setCorreoFactura(e.currentTarget.value)}
-          />
         </SimpleGrid>
-      )}
 
-      <Group justify="space-between" mt="sm">
-        {grupo ? (
-          <Button variant="subtle" color="red" onClick={onCerrar} loading={cerrar.isPending}>
-            Cerrar grupo
-          </Button>
-        ) : (
-          <span />
+        {!grupo && (
+          <Input.Wrapper label="Titular (quien paga desde su app)">
+            <SegmentedControl
+              fullWidth
+              size="xs"
+              mb="xs"
+              aria-label="Cómo elegir al titular"
+              value={titularPor}
+              onChange={(v) => setTitularPor(v as "miembro" | "correo")}
+              data={[
+                { value: "miembro", label: "Ya es del gimnasio" },
+                { value: "correo", label: "Por su correo" },
+              ]}
+            />
+            {titularPor === "miembro" ? (
+              <Select
+                aria-label="Titular"
+                {...propsDeAtletas(estadoAtletas, "Busca al atleta")}
+                data={opcionesTitular}
+                value={payerMembership}
+                onChange={setPayerMembership}
+                searchable
+                nothingFoundMessage="Nadie con ese nombre"
+              />
+            ) : (
+              // Correo de un TERCERO: teclado de correo, sin mayúscula inicial y sin
+              // que iOS proponga el del dueño.
+              <TextInput
+                aria-label="Correo del titular"
+                placeholder="correo@ejemplo.com"
+                type="email"
+                autoCapitalize="none"
+                autoComplete="off"
+                value={payerEmail}
+                onChange={(e) => setPayerEmail(e.currentTarget.value)}
+              />
+            )}
+          </Input.Wrapper>
         )}
-        <Group gap="xs">
-          <Button variant="default" onClick={onCancel}>
-            Cancelar
-          </Button>
-          <Button onClick={enviar} loading={crear.isPending || editar.isPending} disabled={!listo}>
-            {grupo ? "Guardar cambios" : "Crear grupo"}
-          </Button>
+
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+          {/* La «Q» ya va como prefijo; «(Q)» en la etiqueta la repetía. */}
+          <NumberInput
+            label="Precio pactado"
+            placeholder="El del plan"
+            prefix="Q"
+            value={fee}
+            onChange={setFee}
+            min={0}
+            decimalScale={2}
+            allowNegative={false}
+            thousandSeparator=","
+          />
+          <NumberInput label="Cupos pactados" placeholder="Los del plan" value={seats} onChange={setSeats} min={2} />
+        </SimpleGrid>
+
+        {/* En el alta, la factura a nombre de alguien solo aplica a la empresa; ya
+            creado, cualquier grupo puede corregir sus datos de factura. */}
+        {(grupo || kind === "corporate") && (
+          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+            <TextInput
+              label={grupo ? "NIT para la factura" : "NIT de la empresa"}
+              value={nit}
+              onChange={(e) => setNit(e.currentTarget.value)}
+            />
+            <TextInput
+              label={grupo ? "Nombre en la factura" : "Razón social"}
+              value={razon}
+              onChange={(e) => setRazon(e.currentTarget.value)}
+            />
+            <TextInput
+              label="Correo para la factura"
+              type="email"
+              autoCapitalize="none"
+              autoComplete="off"
+              value={correoFactura}
+              onChange={(e) => setCorreoFactura(e.currentTarget.value)}
+            />
+          </SimpleGrid>
+        )}
+
+        <Group justify="space-between" mt="sm">
+          {grupo ? (
+            <Button variant="subtle" color="red" onClick={onCerrar} loading={cerrar.isPending}>
+              Cerrar grupo
+            </Button>
+          ) : (
+            <span />
+          )}
+          <Group gap="xs">
+            <Button variant="default" onClick={onCancel}>
+              Cancelar
+            </Button>
+            <Button type="submit" loading={crear.isPending || editar.isPending} disabled={!listo}>
+              {grupo ? "Guardar cambios" : "Crear grupo"}
+            </Button>
+          </Group>
         </Group>
-      </Group>
-    </Stack>
+      </Stack>
+    </form>
   );
 }
 
@@ -458,12 +509,14 @@ function FichaGrupo({
   grupo,
   plans,
   memberships,
+  estadoAtletas = "listo",
   onClosed,
 }: {
   gymId: string;
   grupo: BillingGroup;
   plans: Plan[];
   memberships: Membership[];
+  estadoAtletas?: EstadoAtletas;
   onClosed: () => void;
 }) {
   const quitar = useRemoveBillingGroupMember(gymId);
@@ -498,7 +551,15 @@ function FichaGrupo({
           </ActionIcon>
           <SectionLabel as="h3">{titulo}</SectionLabel>
         </Group>
-        {vista === "miembro" && <AgregarMiembro gymId={gymId} grupo={grupo} memberships={memberships} onDone={volver} />}
+        {vista === "miembro" && (
+          <AgregarMiembro
+            gymId={gymId}
+            grupo={grupo}
+            memberships={memberships}
+            estadoAtletas={estadoAtletas}
+            onDone={volver}
+          />
+        )}
         {vista === "nino" && <AgregarDependiente gymId={gymId} grupo={grupo} onDone={volver} />}
         {vista === "editar" && (
           <GrupoForm
@@ -506,6 +567,7 @@ function FichaGrupo({
             grupo={grupo}
             plans={plans}
             memberships={memberships}
+            estadoAtletas={estadoAtletas}
             onCancel={volver}
             onDone={(g) => (g ? volver() : onClosed())}
           />
@@ -525,7 +587,9 @@ function FichaGrupo({
       <Text size="sm">
         Paga <b>{grupo.payer_name}</b> desde su app: <Money value={grupo.effective_fee} decimals={2} /> por{" "}
         {grupo.plan_name}.{" "}
-        {grupo.renewal_date ? `Pagado hasta el ${grupo.renewal_date}.` : "Todavía no ha pagado el primer ciclo."}
+        {grupo.renewal_date
+          ? `Pagado hasta el ${fechaCorta(grupo.renewal_date)}.`
+          : "Todavía no ha pagado el primer ciclo."}
       </Text>
 
       <div>
@@ -600,11 +664,13 @@ function AgregarMiembro({
   gymId,
   grupo,
   memberships,
+  estadoAtletas = "listo",
   onDone,
 }: {
   gymId: string;
   grupo: BillingGroup;
   memberships: Membership[];
+  estadoAtletas?: EstadoAtletas;
   onDone: () => void;
 }) {
   const agregar = useAddBillingGroupMember(gymId);
@@ -619,7 +685,11 @@ function AgregarMiembro({
     .filter((m) => !TERMINALES.has(m.status ?? "") && !m.billing_group && !enGrupo.has(m.id))
     .map((m) => ({ value: m.id, label: m.athlete_name ?? "—" }));
 
-  const onAgregar = async () => {
+  const listo = por === "miembro" ? !!membershipId : correo.includes("@") && !!nombre.trim() && !!apellido.trim();
+
+  const onAgregar = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!listo) return;
     try {
       await agregar.mutateAsync({
         id: grupo.id,
@@ -636,47 +706,58 @@ function AgregarMiembro({
   };
 
   return (
-    <Stack gap="sm">
-      <SegmentedControl
-        fullWidth
-        aria-label="Cómo agregarlo"
-        value={por}
-        onChange={(v) => setPor(v as "miembro" | "correo")}
-        data={[
-          { value: "miembro", label: "Ya es del gimnasio" },
-          { value: "correo", label: "Invitar por correo" },
-        ]}
-      />
-      {por === "miembro" ? (
-        <Select
-          aria-label="Atleta"
-          placeholder="Busca al atleta"
-          data={disponibles}
-          value={membershipId}
-          onChange={setMembershipId}
-          searchable
-          nothingFoundMessage="Nadie disponible con ese nombre"
+    <form onSubmit={onAgregar}>
+      <Stack gap="sm">
+        <SegmentedControl
+          fullWidth
+          aria-label="Cómo agregarlo"
+          value={por}
+          onChange={(v) => setPor(v as "miembro" | "correo")}
+          data={[
+            { value: "miembro", label: "Ya es del gimnasio" },
+            { value: "correo", label: "Invitar por correo" },
+          ]}
         />
-      ) : (
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xs">
-          <TextInput label="Correo" value={correo} onChange={(e) => setCorreo(e.currentTarget.value)} />
-          <TextInput label="Nombre" value={nombre} onChange={(e) => setNombre(e.currentTarget.value)} />
-          <TextInput label="Apellido" value={apellido} onChange={(e) => setApellido(e.currentTarget.value)} />
-        </SimpleGrid>
-      )}
-      <Group justify="flex-end" gap="xs">
-        <Button variant="default" onClick={onDone}>
-          Cancelar
-        </Button>
-        <Button
-          onClick={onAgregar}
-          loading={agregar.isPending}
-          disabled={por === "miembro" ? !membershipId : !correo.includes("@") || !nombre.trim() || !apellido.trim()}
-        >
-          Agregar al grupo
-        </Button>
-      </Group>
-    </Stack>
+        {por === "miembro" ? (
+          <Select
+            aria-label="Atleta"
+            {...propsDeAtletas(estadoAtletas, "Busca al atleta")}
+            data={disponibles}
+            value={membershipId}
+            onChange={setMembershipId}
+            searchable
+            nothingFoundMessage="Nadie disponible con ese nombre"
+          />
+        ) : (
+          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xs">
+            {/* Datos de un TERCERO: autoComplete="off" para que iOS no meta los del dueño. */}
+            <TextInput
+              label="Correo"
+              type="email"
+              autoCapitalize="none"
+              autoComplete="off"
+              value={correo}
+              onChange={(e) => setCorreo(e.currentTarget.value)}
+            />
+            <TextInput label="Nombre" autoComplete="off" value={nombre} onChange={(e) => setNombre(e.currentTarget.value)} />
+            <TextInput
+              label="Apellido"
+              autoComplete="off"
+              value={apellido}
+              onChange={(e) => setApellido(e.currentTarget.value)}
+            />
+          </SimpleGrid>
+        )}
+        <Group justify="flex-end" gap="xs">
+          <Button variant="default" onClick={onDone}>
+            Cancelar
+          </Button>
+          <Button type="submit" loading={agregar.isPending} disabled={!listo}>
+            Agregar al grupo
+          </Button>
+        </Group>
+      </Stack>
+    </form>
   );
 }
 
@@ -695,7 +776,9 @@ function AgregarDependiente({ gymId, grupo, onDone }: { gymId: string; grupo: Bi
       .map((m) => ({ value: m.athlete, label: m.athlete_name })),
   ];
 
-  const onAlta = async () => {
+  const onAlta = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!nombre.trim() || !apellido.trim()) return;
     try {
       await dependiente.mutateAsync({
         id: grupo.id,
@@ -714,29 +797,36 @@ function AgregarDependiente({ gymId, grupo, onDone }: { gymId: string; grupo: Bi
   };
 
   return (
-    <Stack gap="sm">
-      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
-        <TextInput label="Nombre" value={nombre} onChange={(e) => setNombre(e.currentTarget.value)} />
-        <TextInput label="Apellido" value={apellido} onChange={(e) => setApellido(e.currentTarget.value)} />
-        <DateInput
-          label="Fecha de nacimiento"
-          placeholder="Opcional"
-          value={nacimiento}
-          onChange={setNacimiento}
-          valueFormat="YYYY-MM-DD"
-          maxDate={new Date()}
-          clearable
-        />
-        <Select label="Tutor" data={tutores} value={tutor ?? grupo.payer} onChange={setTutor} allowDeselect={false} />
-      </SimpleGrid>
-      <Group justify="flex-end" gap="xs">
-        <Button variant="default" onClick={onDone}>
-          Cancelar
-        </Button>
-        <Button onClick={onAlta} loading={dependiente.isPending} disabled={!nombre.trim() || !apellido.trim()}>
-          Dar de alta
-        </Button>
-      </Group>
-    </Stack>
+    <form onSubmit={onAlta}>
+      <Stack gap="sm">
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+          <TextInput label="Nombre" autoComplete="off" value={nombre} onChange={(e) => setNombre(e.currentTarget.value)} />
+          <TextInput
+            label="Apellido"
+            autoComplete="off"
+            value={apellido}
+            onChange={(e) => setApellido(e.currentTarget.value)}
+          />
+          <DateInput
+            label="Fecha de nacimiento"
+            placeholder="Opcional"
+            value={nacimiento}
+            onChange={setNacimiento}
+            valueFormat="YYYY-MM-DD"
+            maxDate={new Date()}
+            clearable
+          />
+          <Select label="Tutor" data={tutores} value={tutor ?? grupo.payer} onChange={setTutor} allowDeselect={false} />
+        </SimpleGrid>
+        <Group justify="flex-end" gap="xs">
+          <Button variant="default" onClick={onDone}>
+            Cancelar
+          </Button>
+          <Button type="submit" loading={dependiente.isPending} disabled={!nombre.trim() || !apellido.trim()}>
+            Dar de alta
+          </Button>
+        </Group>
+      </Stack>
+    </form>
   );
 }

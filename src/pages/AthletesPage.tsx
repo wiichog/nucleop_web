@@ -1,16 +1,16 @@
 import { useState } from "react";
 import {
-  ActionIcon,
   Avatar,
   Badge,
   Button,
   Group,
+  ScrollArea,
   Select,
   Stack,
   Text,
   TextInput,
-  Tooltip,
   UnstyledButton,
+  useMatches,
 } from "@mantine/core";
 import { useSearchParams } from "react-router-dom";
 import { Download, Search, Settings2, UserPlus } from "lucide-react";
@@ -102,8 +102,11 @@ function FilaAtleta({
       aviso={necesitaAtencion(m, enRiesgo)}
       style={{ padding: "8px 12px" }}
     >
-      <Group justify="space-between" wrap="nowrap" gap="sm">
-        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
+      {/* La fila envuelve: el nombre pide al menos 180 px y, si no caben junto a él,
+          las insignias bajan a su propio renglón. Antes se quedaban al lado con
+          `maxWidth: 55%` y a 375 px el nombre quedaba en ~75 px. */}
+      <Group justify="space-between" wrap="wrap" gap="sm" style={{ rowGap: 6 }}>
+        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0, flex: "1 1 180px" }}>
           <Avatar src={m.athlete_photo} color="flame" radius="xl" size={36}>
             {m.athlete_name?.[0]?.toUpperCase()}
           </Avatar>
@@ -118,7 +121,7 @@ function FilaAtleta({
             </Text>
           </div>
         </Group>
-        <Group gap={6} wrap="wrap" justify="flex-end" style={{ flexShrink: 0, maxWidth: "55%" }}>
+        <Group gap={6} wrap="wrap" justify="flex-end" style={{ flex: "0 1 auto", marginLeft: "auto" }}>
           {pidioBaja ? (
             <Badge color="yellow" variant="light">
               Pidió su baja
@@ -166,6 +169,9 @@ export function AthletesPage() {
   const [abierta, setAbierta] = useState("");
   const [invitando, setInvitando] = useState(false);
   const [ajustando, setAjustando] = useState(false);
+  // En el teléfono los chips de filtro van en una fila deslizable: envueltos
+  // ocupaban tres renglones antes de llegar al primer atleta.
+  const chipsEnFila = useMatches({ base: true, sm: false });
 
   if (!gymId) return <NoGymAssigned />;
   if (isError) return <PageError onRetry={() => refetch()} />;
@@ -229,6 +235,34 @@ export function AthletesPage() {
       ]),
     );
 
+  const chips = (
+    // `max-content`: en fila el grupo mide lo que sus chips, así no se encogen y
+    // lo que sobra se desliza dentro del ScrollArea.
+    <Group gap={8} wrap={chipsEnFila ? "nowrap" : "wrap"} style={chipsEnFila ? { width: "max-content" } : undefined}>
+      {filtros.map((f) => {
+        // En riesgo sin su lista no tiene número: un 0 diría "nadie en riesgo".
+        const n = f.value === "en_riesgo" && atRisk.isError ? null : conteo(f.value);
+        if (f.soloSiHay && !n && filtro !== f.value) return null;
+        return (
+          <FilterChip key={f.value} active={filtro === f.value} onClick={() => setFiltro(f.value)}>
+            {f.label}
+            {n != null && (n > 0 || f.value === "todos") ? (
+              <Badge
+                ml={6}
+                size="sm"
+                variant="light"
+                color={f.pendiente ? "yellow" : "gray"}
+                style={{ verticalAlign: "middle" }}
+              >
+                {n}
+              </Badge>
+            ) : null}
+          </FilterChip>
+        );
+      })}
+    </Group>
+  );
+
   return (
     <div>
       <PageHeader kicker="Usuarios · Padrón" title="Atletas" />
@@ -257,11 +291,11 @@ export function AthletesPage() {
             }}
             w={{ base: "100%", sm: 240 }}
           />
-          <Tooltip label="Exportar CSV">
-            <ActionIcon variant="default" size="lg" aria-label="Exportar CSV" onClick={exportar}>
-              <Download size={16} />
-            </ActionIcon>
-          </Tooltip>
+          {/* Con texto, como en Pagos: el ícono solo decía qué hacía en un tooltip,
+              que en el teléfono no existe. */}
+          <Button variant="default" leftSection={<Download size={16} />} onClick={exportar}>
+            Exportar CSV
+          </Button>
           {/* Invitar es solo del admin (`GymInvitationView` → GYM_ADMIN). */}
           {esAdmin && (
             <Button leftSection={<UserPlus size={16} />} onClick={() => setInvitando(true)}>
@@ -271,34 +305,21 @@ export function AthletesPage() {
         </Encabezado>
 
         <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb="sm">
-          <Group gap={8} wrap="wrap">
-            {filtros.map((f) => {
-              // En riesgo sin su lista no tiene número: un 0 diría "nadie en riesgo".
-              const n = f.value === "en_riesgo" && atRisk.isError ? null : conteo(f.value);
-              if (f.soloSiHay && !n && filtro !== f.value) return null;
-              return (
-                <FilterChip key={f.value} active={filtro === f.value} onClick={() => setFiltro(f.value)}>
-                  {f.label}
-                  {n != null && (n > 0 || f.value === "todos") ? (
-                    <Badge
-                      ml={6}
-                      size="sm"
-                      variant="light"
-                      color={f.pendiente ? "yellow" : "gray"}
-                      style={{ verticalAlign: "middle" }}
-                    >
-                      {n}
-                    </Badge>
-                  ) : null}
-                </FilterChip>
-              );
-            })}
-          </Group>
-          <Group gap="xs" wrap="wrap">
+          {chipsEnFila ? (
+            <ScrollArea type="never" w="100%">
+              {chips}
+            </ScrollArea>
+          ) : (
+            chips
+          )}
+          {/* En el teléfono el orden ocupa el renglón entero (190 px fijos dejaban un
+              hueco) y «Riesgo y mora» se queda a su lado. */}
+          <Group gap="xs" wrap="nowrap" w={{ base: "100%", sm: "auto" }}>
             <Select
               aria-label="Ordenar"
               size="xs"
-              w={190}
+              w={{ base: "100%", sm: 190 }}
+              style={{ flex: "1 1 auto" }}
               data={ordenes.map((o) => ({ value: o.value, label: o.label }))}
               value={ordenActivo.value}
               onChange={setOrden}

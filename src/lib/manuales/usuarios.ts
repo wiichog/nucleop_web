@@ -59,7 +59,7 @@ export const manualesUsuarios: ManualesPorRuta = {
         titulo: "Exportar el padrón",
         pasos: [
           "Elige el grupo y, si quieres, escribe una búsqueda.",
-          "Presiona el botón de descarga (la flecha hacia abajo, «Exportar CSV»), junto al buscador.",
+          "Presiona «Exportar CSV», junto al buscador.",
         ],
         nota:
           "Se descarga lo que estás viendo, en el orden que elegiste: atleta, estado, plan, cuota, estado de pago, días para vencer y puntos de comunidad.",
@@ -170,7 +170,7 @@ export const manualesUsuarios: ManualesPorRuta = {
         pasos: [
           "Toca el aviso amarillo «… por confirmar» junto al título, o elige la pastilla «Bajas».",
           "Toca la fila del atleta (dice «Pidió su baja»).",
-          "Arriba de su ficha presiona «Confirmar baja» para cerrar la relación, o «Cancelar» para que siga siendo miembro.",
+          "Arriba de su ficha presiona «Confirmar baja» y confirma en la ventana para cerrar la relación, o «Mantener membresía» para que siga siendo miembro.",
         ],
         nota: "Al confirmar, el atleta deja de ser miembro del gimnasio.",
       },
@@ -187,7 +187,7 @@ export const manualesUsuarios: ManualesPorRuta = {
         pasos: [
           "Abre su ficha, presiona «Más» y elige «Completar datos».",
           "Llena «Nombre», «Apellido», «Cumpleaños», «Contacto (nombre)», «Contacto (teléfono)» y «Parentesco».",
-          "Presiona «Guardar cambios».",
+          "Presiona «Guardar cambios». Queda apagado mientras falten el nombre o el apellido.",
         ],
         nota:
           "Solo aparece mientras el atleta no ha reclamado su cuenta. En cuanto entra al app por primera vez, su perfil pasa a ser suyo: el nombre, el cumpleaños y el contacto de emergencia los edita él desde su app y viajan con él a otros gimnasios.",
@@ -513,7 +513,7 @@ export const manualesUsuarios: ManualesPorRuta = {
           "Si hay servicios por activar, junto a «Planes» sale en amarillo «1 servicio pendiente» (o cuántos son). Tócalo para bajar a «Servicios y su cobro».",
           "Toca la tarjeta amarilla del servicio, la que dice «Pendiente». Los pendientes salen primero.",
           "En «Cobro» elige «Incluido» (viene con la membresía) o «Pago extra».",
-          "Si es pago extra, elige el «Tipo» («Recurrente» o «Pase único»), el «Precio (Q)» y la «Vigencia (días)».",
+          "Si es pago extra, elige el «Tipo» («Recurrente» o «Pase único»), el «Precio» y la «Vigencia (días)». Con precio Q0 el botón «Activar servicio» queda apagado.",
           "En «Planes que lo incluyen» elige los planes. Si es incluido, asígnalo al menos a un plan.",
           "Presiona «Activar servicio».",
         ],
@@ -534,9 +534,9 @@ export const manualesUsuarios: ManualesPorRuta = {
           "En «Ofertas» presiona «Nueva oferta».",
           "Escribe el «Nombre de la oferta» (por ejemplo «Promo verano»).",
           "En «Tipo» elige «Descuento %» o «Meses gratis».",
-          "Escribe el porcentaje (de 0 a 100) o cuántos meses gratis.",
+          "Escribe el «Porcentaje (1-100)» o cuántos meses gratis (solo números enteros).",
           "Si solo aplica a un plan, elígelo en «Plan». Vacío, aplica a cualquier plan.",
-          "Si tiene vigencia, pon «Válida desde» y «Válida hasta».",
+          "Si tiene vigencia, pon «Válida desde» y «Válida hasta» (no puede ser anterior a «Válida desde»).",
           "Presiona «Crear oferta».",
         ],
         nota:
@@ -625,7 +625,7 @@ export const manualesUsuarios: ManualesPorRuta = {
       {
         sintoma: "Sale «No se pudo crear el plan.» o «No se pudo crear la oferta.»",
         solucion:
-          "Revisa los datos: el precio va solo con números y el porcentaje entre 0 y 100. Si el mensaje dice otra cosa, corrige lo que indica. La ventana sigue abierta con lo que escribiste.",
+          "Revisa los datos: el precio va solo con números y el porcentaje entre 1 y 100. Si el mensaje dice otra cosa, corrige lo que indica. La ventana sigue abierta con lo que escribiste.",
       },
       {
         sintoma: "Mi oferta no aparece al asignar un plan.",
@@ -654,7 +654,7 @@ export const manualesUsuarios: ManualesPorRuta = {
           "Elige «Familiar» o «Empresarial».",
           "Escribe el «Nombre del grupo» (por ejemplo «Familia Pérez») y elige el «Plan».",
           "En «Titular (quien paga desde su app)» elige «Ya es del gimnasio» y búscalo, o «Por su correo» si no entrena aquí (por ejemplo, el contacto de recursos humanos de la empresa).",
-          "Si pactaste otro precio o más cupos con ellos, escríbelos en «Precio pactado (Q)» y «Cupos pactados». Vacíos, valen los del plan.",
+          "Si pactaste otro precio o más cupos con ellos, escríbelos en «Precio pactado» y «Cupos pactados». Vacíos, valen los del plan.",
           "En un grupo empresarial escribe el «NIT de la empresa», la «Razón social» y el «Correo para la factura»: la factura sale a nombre de la empresa.",
           "Presiona «Crear grupo». Se abre su ficha para que agregues a los miembros.",
         ],
@@ -696,7 +696,7 @@ export const manualesUsuarios: ManualesPorRuta = {
         titulo: "Cambiar el precio, los cupos o los datos de factura",
         pasos: [
           "En la ficha del grupo presiona «Editar grupo».",
-          "Cambia el «Nombre del grupo», el «Precio pactado (Q)», los «Cupos pactados» o los datos de factura («NIT para la factura», «Nombre en la factura», «Correo para la factura»).",
+          "Cambia el «Nombre del grupo», el «Precio pactado», los «Cupos pactados» o los datos de factura («NIT para la factura», «Nombre en la factura», «Correo para la factura»).",
           "Presiona «Guardar cambios». La flecha de arriba o «Cancelar» te regresan a la ficha sin guardar.",
         ],
         nota:

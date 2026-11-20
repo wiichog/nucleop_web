@@ -12,7 +12,6 @@ import {
   SimpleGrid,
   Stack,
   Switch,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -56,7 +55,7 @@ import { PhoneInput } from "../../components/PhoneInput";
 import { Money, StatusBadge } from "../../components/ui";
 import { Tarjeta } from "../../components/Tarjeta";
 import { errMsg } from "../../lib/errors";
-import { MEMBERSHIP_STATUS, PAYMENT_METHOD, label } from "../../lib/labels";
+import { CHECKIN_METHOD, MEMBERSHIP_STATUS, PAYMENT_METHOD, label } from "../../lib/labels";
 import { fmtQ } from "../../lib/money";
 import {
   BLOQUEABLES,
@@ -227,6 +226,15 @@ export function FichaAtleta({
 
   /** Handoff de baja (aprobar / cancelar), con su resultado a la vista. */
   const onLeave = (nombre: string, action: "approve" | "cancel") => {
+    // Confirmar la baja cierra la relación (pasa a exmiembro): un toque de más
+    // no puede hacerlo sin preguntar.
+    if (
+      action === "approve" &&
+      !window.confirm(
+        `¿Confirmar la baja de ${nombre}? Dejará de ser miembro del gimnasio y no podrá reservar ni entrar.`,
+      )
+    )
+      return;
     leaveDecision.mutate(
       { membershipId, action },
       {
@@ -330,12 +338,20 @@ export function FichaAtleta({
                         size="xs"
                         color="red"
                         loading={leaveDecision.isPending}
+                        disabled={leaveDecision.isPending}
                         onClick={() => onLeave(nombre, "approve")}
                       >
                         Confirmar baja
                       </Button>
-                      <Button size="xs" variant="default" onClick={() => onLeave(nombre, "cancel")}>
-                        Cancelar
+                      {/* «Cancelar» a secas se leía como "cancelar la membresía". Los dos
+                          botones se apagan mientras sale la decisión para no mandar ambas. */}
+                      <Button
+                        size="xs"
+                        variant="default"
+                        disabled={leaveDecision.isPending}
+                        onClick={() => onLeave(nombre, "cancel")}
+                      >
+                        Mantener membresía
                       </Button>
                     </Group>
                   </Group>
@@ -491,7 +507,12 @@ export function FichaAtleta({
             {/* Sus datos: los globales los edita el atleta desde su app. */}
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={6}>
               <Dato etiqueta="Cumpleaños">
-                {m.athlete_profile.birth_date || <Text span c="dimmed">Sin registrar</Text>}
+                {/* Con T00:00:00 se lee como fecha local: sin eso, UTC la corre un día atrás. */}
+                {m.athlete_profile.birth_date ? (
+                  new Date(`${m.athlete_profile.birth_date}T00:00:00`).toLocaleDateString("es-GT")
+                ) : (
+                  <Text span c="dimmed">Sin registrar</Text>
+                )}
               </Dato>
               <Dato etiqueta="Emergencia">
                 {contactoEmergencia(m.athlete_profile.emergency_contact) ?? (
@@ -574,6 +595,31 @@ export function FichaAtleta({
   );
 }
 
+/** Un renglón del historial: dos líneas a la izquierda, lo que se compara a la derecha. */
+function Renglon({ arriba, abajo, derecha }: { arriba: ReactNode; abajo: ReactNode; derecha: ReactNode }) {
+  return (
+    <Group
+      justify="space-between"
+      wrap="nowrap"
+      gap="sm"
+      py={6}
+      style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <Text size="sm" truncate>
+          {arriba}
+        </Text>
+        <Text size="xs" c="dimmed" truncate>
+          {abajo}
+        </Text>
+      </div>
+      <Stack gap={2} align="flex-end" style={{ flex: "0 0 auto" }}>
+        {derecha}
+      </Stack>
+    </Group>
+  );
+}
+
 /** Pagos y asistencia en ESTE gimnasio, en dos pestañas para no alargar la ficha. */
 function Historial({ detalle }: { detalle: MembershipDetail }) {
   return (
@@ -588,22 +634,22 @@ function Historial({ detalle }: { detalle: MembershipDetail }) {
             Sin pagos registrados.
           </Text>
         ) : (
-          <Table verticalSpacing={6}>
-            <Table.Tbody>
-              {detalle.payments.map((payment) => (
-                <Table.Tr key={payment.id}>
-                  <Table.Td>{new Date(payment.created_at).toLocaleDateString("es-GT")}</Table.Td>
-                  <Table.Td>{label(PAYMENT_METHOD, payment.method)}</Table.Td>
-                  <Table.Td ta="right">
+          // Renglones en vez de tabla: cuatro columnas no caben en el drawer a 375 px.
+          <Stack gap={0}>
+            {detalle.payments.map((payment) => (
+              <Renglon
+                key={payment.id}
+                arriba={new Date(payment.created_at).toLocaleDateString("es-GT")}
+                abajo={label(PAYMENT_METHOD, payment.method)}
+                derecha={
+                  <>
                     <Money value={payment.amount} decimals={2} />
-                  </Table.Td>
-                  <Table.Td>
                     <StatusBadge kind="paymentTx" status={payment.status} size="sm" />
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+                  </>
+                }
+              />
+            ))}
+          </Stack>
         )}
       </Tabs.Panel>
       <Tabs.Panel value="asistencia" pt="xs">
@@ -612,17 +658,23 @@ function Historial({ detalle }: { detalle: MembershipDetail }) {
             Sin check-ins registrados.
           </Text>
         ) : (
-          <Table verticalSpacing={6}>
-            <Table.Tbody>
-              {detalle.checkins.map((checkin) => (
-                <Table.Tr key={checkin.id}>
-                  <Table.Td>{checkin.class_type}</Table.Td>
-                  <Table.Td>{new Date(checkin.starts_at).toLocaleString("es-GT")}</Table.Td>
-                  <Table.Td>{checkin.method}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+          <Stack gap={0}>
+            {detalle.checkins.map((checkin) => (
+              <Renglon
+                key={checkin.id}
+                arriba={checkin.class_type}
+                abajo={label(CHECKIN_METHOD, checkin.method)}
+                derecha={
+                  <Text size="sm" c="dimmed" ta="right">
+                    {new Date(checkin.starts_at).toLocaleString("es-GT", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}
+                  </Text>
+                }
+              />
+            ))}
+          </Stack>
         )}
       </Tabs.Panel>
     </Tabs>
@@ -707,7 +759,9 @@ function PlanYCuotaModal({
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
         <Select
           label="Plan"
-          placeholder="Selecciona plan"
+          // Mientras carga, un selector vacío parece "este gym no tiene planes".
+          placeholder={plans.isLoading ? "Cargando planes…" : "Selecciona plan"}
+          disabled={plans.isLoading}
           value={form.planId}
           onChange={(planId) => setForm({ ...form, planId })}
           // Sin catálogo el selector queda vacío y parece que el gym no tiene planes.
@@ -725,7 +779,11 @@ function PlanYCuotaModal({
           decimalScale={2}
           allowNegative={false}
           thousandSeparator=","
-          placeholder={(plans.data ?? []).find((p) => p.id === form.planId)?.price ?? "Precio del plan"}
+          placeholder={(() => {
+            // El precio crudo («350.00») no se leía como dinero: va con formato de Q.
+            const precio = (plans.data ?? []).find((p) => p.id === form.planId)?.price;
+            return precio != null ? fmtQ(precio, { decimals: 2 }) : "Precio del plan";
+          })()}
           value={form.fee}
           onChange={(fee) => setForm({ ...form, fee })}
         />
@@ -963,8 +1021,19 @@ function DatosModal({
   return (
     <Modal opened={opened} onClose={onClose} title="Completar datos" centered size="lg" zIndex={SOBRE_FICHA}>
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-        <TextInput label="Nombre" value={edit.first_name} onChange={(e) => setEdit({ ...edit, first_name: e.currentTarget.value })} />
-        <TextInput label="Apellido" value={edit.last_name} onChange={(e) => setEdit({ ...edit, last_name: e.currentTarget.value })} />
+        {/* autoComplete="off": son datos de un TERCERO; si no, iOS rellena con los del dueño. */}
+        <TextInput
+          label="Nombre"
+          autoComplete="off"
+          value={edit.first_name}
+          onChange={(e) => setEdit({ ...edit, first_name: e.currentTarget.value })}
+        />
+        <TextInput
+          label="Apellido"
+          autoComplete="off"
+          value={edit.last_name}
+          onChange={(e) => setEdit({ ...edit, last_name: e.currentTarget.value })}
+        />
         <DateInput
           label="Cumpleaños"
           valueFormat="YYYY-MM-DD"
@@ -972,15 +1041,20 @@ function DatosModal({
           onChange={(d) => setEdit({ ...edit, birth_date: d ? d.toLocaleDateString("en-CA") : "" })}
           popoverProps={{ withinPortal: true, zIndex: SOBRE_FICHA + 1 }}
         />
-        <TextInput label="Contacto (nombre)" value={edit.ec_name} onChange={(e) => setEdit({ ...edit, ec_name: e.currentTarget.value })} />
+        <TextInput label="Contacto (nombre)" autoComplete="off" value={edit.ec_name} onChange={(e) => setEdit({ ...edit, ec_name: e.currentTarget.value })} />
         <PhoneInput label="Contacto (teléfono)" value={edit.ec_phone} onChange={(ec_phone) => setEdit({ ...edit, ec_phone })} />
-        <TextInput label="Parentesco" value={edit.ec_relation} onChange={(e) => setEdit({ ...edit, ec_relation: e.currentTarget.value })} />
+        <TextInput label="Parentesco" autoComplete="off" value={edit.ec_relation} onChange={(e) => setEdit({ ...edit, ec_relation: e.currentTarget.value })} />
       </SimpleGrid>
       <Group justify="flex-end" mt="lg" gap="xs">
         <Button variant="default" onClick={onClose}>
           Cancelar
         </Button>
-        <Button loading={editProfile.isPending} onClick={onGuardar}>
+        {/* Sin nombre o apellido el perfil queda sin cómo nombrarlo en listas y avisos. */}
+        <Button
+          loading={editProfile.isPending}
+          disabled={!edit.first_name.trim() || !edit.last_name.trim()}
+          onClick={onGuardar}
+        >
           Guardar cambios
         </Button>
       </Group>

@@ -445,19 +445,21 @@ function TarjetaServicio({
       apagada={!activo}
       color={pendiente ? null : s.color}
     >
+      {/* El nombre cede espacio y se recorta; la insignia nunca se encoge. Sin
+          `flex: 1` + `minWidth: 0` un nombre largo se le encimaba. */}
       <Group gap={8} wrap="nowrap" justify="space-between">
-        <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
+        <Group gap={8} wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
           <PuntoColor color={s.color} />
-          <Text fw={700} truncate>
+          <Text fw={700} truncate style={{ minWidth: 0 }}>
             {s.name}
           </Text>
         </Group>
         {!activo ? (
-          <Badge size="xs" color="gray" variant="light">Inactivo</Badge>
+          <Badge size="xs" color="gray" variant="light" style={{ flex: "0 0 auto" }}>Inactivo</Badge>
         ) : pendiente ? (
-          <Badge size="xs" color="yellow" variant="light">Pendiente</Badge>
+          <Badge size="xs" color="yellow" variant="light" style={{ flex: "0 0 auto" }}>Pendiente</Badge>
         ) : (
-          <Badge size="xs" color="teal" variant="light">Activo</Badge>
+          <Badge size="xs" color="teal" variant="light" style={{ flex: "0 0 auto" }}>Activo</Badge>
         )}
       </Group>
       {s.access_type === "extra" ? (
@@ -790,7 +792,17 @@ export function ServicioCobroModal({
             ]}
             allowDeselect={false}
           />
-          <NumberInput label="Precio (Q)" prefix="Q" value={price} onChange={(v) => setPrice(String(v))} min={0} />
+          {/* La «Q» ya va como prefijo: «(Q)» en la etiqueta la repetía. */}
+          <NumberInput
+            label="Precio"
+            prefix="Q"
+            value={price}
+            onChange={(v) => setPrice(String(v))}
+            min={0}
+            decimalScale={2}
+            allowNegative={false}
+            thousandSeparator=","
+          />
           <NumberInput label="Vigencia (días)" value={days} onChange={setDays} min={1} />
         </SimpleGrid>
       )}
@@ -807,8 +819,10 @@ export function ServicioCobroModal({
         <Button variant="default" onClick={onClose}>
           Cancelar
         </Button>
+        {/* Un servicio de pago extra a Q0 se cobraría gratis: no se deja guardar. */}
         <Button
           loading={saving}
+          disabled={access === "extra" && !(Number(price) > 0)}
           onClick={() =>
             servicio &&
             onSave(servicio, {
@@ -936,11 +950,19 @@ function NuevaOfertaForm({
         />
       </Input.Wrapper>
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-        <TextInput
-          label={type === "percent" ? "Porcentaje (0-100)" : "Meses gratis"}
+        {/* Numérico: en texto libre pasaban «30%» o «abc» y los rechazaba el
+            servidor. El estado sigue siendo string porque así lo espera la API. */}
+        <NumberInput
+          label={type === "percent" ? "Porcentaje (1-100)" : "Meses gratis"}
           placeholder={type === "percent" ? "30" : "2"}
           value={value}
-          onChange={(e) => setValue(e.currentTarget.value)}
+          onChange={(v) => setValue(v === "" ? "" : String(v))}
+          allowDecimal={false}
+          allowNegative={false}
+          min={1}
+          max={type === "percent" ? 100 : undefined}
+          suffix={type === "percent" ? "%" : undefined}
+          inputMode="numeric"
         />
         <Select
           label="Plan"
@@ -951,7 +973,15 @@ function NuevaOfertaForm({
           data={planOptions}
         />
         <DateInput label="Válida desde" value={from} onChange={setFrom} valueFormat="YYYY-MM-DD" clearable />
-        <DateInput label="Válida hasta" value={to} onChange={setTo} valueFormat="YYYY-MM-DD" clearable />
+        {/* No puede terminar antes de empezar. */}
+        <DateInput
+          label="Válida hasta"
+          value={to}
+          onChange={setTo}
+          valueFormat="YYYY-MM-DD"
+          clearable
+          minDate={from ?? undefined}
+        />
       </SimpleGrid>
       <Group justify="flex-end" mt="lg">
         <Button variant="default" onClick={onClose}>

@@ -137,8 +137,11 @@ function Fila({ request, onOpen }: { request: JoinRequest; onOpen: () => void })
   const porDecidir = POR_DECIDIR.includes(request.status ?? "");
   return (
     <Tarjeta etiqueta={`Responder a ${request.athlete_name}`} onClick={onOpen} aviso={porDecidir}>
-      <Group justify="space-between" wrap="nowrap" gap="sm" align="flex-start">
-        <div style={{ minWidth: 0, flex: 1 }}>
+      {/* La fila envuelve: el nombre pide al menos 180 px y, si no caben junto a él,
+          estado y fecha bajan a su renglón. Lado a lado a 375 px el nombre quedaba
+          en ~110 px. */}
+      <Group justify="space-between" wrap="wrap" gap="sm" align="flex-start" style={{ rowGap: 4 }}>
+        <div style={{ minWidth: 0, flex: "1 1 180px" }}>
           <Solicitante request={request} />
           {request.goal ? (
             <Text size="xs" c="dimmed" truncate mt={2}>
@@ -146,7 +149,7 @@ function Fila({ request, onOpen }: { request: JoinRequest; onOpen: () => void })
             </Text>
           ) : null}
         </div>
-        <Stack gap={4} align="flex-end" style={{ flexShrink: 0 }}>
+        <Stack gap={4} align="flex-end" style={{ flex: "0 0 auto", marginLeft: "auto" }}>
           <StatusBadge kind="membership" status={request.status} size="sm" />
           <Text size="xs" c="dimmed">
             {fechaCorta(request.created_at)}
@@ -327,7 +330,9 @@ function ResponderModal({
           <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
             <Select
               label="Plan"
-              placeholder="Selecciona plan"
+              // Mientras carga, un selector vacío parece "este gym no tiene planes".
+              placeholder={plans.isLoading ? "Cargando planes…" : "Selecciona plan"}
+              disabled={plans.isLoading}
               value={planId}
               onChange={setPlanId}
               // Sin el catálogo el selector queda vacío y parece que el gym no
@@ -349,7 +354,8 @@ function ResponderModal({
               decimalScale={2}
               allowNegative={false}
               thousandSeparator=","
-              placeholder={precioPlan ?? "Precio del plan"}
+              // El precio crudo («350.00») no se leía como dinero.
+              placeholder={precioPlan != null ? fmtQ(precioPlan, { decimals: 2 }) : "Precio del plan"}
               value={customFee}
               onChange={setCustomFee}
             />

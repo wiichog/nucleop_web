@@ -217,7 +217,7 @@ describe("Atletas: encontrar a la persona y lo pendiente", () => {
     expect(screen.getAllByText("Pidió su baja").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Abrir ficha de Ana López" }));
     expect(await screen.findByRole("button", { name: "Confirmar baja" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Cancelar" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mantener membresía" })).toBeTruthy();
   });
 
   it("en la ficha del admin, «Plan y cuota» abre su ventana y avisa si la va a activar", async () => {

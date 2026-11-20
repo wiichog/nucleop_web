@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   Anchor,
   Badge,
@@ -242,6 +242,9 @@ export function CeldaFactura({
   const folio = serieYNumero(payment);
   const documento = payment.fel_document_url || "";
   return (
+    // Solo se pinta dentro de la ventana del pago: hay espacio para el texto
+    // completo. Antes la referencia y el motivo se recortaban y el resto vivía en
+    // `title`, que en el teléfono no se puede leer.
     <Stack gap={2} style={{ minWidth: 150 }}>
       {emitida && folio ? (
         documento ? (
@@ -260,12 +263,12 @@ export function CeldaFactura({
         <Text size="sm">{label(FEL_STATUS, payment.fel_status)}</Text>
       )}
       {payment.fel_reference && (
-        <Text size="xs" c="dimmed" lineClamp={1} title={payment.fel_reference}>
+        <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
           Ref. {payment.fel_reference}
         </Text>
       )}
       {payment.fel_status === "failed" && payment.fel_message && (
-        <Text size="xs" c="red" lineClamp={3} title={payment.fel_message}>
+        <Text size="xs" c="red" style={{ overflowWrap: "anywhere" }}>
           {payment.fel_message}
         </Text>
       )}
@@ -416,8 +419,9 @@ export function ContracargosDelGym({ gymId }: { gymId: string }) {
     setEnlace(caso.evidence_url ?? "");
   };
 
-  const enviar = async () => {
-    if (!abierto) return;
+  const enviar = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!abierto || (!notas.trim() && !enlace.trim())) return;
     try {
       await enviarEvidencia.mutateAsync({
         chargebackId: abierto.id,
@@ -486,7 +490,7 @@ export function ContracargosDelGym({ gymId }: { gymId: string }) {
               >
                 <Group gap="sm" wrap="nowrap" justify="space-between">
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <Text size="sm" fw={600} truncate>
+                    <Text size="sm" fw={600} truncate style={{ minWidth: 0 }}>
                       {nombreCorto(c.athlete_name) ?? "—"}
                       <Text span c="dimmed" fw={400}>
                         {" · "}
@@ -506,10 +510,14 @@ export function ContracargosDelGym({ gymId }: { gymId: string }) {
                             : "Ventana cerrada"}
                     </Text>
                   </div>
-                  <Badge color={CHARGEBACK_STATUS_COLOR[c.status] ?? "gray"} variant="light" size="sm">
-                    {label(CHARGEBACK_STATUS, c.status)}
-                  </Badge>
-                  <Money value={c.total_lost} decimals={2} c="var(--nucleo-danger)" />
+                  {/* Estado y monto apilados a la derecha: en línea con el nombre lo
+                      dejaban en unos cuantos px a 375 px. */}
+                  <Stack gap={4} align="flex-end" style={{ flex: "0 0 auto" }}>
+                    <Badge color={CHARGEBACK_STATUS_COLOR[c.status] ?? "gray"} variant="light" size="sm">
+                      {label(CHARGEBACK_STATUS, c.status)}
+                    </Badge>
+                    <Money value={c.total_lost} decimals={2} c="var(--nucleo-danger)" />
+                  </Stack>
                 </Group>
               </Tarjeta>
             );
@@ -551,34 +559,45 @@ export function ContracargosDelGym({ gymId }: { gymId: string }) {
               </Dato>
             )}
             {abierto.can_submit_evidence ? (
-              <>
-                <Textarea
-                  label="Tu descargo"
-                  placeholder="Asistió 12 veces en el periodo cobrado; el plan lo contrató el 3 de junio…"
-                  value={notas}
-                  onChange={(e) => setNotas(e.currentTarget.value)}
-                  autosize
-                  minRows={4}
-                />
-                <TextInput
-                  label="Enlace a la evidencia (opcional)"
-                  placeholder="https://…"
-                  value={enlace}
-                  onChange={(e) => setEnlace(e.currentTarget.value)}
-                />
-                <Group justify="flex-end">
-                  <Button variant="default" onClick={() => setAbierto(null)}>
-                    Cancelar
-                  </Button>
-                  <Button
-                    loading={enviarEvidencia.isPending}
-                    disabled={!notas.trim() && !enlace.trim()}
-                    onClick={enviar}
-                  >
-                    {abierto.evidence_submitted_at ? "Ampliar evidencia" : "Enviar evidencia"}
-                  </Button>
-                </Group>
-              </>
+              // <form>: «Ir» del teclado envía, igual que el botón. `noValidate`: el
+              // `type="url"` es por el teclado; un enlace sin «https://» lo sigue
+              // juzgando el servidor, no el navegador.
+              <form onSubmit={enviar} noValidate>
+                <Stack gap="md">
+                  <Textarea
+                    label="Tu descargo"
+                    placeholder="Asistió 12 veces en el periodo cobrado; el plan lo contrató el 3 de junio…"
+                    value={notas}
+                    onChange={(e) => setNotas(e.currentTarget.value)}
+                    autosize
+                    minRows={4}
+                  />
+                  {/* Teclado de URL y sin mayúscula ni autocorrección: iOS cambiaba
+                      «https» por «Https» y rompía el enlace. */}
+                  <TextInput
+                    label="Enlace a la evidencia (opcional)"
+                    placeholder="https://…"
+                    type="url"
+                    inputMode="url"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    value={enlace}
+                    onChange={(e) => setEnlace(e.currentTarget.value)}
+                  />
+                  <Group justify="flex-end">
+                    <Button variant="default" onClick={() => setAbierto(null)}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      loading={enviarEvidencia.isPending}
+                      disabled={!notas.trim() && !enlace.trim()}
+                    >
+                      {abierto.evidence_submitted_at ? "Ampliar evidencia" : "Enviar evidencia"}
+                    </Button>
+                  </Group>
+                </Stack>
+              </form>
             ) : abierto.evidence_submitted_at ? (
               <Dato rotulo="Evidencia enviada">
                 {fecha(abierto.evidence_submitted_at)}
@@ -599,6 +618,9 @@ export function ContracargosDelGym({ gymId }: { gymId: string }) {
 function estadoHttp(error: unknown): number | undefined {
   return (error as { response?: { status?: number } } | null)?.response?.status;
 }
+
+/** Relaciones cerradas: no se les registra pago (ni aparecen en el selector). */
+const ESTADOS_TERMINALES = new Set(["former_member", "rejected"]);
 
 /** Lo que se le pasa a la ventana de pago manual: vacía, o con un moroso ya elegido. */
 type Borrador = { membershipId: string | null; amount: number | "" };
@@ -640,7 +662,8 @@ export function RegistrarPagoModal({
 
   const montoValido = amount !== "" && Number(amount) > 0;
 
-  const registrar = async () => {
+  const registrar = async (event?: FormEvent) => {
+    event?.preventDefault();
     if (!membershipId || !montoValido) return;
     setError(null);
     try {
@@ -665,74 +688,82 @@ export function RegistrarPagoModal({
 
   return (
     <Modal opened={!!borrador} onClose={onClose} title="Registrar pago" centered>
-      <Stack gap="sm">
-        <Select
-          label="Atleta"
-          placeholder="Busca por nombre…"
-          value={membershipId}
-          onChange={setMembershipId}
-          searchable
-          data-autofocus={!borrador?.membershipId || undefined}
-          nothingFoundMessage="Nadie con ese nombre"
-          comboboxProps={{ withinPortal: true }}
-          data={memberships.map((m) => ({
-            value: m.id,
-            label: `${m.athlete_name} (${label(MEMBERSHIP_STATUS, m.status)})`,
-          }))}
-        />
-        <div>
-          <Text size="sm" fw={500} mb={4}>
-            Método
-          </Text>
-          <SegmentedControl
-            fullWidth
-            value={method}
-            onChange={(v) => setMethod(v as "cash" | "bank_transfer")}
-            data={[
-              { value: "cash", label: "Efectivo" },
-              { value: "bank_transfer", label: "Transferencia" },
-            ]}
+      {/* <form>: «Ir» del teclado registra, igual que el botón. */}
+      <form onSubmit={registrar}>
+        <Stack gap="sm">
+          <Select
+            label="Atleta"
+            placeholder="Busca por nombre…"
+            value={membershipId}
+            onChange={setMembershipId}
+            searchable
+            data-autofocus={!borrador?.membershipId || undefined}
+            nothingFoundMessage="Nadie con ese nombre"
+            comboboxProps={{ withinPortal: true }}
+            // Exmiembros y solicitudes rechazadas no tienen a qué abonarse: solo
+            // estorbaban en la búsqueda (mismo criterio que Planes grupales). El que
+            // ya venía elegido se conserva aunque esté en un estado terminal.
+            data={memberships
+              .filter((m) => !ESTADOS_TERMINALES.has(m.status ?? "") || m.id === membershipId)
+              .map((m) => ({
+                value: m.id,
+                label: `${m.athlete_name} (${label(MEMBERSHIP_STATUS, m.status)})`,
+              }))}
           />
-        </div>
-        {method === "bank_transfer" && (
-          <FileInput
-            label="Comprobante"
-            placeholder="Adjuntar comprobante"
-            leftSection={<Paperclip size={16} />}
-            accept="image/*,.pdf"
-            value={proofFile}
-            onChange={setProofFile}
-            clearable
+          <div>
+            <Text size="sm" fw={500} mb={4}>
+              Método
+            </Text>
+            <SegmentedControl
+              fullWidth
+              value={method}
+              onChange={(v) => setMethod(v as "cash" | "bank_transfer")}
+              data={[
+                { value: "cash", label: "Efectivo" },
+                { value: "bank_transfer", label: "Transferencia" },
+              ]}
+            />
+          </div>
+          {method === "bank_transfer" && (
+            <FileInput
+              label="Comprobante"
+              placeholder="Adjuntar comprobante"
+              leftSection={<Paperclip size={16} />}
+              accept="image/*,.pdf"
+              value={proofFile}
+              onChange={setProofFile}
+              clearable
+            />
+          )}
+          <NumberInput
+            label="Monto"
+            prefix="Q"
+            min={0}
+            decimalScale={2}
+            thousandSeparator=","
+            value={amount}
+            onChange={(v) => setAmount(typeof v === "number" ? v : "")}
+            data-autofocus={borrador?.membershipId ? true : undefined}
           />
-        )}
-        <NumberInput
-          label="Monto"
-          prefix="Q"
-          min={0}
-          decimalScale={2}
-          thousandSeparator=","
-          value={amount}
-          onChange={(v) => setAmount(typeof v === "number" ? v : "")}
-          data-autofocus={borrador?.membershipId ? true : undefined}
-        />
-        {error && (
-          <Text c="red" size="sm">
-            {error}
-          </Text>
-        )}
-        <Group justify="flex-end" mt="xs">
-          <Button variant="default" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            disabled={!membershipId || !montoValido}
-            loading={registerManual.isPending}
-            onClick={registrar}
-          >
-            Registrar pago
-          </Button>
-        </Group>
-      </Stack>
+          {error && (
+            <Text c="red" size="sm">
+              {error}
+            </Text>
+          )}
+          <Group justify="flex-end" mt="xs">
+            <Button variant="default" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={!membershipId || !montoValido}
+              loading={registerManual.isPending}
+            >
+              Registrar pago
+            </Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 }
@@ -1057,6 +1088,9 @@ function HistorialDePagos({ gymId }: { gymId: string }) {
             accessor: "concept",
             title: "Concepto",
             sortable: true,
+            // Siete columnas no caben a 375 px: en el teléfono concepto y método
+            // se ven en la ventana del pago.
+            visibleMediaQuery: (t) => `(min-width: ${t.breakpoints.sm})`,
             render: (p) => label(PAYMENT_CONCEPT, p.concept),
           },
           {
@@ -1077,6 +1111,7 @@ function HistorialDePagos({ gymId }: { gymId: string }) {
             accessor: "method",
             title: "Método",
             sortable: true,
+            visibleMediaQuery: (t) => `(min-width: ${t.breakpoints.sm})`,
             render: (p) => label(PAYMENT_METHOD, p.method),
           },
           {

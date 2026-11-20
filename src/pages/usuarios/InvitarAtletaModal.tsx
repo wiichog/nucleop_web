@@ -82,10 +82,13 @@ export function InvitarAtletaModal({
   return (
     <Modal opened={opened} onClose={cerrar} title="Invitar atleta" centered size="lg">
       <form onSubmit={onSubmit}>
+        {/* Son datos de un TERCERO: autoComplete="off" para que iOS no meta los del dueño. */}
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
           <TextInput
             label="Correo electrónico"
             type="email"
+            autoComplete="off"
+            autoCapitalize="none"
             required
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.currentTarget.value })}
@@ -98,12 +101,14 @@ export function InvitarAtletaModal({
           />
           <TextInput
             label="Nombre"
+            autoComplete="off"
             required
             value={form.first_name}
             onChange={(e) => setForm({ ...form, first_name: e.currentTarget.value })}
           />
           <TextInput
             label="Apellido"
+            autoComplete="off"
             required
             value={form.last_name}
             onChange={(e) => setForm({ ...form, last_name: e.currentTarget.value })}

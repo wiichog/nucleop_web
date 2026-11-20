@@ -20,7 +20,7 @@ export const manualesNegocio: ManualesPorRuta = {
       {
         titulo: "Registrar un pago en efectivo o transferencia",
         pasos: [
-          "En «Por cobrar», toca al atleta que te pagó: se abre la ventana «Registrar pago» con el atleta y su cuota ya puestos. Si no está en la lista (porque no debe), presiona el botón «Registrar pago» y búscalo en «Atleta».",
+          "En «Por cobrar», toca al atleta que te pagó: se abre la ventana «Registrar pago» con el atleta y su cuota ya puestos. Si no está en la lista (porque no debe), presiona el botón «Registrar pago» y búscalo en «Atleta» (ahí no salen los exmiembros ni las solicitudes rechazadas).",
           "En «Método» elige «Efectivo» o «Transferencia».",
           "Si es transferencia, puedes adjuntar el comprobante en «Comprobante» (imagen o PDF).",
           "Revisa el «Monto» y corrígelo si te pagó otra cantidad.",
@@ -42,7 +42,7 @@ export const manualesNegocio: ManualesPorRuta = {
         titulo: "Buscar un pago",
         pasos: [
           "En la pestaña «Pagos», escribe en el buscador el nombre del atleta, el concepto (por ejemplo «Membresía» o «Drop-in»), el método (por ejemplo «Efectivo») o el estado (por ejemplo «Fallido» o «Contracargo»).",
-          "Presiona el título de una columna («Fecha», «Atleta», «Concepto», «Monto», «Método», «Estado» o «Factura») para ordenar por ella.",
+          "Presiona el título de una columna («Fecha», «Atleta», «Concepto», «Monto», «Método», «Estado» o «Factura») para ordenar por ella. En el teléfono la tabla no muestra «Concepto» ni «Método»: tócalo para ver el pago completo.",
         ],
       },
       {
@@ -246,7 +246,7 @@ export const manualesNegocio: ManualesPorRuta = {
         pasos: [
           "Cuando ya le pagaste al coach, toca su liquidación en «Por pagar» (o su fila en «Liquidaciones»).",
           "En la ventana revisa el periodo, los pagos y el total.",
-          "Presiona «Marcar pagada».",
+          "Presiona «Marcar pagada · Q…» (el botón dice el monto que vas a pagar).",
         ],
         nota:
           "Pasa a «Pagada», sale de «Por pagar» y se registra como gasto de nómina. Ya no se puede volver a marcar.",
