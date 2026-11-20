@@ -689,7 +689,8 @@ export function PlanModal({
             onChange={(e) => setAutoRenew(e.currentTarget.checked)}
           />
         </Stack>
-        <NumberInput label="Penalización no-show (pts)" value={noshowPoints} onChange={setNoshowPoints} />
+        {/* Acepta negativos (default -10): el teclado decimal de iOS no trae «-». */}
+        <NumberInput label="Penalización no-show (pts)" value={noshowPoints} onChange={setNoshowPoints} inputMode="text" />
       </SimpleGrid>
       {existente && (
         <Switch

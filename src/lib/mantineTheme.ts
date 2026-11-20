@@ -85,12 +85,19 @@ export const mantineTheme = createTheme({
     TextInput: { defaultProps: { radius: "md" } },
     PasswordInput: { defaultProps: { radius: "md" } },
     Textarea: { defaultProps: { radius: "md" } },
-    NumberInput: { defaultProps: { radius: "md" } },
+    // react-number-format omite `inputMode` A PROPÓSITO en iPhone: sin esto,
+    // cada monto, cupo o día abría el teclado de letras en iOS. Los campos que
+    // aceptan negativos (el teclado decimal de iOS no trae «-») lo pisan con
+    // `inputMode="text"`.
+    NumberInput: { defaultProps: { radius: "md", inputMode: "decimal" } },
     Select: { defaultProps: { radius: "md", checkIconPosition: "right" } },
     MultiSelect: { defaultProps: { radius: "md" } },
     Autocomplete: { defaultProps: { radius: "md" } },
     DatePickerInput: { defaultProps: { radius: "md" } },
-    DateInput: { defaultProps: { radius: "md" } },
+    // En el celular tocar un DateInput subía el teclado Y abría el calendario
+    // debajo, tapado por el teclado. `inputMode="none"` deja el calendario solo
+    // (en compu se sigue pudiendo escribir la fecha con el teclado físico).
+    DateInput: { defaultProps: { radius: "md", inputMode: "none" } },
     FileInput: { defaultProps: { radius: "md" } },
     SegmentedControl: { defaultProps: { radius: "xl" } },
     Tabs: { defaultProps: { radius: "xl" } },

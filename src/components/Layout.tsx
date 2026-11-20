@@ -459,7 +459,10 @@ export function Layout() {
             </Box>
           </Group>
 
-          <Group gap="sm" wrap="nowrap" style={{ flex: "none" }}>
+          {/* Encoge solo la pastilla del gimnasio (con «…»); los botones redondos no.
+              Con `flex: none` el grupo medía 425px en un celular de 390 y TODA la
+              página quedaba con scroll horizontal. */}
+          <Group gap="sm" wrap="nowrap" className="a-header__tools" style={{ flex: "0 1 auto", minWidth: 0 }}>
             <ContextSwitcher />
             <ToolButton
               label="Cómo usar esta pantalla"
@@ -473,9 +476,10 @@ export function Layout() {
             </ToolButton>
             <ReportIssueButton />
             {showGymNav && <NotificationsBell summary={counts} />}
+            {/* En celular «Mi perfil» ya está en el menú lateral: no cabe un 5.º botón. */}
             <ToolButton
               label="Mi perfil"
-              className="a-pop"
+              className="a-pop a-solo-escritorio"
               onClick={() => navigate("/panel/perfil")}
             >
               <span

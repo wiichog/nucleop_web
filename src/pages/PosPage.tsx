@@ -510,7 +510,7 @@ export function PosPage() {
 
       {/* Celular: el ticket queda abajo de los productos; esta barra lo trae a la vista. */}
       {cart.length > 0 && (
-        <Affix position={{ bottom: 12, left: 12, right: 12 }} zIndex={150}>
+        <Affix position={{ bottom: 12, left: 12, right: 12 }} zIndex={150} className="nucleo-oculto-con-teclado">
           <Box hiddenFrom="md">
             <Button
               size="lg"

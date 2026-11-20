@@ -487,6 +487,10 @@
   padding-left: calc(16 * var(--u) + var(--a-rail-w) + var(--a-gutter));
   padding-right: var(--a-gutter);
   padding-bottom: calc(48 * var(--u));
+  /* Las entradas animadas (`a-slide-r` arranca 30px a la derecha) asomaban del
+     borde y le daban a la página scroll horizontal en el celular. `clip` (y no
+     `hidden`) para no crear un contenedor de scroll que rompa el header sticky. */
+  overflow-x: clip;
 }
 
 .a-header {
@@ -1032,6 +1036,21 @@
   .a-who {
     font-size: 17px;
   }
+  /* Header del celular: hamburguesa + pastilla + 4 botones en 358px. */
+  .a-header__tools {
+    gap: 8px !important;
+  }
+  .a-header .a-tool {
+    width: 40px;
+    height: 40px;
+  }
+  .a-header .a-chip {
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+  .a-solo-escritorio {
+    display: none !important;
+  }
   /* En el drawer móvil el rail está siempre "abierto". */
   .a-nav-drawer .a-nav-item__label,
   .a-nav-drawer .a-nav-group > span,
@@ -1045,5 +1064,94 @@
   }
   .a-nav-drawer .a-nav-item {
     height: 44px;
+  }
+}
+
+/* ═══ Teclado del celular ═════════════════════════════════════════════════
+   Con el teclado abierto, iOS (y Chrome de Android) NO encogen la página: solo
+   el viewport visual. Modales y drawers van `fixed` a `100dvh`, así que su
+   mitad de abajo quedaba detrás del teclado y el campo enfocado se tapaba.
+   `lib/tecladoMovil.ts` publica lo visible en `--nucleo-vvh`/`--nucleo-vv-top`
+   (y `html[data-teclado]` mientras está abierto); aquí se usan. Sin JS o sin
+   `visualViewport` los fallbacks son los valores de Mantine. */
+.mantine-Modal-inner,
+.mantine-Drawer-inner {
+  top: var(--nucleo-vv-top, 0px);
+  bottom: auto;
+  height: var(--nucleo-vvh, 100%);
+}
+.mantine-Modal-content {
+  --modal-content-max-height: calc(var(--nucleo-vvh, 100dvh) - var(--modal-y-offset) * 2);
+}
+.mantine-Modal-root[data-full-screen] .mantine-Modal-content {
+  --modal-content-height: var(--nucleo-vvh, 100dvh);
+}
+
+@media (max-width: 767.98px) {
+  /* Margen de 5dvh/5vw desperdiciaba un cuarto del celular. */
+  .mantine-Modal-root {
+    --modal-y-offset: 12px;
+    --modal-x-offset: 10px;
+  }
+  /* Con el teclado abierto, centrar baila con cada tecla que cambia el alto:
+     el modal se pega arriba y su cuerpo hace scroll. */
+  html[data-teclado] .mantine-Modal-root[data-centered] .mantine-Modal-inner {
+    --modal-inner-align: flex-start;
+  }
+
+  /* iOS hace zoom a la página al enfocar un campo con letra < 16px (Mantine
+     usa 14px) y la deja ampliada al salir: «todo se ve corrido». 16px lo evita
+     sin bloquear el zoom con pellizco. */
+  .mantine-Input-input,
+  .mantine-PillsInput-input,
+  .aurora-stage input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  .aurora-stage textarea,
+  .aurora-stage select,
+  .nucleo-input {
+    font-size: 16px !important;
+  }
+
+  /* Objetivo táctil ≥ 36px. Los tamaños `xs`/`compact-*` de Mantine (22–30px)
+     y los ActionIcon por defecto (28px) se tocaban de a dos con el pulgar. Se
+     redefinen las variables que Mantine declara en cada componente, así que
+     ninguna pantalla tiene que cambiar su `size`. */
+  .mantine-Button-root {
+    --button-height-xs: 36px;
+    --button-height-compact-xs: 28px;
+    --button-height-compact-sm: 32px;
+    --button-height-compact-md: 34px;
+  }
+  .mantine-ActionIcon-root {
+    --ai-size-sm: 30px;
+    --ai-size-md: 36px;
+    --ai-size-lg: 40px;
+  }
+  .mantine-Input-wrapper {
+    --input-height-xs: 36px;
+  }
+  /* La X de modales, drawers y avisos. */
+  .mantine-CloseButton-root {
+    --cb-size-md: 36px;
+  }
+
+  /* Pestañas: Mantine las deja envolver y a 375px se partían en dos filas con
+     la línea de abajo rota. En el celular van en una fila que se desliza. */
+  .mantine-Tabs-root:not([data-orientation="vertical"]) .mantine-Tabs-list {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mantine-Tabs-root:not([data-orientation="vertical"]) .mantine-Tabs-list::-webkit-scrollbar {
+    display: none;
+  }
+  .mantine-Tabs-root:not([data-orientation="vertical"]) .mantine-Tabs-tab {
+    flex: none;
+  }
+
+  /* Barras pegadas abajo (total del POS): con teclado abierto tapan el campo. */
+  html[data-teclado] .nucleo-oculto-con-teclado {
+    display: none !important;
   }
 }

@@ -24,7 +24,7 @@ export function PasswordResetConfirmPage() {
       <div className="aurora-grain" />
       <div className="aurora-vignette" />
 
-      <Center mih="100vh" p="md">
+      <Center mih="100dvh" p="md">
         <form
           className="a-glass-card a-glass-card--big a-sheen a-slide-r"
           style={{

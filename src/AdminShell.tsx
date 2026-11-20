@@ -1,9 +1,10 @@
-import { JSX } from "react";
+import { JSX, useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Center, Loader, MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { useAuth } from "./lib/auth";
 import { mantineTheme } from "./lib/mantineTheme";
+import { instalarTecladoMovil } from "./lib/tecladoMovil";
 import { Layout } from "./components/Layout";
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -59,6 +60,9 @@ function Protected({ children }: { children: JSX.Element }) {
  * Las rutas son relativas porque este árbol cuelga del `path="/*"` de App.
  */
 export default function AdminShell() {
+  // Modales y drawers se dimensionan con lo que deja libre el teclado del
+  // celular (ver lib/tecladoMovil.ts y la sección «Teclado» de aurora.css).
+  useEffect(() => instalarTecladoMovil(), []);
   return (
     <MantineProvider theme={mantineTheme} defaultColorScheme="dark" forceColorScheme="dark">
       <Notifications position="top-right" />
