@@ -1850,6 +1850,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gym/{gym_id}/coach-payouts/{pid}/invoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description El admin adjunta (o reemplaza) la factura de una liquidación de su gym.
+         *
+         *     Para cuando el coach se la manda por fuera del app. El admin puede cambiarla
+         *     aunque la liquidación ya esté pagada; queda en auditoría.
+         */
+        post: operations["gym_coach_payouts_invoice_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gym/{gym_id}/coach-payouts/{pid}/pay": {
         parameters: {
             query?: never;
@@ -4356,6 +4378,45 @@ export interface paths {
         get: operations["me_coach_feed_list"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Las liquidaciones del coach que pregunta, en todos sus gyms.
+         *
+         *     Sólo las suyas: se filtra por SUS roles de coach activos, nunca por un id que
+         *     mande el cliente.
+         */
+        get: operations["me_coach_payouts_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/coach/payouts/{pid}/invoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description El coach sube (o cambia) la factura de una de SUS liquidaciones. */
+        post: operations["me_coach_payouts_invoice_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7714,6 +7775,11 @@ export interface components {
             readonly rating: number | null;
             readonly rating_count: number;
         };
+        /** @description La factura (FEL en PDF/XML o foto) de una liquidación. Multipart. */
+        CoachInvoiceUpload: {
+            /** Format: uri */
+            invoice_file: string;
+        };
         CoachLevel: {
             key: string;
             name: string;
@@ -7729,6 +7795,8 @@ export interface components {
             /** Format: uuid */
             readonly coach: string;
             readonly coach_email: string;
+            readonly coach_name: string;
+            readonly gym_name: string;
             /** Format: date */
             readonly period_start: string;
             /** Format: date */
@@ -7739,6 +7807,10 @@ export interface components {
             /** Format: date-time */
             readonly paid_at: string | null;
             readonly earnings_count: number;
+            readonly invoice_url: string | null;
+            readonly invoice_name: string | null;
+            /** Format: date-time */
+            readonly invoice_uploaded_at: string | null;
             /** Format: date-time */
             readonly created_at: string;
         };
@@ -8072,6 +8144,8 @@ export interface components {
             readonly replaces: string | null;
             /** Format: uuid */
             readonly replaced_by: string | null;
+            /** Format: uuid */
+            readonly coach_payout: string | null;
             /** Format: date-time */
             readonly created_at: string;
         };
@@ -15472,6 +15546,33 @@ export interface operations {
             };
         };
     };
+    gym_coach_payouts_invoice_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["CoachInvoiceUpload"];
+                "application/x-www-form-urlencoded": components["schemas"]["CoachInvoiceUpload"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPayout"];
+                };
+            };
+        };
+    };
     gym_coach_payouts_pay_create: {
         parameters: {
             query?: never;
@@ -19799,6 +19900,51 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeedItem"][];
+                };
+            };
+        };
+    };
+    me_coach_payouts_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPayout"][];
+                };
+            };
+        };
+    };
+    me_coach_payouts_invoice_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["CoachInvoiceUpload"];
+                "application/x-www-form-urlencoded": components["schemas"]["CoachInvoiceUpload"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPayout"];
                 };
             };
         };

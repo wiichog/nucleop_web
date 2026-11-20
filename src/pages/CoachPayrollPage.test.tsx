@@ -38,6 +38,7 @@ const estado = vi.hoisted(() => ({
   enviados: [] as Record<string, unknown>[],
   pagadas: [] as string[],
   payouts: [] as Record<string, unknown>[],
+  facturas: [] as { payoutId: string; file: File }[],
 }));
 const avisos = vi.hoisted(() => ({ show: [] as { color?: string; title?: string; message?: string }[] }));
 
@@ -69,6 +70,13 @@ vi.mock("../api/hooks", () => ({
   }),
   useCoachPayouts: () => ({ data: estado.payouts, isError: false, isLoading: false, refetch: vi.fn() }),
   useGeneratePayout: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useUploadPayoutInvoice: () => ({
+    isPending: false,
+    mutate: (vars: { payoutId: string; file: File }, opts?: { onSuccess?: () => void }) => {
+      estado.facturas.push(vars);
+      opts?.onSuccess?.();
+    },
+  }),
   usePayPayout: () => ({
     isPending: false,
     mutate: (id: string, opts?: { onSuccess?: () => void }) => {
@@ -86,7 +94,7 @@ vi.mock("../lib/auth", () => ({
   useAuth: () => ({ primaryGymId: "gym-1", isSuperuser: false }),
 }));
 
-import type { Coach } from "../api/types";
+import type { Coach, CoachPayout } from "../api/types";
 import { cambiosDeCoach, CoachPayrollPage, filasLiquidacion } from "./CoachPayrollPage";
 
 // Abrir una ventana de Mantine bajo jsdom es lento; con la máquina cargada
@@ -108,6 +116,28 @@ function boton(ventana: HTMLElement, texto: string | RegExp): HTMLButtonElement 
   return el as HTMLButtonElement;
 }
 
+/** Liquidación como la manda el backend, con lo que cada prueba quiera cambiar. */
+function liquidacion(cambios: Partial<CoachPayout> = {}): CoachPayout {
+  return {
+    id: "p-1",
+    coach: "sr-1",
+    coach_email: "ana@demo.nucleo.fit",
+    coach_name: "Ana Coach",
+    gym_name: "Box Demo",
+    period_start: "2026-10-01",
+    period_end: "2026-10-31",
+    total: "150.00",
+    status: "open",
+    paid_at: null,
+    earnings_count: 2,
+    invoice_url: null,
+    invoice_name: null,
+    invoice_uploaded_at: null,
+    created_at: "2026-11-01T12:00:00Z",
+    ...cambios,
+  };
+}
+
 function pintar() {
   return render(
     <MantineProvider>
@@ -121,6 +151,7 @@ beforeEach(() => {
   estado.enviados = [];
   estado.pagadas = [];
   estado.payouts = [];
+  estado.facturas = [];
   avisos.show = [];
 });
 
@@ -190,20 +221,7 @@ describe("pagos a coaches", () => {
   });
 
   it("lo que hay que pagar va al frente y se marca pagado desde su ventana", async () => {
-    estado.payouts = [
-      {
-        id: "p-1",
-        coach: "sr-1",
-        coach_email: "ana@demo.nucleo.fit",
-        period_start: "2026-10-01",
-        period_end: "2026-10-31",
-        total: "150.00",
-        status: "open",
-        paid_at: null,
-        earnings_count: 2,
-        created_at: "2026-11-01T12:00:00Z",
-      },
-    ];
+    estado.payouts = [liquidacion()];
     pintar();
 
     fireEvent.click(screen.getByRole("button", { name: /^Liquidación de Ana Coach/ }));
@@ -220,22 +238,55 @@ describe("pagos a coaches", () => {
   // La tabla «Liquidaciones» no se pinta bajo jsdom (mantine-datatable), así
   // que se prueba la fila que recibe: el nombre sale de la lista de coaches.
   it("la liquidación lleva el nombre del coach y, si ya no está, su correo", () => {
-    const base = {
-      period_start: "2026-10-01",
-      period_end: "2026-10-10",
-      total: "150.00",
-      status: "open" as const,
-      paid_at: null,
-      earnings_count: 3,
-      created_at: "2026-10-10T12:00:00Z",
-    };
     const filas = filasLiquidacion(
       [
-        { ...base, id: "p-1", coach: "sr-1", coach_email: "ana@demo.nucleo.fit" },
-        { ...base, id: "p-2", coach: "sr-9", coach_email: "ex@demo.nucleo.fit" },
+        liquidacion({ id: "p-1", coach: "sr-1" }),
+        liquidacion({ id: "p-2", coach: "sr-9", coach_name: "", coach_email: "ex@demo.nucleo.fit" }),
+        // Ya no está en la lista, pero el backend manda su nombre.
+        liquidacion({ id: "p-3", coach: "sr-8", coach_name: "Beto Ex", coach_email: "beto@demo.nucleo.fit" }),
       ],
       [coach],
     );
-    expect(filas.map((f) => f.coach_name)).toEqual(["Ana Coach", "ex@demo.nucleo.fit"]);
+    expect(filas.map((f) => f.coach_name)).toEqual(["Ana Coach", "ex@demo.nucleo.fit", "Beto Ex"]);
+  });
+
+  it("con factura, la ventana la deja bajar y la tarjeta lo dice", async () => {
+    estado.payouts = [
+      liquidacion({
+        invoice_url: "https://s3.example/coach-invoices/f.pdf?firma=1",
+        invoice_name: "fel-octubre.pdf",
+        invoice_uploaded_at: "2026-11-02T15:00:00Z",
+      }),
+    ];
+    pintar();
+    expect(screen.getByText(/· con factura$/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Liquidación de Ana Coach/ }));
+    const ventana = await screen.findByRole("dialog");
+    const enlace = within(ventana).getByText("Descargar factura").closest("a") as HTMLAnchorElement;
+    expect(enlace.href).toBe("https://s3.example/coach-invoices/f.pdf?firma=1");
+    expect(enlace.target).toBe("_blank");
+    expect(within(ventana).getByText(/fel-octubre\.pdf/)).toBeTruthy();
+    expect(boton(ventana, "Reemplazar")).toBeTruthy();
+  });
+
+  it("sin factura, avisa sin bloquear el pago y el admin la sube por el coach", async () => {
+    estado.payouts = [liquidacion()];
+    pintar();
+    expect(screen.getByText(/· sin factura$/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Liquidación de Ana Coach/ }));
+    const ventana = await screen.findByRole("dialog");
+    expect(within(ventana).getByText("El coach todavía no sube su factura.")).toBeTruthy();
+    // Pagar sigue disponible: la factura no frena la nómina.
+    expect(boton(ventana, /^Marcar pagada/).disabled).toBe(false);
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input.accept).toContain(".xml");
+    const archivo = new File(["%PDF"], "fel.pdf", { type: "application/pdf" });
+    fireEvent.change(input, { target: { files: [archivo] } });
+    await waitFor(() => expect(estado.facturas).toHaveLength(1));
+    expect(estado.facturas[0]).toEqual({ payoutId: "p-1", file: archivo });
+    expect(avisos.show[avisos.show.length - 1]?.color).toBe("teal");
   });
 });

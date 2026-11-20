@@ -1298,6 +1298,30 @@ export function useGeneratePayout(gymId: string) {
   });
 }
 
+/**
+ * Sube (o reemplaza) la factura de una liquidación por el coach: para cuando se
+ * la manda por fuera del app. Multipart; el backend valida formato y tamaño.
+ */
+export function useUploadPayoutInvoice(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ payoutId, file }: { payoutId: string; file: File }) => {
+      const form = new FormData();
+      form.append("invoice_file", file);
+      return (
+        await api.post<CoachPayout>(`/gym/${gymId}/coach-payouts/${payoutId}/invoice`, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["coach-payouts", gymId] });
+      // El gasto de nómina de esa liquidación pudo tomarla como comprobante.
+      qc.invalidateQueries({ queryKey: ["erp-expenses", gymId] });
+    },
+  });
+}
+
 export function usePayPayout(gymId: string) {
   const qc = useQueryClient();
   return useMutation({

@@ -222,12 +222,12 @@ export const manualesNegocio: ManualesPorRuta = {
   "/panel/coaches-pagos": {
     titulo: "Pagos a coaches",
     paraQue:
-      "Aquí ves qué le debes a cada coach, generas las liquidaciones de un periodo y las marcas como pagadas (quedan registradas como gasto de nómina). También defines cómo se le paga a cada coach y su servicio de personal trainer.",
+      "Aquí ves qué le debes a cada coach, generas las liquidaciones de un periodo y las marcas como pagadas (quedan registradas como gasto de nómina). También bajas la factura que cada coach sube de su liquidación, y defines cómo se le paga a cada coach y su servicio de personal trainer.",
     tareas: [
       {
         titulo: "Ver qué le debes a cada coach",
         pasos: [
-          "Arriba, en «Por pagar», ves en amarillo cada liquidación que todavía no has pagado: el coach, el periodo, cuántos pagos suma y el total.",
+          "Arriba, en «Por pagar», ves en amarillo cada liquidación que todavía no has pagado: el coach, el periodo, cuántos pagos suma, si ya tiene factura («con factura» o «sin factura») y el total.",
           "Junto al título, la etiqueta amarilla dice cuántas son y cuánto suman en total.",
         ],
         nota: "Si no debes nada, dice «Nada por pagar.».",
@@ -250,6 +250,25 @@ export const manualesNegocio: ManualesPorRuta = {
         ],
         nota:
           "Pasa a «Pagada», sale de «Por pagar» y se registra como gasto de nómina. Ya no se puede volver a marcar.",
+      },
+      {
+        titulo: "Bajar la factura de un coach",
+        pasos: [
+          "Toca la liquidación del coach en «Por pagar» o en «Liquidaciones».",
+          "En la ventana, en «Factura del coach», presiona «Descargar factura». Se abre en otra pestaña para guardarla o imprimirla.",
+        ],
+        nota:
+          "En la computadora, la tabla «Liquidaciones» también tiene la columna «Factura» con «Descargar». El coach la sube desde su app y te llega un aviso cuando lo hace. Puede ser el PDF o el XML de su factura electrónica, o una foto. Si la liquidación ya está pagada, la factura queda además como comprobante de ese gasto de nómina.",
+      },
+      {
+        titulo: "Subir la factura por el coach",
+        pasos: [
+          "Si el coach te mandó la factura por otro medio, toca su liquidación.",
+          "En «Factura del coach» presiona «Subir factura» (o «Reemplazar», si ya había una) y elige el archivo.",
+          "Cuando se guarda aparece «Factura de … guardada.».",
+        ],
+        nota:
+          "Acepta PDF, XML o foto (JPG, PNG o HEIC) de hasta 10 MB. Tú puedes reemplazarla aunque la liquidación ya esté pagada; el coach ya no, si ya tenía factura. Cada cambio queda registrado.",
       },
       {
         titulo: "Definir cómo se le paga a un coach",
@@ -305,6 +324,11 @@ export const manualesNegocio: ManualesPorRuta = {
           "Cuántas cosas suma esa liquidación: cada clase impartida, cada clase con «pagar extra» y cada sesión de personal trainer cuentan como una. Las clases sin ninguna asistencia o canceladas no entran.",
       },
       {
+        termino: "Factura del coach",
+        detalle:
+          "La factura que el coach te emite por esa liquidación, para tu contabilidad. «El coach todavía no sube su factura.» es solo un aviso: puedes pagar igual.",
+      },
+      {
         termino: "Abierta / Pagada",
         detalle:
           "Abierta: generada pero todavía no le has pagado. Pagada: ya la marcaste como pagada y quedó como gasto de nómina.",
@@ -320,6 +344,11 @@ export const manualesNegocio: ManualesPorRuta = {
         sintoma: "Me sale «No se pudo guardar el cambio de nómina del coach».",
         solucion:
           "El cambio no se guardó: la tarjeta del coach sigue mostrando lo que estaba. La ventana se queda abierta con lo que escribiste; revisa el número y presiona «Guardar» otra vez. Si el aviso dice el motivo, corrígelo antes.",
+      },
+      {
+        sintoma: "Me sale «No se pudo guardar la factura».",
+        solucion:
+          "Revisa que sea PDF, XML o una foto (JPG, PNG o HEIC) y que pese menos de 10 MB. El aviso dice el motivo.",
       },
       {
         sintoma: "Me sale «No se pudo generar la liquidación».",

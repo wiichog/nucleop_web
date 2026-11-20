@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from "react";
 import {
   Avatar,
+  Anchor,
   Badge,
   Button,
+  FileButton,
   Group,
   Modal,
   NumberInput,
@@ -21,6 +23,7 @@ import {
   useGymCoaches,
   usePayPayout,
   useUpdateCoach,
+  useUploadPayoutInvoice,
 } from "../api/hooks";
 import type { Coach, CoachPayout } from "../api/types";
 import { NoGymAssigned, PageError } from "../components/PageStatus";
@@ -49,7 +52,7 @@ export function filasLiquidacion(
   const nombres = new Map(coaches.map((c) => [c.staff_role, c.name]));
   return payouts.map((p) => ({
     ...p,
-    coach_name: nombres.get(p.coach) || p.coach_email,
+    coach_name: nombres.get(p.coach) || p.coach_name || p.coach_email,
   }));
 }
 
@@ -334,7 +337,66 @@ function GenerarModal({ gymId, opened, onClose }: { gymId: string; opened: boole
   );
 }
 
-/** Ventana de una liquidación: su detalle y, si sigue abierta, «Marcar pagada». */
+/** Lo que acepta el backend como factura: la FEL de la SAT (PDF/XML) o una foto. */
+const ACEPTA_FACTURA = "application/pdf,.pdf,text/xml,application/xml,.xml,image/jpeg,image/png,image/heic,.heic,.heif";
+
+/**
+ * La factura del coach dentro de la liquidación: se baja para contabilidad o, si
+ * el coach la mandó por fuera del app, el admin la sube por él.
+ */
+function FacturaDeLiquidacion({ fila, gymId }: { fila: FilaLiquidacion; gymId: string }) {
+  const subir = useUploadPayoutInvoice(gymId);
+  const onArchivo = (file: File | null) => {
+    if (!file) return;
+    subir.mutate(
+      { payoutId: fila.id, file },
+      {
+        onSuccess: () =>
+          notifications.show({ color: "teal", message: `Factura de ${nombreCorto(fila.coach_name)} guardada.` }),
+        onError: (error) =>
+          notifications.show({
+            color: "red",
+            title: "No se pudo guardar la factura",
+            message: errMsg(error, "Intenta de nuevo."),
+          }),
+      },
+    );
+  };
+  return (
+    <div>
+      <Text size="xs" c="dimmed" mb={4}>
+        Factura del coach
+      </Text>
+      <Group gap="sm" wrap="wrap" justify="space-between">
+        {fila.invoice_url ? (
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <Anchor href={fila.invoice_url} target="_blank" rel="noopener noreferrer" size="sm" fw={600}>
+              Descargar factura
+            </Anchor>
+            <Text size="xs" c="dimmed" truncate>
+              {fila.invoice_name}
+              {fila.invoice_uploaded_at &&
+                ` · ${new Date(fila.invoice_uploaded_at).toLocaleDateString("es-GT")}`}
+            </Text>
+          </div>
+        ) : (
+          <Text size="sm" c="var(--mantine-color-yellow-light-color)" style={{ flex: 1 }}>
+            El coach todavía no sube su factura.
+          </Text>
+        )}
+        <FileButton onChange={onArchivo} accept={ACEPTA_FACTURA}>
+          {(props) => (
+            <Button {...props} variant="default" size="xs" loading={subir.isPending}>
+              {fila.invoice_url ? "Reemplazar" : "Subir factura"}
+            </Button>
+          )}
+        </FileButton>
+      </Group>
+    </div>
+  );
+}
+
+/** Ventana de una liquidación: su detalle, su factura y, si sigue abierta, «Marcar pagada». */
 function LiquidacionModal({
   fila,
   gymId,
@@ -384,6 +446,7 @@ function LiquidacionModal({
               Pagada el {new Date(fila.paid_at).toLocaleDateString("es-GT")}
             </Text>
           )}
+          <FacturaDeLiquidacion fila={fila} gymId={gymId} />
           {fila.status === "open" && (
             <Group justify="flex-end">
               <Button variant="default" onClick={onClose}>
@@ -494,7 +557,8 @@ export function CoachPayrollPage() {
                         {nombreCorto(p.coach_name)}
                       </Text>
                       <Text size="xs" c="dimmed">
-                        {periodo(p)} · {p.earnings_count} {p.earnings_count === 1 ? "pago" : "pagos"}
+                        {periodo(p)} · {p.earnings_count} {p.earnings_count === 1 ? "pago" : "pagos"} ·{" "}
+                        {p.invoice_url ? "con factura" : "sin factura"}
                       </Text>
                     </div>
                     <Money value={p.total} decimals={2} />
@@ -603,6 +667,29 @@ export function CoachPayrollPage() {
                 sortable: true,
                 textAlign: "right",
                 render: (p) => <Money value={p.total} decimals={2} block />,
+              },
+              {
+                accessor: "invoice_name",
+                title: "Factura",
+                // Secundaria, como «Pagos»: en el celular se ve al abrir la liquidación.
+                visibleMediaQuery: (t) => `(min-width: ${t.breakpoints.sm})`,
+                render: (p) =>
+                  p.invoice_url ? (
+                    // Bajarla sin abrir la ventana: el clic no llega a la fila.
+                    <Anchor
+                      href={p.invoice_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      size="sm"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Descargar
+                    </Anchor>
+                  ) : (
+                    <Text size="sm" c="dimmed">
+                      —
+                    </Text>
+                  ),
               },
               {
                 accessor: "status",

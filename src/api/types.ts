@@ -923,18 +923,8 @@ export interface CoachRequest {
   created_at: string;
 }
 
-export interface CoachPayout {
-  id: string;
-  coach: string;
-  coach_email: string;
-  period_start: string;
-  period_end: string;
-  total: string;
-  status: "open" | "paid";
-  paid_at: string | null;
-  earnings_count: number;
-  created_at: string;
-}
+/** Liquidación de un coach, con su factura (`invoice_*`, nov-2026). */
+export type CoachPayout = components["schemas"]["CoachPayout"];
 
 /** Campos extra de GymClass añadidos por el sprint de coaches (no aún en el schema generado). */
 export interface ClassCoachFields {
