@@ -1,5 +1,16 @@
 import { useState } from "react";
-import { Button, Code, Group, Modal, SimpleGrid, Stack, Table, Text, TextInput } from "@mantine/core";
+import {
+  Button,
+  Code,
+  Group,
+  Modal,
+  SimpleGrid,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  UnstyledButton,
+} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { Download } from "lucide-react";
 import { useAuditLogs, useExportAudit } from "../api/hooks";
@@ -160,20 +171,11 @@ export function AuditPage() {
                     const f = filaDeBitacora(log);
                     const abrir = () => setAbierto(log);
                     return (
-                      <Table.Tr
-                        key={log.id}
-                        onClick={abrir}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            abrir();
-                          }
-                        }}
-                        tabIndex={0}
-                        role="button"
-                        aria-label={`Ver detalle: ${f.que}`}
-                        style={{ cursor: "pointer" }}
-                      >
+                      // Toda la fila se toca (atajo de ratón/dedo), pero el control
+                      // accesible es el botón de «Qué hizo»: un `<tr role="button">`
+                      // borra la semántica de tabla y los lectores dejan de leer
+                      // las columnas.
+                      <Table.Tr key={log.id} onClick={abrir} style={{ cursor: "pointer" }}>
                         <Table.Td>
                           <Text size="sm" className="a-tabular" style={{ whiteSpace: "nowrap" }}>
                             {fechaCorta(log.created_at)}
@@ -194,7 +196,18 @@ export function AuditPage() {
                           )}
                         </Table.Td>
                         <Table.Td>
-                          <Text size="sm">{f.que}</Text>
+                          <UnstyledButton
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              abrir();
+                            }}
+                            aria-label={`Ver detalle: ${f.que}`}
+                            style={{ textAlign: "left" }}
+                          >
+                            <Text size="sm" td="underline" style={{ textDecorationStyle: "dotted" }}>
+                              {f.que}
+                            </Text>
+                          </UnstyledButton>
                         </Table.Td>
                       </Table.Tr>
                     );

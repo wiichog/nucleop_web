@@ -125,11 +125,18 @@ export function ProfilePage() {
                 Tu cuenta todavía no tiene contraseña: crea una para entrar también con tu correo.
               </Text>
             ) : (
-              <PasswordInput label="Contraseña actual" value={current} onChange={(e) => setCurrent(e.currentTarget.value)} />
+              <PasswordInput
+                label="Contraseña actual"
+                autoComplete="current-password"
+                value={current}
+                onChange={(e) => setCurrent(e.currentTarget.value)}
+              />
             )}
             <PasswordInput
               label="Nueva contraseña"
               placeholder="Mínimo 8 caracteres"
+              // Que el llavero proponga una contraseña fuerte y no autollene la vieja.
+              autoComplete="new-password"
               value={next}
               onChange={(e) => setNext(e.currentTarget.value)}
             />

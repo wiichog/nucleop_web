@@ -180,18 +180,28 @@ export function LoginPage() {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    await login.mutateAsync({ email: email.trim().toLowerCase(), password });
+    try {
+      await login.mutateAsync({ email: email.trim().toLowerCase(), password });
+    } catch {
+      // El mensaje sale de `login.isError`; el catch sólo evita la promesa
+      // rechazada sin manejar.
+      return;
+    }
     window.location.assign("/panel");
   };
 
   return (
     <div className="aurora-stage">
       {/* Video de marca (misma identidad que la landing) bajo los velos. */}
+      {/* Decorativo: oculto a lectores de pantalla y sólo con metadatos de
+          entrada, para no descargar el clip completo antes de pintar el form. */}
       <video
         autoPlay
         loop
         muted
         playsInline
+        preload="metadata"
+        aria-hidden
         src={BRAND_VIDEO_URL}
         style={{
           position: "fixed",
@@ -228,7 +238,12 @@ export function LoginPage() {
             resetMode
               ? async (event: FormEvent) => {
                   event.preventDefault();
-                  await reset.mutateAsync(identifier);
+                  try {
+                    await reset.mutateAsync(identifier);
+                  } catch {
+                    // El aviso sale de `reset.isError` (abajo); aquí sólo se
+                    // evita la promesa rechazada sin manejar.
+                  }
                 }
               : onSubmit
           }
@@ -244,12 +259,23 @@ export function LoginPage() {
                 cuenta existe.
               </p>
               <Stack gap="sm" className="a-rise" style={{ animationDelay: ".95s" }}>
+                {/* Teclado de correo, sin mayúscula inicial y con el
+                    autollenado del llavero (`username` = identificador). */}
                 <TextInput
                   label="Correo electrónico"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="username"
+                  autoCapitalize="none"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.currentTarget.value)}
                   required
                 />
+                {reset.isError && (
+                  <Text c="red" size="sm">
+                    No pudimos enviar la solicitud. Revisa tu conexión e inténtalo de nuevo.
+                  </Text>
+                )}
                 {reset.isSuccess && (
                   <Text c="flame" size="sm">
                     Solicitud recibida. Revisa tu correo.
@@ -281,6 +307,7 @@ export function LoginPage() {
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.currentTarget.value)}
+                  required
                 />
                 {login.isError && (
                   <Text c="red" size="sm">

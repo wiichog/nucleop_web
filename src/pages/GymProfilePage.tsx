@@ -1,7 +1,6 @@
 import { FormEvent, useState } from "react";
 import {
   Avatar,
-  Badge,
   Box,
   Button,
   Group,
@@ -72,6 +71,16 @@ function coordenada(valor: string, tope: number): string | null | undefined {
   const numero = Number(limpio);
   if (!Number.isFinite(numero) || Math.abs(numero) > tope) return undefined;
   return limpio;
+}
+
+/**
+ * «14.599512, -90.518944» (lo que copia Google Maps) partido en latitud y
+ * longitud, o `null` si el texto no es un par. En iOS el teclado numérico no
+ * tiene «-», así que pegar el par entero es la vía práctica desde el celular.
+ */
+export function partirCoordenadas(texto: string): { lat: string; lng: string } | null {
+  const m = texto.trim().match(/^(-?\d+(?:\.\d+)?)\s*[,;]\s*(-?\d+(?:\.\d+)?)$/);
+  return m ? { lat: m[1], lng: m[2] } : null;
 }
 
 /**
@@ -157,10 +166,12 @@ export function GymProfilePage() {
         <Encabezado
           titulo="Tu ficha"
           avisos={
+            // Texto y no Badge: la pastilla no envuelve y en el celular se
+            // cortaba en «Falta logo, descr…» justo donde está lo importante.
             faltan.length > 0 && (
-              <Badge color="yellow" variant="light">
+              <Text size="sm" fw={600} c="yellow">
                 Falta {faltan.join(", ")}
-              </Badge>
+              </Text>
             )
           }
         >
@@ -217,6 +228,35 @@ function EditarFicha({
 
   const set = (campo: keyof FichaForm, valor: string | boolean) =>
     setForm((f) => ({ ...f, [campo]: valor }));
+
+  /** Si se pegó el par «lat, lng» en cualquiera de los dos campos, lo reparte. */
+  const setCoordenada = (campo: "lat" | "lng", valor: string) => {
+    const par = partirCoordenadas(valor);
+    if (par) setForm((f) => ({ ...f, ...par }));
+    else set(campo, valor);
+  };
+
+  const [ubicando, setUbicando] = useState(false);
+  const hayGeolocalizacion = typeof navigator !== "undefined" && "geolocation" in navigator;
+  /** Llena las coordenadas con la ubicación del dispositivo (sirve estando en el box). */
+  const usarMiUbicacion = () => {
+    setUbicando(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUbicando(false);
+        setForm((f) => ({
+          ...f,
+          lat: pos.coords.latitude.toFixed(6),
+          lng: pos.coords.longitude.toFixed(6),
+        }));
+      },
+      () => {
+        setUbicando(false);
+        fail("No se pudo leer tu ubicación. Revisa el permiso del navegador o pega las coordenadas.");
+      },
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
+  };
 
   const ok = (m: string) => notifications.show({ color: "teal", message: m });
   const fail = (m: string) => notifications.show({ color: "red", message: m });
@@ -286,6 +326,10 @@ function EditarFicha({
           <TextInput
             label="Logo (URL)"
             placeholder="https://…"
+            type="url"
+            inputMode="url"
+            autoCapitalize="none"
+            autoCorrect="off"
             value={form.logo_url}
             onChange={(e) => set("logo_url", e.currentTarget.value)}
           />
@@ -316,19 +360,40 @@ function EditarFicha({
           />
           {/* Las coordenadas no son decorativas: ordenan el listado de
               "gimnasios cerca" del atleta. Sin ellas el gym cae al final. */}
+          {/* Teclado de texto a propósito: el numérico de iOS no trae «-» y la
+              longitud de Guatemala es negativa. */}
           <TextInput
             label="Latitud"
             placeholder="14.599512"
+            description="Puedes pegar «latitud, longitud» de Google Maps aquí."
+            inputMode="text"
+            autoCapitalize="none"
+            autoCorrect="off"
             value={form.lat}
-            onChange={(e) => set("lat", e.currentTarget.value)}
+            onChange={(e) => setCoordenada("lat", e.currentTarget.value)}
           />
           <TextInput
             label="Longitud"
             placeholder="-90.518944"
+            inputMode="text"
+            autoCapitalize="none"
+            autoCorrect="off"
             value={form.lng}
-            onChange={(e) => set("lng", e.currentTarget.value)}
+            onChange={(e) => setCoordenada("lng", e.currentTarget.value)}
           />
         </SimpleGrid>
+        {hayGeolocalizacion && (
+          <Button
+            mt="xs"
+            size="xs"
+            variant="light"
+            leftSection={<MapPin size={14} />}
+            loading={ubicando}
+            onClick={usarMiUbicacion}
+          >
+            Usar mi ubicación
+          </Button>
+        )}
         <Switch
           mt="md"
           label="Aparecer en el directorio público de Nucleo"

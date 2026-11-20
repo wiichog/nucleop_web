@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { Group, Input, Select, TextInput } from "@mantine/core";
 
 /**
@@ -44,6 +44,9 @@ export function PhoneInput({
   placeholder?: string;
 }) {
   const { dial, national } = useMemo(() => splitE164(value), [value]);
+  // El label del Wrapper apunta al número nacional: tocar la etiqueta enfoca el
+  // campo y el lector de pantalla lo anuncia con su nombre.
+  const idNumero = useId();
 
   const emit = (d: string, n: string) => {
     const digits = n.replace(/\D/g, "");
@@ -51,7 +54,7 @@ export function PhoneInput({
   };
 
   return (
-    <Input.Wrapper label={label}>
+    <Input.Wrapper label={label} id={idNumero}>
       <Group gap="xs" wrap="nowrap" align="flex-start">
         <Select
           data={DIAL_CODES}
@@ -63,11 +66,15 @@ export function PhoneInput({
           aria-label="Código de país"
         />
         <TextInput
+          id={idNumero}
           style={{ flex: 1 }}
           placeholder={placeholder}
           value={national}
           onChange={(e) => emit(dial, e.currentTarget.value)}
+          type="tel"
           inputMode="tel"
+          // Sólo el número nacional: el código de país va en el selector.
+          autoComplete="tel-national"
         />
       </Group>
     </Input.Wrapper>

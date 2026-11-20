@@ -95,7 +95,7 @@ export const manualesPlataforma: ManualesPorRuta = {
           "En la pestaña «Estado de cuenta», elige el mes en «Periodo».",
           "En «Por gimnasio» toca la fila del gym. Se abre su desglose del mes.",
           "Presiona «Generar depósito».",
-          "Si ya existía uno pendiente y entraron más cobros, presiona «Recalcular».",
+          "Si ya existía uno pendiente y entraron más cobros, presiona «Recalcular» y confirma: se reemplaza el desglose con los cobros de hoy.",
         ],
         nota:
           "Al generarlo, el desglose queda congelado con ese corte. Un depósito ya marcado como «Depositado» no se puede recalcular.",
@@ -255,7 +255,7 @@ export const manualesPlataforma: ManualesPorRuta = {
         pasos: [
           "Abre el caso.",
           "Si quieres, escribe una línea en «Nota para el atleta (opcional)».",
-          "Presiona «Mantener la decisión».",
+          "Presiona «Mantener la decisión» y confirma: la sanción queda en firme.",
         ],
         nota:
           "El contenido sigue fuera del feed. Se le avisa al atleta y ya no hay otra revisión.",
@@ -320,7 +320,7 @@ export const manualesPlataforma: ManualesPorRuta = {
         pasos: [
           "Toca el caso.",
           "Si quieres, escribe en «Nota de la resolución (opcional)» qué dijo el banco y con qué evidencia se cerró.",
-          "Presiona «El banco nos dio la razón».",
+          "Presiona «El banco nos dio la razón» y confirma en la ventana.",
         ],
         nota:
           "Se registra un pago de compensación (el movimiento original nunca se edita) y la membresía del atleta recupera su ciclo, siempre que nadie la haya movido mientras tanto.",
@@ -330,7 +330,7 @@ export const manualesPlataforma: ManualesPorRuta = {
         pasos: [
           "Toca el caso.",
           "Si quieres, escribe una nota de la resolución.",
-          "Presiona «Disputa perdida».",
+          "Presiona «Disputa perdida» y confirma en la ventana: no se puede deshacer.",
         ],
         nota:
           "La pérdida queda firme. La cuota que ya se descontó del próximo depósito del gimnasio no se le devuelve y Nucleo no recupera su recargo.",

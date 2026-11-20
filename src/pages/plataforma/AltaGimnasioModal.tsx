@@ -1,7 +1,19 @@
 import { type ChangeEvent, FormEvent, useState } from "react";
-import { Button, Checkbox, Group, Modal, Select, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
+import {
+  Button,
+  Checkbox,
+  Group,
+  Modal,
+  NumberInput,
+  Select,
+  SimpleGrid,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useCrearGimnasioCompleto } from "../../api/hooks";
+import { PhoneInput } from "../../components/PhoneInput";
 import { SectionLabel } from "../../components/ui";
 import { errMsg } from "../../lib/errors";
 import { pctTexto, SAAS_PLANS } from "./contrato";
@@ -12,17 +24,20 @@ const ALTA_VACIA = {
   address: "",
   is_public: true,
   saas_plan: "starter" as string | null,
-  monthly_price: "299.00",
-  commission_pct: "0.0300",
+  // Montos como `string | number`: así los entrega el NumberInput. Se pasan a
+  // texto al enviar, el formato que la API recibe desde siempre.
+  monthly_price: "299.00" as string | number,
+  commission_pct: "0.0300" as string | number,
   plan_name: "Membresía mensual",
-  plan_price: "650.00",
+  plan_price: "650.00" as string | number,
   admin_email: "",
   admin_first_name: "",
   admin_last_name: "",
   admin_phone: "",
 };
 
-type Campo = Exclude<keyof typeof ALTA_VACIA, "is_public" | "saas_plan">;
+type Monto = "monthly_price" | "commission_pct" | "plan_price";
+type Campo = Exclude<keyof typeof ALTA_VACIA, "is_public" | "saas_plan" | Monto | "admin_phone">;
 
 /**
  * Alta COMPLETA de un gimnasio: el gym, su suscripción con Nucleo, un plan
@@ -46,6 +61,12 @@ export function AltaGimnasioModal({ opened, onClose }: { opened: boolean; onClos
     },
   });
 
+  /** Lo mismo para los montos (NumberInput no entrega un evento, entrega el valor). */
+  const monto = (k: Monto) => ({
+    value: alta[k],
+    onChange: (valor: string | number) => setAlta((a) => ({ ...a, [k]: valor })),
+  });
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     try {
@@ -55,10 +76,10 @@ export function AltaGimnasioModal({ opened, onClose }: { opened: boolean; onClos
         address: alta.address,
         is_public: alta.is_public,
         saas_plan: alta.saas_plan ?? "starter",
-        monthly_price: alta.monthly_price || undefined,
-        commission_pct: alta.commission_pct || null,
+        monthly_price: String(alta.monthly_price) || undefined,
+        commission_pct: String(alta.commission_pct) || null,
         plan_name: alta.plan_name || undefined,
-        plan_price: alta.plan_price || undefined,
+        plan_price: String(alta.plan_price) || undefined,
         admin_email: alta.admin_email.trim(),
         admin_first_name: alta.admin_first_name,
         admin_last_name: alta.admin_last_name,
@@ -85,7 +106,7 @@ export function AltaGimnasioModal({ opened, onClose }: { opened: boolean; onClos
     }
   };
 
-  const pct = pctTexto(alta.commission_pct);
+  const pct = pctTexto(String(alta.commission_pct));
 
   return (
     <Modal opened={opened} onClose={onClose} title="Nuevo gimnasio" centered size="lg">
@@ -109,10 +130,24 @@ export function AltaGimnasioModal({ opened, onClose }: { opened: boolean; onClos
               data={SAAS_PLANS}
               allowDeselect={false}
             />
-            <TextInput label="Cuota mensual (Q)" inputMode="decimal" {...campo("monthly_price")} />
-            <TextInput
+            <NumberInput
+              label="Cuota mensual (Q)"
+              prefix="Q "
+              min={0}
+              decimalScale={2}
+              allowNegative={false}
+              hideControls
+              {...monto("monthly_price")}
+            />
+            {/* Sigue en FRACCIÓN (0.0300 = 3 %), el formato que guarda la API; la
+                lectura en % va a la derecha para que un «3» (300 %) salte a la vista. */}
+            <NumberInput
               label="Recargo en tarjeta"
-              inputMode="decimal"
+              min={0}
+              max={1}
+              decimalScale={4}
+              allowNegative={false}
+              hideControls
               rightSection={
                 pct ? (
                   <Text size="xs" c="dimmed" pr={6}>
@@ -121,7 +156,7 @@ export function AltaGimnasioModal({ opened, onClose }: { opened: boolean; onClos
                 ) : null
               }
               rightSectionWidth={72}
-              {...campo("commission_pct")}
+              {...monto("commission_pct")}
             />
           </SimpleGrid>
 
@@ -130,15 +165,34 @@ export function AltaGimnasioModal({ opened, onClose }: { opened: boolean; onClos
           </SectionLabel>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
             <TextInput label="Nombre del plan" {...campo("plan_name")} />
-            <TextInput label="Precio del plan (Q)" inputMode="decimal" {...campo("plan_price")} />
+            <NumberInput
+              label="Precio del plan (Q)"
+              prefix="Q "
+              min={0}
+              decimalScale={2}
+              allowNegative={false}
+              hideControls
+              {...monto("plan_price")}
+            />
           </SimpleGrid>
 
           <SectionLabel mb={0} mt="xs">
             Administrador del gimnasio
           </SectionLabel>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-            <TextInput label="Correo" type="email" {...campo("admin_email")} />
-            <TextInput label="Teléfono" {...campo("admin_phone")} />
+            <TextInput
+              label="Correo"
+              type="email"
+              inputMode="email"
+              autoCapitalize="none"
+              {...campo("admin_email")}
+            />
+            {/* Selector de país + número: se envía en E.164 (+502…). */}
+            <PhoneInput
+              label="Teléfono"
+              value={alta.admin_phone}
+              onChange={(e164) => setAlta((a) => ({ ...a, admin_phone: e164 }))}
+            />
             <TextInput label="Nombre" {...campo("admin_first_name")} />
             <TextInput label="Apellido" {...campo("admin_last_name")} />
           </SimpleGrid>

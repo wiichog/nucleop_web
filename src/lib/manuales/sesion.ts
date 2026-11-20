@@ -12,7 +12,7 @@ export const manualesSesion: ManualesPorRuta = {
         pasos: [
           "Entra a la pestaña «Actividades» y presiona «Nueva actividad».",
           "Escribe el «Nombre».",
-          "Elige la «Fecha y hora» y, si quieres, escribe la «Ubicación».",
+          "Elige la «Fecha y hora» (es obligatoria: sin ella «Crear actividad» queda apagado) y, si quieres, escribe la «Ubicación».",
           "Presiona «Crear actividad».",
         ],
         nota:
@@ -33,7 +33,7 @@ export const manualesSesion: ManualesPorRuta = {
           "Entra a la pestaña «Retos». El número en la pestaña y el amarillo junto a «Por revisar» dicen cuántos avances esperan tu decisión.",
           "Cada fila dice el atleta, cuánto suma (+), a qué reto pertenece y de dónde viene.",
           "Presiona «Aprobar» para sumárselo.",
-          "Si no procede, presiona «Rechazar», escribe el motivo en «Motivo (lo ve el atleta)» y presiona «Rechazar avance». Si cierras ese cuadro sin presionarlo, no se rechaza.",
+          "Si no procede, presiona «Rechazar»: se abre la ventana «Rechazar avance». Escribe el «Motivo del rechazo» (es obligatorio: lo ve el atleta) y presiona «Rechazar avance». «Cancelar» cierra sin rechazar.",
         ],
         nota:
           "El motivo del rechazo lo ve el atleta en su app: explícale qué pasó para que no deje el reto. «Por revisar» muestra los avances de todos los retos.",

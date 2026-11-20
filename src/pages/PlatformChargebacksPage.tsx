@@ -115,15 +115,17 @@ export function PlatformChargebacksPage() {
           avisos={
             contadoresListos && (
               <>
+                {/* Texto y no Badge: la pastilla no envuelve y en el celular cortaba
+                    justo el monto, que es lo que se viene a ver. */}
                 {sinResolver > 0 && (
-                  <Badge color="yellow" variant="light">
+                  <Text size="sm" fw={600} c="yellow">
                     {sinResolver} sin resolver · {fmtQ(expuesto, { decimals: 2 })} en disputa
-                  </Badge>
+                  </Text>
                 )}
                 {perdido > 0 && (
-                  <Badge color="red" variant="light">
+                  <Text size="sm" fw={600} c="red">
                     Pérdida firme {fmtQ(perdido, { decimals: 2 })}
-                  </Badge>
+                  </Text>
                 )}
               </>
             )
@@ -212,6 +214,15 @@ function ContracargoModal({ caso, onClose }: { caso: Chargeback | null; onClose:
 
   const confirmar = async (result: "won" | "lost") => {
     if (!caso) return;
+    // Las dos mueven dinero y cierran el expediente sin vuelta atrás desde aquí:
+    // perder descuenta la cuota del depósito del gym; ganar registra un pago de
+    // compensación. Un toque perdido no puede decidirlo.
+    const monto = fmtQ(caso.amount, { decimals: 2 });
+    const pregunta =
+      result === "lost"
+        ? `¿Marcar como PERDIDA la disputa de ${caso.athlete_name} (${monto})? La cuota sale del próximo depósito de ${caso.gym_name} y Nucleo no recupera su recargo.`
+        : `¿Confirmar que el banco nos dio la razón en la disputa de ${caso.athlete_name} (${monto})? Se registra el pago de compensación.`;
+    if (!window.confirm(pregunta)) return;
     try {
       await resolver.mutateAsync({ chargebackId: caso.id, result, notes: nota.trim() });
       notifications.show({

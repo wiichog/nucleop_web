@@ -4,6 +4,7 @@ import { Anchor, Button, Center, PasswordInput, Stack, Text } from "@mantine/cor
 import { usePasswordResetConfirm } from "../api/hooks";
 import { AtomLogo } from "../landing/AtomLogo";
 import { GlassChip, HeroTitle } from "../components/aurora";
+import { errDeCampo } from "../lib/errors";
 
 export function PasswordResetConfirmPage() {
   const [params] = useSearchParams();
@@ -14,8 +15,19 @@ export function PasswordResetConfirmPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await reset.mutateAsync({ uid, token, password });
+    try {
+      await reset.mutateAsync({ uid, token, password });
+    } catch {
+      // El aviso sale de `reset.isError` (abajo).
+    }
   };
+
+  // Si el backend rechazó la CONTRASEÑA (débil, muy común…), decirlo: antes
+  // todo error se leía como «enlace vencido» y la persona pedía otro correo
+  // para volver a chocar con lo mismo.
+  const errorContrasena = reset.isError
+    ? errDeCampo(reset.error, "new_password") ?? errDeCampo(reset.error, "password")
+    : undefined;
 
   return (
     <div className="aurora-stage">
@@ -43,6 +55,18 @@ export function PasswordResetConfirmPage() {
           </Stack>
 
           <Stack gap="sm" className="a-rise" style={{ animationDelay: ".9s" }}>
+            {/* Campo de usuario oculto: el llavero (iOS/Chrome) necesita uno para
+                asociar la contraseña nueva a una cuenta y ofrecer guardarla. */}
+            <input
+              type="text"
+              name="username"
+              autoComplete="username"
+              value=""
+              readOnly
+              hidden
+              aria-hidden
+              tabIndex={-1}
+            />
             <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.currentTarget.value)}
@@ -53,7 +77,7 @@ export function PasswordResetConfirmPage() {
             />
             {reset.isError && (
               <Text c="red" size="sm">
-                El enlace no es válido o expiró.
+                {errorContrasena ?? "El enlace no es válido o expiró."}
               </Text>
             )}
             {reset.isSuccess ? (

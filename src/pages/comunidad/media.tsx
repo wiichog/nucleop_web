@@ -35,9 +35,11 @@ export function Medios({ media, ancho = 280 }: { media: FeedMedia[]; ancho?: num
     <Group gap="xs" mt={8}>
       {media.map((m, i) =>
         m.kind === "video" ? (
-          <video key={i} src={m.url} controls style={{ ...MEDIA_FRAME, width: ancho, maxWidth: "100%" }} />
+          // `metadata`/`lazy`: una bandeja con muchos posts no descarga todos
+          // los videos y fotos de golpe en datos móviles.
+          <video key={i} src={m.url} controls preload="metadata" style={{ ...MEDIA_FRAME, width: ancho, maxWidth: "100%" }} />
         ) : (
-          <img key={i} src={m.url} alt="" style={{ ...MEDIA_FRAME, width: ancho, maxWidth: "100%" }} />
+          <img key={i} src={m.url} alt="" loading="lazy" style={{ ...MEDIA_FRAME, width: ancho, maxWidth: "100%" }} />
         ),
       )}
     </Group>

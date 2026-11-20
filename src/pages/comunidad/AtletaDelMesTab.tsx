@@ -188,18 +188,32 @@ function ElegirModal({
           searchable
           nothingFoundMessage="Nadie con ese nombre"
           data={atletas}
-          data-autofocus
+          // Sin autofoco aquí: en el celular abría teclado y lista encima de
+          // la ventana recién abierta. Lista corta para que el teclado no la tape.
+          maxDropdownHeight={200}
         />
         <Group justify="space-between" gap="sm">
           {actual ? (
-            <Button variant="subtle" color="red" loading={setAom.isPending && !cambia} onClick={() => publicar(null)}>
+            <Button
+              variant="subtle"
+              color="red"
+              loading={setAom.isPending && !cambia}
+              onClick={() => {
+                // Quitar baja al destacado del feed en el acto: un toque perdido no basta.
+                if (window.confirm(`¿Quitar a ${actual.athlete_name} como atleta del mes de ${nombreDe(clase ?? "")}?`)) {
+                  void publicar(null);
+                }
+              }}
+            >
               Quitar
             </Button>
           ) : (
             <span />
           )}
           <Group gap="sm">
-            <Button variant="default" onClick={onClose}>
+            {/* El foco inicial va aquí: si no, el Modal enfoca el primer campo
+                (el buscador) y en el celular salta el teclado. */}
+            <Button variant="default" onClick={onClose} data-autofocus>
               Cancelar
             </Button>
             <Button color="flame" disabled={!cambia} loading={setAom.isPending && cambia} onClick={() => publicar(elegido)}>
@@ -245,7 +259,8 @@ function Historico({ gymId, conMargen }: { gymId: string; conMargen: boolean }) 
                   <img src={a.athlete_photo} alt="" style={thumb(48, true)} />
                 ) : null}
                 <div style={{ minWidth: 0 }}>
-                  <Text size="sm" fw={600} truncate>
+                  {/* Dos renglones: en media columna del celular el nombre se cortaba. */}
+                  <Text size="sm" fw={600} lineClamp={2}>
                     {a.athlete_name}
                   </Text>
                   <Text size="xs" c="dimmed" truncate>

@@ -52,10 +52,12 @@ export function estadoDeposito(g: Pick<GymStatement, "payout" | "net_to_deposit"
 function Cifra({ etiqueta, valor, color }: { etiqueta: string; valor: string; color?: string }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <Text size="xs" c="dimmed" truncate>
+      {/* Dos renglones y cifra más chica en el celular: en media columna el
+          rótulo se cortaba y un monto de seis cifras desbordaba la tarjeta. */}
+      <Text size="xs" c="dimmed" lineClamp={2}>
         {etiqueta}
       </Text>
-      <Text fw={700} fz={18} c={color} className="a-tabular">
+      <Text fw={700} fz={{ base: 16, sm: 18 }} c={color} className="a-tabular" style={{ overflowWrap: "anywhere" }}>
         {valor}
       </Text>
     </div>
@@ -359,7 +361,19 @@ export function PlatformBillingPanel() {
                 variant="default"
                 loading={generar.isPending && generar.variables?.gym_id === ficha.gym_id}
                 disabled={ficha.payout?.status === "executed"}
-                onClick={() => onGenerar(ficha.gym_id)}
+                onClick={() => {
+                  // Recalcular REEMPLAZA el desglose congelado del depósito ya
+                  // generado: que no pase por un toque perdido.
+                  if (
+                    ficha.payout &&
+                    !window.confirm(
+                      `¿Recalcular el depósito de ${ficha.gym_name}? Se reemplaza el desglose congelado con los cobros de hoy.`,
+                    )
+                  ) {
+                    return;
+                  }
+                  void onGenerar(ficha.gym_id);
+                }}
               >
                 {ficha.payout ? "Recalcular" : "Generar depósito"}
               </Button>
@@ -372,31 +386,39 @@ export function PlatformBillingPanel() {
       </Modal>
 
       <Modal opened={!!pagando} onClose={() => setPagando(null)} title="Marcar depositado" centered>
-        <Stack gap="md">
-          {pagando && (
-            <Text size="sm">
-              {pagando.gym_name} · {pagando.period} ·{" "}
-              <strong>{fmtQ(pagando.amount, { decimals: 2 })}</strong>
-            </Text>
-          )}
-          <TextInput
-            label="Referencia bancaria"
-            placeholder="No. de transferencia o boleta"
-            required
-            data-autofocus
-            value={reference}
-            onChange={(e) => setReference(e.currentTarget.value)}
-          />
-          <Textarea label="Notas" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} autosize minRows={2} />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setPagando(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={onPagar} disabled={!reference.trim()} loading={marcarPagado.isPending}>
-              Confirmar depósito
-            </Button>
-          </Group>
-        </Stack>
+        {/* <form>: «Ir»/Enter del teclado del celular confirma, como en el resto del panel. */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (reference.trim()) void onPagar();
+          }}
+        >
+          <Stack gap="md">
+            {pagando && (
+              <Text size="sm">
+                {pagando.gym_name} · {pagando.period} ·{" "}
+                <strong>{fmtQ(pagando.amount, { decimals: 2 })}</strong>
+              </Text>
+            )}
+            <TextInput
+              label="Referencia bancaria"
+              placeholder="No. de transferencia o boleta"
+              required
+              data-autofocus
+              value={reference}
+              onChange={(e) => setReference(e.currentTarget.value)}
+            />
+            <Textarea label="Notas" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} autosize minRows={2} />
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setPagando(null)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={!reference.trim()} loading={marcarPagado.isPending}>
+                Confirmar depósito
+              </Button>
+            </Group>
+          </Stack>
+        </form>
       </Modal>
     </GlassCard>
   );

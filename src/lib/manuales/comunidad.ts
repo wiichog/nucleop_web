@@ -120,7 +120,7 @@ export const manualesComunidad: ManualesPorRuta = {
         titulo: "Quitar al atleta del mes de una clase",
         pasos: [
           "En «Atleta del mes», toca la tarjeta de la clase.",
-          "Presiona «Quitar».",
+          "Presiona «Quitar» y confirma en la ventana.",
         ],
       },
       {

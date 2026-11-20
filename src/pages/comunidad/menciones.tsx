@@ -54,7 +54,7 @@ export function TextoConMenciones({
   mentions?: FeedMention[] | null;
 }) {
   return (
-    <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+    <Text size="sm" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
       {partirMenciones(body, mentions).map((t, i) =>
         t.mencion ? (
           <span key={i} data-mencion="" style={ESTILO_MENCION}>

@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useId, type CSSProperties, type ReactNode } from "react";
 import { Box, Group, Title, UnstyledButton } from "@mantine/core";
 
 /**
@@ -23,8 +23,11 @@ export function Encabezado({
         <Title order={3}>{titulo}</Title>
         {avisos}
       </Group>
+      {/* En móvil el grupo ocupa el renglón entero: si tomara el ancho de su
+          contenido, los hijos con `w={{ base: "100%" }}` (buscadores, selects)
+          se quedaban del ancho de su etiqueta en vez de llenar la tarjeta. */}
       {children && (
-        <Group gap="sm" wrap="wrap">
+        <Group gap="sm" wrap="wrap" w={{ base: "100%", sm: "auto" }}>
           {children}
         </Group>
       )}
@@ -68,8 +71,13 @@ export function Tarjeta({
     : color
       ? `1px solid color-mix(in srgb, ${color} 40%, transparent)`
       : "1px solid var(--a-line, var(--mantine-color-default-border))";
+  // El `aria-label` es el NOMBRE del botón y, por sí solo, tapa todo el texto
+  // de adentro (estados, horario, «Sin coach»). El contenido se enlaza como
+  // descripción para que el lector de pantalla lea las dos cosas.
+  const idContenido = useId();
   const caja = (
     <Box
+      id={onClick ? idContenido : undefined}
       p="sm"
       style={{
         borderRadius: 10,
@@ -85,7 +93,12 @@ export function Tarjeta({
   );
   if (!onClick) return caja;
   return (
-    <UnstyledButton onClick={onClick} aria-label={etiqueta} style={{ display: "block", width: "100%", height: "100%" }}>
+    <UnstyledButton
+      onClick={onClick}
+      aria-label={etiqueta}
+      aria-describedby={idContenido}
+      style={{ display: "block", width: "100%", height: "100%" }}
+    >
       {caja}
     </UnstyledButton>
   );

@@ -127,7 +127,7 @@ function FilaDeContenido({
 
       {fila.title && <Text fw={600}>{fila.title}</Text>}
       {fila.body ? (
-        <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+        <Text size="sm" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
           {fila.body}
         </Text>
       ) : fila.photo_url ? null : (
@@ -284,6 +284,12 @@ export function ClubContentPage() {
   if (!gymId) return <NoGymAssigned />;
 
   const decidiendo = decide.isPending || decidePlataforma.isPending;
+  // El giro de «Restaurar» va sólo en la fila que se está decidiendo: con el
+  // `isPending` global, restaurar una ponía a girar las de toda la cola.
+  const enCurso = (
+    m: { isPending: boolean; variables?: { kind: string; contentId: string } },
+    fila: ClubContentRow,
+  ) => m.isPending && m.variables?.contentId === fila.id && m.variables?.kind === fila.kind;
   const n = (x: number) => (cargando ? "—" : x);
 
   return (
@@ -326,10 +332,14 @@ export function ClubContentPage() {
           />
         </Encabezado>
 
+        {/* `fullWidth` + `xs`: con las cifras, las tres bandejas medían más que
+            la pantalla del celular y empujaban la página de lado. */}
         <SegmentedControl
           value={bandeja}
           onChange={(v) => setBandeja(v as Bandeja)}
           mb="md"
+          fullWidth
+          size="xs"
           data={[
             { value: "denunciado", label: `Denunciado (${n(nDenunciado)})` },
             { value: "todo", label: `Todo (${n(filas.length)})` },
@@ -358,7 +368,7 @@ export function ClubContentPage() {
               <FilaDeContenido
                 key={`${fila.kind}-${fila.id}`}
                 fila={fila}
-                pendiente={decidiendo}
+                pendiente={enCurso(decide, fila)}
                 onRetirar={(f) => abrirRetiro(f)}
                 onRestaurar={(f) => restaurar(f)}
               />
@@ -399,7 +409,7 @@ export function ClubContentPage() {
                 <FilaDeContenido
                   key={`plat-${fila.kind}-${fila.id}`}
                   fila={fila}
-                  pendiente={decidiendo}
+                  pendiente={enCurso(decidePlataforma, fila)}
                   onRetirar={(f) => abrirRetiro(f, true)}
                   onRestaurar={(f) => restaurar(f, true)}
                 />

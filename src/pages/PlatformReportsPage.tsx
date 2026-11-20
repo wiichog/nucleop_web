@@ -244,7 +244,7 @@ function DetalleReporte({ reportId }: { reportId: string }) {
       </SimpleGrid>
 
       <Box p="sm" style={{ border: "1px solid var(--a-line)", borderRadius: "var(--a-r-control)" }}>
-        <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+        <Text size="sm" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
           {r.description}
         </Text>
         {r.attachment && (
@@ -256,6 +256,9 @@ function DetalleReporte({ reportId }: { reportId: string }) {
               alt="captura del reporte"
               style={{
                 height: "calc(120 * var(--u))",
+                // Una captura apaisada no puede ensanchar el modal en el celular.
+                maxWidth: "100%",
+                objectFit: "contain",
                 borderRadius: "calc(12 * var(--u))",
                 border: "1px solid var(--a-line)",
                 cursor: "zoom-in",
@@ -439,6 +442,10 @@ export function PlatformReportsPage() {
           />
           <TextInput
             aria-label="Buscar"
+            // `search` + `enterKeyHint`: el teclado del celular muestra «Buscar»
+            // en vez de «Intro», que es justo lo que dispara la búsqueda.
+            type="search"
+            enterKeyHint="search"
             w={{ base: "100%", sm: 240 }}
             placeholder="Buscar en descripción, correo, pantalla…"
             leftSection={<Search size={14} />}

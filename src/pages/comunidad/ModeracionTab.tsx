@@ -165,6 +165,14 @@ export function ModeracionTab({ gymId }: { gymId: string }) {
     );
   };
 
+  // `isPending` es de la mutación entera: sin cruzar con `variables`, aprobar
+  // una fila ponía a girar el botón de TODAS. El giro va sólo en la fila tocada
+  // y su hermano se deshabilita para no mandar dos decisiones a la vez.
+  const aprobandoPost = (postId: string) =>
+    decidePost.isPending && decidePost.variables?.postId === postId;
+  const restaurandoComentario = (commentId: string) =>
+    decideComment.isPending && decideComment.variables?.commentId === commentId;
+
   const resolver = (appeal: Appeal, action: "accept" | "reject") => {
     setResolucion({ appeal, action });
     setNotaApelacion("");
@@ -236,13 +244,14 @@ export function ModeracionTab({ gymId }: { gymId: string }) {
                       }
                     />
                     <Group gap="xs" mt="sm">
-                      <Button size="xs" loading={decidePost.isPending} onClick={() => aprobarPost(p.id)}>
+                      <Button size="xs" loading={aprobandoPost(p.id)} onClick={() => aprobarPost(p.id)}>
                         Aprobar
                       </Button>
                       <Button
                         size="xs"
                         variant="light"
                         color="red"
+                        disabled={aprobandoPost(p.id)}
                         onClick={() => abrirRechazo("post", p.id, p.author_name ?? p.athlete_name)}
                       >
                         Rechazar…
@@ -315,13 +324,14 @@ export function ModeracionTab({ gymId }: { gymId: string }) {
                       />
                     )}
                     <Group gap="xs" mt="sm">
-                      <Button size="xs" loading={decideComment.isPending} onClick={() => restaurarComentario(c.id)}>
+                      <Button size="xs" loading={restaurandoComentario(c.id)} onClick={() => restaurarComentario(c.id)}>
                         Restaurar
                       </Button>
                       <Button
                         size="xs"
                         variant="light"
                         color="red"
+                        disabled={restaurandoComentario(c.id)}
                         onClick={() => abrirRechazo("comment", c.id, c.athlete_name)}
                       >
                         Eliminar…
@@ -369,7 +379,10 @@ export function ModeracionTab({ gymId }: { gymId: string }) {
                     <SectionLabel mb={2} mt={10}>
                       Lo que dice el atleta
                     </SectionLabel>
-                    <Text size="sm">{a.body}</Text>
+                    {/* Una URL larga sin espacios desbordaba la página en el celular. */}
+                    <Text size="sm" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                      {a.body}
+                    </Text>
 
                     {a.resolution_note && (
                       <Text size="xs" c="dimmed" mt={8}>
@@ -379,16 +392,11 @@ export function ModeracionTab({ gymId }: { gymId: string }) {
 
                     {a.status === "pending" ? (
                       <Group gap="xs" mt="sm">
-                        <Button size="xs" loading={decideAppeal.isPending} onClick={() => resolver(a, "accept")}>
+                        {/* Sólo abren el modal: el giro de «enviando» va en su botón de confirmar. */}
+                        <Button size="xs" onClick={() => resolver(a, "accept")}>
                           Aceptar y republicar
                         </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          color="red"
-                          loading={decideAppeal.isPending}
-                          onClick={() => resolver(a, "reject")}
-                        >
+                        <Button size="xs" variant="light" color="red" onClick={() => resolver(a, "reject")}>
                           Mantener la decisión
                         </Button>
                       </Group>

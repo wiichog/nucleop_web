@@ -62,6 +62,8 @@ export function ManualDrawer({
         <Stack gap="md">
           <Title order={3}>{manual.titulo}</Title>
           <TextInput
+            type="search"
+            aria-label="Buscar en el manual"
             placeholder="Buscar en este manual…"
             leftSection={<Search size={16} />}
             value={busqueda}

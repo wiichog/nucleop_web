@@ -149,7 +149,9 @@ export function ClubsPage() {
                   apagada={c.status === "rejected"}
                 >
                   <Group gap={8} wrap="nowrap" justify="space-between">
-                    <Text fw={700} truncate>
+                    {/* Dos renglones y no `truncate`: en media columna del celular
+                        el nombre del club quedaba en «Club de corr…». */}
+                    <Text fw={700} lineClamp={2} style={{ minWidth: 0 }}>
                       {c.name}
                     </Text>
                     <Badge size="xs" variant="light" color={BADGE_COLOR[c.status] ?? "yellow"}>

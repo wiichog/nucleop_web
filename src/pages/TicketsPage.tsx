@@ -252,7 +252,7 @@ export function Conversacion({
               <Text size="xs" c="dimmed" mb={2}>
                 {ticket.athlete_name} · {new Date(ticket.created_at).toLocaleString("es-GT")}
               </Text>
-              <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+              <Text size="sm" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                 {ticket.body}
               </Text>
               {ticket.photo && <TicketImage src={ticket.photo} />}
@@ -270,7 +270,7 @@ export function Conversacion({
                 <Text size="xs" c="dimmed" mb={2}>
                   {m.author_name} · {new Date(m.created_at).toLocaleString("es-GT")}
                 </Text>
-                <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                <Text size="sm" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                   {m.body}
                 </Text>
                 {m.photo && <TicketImage src={m.photo} />}

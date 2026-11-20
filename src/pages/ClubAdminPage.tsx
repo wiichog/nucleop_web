@@ -7,7 +7,6 @@ import {
   Image,
   Modal,
   NumberInput,
-  Popover,
   Select,
   SimpleGrid,
   Stack,
@@ -18,6 +17,7 @@ import {
   Title,
 } from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
+import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
@@ -56,6 +56,14 @@ export const METRICAS_RETO = [
 ] as const;
 
 /** Nombre legible de la medida de un reto; si llega una desconocida se muestra tal cual. */
+/**
+ * En el celular el calendario de un DateTimePicker va en su propia ventana: como
+ * popover dentro de otro modal se salía de la pantalla y el teclado lo tapaba.
+ */
+function useTipoCalendario(): "modal" | "popover" {
+  return useMediaQuery("(max-width: 48em)") ? "modal" : "popover";
+}
+
 export function etiquetaMetrica(metric: string): string {
   return METRICAS_RETO.find((m) => m.value === metric)?.label ?? metric;
 }
@@ -239,13 +247,17 @@ function NuevaActividadModal({ clubId, opened, onClose }: { clubId: string; open
   const [name, setName] = useState("");
   const [startsAt, setStartsAt] = useState<Date | null>(null);
   const [location, setLocation] = useState("");
+  const tipoCalendario = useTipoCalendario();
 
   const onCreate = async (e: FormEvent) => {
     e.preventDefault();
+    // La fecha es obligatoria: antes, vacía, la actividad se creaba para «ahora»
+    // y nacía ya pasada (apagada) sin que nadie lo notara.
+    if (!startsAt) return;
     try {
       await createActivity.mutateAsync({
         name,
-        starts_at: (startsAt ?? new Date()).toISOString(),
+        starts_at: startsAt.toISOString(),
         location,
         // El servidor todavía no cobra actividades de club (el manual lo dice).
         is_free: true,
@@ -265,10 +277,20 @@ function NuevaActividadModal({ clubId, opened, onClose }: { clubId: string; open
       <form onSubmit={onCreate}>
         <Stack gap="sm">
           <TextInput label="Nombre" value={name} onChange={(e) => setName(e.currentTarget.value)} required data-autofocus />
-          <DateTimePicker label="Fecha y hora" value={startsAt} onChange={setStartsAt} valueFormat="YYYY-MM-DD HH:mm" />
+          <DateTimePicker
+            label="Fecha y hora"
+            value={startsAt}
+            onChange={setStartsAt}
+            valueFormat="YYYY-MM-DD HH:mm"
+            dropdownType={tipoCalendario}
+            required
+          />
           <TextInput label="Ubicación" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
           <Group justify="flex-end">
-            <Button type="submit" loading={createActivity.isPending}>
+            <Button variant="default" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button type="submit" loading={createActivity.isPending} disabled={!name.trim() || !startsAt}>
               Crear actividad
             </Button>
           </Group>
@@ -357,7 +379,8 @@ function Avance({
    * y un rechazo mudo en un reto con puntos de por medio es la forma más rápida de
    * perder a quien participa.
    */
-  const decidir = (action: "approve" | "reject") =>
+  const decidir = (action: "approve" | "reject") => {
+    if (action === "reject" && !nota.trim()) return;
     review.mutate(
       { submissionId: sub.id, action, note: action === "reject" ? nota.trim() : undefined },
       {
@@ -368,6 +391,7 @@ function Avance({
         onError: (error) => fail(error, "No se pudo revisar el avance."),
       },
     );
+  };
 
   return (
     <Tarjeta etiqueta={`Avance de ${sub.athlete_name}`} aviso>
@@ -384,40 +408,54 @@ function Avance({
           <Button size="xs" {...estadoRevision(review, sub.id, "approve")} onClick={() => decidir("approve")}>
             Aprobar
           </Button>
-          <Popover opened={rechazando} onChange={setRechazando} position="bottom-end" withArrow trapFocus>
-            <Popover.Target>
-              <Button
-                size="xs"
-                color="red"
-                variant="light"
-                disabled={estadoRevision(review, sub.id, "reject").disabled}
-                onClick={() => setRechazando((v) => !v)}
-              >
-                Rechazar
-              </Button>
-            </Popover.Target>
-            <Popover.Dropdown>
-              <Stack gap="xs" w={240}>
-                <TextInput
-                  size="xs"
-                  placeholder="Motivo (lo ve el atleta)"
-                  value={nota}
-                  onChange={(e) => setNota(e.currentTarget.value)}
-                  data-autofocus
-                />
-                <Button
-                  size="xs"
-                  color="red"
-                  loading={estadoRevision(review, sub.id, "reject").loading}
-                  onClick={() => decidir("reject")}
-                >
-                  Rechazar avance
-                </Button>
-              </Stack>
-            </Popover.Dropdown>
-          </Popover>
+          <Button
+            size="xs"
+            color="red"
+            variant="light"
+            disabled={estadoRevision(review, sub.id, "reject").disabled}
+            onClick={() => setRechazando(true)}
+          >
+            Rechazar
+          </Button>
         </Group>
       </Group>
+      {/* Modal y no Popover: en el celular el teclado tapaba el popover junto
+          con su botón. El motivo es obligatorio (lo lee el atleta en su app). */}
+      <Modal opened={rechazando} onClose={() => setRechazando(false)} title="Rechazar avance" centered>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            decidir("reject");
+          }}
+        >
+          <Stack gap="sm">
+            <Text size="sm" c="dimmed">
+              {nombreCorto(sub.athlete_name)} +{sub.delta} · {reto}
+            </Text>
+            <TextInput
+              label="Motivo del rechazo"
+              description="Lo ve el atleta en su app."
+              value={nota}
+              onChange={(e) => setNota(e.currentTarget.value)}
+              required
+              data-autofocus
+            />
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setRechazando(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                color="red"
+                disabled={!nota.trim()}
+                loading={estadoRevision(review, sub.id, "reject").loading}
+              >
+                Rechazar avance
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Modal>
     </Tarjeta>
   );
 }
@@ -556,6 +594,7 @@ function NuevoRetoModal({ clubId, opened, onClose }: { clubId: string; opened: b
   const [challengeTarget, setChallengeTarget] = useState("50");
   const [challengePoints, setChallengePoints] = useState<number | string>(30);
   const [challengeEnds, setChallengeEnds] = useState<Date | null>(null);
+  const tipoCalendario = useTipoCalendario();
 
   const onCreateChallenge = async (e: FormEvent) => {
     e.preventDefault();
@@ -602,11 +641,16 @@ function NuevoRetoModal({ clubId, opened, onClose }: { clubId: string; opened: b
               onChange={(v) => v && setChallengeMetric(v)}
               allowDeselect={false}
             />
-            <TextInput
+            {/* NumberInput: no deja escribir letras ni negativos. El valor se
+                guarda como texto, igual que antes, porque así viaja a la API. */}
+            <NumberInput
               label={challengeMetric === "activity_count" ? "Meta (asistencias)" : "Meta (km)"}
               value={challengeTarget}
-              onChange={(e) => setChallengeTarget(e.currentTarget.value)}
-              inputMode="decimal"
+              onChange={(v) => setChallengeTarget(String(v))}
+              min={0}
+              decimalScale={challengeMetric === "activity_count" ? 0 : 2}
+              allowDecimal={challengeMetric !== "activity_count"}
+              allowNegative={false}
               required
             />
             <NumberInput
@@ -622,10 +666,14 @@ function NuevoRetoModal({ clubId, opened, onClose }: { clubId: string; opened: b
               value={challengeEnds}
               onChange={setChallengeEnds}
               valueFormat="YYYY-MM-DD HH:mm"
+              dropdownType={tipoCalendario}
               clearable
             />
           </SimpleGrid>
           <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              Cancelar
+            </Button>
             <Button type="submit" loading={createChallenge.isPending}>
               Crear reto
             </Button>
@@ -707,7 +755,7 @@ function AnunciosPanel({ clubId }: { clubId: string }) {
       <Modal opened={!!abierto} onClose={() => setAbiertoId(null)} title={abierto?.title ?? ""} centered>
         {abierto && (
           <Stack gap="sm">
-            <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+            <Text size="sm" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
               {abierto.body}
             </Text>
             {abierto.photo && (
@@ -784,6 +832,9 @@ function NuevoAnuncioModal({ clubId, opened, onClose }: { clubId: string; opened
             clearable
           />
           <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              Cancelar
+            </Button>
             <Button type="submit" loading={crear.isPending} disabled={!title.trim() || !body.trim()}>
               Publicar anuncio
             </Button>

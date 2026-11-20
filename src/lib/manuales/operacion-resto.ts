@@ -416,7 +416,7 @@ export const manualesOperacionResto: ManualesPorRuta = {
           "Presiona «Editar ficha».",
           "Escribe la «Zona o ciudad» (por ejemplo «Zona 15, Guatemala»): es lo que sale bajo el nombre.",
           "Escribe la «Dirección» exacta, para quien ya va en camino.",
-          "Si quieres aparecer ordenado por cercanía, escribe la «Latitud» y la «Longitud» (por ejemplo 14.599512 y -90.518944).",
+          "Si quieres aparecer ordenado por cercanía, escribe la «Latitud» y la «Longitud» (por ejemplo 14.599512 y -90.518944). También puedes pegar en «Latitud» las dos juntas, como las copia Google Maps («14.599512, -90.518944»), o presionar «Usar mi ubicación» si estás en el gimnasio.",
           "Presiona «Guardar ficha».",
         ],
         nota:

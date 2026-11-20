@@ -188,7 +188,7 @@ function ApelacionModal({ appeal, onClose }: { appeal: Appeal | null; onClose: (
 
           <div>
             <SectionLabel mb={4}>Contenido sancionado</SectionLabel>
-            <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+            <Text size="sm" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
               {appeal.content_excerpt || "(sin texto: era una foto o un video)"}
             </Text>
             <Text size="xs" c="dimmed" mt={4}>
@@ -199,7 +199,7 @@ function ApelacionModal({ appeal, onClose }: { appeal: Appeal | null; onClose: (
 
           <div>
             <SectionLabel mb={4}>Lo que dice el atleta</SectionLabel>
-            <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+            <Text size="sm" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
               {appeal.body}
             </Text>
           </div>
@@ -226,7 +226,17 @@ function ApelacionModal({ appeal, onClose }: { appeal: Appeal | null; onClose: (
                   variant="light"
                   loading={decidiendo("reject")}
                   disabled={decidir.isPending && !decidiendo("reject")}
-                  onClick={() => resolver("reject")}
+                  onClick={() => {
+                    // Es la última instancia: el atleta ya no puede apelar más y
+                    // la sanción queda en firme. Se confirma antes de mandarlo.
+                    if (
+                      window.confirm(
+                        `¿Mantener la decisión del gimnasio? La sanción a ${appeal.athlete_name} queda en firme y ya no puede apelar.`,
+                      )
+                    ) {
+                      void resolver("reject");
+                    }
+                  }}
                 >
                   Mantener la decisión
                 </Button>

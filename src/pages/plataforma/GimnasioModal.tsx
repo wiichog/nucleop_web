@@ -6,6 +6,7 @@ import {
   Checkbox,
   Group,
   Modal,
+  NumberInput,
   Select,
   SimpleGrid,
   Stack,
@@ -25,6 +26,7 @@ import {
 } from "../../api/hooks";
 import type { GymAdmin } from "../../api/types";
 import { PageError } from "../../components/PageStatus";
+import { PhoneInput } from "../../components/PhoneInput";
 import { Tarjeta } from "../../components/Tarjeta";
 import { errMsg } from "../../lib/errors";
 import { ESTADOS_SUSCRIPCION, motivoSuscripcionSinMonto, pctTexto, SAAS_PLANS } from "./contrato";
@@ -133,10 +135,13 @@ function ContratoForm({ gym, onSaved }: { gym: GymAdmin; onSaved: () => void }) 
   const upsertSubscription = useUpsertPlatformSubscription();
 
   const [saasPlan, setSaasPlan] = useState<string | null>(gym.saas_plan ?? "starter");
-  const [commission, setCommission] = useState(gym.platform_commission_pct ?? "0.0300");
-  const [fixedFee, setFixedFee] = useState(gym.fixed_fee ?? "");
+  // `string | number`: así entrega el valor el NumberInput. Se pasa a texto al
+  // guardar, que es el formato que la API recibe desde siempre.
+  const [commission, setCommission] = useState<string | number>(gym.platform_commission_pct ?? "0.0300");
+  const [fixedFee, setFixedFee] = useState<string | number>(gym.fixed_fee ?? "");
   const [isPublic, setIsPublic] = useState(gym.is_public ?? true);
-  const [monthlyPrice, setMonthlyPrice] = useState(gym.subscription?.monthly_price ?? "");
+  const [monthlyPriceRaw, setMonthlyPrice] = useState<string | number>(gym.subscription?.monthly_price ?? "");
+  const monthlyPrice = String(monthlyPriceRaw);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(
     gym.subscription?.status ?? "active",
   );
@@ -162,8 +167,8 @@ function ContratoForm({ gym, onSaved }: { gym: GymAdmin; onSaved: () => void }) 
         gymId: gym.id,
         body: {
           saas_plan: saasPlan ?? "starter",
-          platform_commission_pct: commission,
-          fixed_fee: fixedFee || null,
+          platform_commission_pct: String(commission),
+          fixed_fee: String(fixedFee) || null,
           is_public: isPublic,
         },
       });
@@ -185,7 +190,7 @@ function ContratoForm({ gym, onSaved }: { gym: GymAdmin; onSaved: () => void }) 
     }
   };
 
-  const pct = pctTexto(commission);
+  const pct = pctTexto(String(commission));
 
   return (
     <form onSubmit={save}>
@@ -198,12 +203,18 @@ function ContratoForm({ gym, onSaved }: { gym: GymAdmin; onSaved: () => void }) 
             data={SAAS_PLANS}
             allowDeselect={false}
           />
-          <TextInput
+          {/* Sigue en FRACCIÓN (0.0300 = 3 %), el formato que guarda la API; la
+              lectura en % va a la derecha para que un «3» (300 %) salte a la vista. */}
+          <NumberInput
             label="Recargo en tarjeta"
             placeholder="0.0300"
-            inputMode="decimal"
             value={commission}
-            onChange={(e) => setCommission(e.currentTarget.value)}
+            onChange={setCommission}
+            min={0}
+            max={1}
+            decimalScale={4}
+            allowNegative={false}
+            hideControls
             rightSection={
               pct ? (
                 <Text size="xs" c="dimmed" pr={6}>
@@ -213,19 +224,27 @@ function ContratoForm({ gym, onSaved }: { gym: GymAdmin; onSaved: () => void }) 
             }
             rightSectionWidth={72}
           />
-          <TextInput
+          <NumberInput
             label="Fee fijo"
-            inputMode="decimal"
+            prefix="Q "
             value={fixedFee}
-            onChange={(e) => setFixedFee(e.currentTarget.value)}
+            onChange={setFixedFee}
+            min={0}
+            decimalScale={2}
+            allowNegative={false}
+            hideControls
           />
         </SimpleGrid>
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
-          <TextInput
+          <NumberInput
             label="Suscripción mensual"
-            inputMode="decimal"
-            value={monthlyPrice}
-            onChange={(e) => setMonthlyPrice(e.currentTarget.value)}
+            prefix="Q "
+            value={monthlyPriceRaw}
+            onChange={setMonthlyPrice}
+            min={0}
+            decimalScale={2}
+            allowNegative={false}
+            hideControls
           />
           <Select
             label="Estado suscripción"
@@ -250,7 +269,7 @@ function ContratoForm({ gym, onSaved }: { gym: GymAdmin; onSaved: () => void }) 
           />
           <Button
             type="submit"
-            disabled={!commission}
+            disabled={String(commission) === ""}
             loading={updateGym.isPending || upsertSubscription.isPending}
           >
             Guardar
@@ -329,7 +348,9 @@ function Administradores({ gymId }: { gymId: string }) {
               value={email}
               onChange={(e) => setEmail(e.currentTarget.value)}
             />
-            <TextInput label="Teléfono" value={phone} onChange={(e) => setPhone(e.currentTarget.value)} />
+            {/* Selector de país + número: se envía en E.164 (+502…), igual que
+                el resto de teléfonos del panel. */}
+            <PhoneInput label="Teléfono" value={phone} onChange={setPhone} />
             <TextInput label="Nombre" value={firstName} onChange={(e) => setFirstName(e.currentTarget.value)} />
             <TextInput label="Apellido" value={lastName} onChange={(e) => setLastName(e.currentTarget.value)} />
           </SimpleGrid>
@@ -363,7 +384,9 @@ function Administradores({ gymId }: { gymId: string }) {
                   <Text size="sm" fw={600} truncate>
                     {a.name || a.email}
                   </Text>
-                  <Text c="dimmed" size="xs" truncate>
+                  {/* Envuelve en vez de cortar: el correo es lo que se viene a
+                      copiar y con `truncate` se perdía el dominio. */}
+                  <Text c="dimmed" size="xs" style={{ overflowWrap: "anywhere" }}>
                     {a.email}
                     {a.phone ? ` · ${a.phone}` : ""}
                   </Text>
