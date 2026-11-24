@@ -44,6 +44,10 @@ export function hayTeclado(layout: number, visible: number, scale: number): bool
 /**
  * ¿Hace falta mover el campo? Sí si su borde de abajo quedó debajo de lo visible
  * o su borde de arriba quedó bajo el header pegajoso / fuera de la vista.
+ *
+ * Un campo MÁS ALTO que el hueco que deja el teclado (los textarea del WOD, de
+ * hasta 12 renglones) nunca cabe entero: con la regla de arriba siempre salía
+ * «tapado» y se recentraba sin fin. Ese solo se mueve si no se ve nada de él.
  */
 export function campoTapado(
   rect: { top: number; bottom: number },
@@ -51,7 +55,10 @@ export function campoTapado(
   vvHeight: number,
   margen = 12,
 ): boolean {
-  return rect.bottom > vvTop + vvHeight - margen || rect.top < vvTop + margen;
+  const arriba = vvTop + margen;
+  const abajo = vvTop + vvHeight - margen;
+  if (rect.bottom - rect.top > abajo - arriba) return rect.bottom <= arriba || rect.top >= abajo;
+  return rect.bottom > abajo || rect.top < arriba;
 }
 
 /**
@@ -64,6 +71,7 @@ export function instalarTecladoMovil(win: Window = window): () => void {
   const root = win.document.documentElement;
   let frame = 0;
   let tecladoAntes = false;
+  let altoAntes = 0;
 
   const traerCampoALaVista = () => {
     const el = win.document.activeElement;
@@ -85,17 +93,22 @@ export function instalarTecladoMovil(win: Window = window): () => void {
       root.style.removeProperty("--nucleo-vv-top");
       root.removeAttribute("data-teclado");
       tecladoAntes = false;
+      altoAntes = 0;
       return;
     }
-    root.style.setProperty("--nucleo-vvh", `${Math.round(vv.height)}px`);
+    const alto = Math.round(vv.height);
+    root.style.setProperty("--nucleo-vvh", `${alto}px`);
     root.style.setProperty("--nucleo-vv-top", `${Math.round(vv.offsetTop)}px`);
     const teclado = hayTeclado(layout, vv.height, vv.scale);
     if (teclado) root.setAttribute("data-teclado", "");
     else root.removeAttribute("data-teclado");
-    // Al abrirse (o al cambiar de alto, p. ej. la barra de sugerencias de iOS)
-    // el campo pudo quedar debajo del teclado.
-    if (teclado) traerCampoALaVista();
+    // Solo al abrirse el teclado o al cambiar su alto (p. ej. la barra de
+    // sugerencias de iOS) el campo pudo quedar debajo. NUNCA en un simple
+    // scroll: el usuario que baja a ver otra cosa con el teclado abierto se
+    // veía regresado al campo una y otra vez (crear WOD en el celular).
+    if (teclado && (!tecladoAntes || alto !== altoAntes)) traerCampoALaVista();
     tecladoAntes = teclado;
+    altoAntes = alto;
   };
 
   const programar = () => {
