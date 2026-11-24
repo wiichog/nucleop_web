@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from "react";
-import { NavLink as RouterNavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, NavLink as RouterNavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Box,
   Burger,
@@ -38,6 +38,7 @@ import {
   Package,
   Receipt,
   Scale,
+  ScanLine,
   ShieldAlert,
   Tag,
   TrendingDown,
@@ -49,6 +50,7 @@ import { usePendingSummary } from "../api/hooks";
 import type { PendingSummary } from "../api/types";
 import { PENDING_ITEMS, navBadgeCount } from "../lib/pending";
 import { useAuth } from "../lib/auth";
+import { inicioDe, perfilEnGym, rutaPermitida, type PerfilPanel } from "../lib/perfilPanel";
 import { AtomLogo } from "../landing/AtomLogo";
 import { ReportIssueButton } from "./ReportIssueModal";
 import { CountBadge } from "./ui";
@@ -87,6 +89,9 @@ const GROUPS: NavGroup[] = [
     items: [
       { to: "/panel", label: "Dashboard", icon: LayoutDashboard, end: true },
       { to: "/panel/clases", label: "Clases", icon: CalendarDays },
+      // La puerta y el mostrador en una pantalla: pasar lista, escanear el carnet
+      // y vender un pase. Es la de la recepción, y al admin también le sirve.
+      { to: "/panel/recepcion", label: "Recepción", icon: ScanLine },
       { to: "/panel/coaches", label: "Coaches", icon: UserCog },
       { to: "/panel/tickets", label: "Reportes / tickets", icon: LifeBuoy },
       // La bitácora estaba construida y funcionando pero SIN un solo enlace en
@@ -130,6 +135,36 @@ const GROUPS: NavGroup[] = [
       { to: "/panel/gastos", label: "Gastos", icon: TrendingDown },
       { to: "/panel/reportes", label: "Reportes de negocio", icon: BarChart3 },
     ],
+  },
+];
+
+/**
+ * Menú de la RECEPCIÓN (`front_desk`): solo lo que el backend le deja hacer
+ * (`ROLES_MOSTRADOR` y `ROLES_OPERAN_CLASES`). Ni dashboard, ni configuración,
+ * ni liquidaciones, ni gastos, ni inventario, ni reportes.
+ */
+const GRUPOS_RECEPCION: NavGroup[] = [
+  {
+    title: "Mostrador",
+    items: [
+      { to: "/panel/recepcion", label: "Recepción", icon: ScanLine },
+      { to: "/panel/atletas", label: "Atletas", icon: Dumbbell },
+      { to: "/panel/solicitudes", label: "Solicitudes", icon: Mail },
+      { to: "/panel/pagos", label: "Membresías", icon: CreditCard },
+      { to: "/panel/pos", label: "Punto de venta", icon: Receipt },
+    ],
+  },
+];
+
+/**
+ * Menú del COACH en el panel: sus clases. Antes veía el menú completo del admin y
+ * la mitad de las pantallas le contestaban 403 (y el resto le enseñaba los ingresos
+ * del gimnasio, cosa que el backend ya no hace).
+ */
+const GRUPOS_COACH: NavGroup[] = [
+  {
+    title: "Operación",
+    items: [{ to: "/panel/clases", label: "Clases", icon: CalendarDays }],
   },
 ];
 
@@ -204,10 +239,23 @@ function NavTree({
   );
 }
 
-function NotificationsBell({ summary }: { summary?: PendingSummary }) {
+function NotificationsBell({
+  summary,
+  perfil,
+}: {
+  summary?: PendingSummary;
+  perfil: PerfilPanel;
+}) {
   const navigate = useNavigate();
-  const total = summary?.total ?? 0;
-  const pendientes = PENDING_ITEMS.filter((i) => (summary?.[i.key] ?? 0) > 0);
+  // Solo los pendientes que este perfil puede atender: a la recepción no se le
+  // ofrece «Coaches por aprobar» para mandarla a una pantalla que no es suya.
+  const pendientes = PENDING_ITEMS.filter(
+    (i) => (summary?.[i.key] ?? 0) > 0 && rutaPermitida(perfil, i.to.split("?")[0]),
+  );
+  const total =
+    perfil === "admin"
+      ? summary?.total ?? 0
+      : pendientes.reduce((n, i) => n + (summary?.[i.key] ?? 0), 0);
 
   return (
     <Menu shadow="md" width={300} position="bottom-end" withinPortal>
@@ -356,7 +404,9 @@ export function Layout() {
   // Se monta al primer clic y se queda montado, para que el cierre se anime.
   const [manualUsado, setManualUsado] = useState(false);
 
-  const showGymNav = isSuperuser || roles.some((r) => ["gym_admin", "coach"].includes(r.role));
+  // El perfil es POR GIMNASIO: quien es admin de un box y recepción de otro ve el
+  // menú del gimnasio que tiene elegido arriba.
+  const perfil = perfilEnGym(roles, isSuperuser, primaryGymId);
   const groups: NavGroup[] = [];
   if (clubIds.length) {
     groups.push({
@@ -364,7 +414,12 @@ export function Layout() {
       items: [{ to: "/panel/club", label: "Administrar club", icon: Handshake }],
     });
   }
-  if (showGymNav) groups.push(...GROUPS);
+  if (perfil === "admin") groups.push(...GROUPS);
+  else if (perfil === "recepcion") groups.push(...GRUPOS_RECEPCION);
+  else if (perfil === "coach") groups.push(...GRUPOS_COACH);
+  // Mientras se elige el gimnasio (primer render tras cargar los roles) no se
+  // decide nada: si no, la recepción alcanzaba a pedir el dashboard y veía su 403.
+  const decidiendoGym = !isSuperuser && !primaryGymId && roles.some((r) => !!r.gym_id);
   if (isSuperuser) {
     groups.push({
       title: "Plataforma",
@@ -475,7 +530,7 @@ export function Layout() {
               <BookOpen size={19} strokeWidth={1.8} />
             </ToolButton>
             <ReportIssueButton />
-            {showGymNav && <NotificationsBell summary={counts} />}
+            {perfil !== "otro" && <NotificationsBell summary={counts} perfil={perfil} />}
             {/* En celular «Mi perfil» ya está en el menú lateral: no cabe un 5.º botón. */}
             <ToolButton
               label="Mi perfil"
@@ -496,7 +551,11 @@ export function Layout() {
         </header>
 
         <main>
-          <Outlet />
+          {decidiendoGym ? null : rutaPermitida(perfil, location.pathname) ? (
+            <Outlet />
+          ) : (
+            <Navigate to={inicioDe(perfil)} replace />
+          )}
         </main>
       </div>
 

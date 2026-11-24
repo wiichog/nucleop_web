@@ -427,6 +427,15 @@ export const manualesErp: ManualesPorRuta = {
         nota:
           "La devolución regresa el stock al inventario y aparece en «Ventas» como una fila nueva marcada «Devolución», con el monto en negativo. La venta original no se borra. Cuando ya devolviste todo lo de una venta, queda marcada «Devuelta» y ya no ofrece «Devolver venta». Al principio se ven las ventas más recientes; «Ver más» muestra las anteriores.",
       },
+      {
+        titulo: "Si entras como recepción",
+        pasos: [
+          "Cobras igual que el administrador: tocas los productos, eliges cómo paga y presionas «Cobrar».",
+          "En «Ventas» ves cada venta, pero sin el margen.",
+        ],
+        nota:
+          "«Devolver venta» es del administrador: si alguien quiere devolver algo, avísale. El costo de los productos tampoco se muestra.",
+      },
     ],
     conceptos: [
       {

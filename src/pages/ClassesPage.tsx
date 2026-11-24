@@ -111,7 +111,7 @@ import {
 } from "../lib/wodPartes";
 import { tituloAutomaticoWod } from "../lib/tituloWod";
 import { GlassCard, delayVar } from "../components/aurora";
-import { useAuth } from "../lib/auth";
+import { administraGym, useAuth } from "../lib/auth";
 import { errDeCampo, errMsg } from "../lib/errors";
 import { CHECKIN_METHOD, label } from "../lib/labels";
 
@@ -196,16 +196,22 @@ type FiltroProps = { gymId: string; servicio: string | null; setServicio: (s: st
 /** GymClass del schema + los campos del sprint de coaches. */
 type ClassRow = GymClass & ClassCoachFields;
 
+/** Pestañas que también sirven a quien no administra (el coach): las demás leen
+ *  catálogos del admin (servicios, horario, pases) y le contestaban 403. */
+const PESTANAS_DEL_COACH = new Set(["classes", "wod"]);
+
 export function ClassesPage() {
-  const { primaryGymId } = useAuth();
+  const { primaryGymId, roles, isSuperuser } = useAuth();
   const gymId = primaryGymId ?? "";
+  const esAdmin = administraGym(roles, isSuperuser, gymId);
   // La pestaña vive en la URL (mismo patrón que Inventario): así un pendiente
   // abre directamente donde se resuelve. «Solicitudes» (`requests`) se fue con
   // las coberturas (16-nov-2026): un enlace viejo cae en el calendario, que es
   // donde ahora se asigna el coach.
   const [searchParams, setSearchParams] = useSearchParams();
   const tabUrl = searchParams.get("tab");
-  const tab = tabUrl === "requests" ? "classes" : tabUrl || "schedule";
+  const pedida = tabUrl === "requests" ? "classes" : tabUrl || (esAdmin ? "schedule" : "classes");
+  const tab = esAdmin || PESTANAS_DEL_COACH.has(pedida) ? pedida : "classes";
   // El filtro por servicio también vive en la URL y es UNO para todas las
   // pestañas: quien elige «CrossFit» en el horario lo sigue viendo al pasar a
   // Clases, en vez de volver a filtrar en cada tabla.
@@ -233,28 +239,34 @@ export function ClassesPage() {
       >
         {/* Las pestañas entran justo después del hairline del hero. */}
         <Tabs.List mb="lg" className="a-rise" style={delayVar(0.5)}>
-          <Tabs.Tab value="services">Servicios</Tabs.Tab>
-          <Tabs.Tab value="schedule">Horario semanal</Tabs.Tab>
+          {esAdmin && <Tabs.Tab value="services">Servicios</Tabs.Tab>}
+          {esAdmin && <Tabs.Tab value="schedule">Horario semanal</Tabs.Tab>}
           <Tabs.Tab value="classes">Clases</Tabs.Tab>
           <Tabs.Tab value="wod">Workout</Tabs.Tab>
-          <Tabs.Tab value="dropins">Drop-ins / Pases</Tabs.Tab>
+          {esAdmin && <Tabs.Tab value="dropins">Drop-ins / Pases</Tabs.Tab>}
         </Tabs.List>
 
-        <Tabs.Panel value="services">
-          <ServicesTab gymId={gymId} {...filtro} />
-        </Tabs.Panel>
-        <Tabs.Panel value="schedule">
-          <ScheduleTab gymId={gymId} {...filtro} />
-        </Tabs.Panel>
+        {esAdmin && (
+          <Tabs.Panel value="services">
+            <ServicesTab gymId={gymId} {...filtro} />
+          </Tabs.Panel>
+        )}
+        {esAdmin && (
+          <Tabs.Panel value="schedule">
+            <ScheduleTab gymId={gymId} {...filtro} />
+          </Tabs.Panel>
+        )}
         <Tabs.Panel value="classes">
           <ClassesTab gymId={gymId} {...filtro} />
         </Tabs.Panel>
         <Tabs.Panel value="wod">
           <WodTab gymId={gymId} />
         </Tabs.Panel>
-        <Tabs.Panel value="dropins">
-          <DropinsTab gymId={gymId} />
-        </Tabs.Panel>
+        {esAdmin && (
+          <Tabs.Panel value="dropins">
+            <DropinsTab gymId={gymId} />
+          </Tabs.Panel>
+        )}
       </Tabs>
     </div>
   );
@@ -1750,7 +1762,16 @@ function useMemoClases(proximas: ClassRow[] | undefined, pasadas: ClassRow[] | u
  * que sólo se llega por una celda de `mantine-datatable`, y esas no se pintan
  * bajo jsdom.
  */
-export function RecepcionBuscador({ gymId, classId }: { gymId: string; classId: string }) {
+export function RecepcionBuscador({
+  gymId,
+  classId,
+  onVender,
+}: {
+  gymId: string;
+  classId: string;
+  /** Si viene, a quien no es socio se le ofrece «Vender pase» en el mostrador. */
+  onVender?: (atleta: { id: string; name: string }) => void;
+}) {
   const [texto, setTexto] = useState("");
   const busqueda = useAccessSearch(gymId, texto, classId);
   const admitir = useAccessAdmit(gymId, classId);
@@ -1871,17 +1892,28 @@ export function RecepcionBuscador({ gymId, classId }: { gymId: string; classId: 
                       {/* Antes solo en un Tooltip del badge: en el teléfono no se leía. */}
                       {vender && (
                         <Text size="xs" c="dimmed" mt={4}>
-                          No es socio: necesita comprar un pase drop-in desde el app de Nucleo.
+                          {onVender
+                            ? "No es socio: véndele un pase drop-in aquí mismo."
+                            : "No es socio: necesita comprar un pase drop-in desde el app de Nucleo."}
                         </Text>
                       )}
                     </div>
                   </Group>
                   <Group gap="xs">
-                    {vender && (
+                    {vender && onVender ? (
+                      <Button
+                        size="xs"
+                        variant="light"
+                        disabled={!vender.enabled}
+                        onClick={() => onVender({ id: atleta.id, name: atleta.name })}
+                      >
+                        Vender pase
+                      </Button>
+                    ) : vender ? (
                       <Badge variant="light" color="orange">
                         Requiere pase
                       </Badge>
-                    )}
+                    ) : null}
                     <Button
                       size="xs"
                       disabled={!accion?.enabled || yaPresente}
@@ -1902,7 +1934,7 @@ export function RecepcionBuscador({ gymId, classId }: { gymId: string; classId: 
 }
 
 /** QR único de la clase: el coach lo muestra y los atletas lo escanean para su check-in. */
-function ClassQrBlock({ gymId, classId }: { gymId: string; classId: string }) {
+export function ClassQrBlock({ gymId, classId }: { gymId: string; classId: string }) {
   const qr = useClassQr(gymId, classId);
   if (qr.isLoading) return <Text c="dimmed" size="sm">Generando QR…</Text>;
   if (!qr.data) return <Text c="dimmed" size="sm">No se pudo generar el QR.</Text>;

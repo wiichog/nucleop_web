@@ -177,6 +177,38 @@ describe("Atletas: lo que es solo del admin no se le ofrece al coach", () => {
   });
 });
 
+describe("Atletas: la recepción cobra pero no administra", () => {
+  beforeEach(() => {
+    estado.rol = "front_desk";
+    estado.gymConfigPedido = [];
+    estado.enRiesgo = [];
+    estado.detalle = null;
+  });
+
+  it("ve los filtros de cobro, pero no «En riesgo», «Riesgo y mora» ni «Invitar atleta»", () => {
+    estado.padron = [socio({ payment_status: "overdue", days_to_due: -3 })];
+    pintar();
+    expect(screen.getByRole("button", { name: /^Morosos/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Por vencer/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^En riesgo/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Riesgo y mora/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Invitar atleta/ })).toBeNull();
+    expect(estado.gymConfigPedido.every((g) => g === "")).toBe(true);
+  });
+
+  it("en la ficha asigna plan sin cuota personalizada, y no ve lo demás del admin", async () => {
+    estado.padron = [socio({ status: "expired" })];
+    estado.detalle = detalle({ status: "expired" });
+    pintar();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir ficha de Ana López" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Asignar plan" }));
+    expect(await screen.findByText(/queda ACTIVA con vencimiento nuevo/)).toBeTruthy();
+    expect(screen.queryByLabelText("Cuota personalizada")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Recordatorio/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Plan y cuota" })).toBeNull();
+  });
+});
+
 describe("Atletas: encontrar a la persona y lo pendiente", () => {
   beforeEach(() => {
     estado.rol = "gym_admin";

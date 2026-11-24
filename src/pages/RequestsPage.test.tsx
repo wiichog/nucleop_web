@@ -70,7 +70,9 @@ vi.mock("../api/hooks", () => {
 });
 
 vi.mock("../lib/auth", () => ({
-  useAuth: () => ({ primaryGymId: "gym-1", isSuperuser: false }),
+  useAuth: () => ({ primaryGymId: "gym-1", isSuperuser: false, roles: [] }),
+  // Estos casos son del admin (cuota personalizada, «Invitar atleta»).
+  administraGym: () => true,
 }));
 
 import { RequestsPage, Solicitante, mensajeAsignacion } from "./RequestsPage";

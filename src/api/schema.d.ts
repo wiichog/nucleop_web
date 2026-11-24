@@ -1180,7 +1180,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Atletas del gym: SOLO capa de relación (decisión 3). Aislamiento por gym. */
+        /**
+         * @description Atletas del gym: SOLO capa de relación (decisión 3). Aislamiento por gym.
+         *
+         *     Cuánto se ve depende del rol, igual que el padrón (`serializer_de_padron`):
+         *     antes cualquier rol recibía el serializer del admin, notas internas incluidas.
+         */
         get: operations["gym_athletes_list"];
         put?: never;
         post?: never;
@@ -1434,10 +1439,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Sucursales del gym (multi-sede). Lectura para roles del gym; alta gym_admin. */
+        /**
+         * @description Sucursales del gym (multi-sede). Lectura para roles del gym; alta gym_admin.
+         *
+         *     El "alta gym_admin" solo lo decía este docstring: cualquier rol creaba sedes.
+         */
         get: operations["gym_branches_list"];
         put?: never;
-        /** @description Sucursales del gym (multi-sede). Lectura para roles del gym; alta gym_admin. */
+        /**
+         * @description Sucursales del gym (multi-sede). Lectura para roles del gym; alta gym_admin.
+         *
+         *     El "alta gym_admin" solo lo decía este docstring: cualquier rol creaba sedes.
+         */
         post: operations["gym_branches_create"];
         delete?: never;
         options?: never;
@@ -1631,7 +1644,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * @description No Show de UNA reserva, desde el coach de la clase o el admin del gimnasio.
+         * @description No Show de UNA reserva, desde el coach de la clase, la recepción o el admin.
          *
          *     `POST` la cierra como No Show (sin penalización y sin gastar cupo del plan) y
          *     libera su lugar a la lista de espera. `DELETE` lo deshace mientras la ventana
@@ -1640,7 +1653,7 @@ export interface paths {
          */
         post: operations["gym_classes_reservations_no_show_create"];
         /**
-         * @description No Show de UNA reserva, desde el coach de la clase o el admin del gimnasio.
+         * @description No Show de UNA reserva, desde el coach de la clase, la recepción o el admin.
          *
          *     `POST` la cierra como No Show (sin penalización y sin gastar cupo del plan) y
          *     libera su lugar a la lista de espera. `DELETE` lo deshace mientras la ventana
@@ -2059,7 +2072,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description KPIs operativos del gym (A11). Separa ingresos por tarjeta vs. manual. */
+        /**
+         * @description KPIs operativos del gym (A11). Separa ingresos por tarjeta vs. manual.
+         *
+         *     Solo el admin: son los ingresos del negocio. Antes cualquier rol del gym.
+         */
         get: operations["gym_dashboard_retrieve"];
         put?: never;
         post?: never;
@@ -2113,6 +2130,29 @@ export interface paths {
          *     porque las compras lo referencian con PROTECT).
          */
         patch: operations["gym_dropin_products_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/gym/{gym_id}/dropins/sell": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description El mostrador vende un pase y lo cobra en el momento (admin o recepción).
+         *
+         *     El catálogo para elegir es el público (`GymDropinsView`, solo activos). El
+         *     producto y el pase son de ESTE gym; el atleta puede ser de cualquier gym de la
+         *     red, porque el drop-in es justo para quien no es socio.
+         */
+        post: operations["gym_dropins_sell_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/gym/{gym_id}/dropins/validate": {
@@ -2287,10 +2327,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        /**
+         * @description Catálogo del ERP. Leerlo: admin y recepción (el POS lo necesita para vender).
+         *     Crear un producto: solo el admin.
+         */
         get: operations["gym_erp_products_list"];
         put?: never;
-        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        /**
+         * @description Catálogo del ERP. Leerlo: admin y recepción (el POS lo necesita para vender).
+         *     Crear un producto: solo el admin.
+         */
         post: operations["gym_erp_products_create"];
         delete?: never;
         options?: never;
@@ -2462,10 +2508,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        /**
+         * @description Ventas del POS: admin y recepción registran y ven las ventas. Devolverlas
+         *     (`SaleReturnView`) sigue siendo solo del admin, porque es un reembolso.
+         */
         get: operations["gym_erp_sales_list"];
         put?: never;
-        /** @description Base: exige rol gym_admin en el gym de la URL. */
+        /**
+         * @description Ventas del POS: admin y recepción registran y ven las ventas. Devolverlas
+         *     (`SaleReturnView`) sigue siendo solo del admin, porque es un reembolso.
+         */
         post: operations["gym_erp_sales_create"];
         delete?: never;
         options?: never;
@@ -2571,7 +2623,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Bandeja del gym para resolver solicitudes e invitaciones. */
+        /** @description Bandeja del gym para resolver solicitudes e invitaciones (admin y recepción). */
         get: operations["gym_join_requests_list"];
         put?: never;
         post?: never;
@@ -2590,7 +2642,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Aprobar / rechazar / ofrecer prueba / pedir info (A4). */
+        /** @description Aprobar / rechazar / ofrecer prueba / pedir info (A4). Admin y recepción. */
         post: operations["gym_join_requests_decide_create"];
         delete?: never;
         options?: never;
@@ -2605,7 +2657,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Panel: pedidos y apartados de la tienda del gym. */
+        /**
+         * @description Panel: pedidos y apartados de la tienda del gym. Solo el admin: traen datos
+         *     de entrega del atleta (dirección y teléfono). Antes los veía cualquier rol.
+         */
         get: operations["gym_marketplace_orders_list"];
         put?: never;
         post?: never;
@@ -2693,9 +2748,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Panel: consulta y edita las condiciones de envío de la tienda. */
+        /**
+         * @description Panel: consulta y edita las condiciones de envío de la tienda. Leer, los roles
+         *     del gym; editar, solo el admin (`_es_admin` en `put`).
+         */
         get: operations["gym_marketplace_shipping_retrieve"];
-        /** @description Panel: consulta y edita las condiciones de envío de la tienda. */
+        /**
+         * @description Panel: consulta y edita las condiciones de envío de la tienda. Leer, los roles
+         *     del gym; editar, solo el admin (`_es_admin` en `put`).
+         */
         put: operations["gym_marketplace_shipping_update"];
         post?: never;
         delete?: never;
@@ -2737,7 +2798,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Ficha del atleta limitada a su relación con ESTE gimnasio. */
+        /**
+         * @description Ficha del atleta limitada a su relación con ESTE gimnasio.
+         *
+         *     Trae sus pagos, su cuota y su historial: es del mostrador (admin y recepción),
+         *     no del coach. Antes la veía cualquier rol del gym, notas internas incluidas.
+         */
         get: operations["gym_memberships_retrieve"];
         put?: never;
         post?: never;
@@ -2756,7 +2822,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Asignar plan / cuota personalizada a una membresía (A3 / A5). */
+        /**
+         * @description Asignar plan / cuota personalizada a una membresía (A3 / A5).
+         *
+         *     Admin y recepción. La recepción asigna planes y ofertas del catálogo, pero NO
+         *     pone una cuota personalizada: el precio lo decide quien administra.
+         */
         post: operations["gym_memberships_assign_plan_create"];
         delete?: never;
         options?: never;
@@ -3012,7 +3083,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Historial de pagos del gym (tarjeta + manual) (A7/A11). */
+        /**
+         * @description Historial de pagos del gym (tarjeta + manual) (A7/A11).
+         *
+         *     El mostrador (admin y recepción, que cobra). Antes cualquier rol del gym, así
+         *     que un coach podía bajar todos los cobros del box por la API.
+         */
         get: operations["gym_payments_list"];
         put?: never;
         post?: never;
@@ -3132,7 +3208,8 @@ export interface paths {
         /**
          * @description Resumen de pendientes operativos del gym (badge de notificaciones del panel).
          *
-         *     Cualquier rol del gym (admin o coach) puede consultarlo; son solo conteos.
+         *     Cualquier rol del gym (admin, coach o recepción) puede consultarlo; son solo
+         *     conteos.
          */
         get: operations["gym_pending_summary_retrieve"];
         put?: never;
@@ -3150,8 +3227,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description Planes del gym. Leerlos: cualquier rol del gym (la recepción los asigna).
+         *     Crearlos: solo el admin. Antes un coach o un trainer podían crear planes.
+         */
         get: operations["gym_plans_list"];
         put?: never;
+        /**
+         * @description Planes del gym. Leerlos: cualquier rol del gym (la recepción los asigna).
+         *     Crearlos: solo el admin. Antes un coach o un trainer podían crear planes.
+         */
         post: operations["gym_plans_create"];
         delete?: never;
         options?: never;
@@ -3194,10 +3279,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Catálogo de ofertas/promos reutilizables del gym (A3). */
+        /**
+         * @description Catálogo de ofertas/promos reutilizables del gym (A3). Leerlo: el mostrador
+         *     (admin y recepción, que las aplica al asignar plan). Crearlas: solo el admin.
+         */
         get: operations["gym_plans_offers_list"];
         put?: never;
-        /** @description Catálogo de ofertas/promos reutilizables del gym (A3). */
+        /**
+         * @description Catálogo de ofertas/promos reutilizables del gym (A3). Leerlo: el mostrador
+         *     (admin y recepción, que las aplica al asignar plan). Crearlas: solo el admin.
+         */
         post: operations["gym_plans_offers_create"];
         delete?: never;
         options?: never;
@@ -8028,6 +8119,21 @@ export interface components {
          * @enum {string}
          */
         DirectionEnum: "gym_invite" | "coach_apply";
+        /**
+         * @description Venta de un pase en el mostrador (admin o recepción). El atleta llega
+         *     identificado por la recepción (su carnet o la búsqueda), nunca tecleado a mano.
+         */
+        DropinCounterSale: {
+            /** Format: uuid */
+            dropin_product_id: string;
+            /** Format: uuid */
+            athlete_id: string;
+            method: components["schemas"]["ManualPaymentMethodEnum"];
+            billing_nit?: string;
+            billing_name?: string;
+            /** Format: email */
+            billing_email?: string;
+        };
         DropinProduct: {
             /** Format: uuid */
             readonly id: string;
@@ -15959,6 +16065,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DropinProduct"];
+                };
+            };
+        };
+    };
+    gym_dropins_sell_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gym_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DropinCounterSale"];
+                "application/x-www-form-urlencoded": components["schemas"]["DropinCounterSale"];
+                "multipart/form-data": components["schemas"]["DropinCounterSale"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DropinPurchase"];
                 };
             };
         };

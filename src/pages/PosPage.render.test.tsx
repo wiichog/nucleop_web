@@ -101,7 +101,9 @@ vi.mock("@mantine/notifications", () => ({
 }));
 
 vi.mock("../lib/auth", () => ({
-  useAuth: () => ({ primaryGymId: "gym-1" }),
+  useAuth: () => ({ primaryGymId: "gym-1", roles: [], isSuperuser: false }),
+  // Estos casos son del admin (devolver una venta); la recepción no la ve.
+  administraGym: () => true,
 }));
 
 import { PosPage } from "./PosPage";

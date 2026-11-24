@@ -34,7 +34,7 @@ import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { GlassCard } from "../components/aurora";
 import { CountBadge, Money, PageHeader, StatusBadge } from "../components/ui";
 import { Encabezado, nombreCorto, Tarjeta } from "../components/Tarjeta";
-import { useAuth } from "../lib/auth";
+import { administraGym, useAuth } from "../lib/auth";
 import { downloadCsv } from "../lib/csv";
 import { errMsg } from "../lib/errors";
 import { fmtQ } from "../lib/money";
@@ -235,7 +235,8 @@ export function CeldaFactura({
   retrying,
 }: {
   payment: Payment;
-  onRetry: () => void;
+  /** Sin esto no se ofrece reintentar: reintentar la factura es solo del admin. */
+  onRetry?: () => void;
   retrying: boolean;
 }) {
   const emitida = payment.fel_status === "issued";
@@ -272,7 +273,7 @@ export function CeldaFactura({
           {payment.fel_message}
         </Text>
       )}
-      {payment.can_retry_fel && (
+      {payment.can_retry_fel && onRetry && (
         <Button
           size="compact-sm"
           variant="light"
@@ -893,7 +894,7 @@ function PagoModal({
 }: {
   payment: Payment | null;
   onClose: () => void;
-  onRetryFel: (p: Payment) => void;
+  onRetryFel?: (p: Payment) => void;
   retrying: boolean;
 }) {
   const p = payment;
@@ -953,7 +954,11 @@ function PagoModal({
             </Group>
           )}
           <Dato rotulo="Factura (FEL)">
-            <CeldaFactura payment={p} onRetry={() => onRetryFel(p)} retrying={retrying} />
+            <CeldaFactura
+              payment={p}
+              onRetry={onRetryFel ? () => onRetryFel(p) : undefined}
+              retrying={retrying}
+            />
           </Dato>
         </Stack>
       )}
@@ -975,7 +980,7 @@ export function coincidePago(p: Payment, q: string): boolean {
   );
 }
 
-function HistorialDePagos({ gymId }: { gymId: string }) {
+function HistorialDePagos({ gymId, esAdmin }: { gymId: string; esAdmin: boolean }) {
   const payments = useGymPayments(gymId);
   const retryFel = useRetryFel(gymId);
   const [search, setSearch] = useState("");
@@ -1132,7 +1137,7 @@ function HistorialDePagos({ gymId }: { gymId: string }) {
       <PagoModal
         payment={abierto}
         onClose={() => setAbiertoId(null)}
-        onRetryFel={onRetryFel}
+        onRetryFel={esAdmin ? onRetryFel : undefined}
         retrying={retryFel.isPending && retryFel.variables === abierto?.id}
       />
     </GlassCard>
@@ -1143,15 +1148,19 @@ const PESTANAS = ["cobrar", "pagos", "cuenta", "contracargos"] as const;
 type Pestana = (typeof PESTANAS)[number];
 
 export function PaymentsPage() {
-  const { primaryGymId } = useAuth();
+  const { primaryGymId, roles, isSuperuser } = useAuth();
   const gymId = primaryGymId ?? "";
+  // La recepción cobra y ve el historial; el estado de cuenta, los contracargos y
+  // reintentar facturas son del admin (el backend se los niega con 403).
+  const esAdmin = administraGym(roles, isSuperuser, gymId);
   const [searchParams, setSearchParams] = useSearchParams();
   const memberships = useMemberships(gymId);
   // La misma consulta que la bandeja: aquí solo decide si la pestaña existe y su contador.
-  const disputas = useGymChargebacks(gymId);
+  const disputas = useGymChargebacks(gymId, "", esAdmin);
 
   const pedida = searchParams.get("tab") as Pestana | null;
-  const tab: Pestana = pedida && PESTANAS.includes(pedida) ? pedida : "cobrar";
+  const permitida = (t: Pestana) => esAdmin || t === "cobrar" || t === "pagos";
+  const tab: Pestana = pedida && PESTANAS.includes(pedida) && permitida(pedida) ? pedida : "cobrar";
   const setTab = (t: string | null) =>
     setSearchParams(t && t !== "cobrar" ? { tab: t } : {}, { replace: true });
 
@@ -1162,7 +1171,8 @@ export function PaymentsPage() {
   const disputasSinResolver = casos.filter(sinResolver).length;
   // Un 403 (coach) no ve la pestaña; cualquier otro error SÍ: puede haber una
   // disputa con reloj corriendo que no se está viendo.
-  const verContracargos = casos.length > 0 || (disputas.isError && estadoHttp(disputas.error) !== 403);
+  const verContracargos =
+    esAdmin && (casos.length > 0 || (disputas.isError && estadoHttp(disputas.error) !== 403));
 
   return (
     <div>
@@ -1180,7 +1190,7 @@ export function PaymentsPage() {
             </Group>
           </Tabs.Tab>
           <Tabs.Tab value="pagos">Pagos</Tabs.Tab>
-          <Tabs.Tab value="cuenta">Estado de cuenta</Tabs.Tab>
+          {esAdmin && <Tabs.Tab value="cuenta">Estado de cuenta</Tabs.Tab>}
           {verContracargos && (
             <Tabs.Tab value="contracargos">
               <Group gap={6} wrap="nowrap">
@@ -1195,11 +1205,13 @@ export function PaymentsPage() {
           <PorCobrar gymId={gymId} />
         </Tabs.Panel>
         <Tabs.Panel value="pagos">
-          <HistorialDePagos gymId={gymId} />
+          <HistorialDePagos gymId={gymId} esAdmin={esAdmin} />
         </Tabs.Panel>
-        <Tabs.Panel value="cuenta">
-          <EstadoDeCuenta gymId={gymId} />
-        </Tabs.Panel>
+        {esAdmin && (
+          <Tabs.Panel value="cuenta">
+            <EstadoDeCuenta gymId={gymId} />
+          </Tabs.Panel>
+        )}
         {verContracargos && (
           <Tabs.Panel value="contracargos">
             <ContracargosDelGym gymId={gymId} />

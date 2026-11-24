@@ -20,6 +20,7 @@ import { PageHeader, StatusBadge } from "../components/ui";
 import { FilterChip, GlassCard } from "../components/aurora";
 import { Encabezado, Tarjeta } from "../components/Tarjeta";
 import { administraGym, useAuth } from "../lib/auth";
+import { perfilEnGym, veCuotas } from "../lib/perfilPanel";
 import { downloadCsv } from "../lib/csv";
 import { MEMBERSHIP_STATUS, PAYMENT_STATUS, label } from "../lib/labels";
 import { sortRecords } from "../lib/sortRecords";
@@ -62,6 +63,12 @@ const FILTROS = [
  * así que sus contadores saldrían siempre en 0: se le esconden.
  */
 const FILTROS_DEL_ADMIN = new Set(["morosos", "por_vencer", "en_riesgo"]);
+/**
+ * Los de cobro que también ve la RECEPCIÓN: le llega la cuota y el estado de pago
+ * (`MembershipFrontDeskSerializer`) porque cobra en el mostrador. «En riesgo» no:
+ * `/retention/at-risk` sigue siendo solo del admin.
+ */
+const FILTROS_DE_COBRO = new Set(["morosos", "por_vencer"]);
 
 /** Cómo ordenar la lista. Los dos primeros son de dinero: solo para el admin. */
 const ORDENES: {
@@ -144,8 +151,13 @@ export function AthletesPage() {
   const { primaryGymId, roles, isSuperuser } = useAuth();
   const gymId = primaryGymId ?? "";
   const esAdmin = administraGym(roles, isSuperuser, gymId);
-  const filtros = esAdmin ? FILTROS : FILTROS.filter((f) => !FILTROS_DEL_ADMIN.has(f.value));
-  const ordenes = esAdmin ? ORDENES : ORDENES.filter((o) => !o.admin);
+  const cuotas = veCuotas(perfilEnGym(roles, isSuperuser, gymId));
+  const filtros = esAdmin
+    ? FILTROS
+    : FILTROS.filter(
+        (f) => !FILTROS_DEL_ADMIN.has(f.value) || (cuotas && FILTROS_DE_COBRO.has(f.value)),
+      );
+  const ordenes = cuotas ? ORDENES : ORDENES.filter((o) => !o.admin);
   const { data, isLoading, isError, refetch } = useMemberships(gymId);
   const atRisk = useAtRisk(gymId, esAdmin);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -410,7 +422,13 @@ export function AthletesPage() {
         )}
       </GlassCard>
 
-      <FichaAtleta gymId={gymId} membershipId={abierta} esAdmin={esAdmin} onClose={() => setAbierta("")} />
+      <FichaAtleta
+        gymId={gymId}
+        membershipId={abierta}
+        esAdmin={esAdmin}
+        esMostrador={cuotas}
+        onClose={() => setAbierta("")}
+      />
       {esAdmin && (
         <>
           <InvitarAtletaModal gymId={gymId} opened={invitando} onClose={() => setInvitando(false)} />

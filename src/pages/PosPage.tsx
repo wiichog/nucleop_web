@@ -38,7 +38,7 @@ import { Money, PageHeader } from "../components/ui";
 import { FilterChip, GlassCard } from "../components/aurora";
 import { errMsg } from "../lib/errors";
 import { fmtQ } from "../lib/money";
-import { useAuth } from "../lib/auth";
+import { administraGym, useAuth } from "../lib/auth";
 import {
   agregarAlCarrito,
   cambiarCantidad,
@@ -93,8 +93,11 @@ const METODOS: { value: Metodo; label: string }[] = [
 const VENTAS_POR_TANDA = 15;
 
 export function PosPage() {
-  const { primaryGymId } = useAuth();
+  const { primaryGymId, roles, isSuperuser } = useAuth();
   const gymId = primaryGymId ?? "";
+  // La recepción vende; devolver una venta es un reembolso y sigue siendo del admin.
+  // El costo y el margen ni siquiera le llegan (el backend los quita de la respuesta).
+  const esAdmin = administraGym(roles, isSuperuser, gymId);
   const productsQuery = useErpProducts(gymId);
   const salesQuery = useErpSales(gymId);
   const { data: branches } = useBranches(gymId);
@@ -582,7 +585,7 @@ export function PosPage() {
         devuelta={!!ventaAbierta && devueltas.has(ventaAbierta.id)}
         atleta={ventaAbierta ? nombreAtleta(ventaAbierta.athlete) : null}
         devolviendo={returnSale.isPending}
-        onDevolver={devolver}
+        onDevolver={esAdmin ? devolver : undefined}
         onClose={() => setVentaAbierta(null)}
       />
 

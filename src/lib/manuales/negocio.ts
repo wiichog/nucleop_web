@@ -98,6 +98,15 @@ export const manualesNegocio: ManualesPorRuta = {
         nota:
           "Nucleo presenta tu evidencia ante el proveedor de la pasarela. Solo puedes responder mientras la ventana del banco siga abierta; después el caso dice «Ventana cerrada». Esta pestaña solo la ve el administrador del gimnasio.",
       },
+      {
+        titulo: "Si entras como recepción",
+        pasos: [
+          "En «Por cobrar» ves quién debe y registras el pago en efectivo, transferencia o datáfono, igual que el administrador.",
+          "En «Pagos» ves el historial y la factura de cada cobro.",
+        ],
+        nota:
+          "«Estado de cuenta», «Contracargos» y reintentar una factura son del administrador: no te aparecen. Tampoco se pueden reembolsar pagos desde aquí.",
+      },
     ],
     conceptos: [
       {

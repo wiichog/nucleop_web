@@ -33,7 +33,8 @@ export function VentaModal({
   devuelta: boolean;
   atleta: string | null;
   devolviendo: boolean;
-  onDevolver: (venta: ErpSale) => void;
+  /** Sin esto no se ofrece devolver: una devolución es un reembolso, solo del admin. */
+  onDevolver?: (venta: ErpSale) => void;
   onClose: () => void;
 }) {
   const [confirmando, setConfirmando] = useState(false);
@@ -92,9 +93,12 @@ export function VentaModal({
                   .filter(Boolean)
                   .join(" · ")}
               </Text>
-              <Text size="sm" c="dimmed">
-                Margen <Money value={venta.margin} decimals={2} />
-              </Text>
+              {/* A la recepción el backend no le manda el margen: sin él no se pinta. */}
+              {venta.margin != null && (
+                <Text size="sm" c="dimmed">
+                  Margen <Money value={venta.margin} decimals={2} />
+                </Text>
+              )}
             </Stack>
             <Stack gap={0} align="flex-end">
               <Text size="xs" c="dimmed">
@@ -106,7 +110,7 @@ export function VentaModal({
             </Stack>
           </Group>
 
-          {devolucion ? null : devuelta ? (
+          {devolucion || (!onDevolver && !devuelta) ? null : devuelta ? (
             <Badge color="gray" variant="light" size="lg">
               Devuelta
             </Badge>
@@ -119,7 +123,7 @@ export function VentaModal({
                 <Button variant="default" onClick={() => setConfirmando(false)}>
                   Cancelar
                 </Button>
-                <Button color="red" loading={devolviendo} onClick={() => onDevolver(venta)}>
+                <Button color="red" loading={devolviendo} onClick={() => onDevolver?.(venta)}>
                   Sí, devolver
                 </Button>
               </Group>

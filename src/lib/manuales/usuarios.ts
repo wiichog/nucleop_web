@@ -192,6 +192,15 @@ export const manualesUsuarios: ManualesPorRuta = {
         nota:
           "Solo aparece mientras el atleta no ha reclamado su cuenta. En cuanto entra al app por primera vez, su perfil pasa a ser suyo: el nombre, el cumpleaños y el contacto de emergencia los edita él desde su app y viajan con él a otros gimnasios.",
       },
+      {
+        titulo: "Si entras como recepción",
+        pasos: [
+          "Ves el padrón con la cuota y el estado de pago de cada persona, y los filtros «Morosos» y «Por vencer» para saber a quién cobrarle.",
+          "Al tocar a alguien se abre su ficha con sus pagos y su asistencia. Si todavía no tiene plan, toca «Asignar plan», elige el plan (y la oferta, si aplica) y guarda.",
+        ],
+        nota:
+          "La cuota personalizada, los recordatorios, congelar, bloquear, dar de baja, «En riesgo» e «Invitar atleta» son del administrador: no te aparecen. Tampoco ves las notas internas.",
+      },
     ],
     conceptos: [
       {
@@ -384,6 +393,14 @@ export const manualesUsuarios: ManualesPorRuta = {
         titulo: "Buscar una solicitud",
         pasos: ["Cuando hay más de cinco, escribe el nombre en «Buscar atleta…»."],
         nota: "La bandeja va en orden alfabético.",
+      },
+      {
+        titulo: "Si entras como recepción",
+        pasos: [
+          "Respondes las solicitudes igual que el administrador: aceptar, rechazar, ofrecer prueba o pedir información.",
+          "Al asignar el plan eliges el plan y, si aplica, una oferta. No aparece «Cuota personalizada»: esa la pone el administrador.",
+        ],
+        nota: "«Invitar atleta» también es solo del administrador.",
       },
     ],
     conceptos: [

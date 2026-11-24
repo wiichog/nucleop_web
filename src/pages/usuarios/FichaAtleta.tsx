@@ -110,11 +110,17 @@ export function FichaAtleta({
   gymId,
   membershipId,
   esAdmin,
+  esMostrador = false,
   onClose,
 }: {
   gymId: string;
   membershipId: string;
   esAdmin: boolean;
+  /**
+   * Admin o RECEPCIÓN. La recepción asigna plan (y aplica ofertas del catálogo)
+   * pero no pone cuota personalizada: el backend se la rechaza con 403.
+   */
+  esMostrador?: boolean;
   onClose: () => void;
 }) {
   const detail = useMembershipDetail(gymId, membershipId);
@@ -496,6 +502,14 @@ export function FichaAtleta({
                 </Menu>
               </Group>
             )}
+            {/* Recepción: solo asignar plan (activa la membresía, decisión del dueño). */}
+            {!esAdmin && esMostrador && puedePlan && (
+              <Group gap="xs" wrap="wrap">
+                <Button size="sm" onClick={() => setModal("plan")}>
+                  Asignar plan
+                </Button>
+              </Group>
+            )}
             {esAdmin && enGrupo && (
               <Text size="sm" c="dimmed">
                 Lo paga el plan grupal «{m.billing_group_name}»: su plan y su cuota se manejan en
@@ -565,6 +579,15 @@ export function FichaAtleta({
         )}
       </DetailSheet>
 
+      {m && esMostrador && !esAdmin && (
+        <PlanYCuotaModal
+          gymId={gymId}
+          detalle={m}
+          opened={modal === "plan"}
+          onClose={() => setModal(null)}
+          sinCuota
+        />
+      )}
       {m && esAdmin && (
         <>
           <PlanYCuotaModal
@@ -696,11 +719,14 @@ function PlanYCuotaModal({
   detalle,
   opened,
   onClose,
+  sinCuota = false,
 }: {
   gymId: string;
   detalle: MembershipDetail;
   opened: boolean;
   onClose: () => void;
+  /** Recepción: sin el campo de cuota personalizada, y sin mandarla (403 si va). */
+  sinCuota?: boolean;
 }) {
   const plans = usePlans(gymId);
   const offers = usePlanOffers(gymId);
@@ -734,7 +760,7 @@ function PlanYCuotaModal({
       const saved = await assignPlan.mutateAsync({
         membershipId: detalle.id,
         planId: form.planId,
-        customFee: cuota === "" ? null : cuota,
+        customFee: sinCuota ? undefined : cuota === "" ? null : cuota,
         offerId: form.offerId ?? undefined,
       });
       if (saved.plan !== form.planId) {
@@ -759,8 +785,15 @@ function PlanYCuotaModal({
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title={`Plan y cuota · ${nombre}`} centered size="lg" zIndex={SOBRE_FICHA}>
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={`${sinCuota ? "Asignar plan" : "Plan y cuota"} · ${nombre}`}
+      centered
+      size="lg"
+      zIndex={SOBRE_FICHA}
+    >
+      <SimpleGrid cols={{ base: 1, sm: sinCuota ? 2 : 3 }} spacing="sm">
         <Select
           label="Plan"
           // Mientras carga, un selector vacío parece "este gym no tiene planes".
@@ -776,7 +809,7 @@ function PlanYCuotaModal({
             .map((p) => ({ value: p.id, label: `${p.name} · ${fmtQ(p.price, { decimals: 2 })}` }))}
           comboboxProps={{ withinPortal: true, zIndex: SOBRE_FICHA + 1 }}
         />
-        <NumberInput
+        {!sinCuota && (<NumberInput
           label="Cuota personalizada"
           prefix="Q"
           min={0}
@@ -790,7 +823,7 @@ function PlanYCuotaModal({
           })()}
           value={form.fee}
           onChange={(fee) => setForm({ ...form, fee })}
-        />
+        />)}
         <Select
           label="Oferta"
           placeholder="Sin oferta"

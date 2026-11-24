@@ -1505,6 +1505,9 @@ export function useReceptionCheckin(gymId: string, classId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["class-checkins", gymId, classId] });
+      // La lista de Recepción lee el roster, no los check-ins: sin esto el Sign In
+      // quedaba guardado (201) y la fila seguía diciendo «Reservó».
+      qc.invalidateQueries({ queryKey: ["class-roster", gymId, classId] });
       qc.invalidateQueries({ queryKey: ["membership-detail", gymId] });
     },
   });
@@ -3331,8 +3334,109 @@ export function useAccessAdmit(gymId: string, gymClassId: string) {
       ).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["class-checkins", gymId, gymClassId] });
+      qc.invalidateQueries({ queryKey: ["class-roster", gymId, gymClassId] });
       qc.invalidateQueries({ queryKey: ["access-search", gymId] });
       qc.invalidateQueries({ queryKey: ["gym-classes", gymId] });
+    },
+  });
+}
+
+export type AccessResolve = components["schemas"]["AccessResolve"];
+export type ClassRosterRow = components["schemas"]["ClassRosterRow"];
+
+/**
+ * Lee un código en la puerta (carnet del atleta, pase drop-in o QR de clase). NO
+ * escribe nada: admitir es aparte. Es lo único que encuentra a un visitante de
+ * OTRO box (el buscador por nombre solo ve a la gente de este gimnasio): su
+ * carnet trae la acción `sell_dropin`. En el panel el código llega pegado o por
+ * una lectora USB, que «teclea» el contenido del QR.
+ */
+export function useAccessResolve(gymId: string, gymClassId?: string) {
+  return useMutation({
+    mutationFn: async (code: string) =>
+      (
+        await api.post<AccessResolve>(`/gym/${gymId}/access/resolve`, {
+          code,
+          gym_class_id: gymClassId || null,
+        })
+      ).data,
+  });
+}
+
+/**
+ * Lista de UNA clase para pasar lista: quienes reservaron (y su lista de espera),
+ * con su estado. Con `q` además busca socios que NO reservaron (walk-ins).
+ * Admin, coach y recepción (`ROLES_OPERAN_CLASES`).
+ */
+export function useClassRoster(gymId: string, classId: string) {
+  return useQuery({
+    queryKey: ["class-roster", gymId, classId],
+    queryFn: async () =>
+      (await api.get<ClassRosterRow[]>(`/gym/${gymId}/classes/${classId}/roster`)).data,
+    enabled: !!gymId && !!classId,
+  });
+}
+
+function refrescarLista(qc: ReturnType<typeof useQueryClient>, gymId: string, classId: string) {
+  qc.invalidateQueries({ queryKey: ["class-roster", gymId, classId] });
+  qc.invalidateQueries({ queryKey: ["class-checkins", gymId, classId] });
+  qc.invalidateQueries({ queryKey: ["gym-classes", gymId] });
+  qc.invalidateQueries({ queryKey: ["access-search", gymId] });
+}
+
+/**
+ * No Show de una reserva (`marcar: true`) o deshacerlo (`false`). No resta puntos
+ * ni gasta clase del plan, y libera el lugar a la lista de espera si la clase no
+ * ha empezado. Se deshace mientras la ventana de asistencia siga abierta.
+ */
+export function useNoShow(gymId: string, classId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ reservationId, marcar }: { reservationId: string; marcar: boolean }) => {
+      const url = `/gym/${gymId}/classes/${classId}/reservations/${reservationId}/no-show`;
+      return (marcar ? await api.post(url) : await api.delete(url)).data;
+    },
+    onSuccess: () => refrescarLista(qc, gymId, classId),
+  });
+}
+
+/** Quita una asistencia mal puesta (y los puntos que dio). */
+export function useUndoCheckin(gymId: string, classId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (checkinId: string) =>
+      (await api.delete(`/gym/${gymId}/classes/${classId}/checkins/${checkinId}`)).data,
+    onSuccess: () => refrescarLista(qc, gymId, classId),
+  });
+}
+
+/** Pases drop-in ACTIVOS del gym (el catálogo público, el mismo que ve el atleta). */
+export function usePublicDropins(gymId: string) {
+  return useQuery({
+    queryKey: ["public-dropins", gymId],
+    queryFn: () => getList<DropinProduct>(`/gyms/${gymId}/dropins`),
+    enabled: !!gymId,
+  });
+}
+
+export type DropinCounterSale = components["schemas"]["DropinCounterSale"];
+
+/**
+ * Vende un pase en el mostrador y lo cobra en el momento: efectivo, transferencia
+ * o el datáfono del gym (`card`). Va como pago MANUAL: sin recargo de Nucleo. El
+ * pase nace pagado y ya abre la puerta. Admin y recepción.
+ */
+export function useSellDropin(gymId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: DropinCounterSale) =>
+      (await api.post<{ id: string; product_name: string; amount: string }>(
+        `/gym/${gymId}/dropins/sell`,
+        body,
+      )).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["access-search", gymId] });
+      qc.invalidateQueries({ queryKey: ["payments", gymId] });
     },
   });
 }
@@ -3345,12 +3449,17 @@ export function useAccessAdmit(gymId: string, gymClassId: string) {
  * Contracargos que sufrió ESTE gimnasio. El aislamiento lo impone el backend con
  * el `gym_id` de la URL; aquí solo se filtra por estado.
  */
-export function useGymChargebacks(gymId: string, status?: ChargebackStatus | "") {
+export function useGymChargebacks(
+  gymId: string,
+  status?: ChargebackStatus | "",
+  /** `false` para quien no administra: la consulta sería un 403 seguro. */
+  activo = true,
+) {
   const qs = status ? `?status=${status}` : "";
   return useQuery({
     queryKey: ["chargebacks", gymId, status ?? ""],
     queryFn: () => getList<Chargeback>(`/gym/${gymId}/billing/chargebacks${qs}`),
-    enabled: !!gymId,
+    enabled: !!gymId && activo,
   });
 }
 

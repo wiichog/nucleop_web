@@ -27,6 +27,7 @@ import { TicketsPage } from "./pages/TicketsPage";
 import { ClubAdminPage } from "./pages/ClubAdminPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { PosPage } from "./pages/PosPage";
+import { RecepcionPage } from "./pages/RecepcionPage";
 import { ExpensesPage } from "./pages/ExpensesPage";
 import { BusinessReportPage } from "./pages/BusinessReportPage";
 import { ClubsPage } from "./pages/ClubsPage";
@@ -103,6 +104,7 @@ export default function AdminShell() {
           <Route path="contenido-clubes" element={<ClubContentPage />} />
           <Route path="inventario" element={<InventoryPage />} />
           <Route path="pos" element={<PosPage />} />
+          <Route path="recepcion" element={<RecepcionPage />} />
           <Route path="gastos" element={<ExpensesPage />} />
           <Route path="reportes" element={<BusinessReportPage />} />
           {/* Sucursales eliminadas: cada sucursal se maneja como un gimnasio aparte. */}

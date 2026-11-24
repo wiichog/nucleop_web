@@ -487,4 +487,82 @@ export const manualesOperacionResto: ManualesPorRuta = {
       { label: "Atletas", href: "/panel/atletas" },
     ],
   },
+  "/panel/recepcion": {
+    titulo: "Recepción",
+    paraQue:
+      "La pantalla del mostrador: lees el carnet o el pase de quien llega, pasas lista de la clase de ahora y le vendes un pase drop-in a quien no es socio. Es la pantalla principal de la recepción y al administrador también le sirve.",
+    tareas: [
+      {
+        titulo: "Dejar entrar a quien trae su carnet o su pase",
+        pasos: [
+          "Haz clic en «Carnet o pase» y escanea el QR con la lectora (o pega el código) y presiona «Leer».",
+          "Aparece la persona con su relación con el gimnasio y lo que se puede hacer.",
+          "Toca el botón de entrar (por ejemplo «Marcar presente»). Si no se puede, debajo dice por qué.",
+          "Toca «Listo» para limpiar y leer al siguiente.",
+        ],
+        nota:
+          "Leer el código no registra nada: hasta que tocas el botón no cuenta. El carnet sirve en cualquier gimnasio de Nucleo, así que también encuentras a un visitante de otro box.",
+      },
+      {
+        titulo: "Pasar lista de la clase",
+        pasos: [
+          "En «Clase de hoy», revisa que esté elegida la clase correcta (se elige sola la de ahora; la que dice «lista abierta» es la que se puede marcar).",
+          "A quien llegó, tócale «Sign In».",
+          "A quien reservó y no vino, tócale «No Show» y confirma con «Marcar No Show».",
+          "Si te equivocaste: «Deshacer» quita un No Show, y «Quitar» le quita la asistencia a alguien (confirma con «Quitar asistencia»).",
+        ],
+        nota:
+          "La lista se abre 30 minutos antes de la clase y se cierra 1 hora después de que termina. Una clase solo se le paga al coach si al menos una persona quedó presente. El No Show no le quita puntos al atleta ni le descuenta la clase de su plan.",
+      },
+      {
+        titulo: "Marcar a alguien que llegó sin reservar",
+        pasos: [
+          "En «Buscar a quien llegó», escribe su nombre o los últimos dígitos de su teléfono.",
+          "Toca «Marcar presente».",
+        ],
+        nota:
+          "El buscador solo encuentra a gente que ya tiene relación con tu gimnasio. A un visitante nuevo léele su carnet arriba.",
+      },
+      {
+        titulo: "Vender un pase drop-in",
+        pasos: [
+          "Toca «Vender pase» en la persona (sale al leer su carnet o al buscarla, cuando no es socia).",
+          "Elige el pase, cómo paga («Efectivo», «Transferencia» o «Datáfono») y, si pide factura, su NIT y nombre.",
+          "Cobra primero y luego presiona «Cobrar» con el monto.",
+        ],
+        nota:
+          "El pase queda pagado en ese momento y ya puede entrar: márcala presente. No lleva el cargo de Nucleo por pago en línea, porque el dinero lo recibe el gimnasio directamente.",
+      },
+      {
+        titulo: "Mostrar el QR de la clase",
+        pasos: ["Abajo de la lista está el «QR de asistencia»: enséñalo a quien llegó sin reservar para que lo escanee desde su app."],
+      },
+    ],
+    conceptos: [
+      { termino: "Reservó", detalle: "Tiene lugar en la clase y todavía no está marcado." },
+      { termino: "Presente / Walk-in", detalle: "Ya está marcado. «Walk-in» es quien entró sin reserva." },
+      { termino: "No Show", detalle: "Reservó y no vino. Se puede deshacer mientras la lista esté abierta." },
+      { termino: "Lista de espera", detalle: "Está esperando lugar; todavía no tiene cupo." },
+    ],
+    problemas: [
+      {
+        sintoma: "Los botones de la lista están apagados.",
+        solucion:
+          "La lista de esa clase todavía no abre o ya cerró (30 minutos antes a 1 hora después). Elige la clase de ahora.",
+      },
+      {
+        sintoma: "Una persona dice «Sin membresía ni pase».",
+        solucion: "No tiene plan vigente ni pase. Véndele un pase o cóbrale su cuota en «Membresías».",
+      },
+      {
+        sintoma: "El botón «Vender pase» no aparece o está apagado.",
+        solucion: "El gimnasio no tiene pases drop-in activos. El administrador los crea en Clases → «Drop-ins / Pases».",
+      },
+    ],
+    relacionadas: [
+      { label: "Membresías", href: "/panel/pagos" },
+      { label: "Atletas", href: "/panel/atletas" },
+      { label: "Punto de venta", href: "/panel/pos" },
+    ],
+  },
 };

@@ -27,7 +27,7 @@ import { NoGymAssigned, PageError } from "../components/PageStatus";
 import { GlassCard } from "../components/aurora";
 import { PageHeader, StatusBadge } from "../components/ui";
 import { Encabezado, Tarjeta } from "../components/Tarjeta";
-import { useAuth } from "../lib/auth";
+import { administraGym, useAuth } from "../lib/auth";
 import { errMsg } from "../lib/errors";
 import { fmtQ } from "../lib/money";
 import { InvitarAtletaModal } from "./usuarios/InvitarAtletaModal";
@@ -181,10 +181,16 @@ function ResponderModal({
   request,
   gymId,
   onClose,
+  esAdmin,
 }: {
   request: JoinRequest | null;
   gymId: string;
   onClose: () => void;
+  /**
+   * La recepción también decide y asigna plan, pero sin cuota personalizada: el
+   * precio lo pone el admin (el backend le contesta 403 `custom_fee_admin_only`).
+   */
+  esAdmin: boolean;
 }) {
   const decide = useDecideJoinRequest(gymId);
   const assign = useAssignPlan(gymId);
@@ -243,7 +249,12 @@ function ResponderModal({
     const fee =
       typeof customFee === "number" ? String(customFee) : customFee.replace(/,/g, "").trim();
     assign.mutate(
-      { membershipId, planId, customFee: fee === "" ? null : fee, offerId: offerId ?? undefined },
+      {
+        membershipId,
+        planId,
+        customFee: !esAdmin ? undefined : fee === "" ? null : fee,
+        offerId: offerId ?? undefined,
+      },
       {
         onSuccess: (saved) => {
           ok(mensajeAsignacion(saved));
@@ -327,7 +338,7 @@ function ResponderModal({
 
       {needsPlan && (
         <>
-          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+          <SimpleGrid cols={{ base: 1, sm: esAdmin ? 3 : 2 }} spacing="sm">
             <Select
               label="Plan"
               // Mientras carga, un selector vacío parece "este gym no tiene planes".
@@ -347,6 +358,7 @@ function ResponderModal({
             />
             {/* Numérico y con la moneda a la vista: "350 al mes" o "Q350" en texto
                 libre viajaban al backend como cuota inválida. */}
+            {esAdmin && (
             <NumberInput
               label="Cuota personalizada"
               prefix="Q"
@@ -359,6 +371,7 @@ function ResponderModal({
               value={customFee}
               onChange={setCustomFee}
             />
+            )}
             <Select
               label="Oferta"
               placeholder="Sin oferta"
@@ -389,8 +402,9 @@ function ResponderModal({
 }
 
 export function RequestsPage() {
-  const { primaryGymId } = useAuth();
+  const { primaryGymId, roles, isSuperuser } = useAuth();
   const gymId = primaryGymId ?? "";
+  const esAdmin = administraGym(roles, isSuperuser, gymId);
   const requests = useJoinRequests(gymId);
   const [search, setSearch] = useState("");
   const [invitando, setInvitando] = useState(false);
@@ -445,9 +459,12 @@ export function RequestsPage() {
               w={{ base: "100%", sm: 220 }}
             />
           )}
-          <Button leftSection={<UserPlus size={16} />} onClick={() => setInvitando(true)}>
-            Invitar atleta
-          </Button>
+          {/* Invitar es solo del admin (`GymInvitationView` → GYM_ADMIN). */}
+          {esAdmin && (
+            <Button leftSection={<UserPlus size={16} />} onClick={() => setInvitando(true)}>
+              Invitar atleta
+            </Button>
+          )}
         </Encabezado>
 
         {requests.isLoading ? (
@@ -480,7 +497,12 @@ export function RequestsPage() {
         )}
       </GlassCard>
 
-      <ResponderModal request={abierta} gymId={gymId} onClose={() => setAbierta(null)} />
+      <ResponderModal
+        request={abierta}
+        gymId={gymId}
+        onClose={() => setAbierta(null)}
+        esAdmin={esAdmin}
+      />
       <InvitarAtletaModal gymId={gymId} opened={invitando} onClose={() => setInvitando(false)} />
     </div>
   );
