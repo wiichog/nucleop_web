@@ -1090,10 +1090,23 @@
   --modal-content-height: var(--nucleo-vvh, 100dvh);
 }
 
+/* El scroll de modales y drawers. Los dos son `Paper` por dentro, y el tema le
+   pone a TODO Paper `.a-glass-card`, cuyo `overflow: hidden` (0,2,0) le ganaba
+   al `overflow-y: auto` de Mantine (0,1,0): una ventana más alta que la
+   pantalla quedaba cortada y sin scroll (crear workout en el celular). Se
+   devuelve el scroll vertical; el horizontal sigue recortando al radio. */
+.mantine-Paper-root.mantine-Modal-content.a-glass-card,
+.mantine-Paper-root.mantine-Drawer-content.a-glass-card {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 @media (max-width: 767.98px) {
-  /* Margen de 5dvh/5vw desperdiciaba un cuarto del celular. */
+  /* Margen de 5dvh/5vw desperdiciaba un cuarto del celular. Mantine escribe
+     `--modal-y-offset` en el `style` del root: sin `!important` no se aplicaba. */
   .mantine-Modal-root {
-    --modal-y-offset: 12px;
+    --modal-y-offset: 12px !important;
     --modal-x-offset: 10px;
   }
   /* Con el teclado abierto, centrar baila con cada tecla que cambia el alto:

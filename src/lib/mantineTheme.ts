@@ -133,7 +133,9 @@ export const mantineTheme = createTheme({
       },
       classNames: { content: "nucleo-glass" },
       styles: {
-        header: { background: "transparent" },
+        // El header es pegajoso: transparente, el cuerpo se le encimaba al
+        // hacer scroll. Mismo tono que el vidrio, casi opaco.
+        header: { background: "rgba(17, 17, 23, 0.96)" },
         title: { fontFamily: DISPLAY, fontWeight: 600, letterSpacing: "-0.01em" },
       },
     },
@@ -143,7 +145,9 @@ export const mantineTheme = createTheme({
       },
       classNames: { content: "nucleo-glass" },
       styles: {
-        header: { background: "transparent" },
+        // El header es pegajoso: transparente, el cuerpo se le encimaba al
+        // hacer scroll. Mismo tono que el vidrio, casi opaco.
+        header: { background: "rgba(17, 17, 23, 0.96)" },
         title: { fontFamily: DISPLAY, fontWeight: 600, letterSpacing: "-0.01em" },
       },
     },
