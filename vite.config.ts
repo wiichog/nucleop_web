@@ -25,5 +25,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    // Vitest entrega los .css vacíos; los `?raw` sí se leen (modalScroll.test.tsx
+    // revisa la cascada real de aurora.css contra la de Mantine).
+    css: { include: [/\.css\?raw$/] },
   },
 });
