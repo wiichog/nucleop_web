@@ -26,8 +26,9 @@ export function thumb(size: number, round = false) {
 }
 
 /**
- * Fotos y videos de una publicación. `width` + `maxWidth: 100%`: en el celular
- * se encogen con la tarjeta en vez de desbordarla.
+ * Fotos, videos o el GIF de una publicación. `width` + `maxWidth: 100%`: en el
+ * celular se encogen con la tarjeta en vez de desbordarla. El GIF es un `<img>`
+ * más (el navegador lo anima solo).
  */
 export function Medios({ media, ancho = 280 }: { media: FeedMedia[]; ancho?: number }) {
   if (!media.length) return null;
@@ -39,7 +40,13 @@ export function Medios({ media, ancho = 280 }: { media: FeedMedia[]; ancho?: num
           // los videos y fotos de golpe en datos móviles.
           <video key={i} src={m.url} controls preload="metadata" style={{ ...MEDIA_FRAME, width: ancho, maxWidth: "100%" }} />
         ) : (
-          <img key={i} src={m.url} alt="" loading="lazy" style={{ ...MEDIA_FRAME, width: ancho, maxWidth: "100%" }} />
+          <img
+            key={i}
+            src={m.url}
+            alt={m.kind === "gif" ? "GIF" : ""}
+            loading="lazy"
+            style={{ ...MEDIA_FRAME, width: ancho, maxWidth: "100%" }}
+          />
         ),
       )}
     </Group>

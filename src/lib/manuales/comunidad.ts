@@ -21,7 +21,7 @@ export const manualesComunidad: ManualesPorRuta = {
         titulo: "Aprobar o rechazar una publicación de un atleta o coach",
         pasos: [
           "En «Moderar», busca el grupo «Publicaciones».",
-          "Revisa el texto, las fotos o videos, y las etiquetas («Reportado ×…», «IA: …»). Toca una etiqueta naranja o gris para ver qué significa.",
+          "Revisa el texto, las fotos, videos o el GIF, y las etiquetas («Reportado ×…», «IA: …»). Toca una etiqueta naranja o gris para ver qué significa.",
           "Presiona «Aprobar» para que salga al feed, o «Rechazar…» para no publicarla.",
           "Si rechazas, en la ventana «Rechazar publicación» elige el «Motivo», escribe si quieres una «Nota para el autor (opcional)» y presiona «Rechazar».",
         ],
@@ -42,10 +42,11 @@ export const manualesComunidad: ManualesPorRuta = {
       {
         titulo: "Revisar etiquetas, respuestas y GIFs",
         pasos: [
-          "Tus atletas ahora pueden etiquetar a otros atletas de tu gimnasio escribiendo @ y su nombre, responder a un comentario y mandar un GIF en sus comentarios.",
+          "Tus atletas ahora pueden etiquetar a otros atletas de tu gimnasio escribiendo @ y su nombre, responder a un comentario y mandar un GIF en sus comentarios y publicaciones.",
           "En «Moderar» y en «Feed», el nombre de cada persona etiquetada sale resaltado dentro del texto (por ejemplo, «@Ana López»).",
           "Si un comentario reportado es respuesta a otro, lleva la etiqueta «Respuesta a un comentario».",
           "Si el comentario trae un GIF, lo ves debajo del texto, igual que una foto. Junto a la fecha ves también las reacciones que tenía.",
+          "Una publicación con GIF llega a «Publicaciones» como cualquier otra y la apruebas o rechazas igual; el GIF se ve donde irían las fotos.",
           "Se modera igual que cualquier comentario: «Restaurar» para que vuelva a verse o «Eliminar…» para borrarlo, con su motivo.",
         ],
         nota:
@@ -190,7 +191,7 @@ export const manualesComunidad: ManualesPorRuta = {
       {
         termino: "GIF",
         detalle:
-          "Una imagen animada que el atleta eligió del buscador del app. Solo se puede poner en comentarios, no en publicaciones.",
+          "Una imagen animada que el atleta eligió del buscador del app. Se puede poner en un comentario o en una publicación; una publicación lleva fotos o video, o un GIF, no las dos cosas. La moderación automática no revisa los GIF: el buscador ya solo ofrece GIF aptos, y la decisión de aprobar sigue siendo tuya.",
       },
       {
         termino: "Motivo",

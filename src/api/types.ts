@@ -219,7 +219,8 @@ export interface FeedItem {
 
 export interface FeedMedia {
   url: string;
-  kind: "image" | "video";
+  /** `gif`: GIF de GIPHY de la publicación (`AthletePost.gif_url`); va al final de `media`. */
+  kind: "image" | "video" | "gif";
 }
 
 /**

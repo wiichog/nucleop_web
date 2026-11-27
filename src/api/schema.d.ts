@@ -6758,6 +6758,8 @@ export interface components {
             /** Format: uri */
             readonly photo: string;
             readonly media: components["schemas"]["PostMedia"][];
+            /** Format: uri */
+            gif_url?: string;
             readonly mentions: components["schemas"]["Mention"][];
             readonly status: components["schemas"]["ModerationStatus"];
             readonly status_display: string;
@@ -6774,6 +6776,8 @@ export interface components {
             body?: string;
             /** Format: uri */
             photo?: string;
+            /** @default  */
+            gif_url: string;
             mention_ids?: string[];
         };
         /**
@@ -7916,6 +7920,8 @@ export interface components {
             gym: string;
             /** @default  */
             body: string;
+            /** @default  */
+            gif_url: string;
             mention_ids?: string[];
         };
         /** @description Estado de la oferta de PT del coach en un gym (respuesta del PATCH). */
@@ -8299,6 +8305,7 @@ export interface components {
             /** Format: uuid */
             readonly athlete: string;
             readonly athlete_name: string;
+            readonly athlete_avatar: string | null;
             readonly body: string;
             /** Format: uri */
             readonly image: string;
@@ -10381,6 +10388,8 @@ export interface components {
             body?: string;
             /** Format: uri */
             photo?: string;
+            /** @default  */
+            gif_url: string;
             mention_ids?: string[];
         };
         PatchedBillingGroupUpdate: {
@@ -11333,9 +11342,10 @@ export interface components {
         /**
          * @description * `image` - Foto
          *     * `video` - Video
+         *     * `gif` - GIF
          * @enum {string}
          */
-        PostMediaKindEnum: "image" | "video";
+        PostMediaKindEnum: "image" | "video" | "gif";
         /** @description El atleta denuncia un post; el motivo es opcional. */
         PostReport: {
             reason?: string;
@@ -11995,6 +12005,7 @@ export interface components {
             /** Format: uuid */
             readonly athlete: string;
             readonly athlete_name: string;
+            readonly athlete_avatar: string | null;
             readonly body: string;
             /** Format: uri */
             readonly image: string;
@@ -12867,10 +12878,16 @@ export interface components {
             /** Format: uuid */
             readonly id: string;
             readonly url: string | null;
-            kind?: components["schemas"]["PostMediaKindEnum"];
+            kind?: components["schemas"]["WodResultMediaKindEnum"];
             /** Format: date-time */
             readonly created_at: string;
         };
+        /**
+         * @description * `image` - Foto
+         *     * `video` - Video
+         * @enum {string}
+         */
+        WodResultMediaKindEnum: "image" | "video";
         WodResultReactionInput: {
             reaction?: string | null;
         };
